@@ -1,0 +1,30 @@
+{
+    "include": [
+        "src/**/*"
+    ],
+    "exclude": [
+        "node_modules"
+    ],
+    "ts-node": {
+        "require": [
+            "tsconfig-paths/register"
+        ],
+    },
+    "compilerOptions": {
+        "outDir": "./dist",
+        "baseUrl": "./src",
+        "paths": {
+            "@/*": [
+                "./*"
+            ]
+        },
+        "strict": true,
+        "forceConsistentCasingInFileNames": true,
+        "skipLibCheck": true,
+        "esModuleInterop": true,
+        "module": "commonjs",
+        "target": "es6",
+        "moduleResolution": "node",
+        "rootDir": "./src"
+    }
+}

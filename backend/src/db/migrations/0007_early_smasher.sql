@@ -1,0 +1,1 @@
+ALTER TABLE "modpacks" ADD COLUMN "trailer_url" text;

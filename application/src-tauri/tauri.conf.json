@@ -1,0 +1,68 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeDevCommand": "pnpm dev",
+    "frontendDist": "../dist",
+    "beforeBuildCommand": "pnpm build",
+    "devUrl": "http://localhost:1420"
+  },
+  "bundle": {
+    "createUpdaterArtifacts": true,
+    "active": true,
+    "targets": [
+      "msi",
+      "appimage"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "wix": {
+        "dialogImagePath": "./resources/installer_bg.bmp"
+      }
+    },
+    "linux": {
+      "appimage": {
+        "bundleMediaFramework": false
+      }
+    }
+  },
+  "productName": "Modpack Store",
+  "mainBinaryName": "ModpackStore",
+  "version": "0.0.224",
+  "identifier": "dev.alexitoo.modpackstore",
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDEzOTk1M0Q3MTEzNkIyNUYKUldSZnNqWVIxMU9aRS9RRCtjYmtTZkdEbDZVT3BWc1dZUzZZTjNXRWNxMmRmNThnSWFjZk12Y1EK",
+      "endpoints": [
+        "https://github.com/ModpackStore/ModpackStore-Releases/releases/download/canary/latest.json",
+        "https://www.alexitoo.dev/api/modpack-store/updates.json",
+        "https://saltouruguayserver.com/api/partner-software/modpackstore/{{target}}/{{arch}}/{{current_version}}"
+      ]
+    }
+  },
+  "app": {
+    "security": {
+      "csp": null,
+      "capabilities": [
+        "migrated"
+      ]
+    },
+    "windows": [
+      {
+        "title": "Modpack Store",
+        "width": 960,
+        "height": 600,
+        "resizable": true,
+        "minHeight": 600,
+        "minWidth": 960,
+        "decorations": false,
+        "center": true
+      }
+    ]
+  }
+}
