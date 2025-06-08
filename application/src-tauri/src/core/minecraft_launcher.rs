@@ -1,5 +1,8 @@
 use crate::config::get_config_manager;
 use crate::core::accounts_manager::AccountsManager;
+use crate::core::minecraft::classpath::ClasspathBuilder;
+use crate::core::minecraft::manifest::ManifestParser;
+use crate::core::minecraft::paths::MinecraftPaths;
 use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
 use crate::interfaces::game_launcher::GameLauncher;
 use serde_json::{Map, Value};
@@ -350,349 +353,47 @@ impl MinecraftLauncher {
         jvm_args
     }
 
-    // Build the classpath from the manifest, removing duplicates robustly
-    fn build_classpath(
-        &self,
-        manifest_json: &Value,
-        client_jar: &Path,
-        libraries_dir: &Path,
-    ) -> String {
-        let mut entries = Vec::new();
-        // 1) Incluir el JAR del cliente
-        let client_path = client_jar.to_string_lossy().to_string();
-        entries.push(client_path.clone());
-
-        // 2) Para evitar duplicados
-        let mut seen: HashSet<String> = HashSet::new();
-        seen.insert(client_path);
-
-        // Separador de classpath según OS
-        let sep = if cfg!(windows) { ";" } else { ":" };
-
-        // Función auxiliar para añadir si no existe
-        let mut add_if_new = |path: &Path| {
-            if path.exists() {
-                let s = path.to_string_lossy().to_string();
-                if seen.insert(s.clone()) {
-                    entries.push(s);
-                }
-            }
-        };
-
-        // Procesar todas las librerías del manifest
-        if let Some(libs) = manifest_json.get("libraries").and_then(|v| v.as_array()) {
-            for lib in libs {
-                // Reglas de inclusión opcionales
-                let include = lib
-                    .get("rules")
-                    .and_then(|r| r.as_array())
-                    .map(|rules| rules.iter().any(|rule| self.should_apply_rule(rule, None)))
-                    .unwrap_or(true);
-                if !include {
-                    continue;
-                }
-
-                // 2.1) Artifact genérico
-                if let Some(path_val) = lib
-                    .get("downloads")
-                    .and_then(|d| d.get("artifact"))
-                    .and_then(|a| a.get("path"))
-                    .and_then(Value::as_str)
-                {
-                    let jar =
-                        libraries_dir.join(path_val.replace('/', &MAIN_SEPARATOR.to_string()));
-                    add_if_new(&jar);
-                }
-
-                // 2.2) Classifiers nativos
-                if let Some(classifiers) = lib
-                    .get("downloads")
-                    .and_then(|d| d.get("classifiers"))
-                    .and_then(Value::as_object)
-                {
-                    // Elegir classifier según OS
-                    let os_classifier = if cfg!(windows) {
-                        "natives-windows"
-                    } else if cfg!(target_os = "linux") {
-                        "natives-linux"
-                    } else {
-                        // macOS
-                        "natives-macos"
-                    };
-                    if let Some(info) = classifiers.get(os_classifier) {
-                        if let Some(path_val) = info.get("path").and_then(Value::as_str) {
-                            let native_jar = libraries_dir
-                                .join(path_val.replace('/', &MAIN_SEPARATOR.to_string()));
-                            add_if_new(&native_jar);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Unir en una cadena final
-        entries.join(sep)
-    }
-
-    // Load and merge vanilla and forge manifests if needed
-    fn load_merged_manifest(&self, game_dir: &Path, minecraft_version: &str) -> Option<Value> {
-        let version_dir = game_dir.join("versions").join(minecraft_version);
-        let manifest_file = version_dir.join(format!("{}.json", minecraft_version));
-
-        log::info!("Loading version manifest from {}", manifest_file.display());
-
-        // Read modded manifest file
-        let manifest_data = match fs::read_to_string(&manifest_file) {
-            Ok(content) => content,
-            Err(e) => {
-                println!("Failed to read version manifest file: {}", e);
-                return None;
-            }
-        };
-
-        let mut manifest_json: Value = match serde_json::from_str(&manifest_data) {
-            Ok(json) => json,
-            Err(e) => {
-                println!("Failed to parse version manifest JSON: {}", e);
-                return None;
-            }
-        };
-
-        // Check if this is a modded instance that inherits from vanilla
-        if let Some(inherits_from) = manifest_json.get("inheritsFrom").and_then(|v| v.as_str()) {
-            println!("Found modded instance inheriting from {}", inherits_from);
-
-            // Load vanilla manifest
-            let vanilla_version_dir = game_dir.join("versions").join(inherits_from);
-            let vanilla_manifest_file = vanilla_version_dir.join(format!("{}.json", inherits_from));
-
-            let vanilla_manifest_data = match fs::read_to_string(&vanilla_manifest_file) {
-                Ok(content) => content,
-                Err(e) => {
-                    println!("Failed to read vanilla manifest file: {}", e);
-                    return Some(manifest_json); // Return modded manifest only if vanilla can't be found
-                }
-            };
-
-            let vanilla_manifest: Value = match serde_json::from_str(&vanilla_manifest_data) {
-                Ok(json) => json,
-                Err(e) => {
-                    println!("Failed to parse vanilla manifest JSON: {}", e);
-                    return Some(manifest_json); // Return modded manifest only if vanilla can't be parsed
-                }
-            };
-
-            // Merge manifests
-            return Some(self.merge_manifests(vanilla_manifest, manifest_json));
-        }
-
-        // Return the original manifest if it's not modded or doesn't inherit
-        Some(manifest_json)
-    }
-
-    /// Merge vanilla and forge manifests, ensuring arguments are combined correctly
-
-    pub fn merge_manifests(&self, vanilla: Value, forge: Value) -> Value {
-        fn extract_info(
-            lib: &Value,
-        ) -> Option<(
-            String,
-            String,
-            Option<String>,
-            Option<String>,
-            Option<String>,
-        )> {
-            let name = lib.get("name")?.as_str()?.to_string();
-            let parts: Vec<&str> = name.split(':').collect();
-            let ga = if parts.len() >= 2 {
-                format!("{}:{}", parts[0], parts[1])
-            } else {
-                name.clone()
-            };
-            let version = parts.get(2).map(|s| s.to_string());
-            let classifier = lib
-                .get("downloads")
-                .and_then(|d| d.get("artifact"))
-                .and_then(|a| a.get("classifier"))
-                .or_else(|| lib.get("classifier"))
-                .and_then(Value::as_str)
-                .map(String::from);
-            let url = lib.get("url").and_then(Value::as_str).map(String::from);
-            Some((name, ga, version, url, classifier))
-        }
-
-        fn prefer_forge(ga: &str, vver: &Option<String>, fver: &Option<String>) -> bool {
-            if ga.contains("log4j") {
-                if let (Some(v), Some(f)) = (vver, fver) {
-                    let cmp_v: Vec<i32> = v.split('.').filter_map(|p| p.parse().ok()).collect();
-                    let cmp_f: Vec<i32> = f.split('.').filter_map(|p| p.parse().ok()).collect();
-                    return cmp_f > cmp_v;
-                }
-            }
-            true
-        }
-
-        let mut result = vanilla.clone();
-        if let Some(mc) = forge.get("mainClass") {
-            result["mainClass"] = mc.clone();
-        }
-
-        let mut libs: BTreeMap<String, Value> = BTreeMap::new();
-        let mut duplicates: HashMap<String, Vec<String>> = HashMap::new();
-
-        if let Some(arr) = vanilla.get("libraries").and_then(Value::as_array) {
-            for lib in arr {
-                if let Some((_, ga, vver, _, classifier)) = extract_info(lib) {
-                    let key = if let Some(c) = &classifier {
-                        format!("{}:{}", ga, c)
-                    } else {
-                        ga.clone()
-                    };
-                    if libs.contains_key(&key) {
-                        duplicates
-                            .entry(ga.clone())
-                            .or_default()
-                            .push(format!("vanilla:{}", vver.clone().unwrap_or_default()));
-                    } else {
-                        libs.insert(key, lib.clone());
-                    }
-                }
-            }
-        }
-
-        if let Some(arr) = forge.get("libraries").and_then(Value::as_array) {
-            for lib in arr {
-                if let Some((_, ga, fver, furl, classifier)) = extract_info(lib) {
-                    let key = if let Some(c) = &classifier {
-                        format!("{}:{}", ga, c)
-                    } else {
-                        ga.clone()
-                    };
-
-                    if let Some(existing) = libs.get(&key) {
-                        let (_, _, vver, vurl, _) = extract_info(existing).unwrap();
-                        let is_dup = match (&vver, &fver) {
-                            (Some(_), Some(_)) => true,
-                            _ => furl == vurl,
-                        };
-                        duplicates
-                            .entry(ga.clone())
-                            .or_default()
-                            .push(format!("forge:{}", fver.clone().unwrap_or_default()));
-                        if is_dup {
-                            if prefer_forge(&ga, &vver, &fver) {
-                                libs.insert(key, lib.clone());
-                            }
-                        } else {
-                            libs.insert(key, lib.clone());
-                        }
-                    } else {
-                        duplicates
-                            .entry(ga.clone())
-                            .or_default()
-                            .push(format!("forge:{}", fver.clone().unwrap_or_default()));
-                        libs.insert(key, lib.clone());
-                    }
-                }
-            }
-        }
-
-        for (ga, sources) in duplicates.iter().filter(|(_, s)| s.len() > 1) {
-            log::info!("Duplicate {}: {}", ga, sources.join(", "));
-        }
-
-        result["libraries"] = Value::Array(libs.into_values().collect());
-
-        let mut args_map = Map::default();
-        for kind in &["game", "jvm"] {
-            let mut list = Vec::new();
-            if let Some(v) = vanilla
-                .get("arguments")
-                .and_then(|a| a.get(kind))
-                .and_then(Value::as_array)
-            {
-                list.extend(v.clone());
-            }
-            if let Some(f) = forge
-                .get("arguments")
-                .and_then(|a| a.get(kind))
-                .and_then(Value::as_array)
-            {
-                list.extend(f.clone());
-            }
-            if !list.is_empty() {
-                args_map.insert(kind.to_string(), Value::Array(list));
-            }
-        }
-        if !args_map.is_empty() {
-            result["arguments"] = Value::Object(args_map);
-        }
-
-        let mut kv = HashMap::new();
-        for src in [
-            vanilla.get("minecraftArguments"),
-            forge.get("minecraftArguments"),
-        ] {
-            if let Some(Value::String(s)) = src {
-                for pair in s.split_whitespace().collect::<Vec<_>>().chunks(2) {
-                    if let [k, v] = pair {
-                        kv.insert(k.to_string(), v.to_string());
-                    }
-                }
-            }
-        }
-        if !kv.is_empty() {
-            let merged_legacy = kv
-                .into_iter()
-                .map(|(k, v)| format!("{} {}", k, v))
-                .collect::<Vec<_>>()
-                .join(" ");
-            result["minecraftArguments"] = Value::String(merged_legacy);
-        }
-
-        result
-    }
-
     // Get the appropriate client JAR path based on whether it's modded or vanilla
-    fn get_client_jar_path(
-        &self,
-        game_dir: &Path,
-        manifest_json: &Value,
-        minecraft_version: &str,
-        forge_version: Option<&str>,
-    ) -> PathBuf {
+    fn get_client_jar_path(&self, manifest_json: &Value, paths: &MinecraftPaths) -> PathBuf {
         // For test, return vanilla client jar
-        let version_dir = game_dir
-            .join("versions")
-            .join(self.instance.minecraftVersion.clone());
-        let client_jar = version_dir.join(format!("{}.jar", self.instance.minecraftVersion));
+        // let version_dir = game_dir
+        //     .join("versions")
+        //     .join(self.instance.minecraftVersion.clone());
+        // let client_jar = version_dir.join(format!("{}.jar", self.instance.minecraftVersion));
 
-        return client_jar;
+        // return client_jar;
 
-        /*  // Check if this is a modded instance
-        if manifest_json.get("inheritsFrom").is_some() {
-            // client_jar is not on version folder
-            // get it from the libraries folder
-            // "C:\Users\alexb\ModpackStore\Instances\forgi16\minecraft\libraries\net\minecraftforge\forge\1.16.2-33.0.61\forge-1.16.2-33.0.61-client.jar"
-            if let Some(forge_version) = &self.instance.forgeVersion {
-                let libraries_path = game_dir.join("libraries").join(format!(
-                    "net/minecraftforge/forge/{}/forge-{}-client.jar",
-                    minecraft_version, forge_version
-                ));
-                return libraries_path;
+        if let Some(vanilla_version_id) = manifest_json.get("inheritsFrom").and_then(|v| v.as_str()) {
+            // Modded instance
+            if let Some(libraries) = manifest_json.get("libraries").and_then(|v| v.as_array()) {
+                for lib in libraries {
+                    if let Some(name) = lib.get("name").and_then(|n| n.as_str()) {
+                        // Heuristic: Identify Forge client JAR by name.
+                        // Example: "net.minecraftforge:forge:1.19.4-45.1.0:client"
+                        // Or sometimes just "net.minecraftforge:forge:1.19.4-45.1.0" and relies on vanilla
+                        if name.starts_with("net.minecraftforge:forge:") && name.ends_with(":client") {
+                            if let Some(artifact) = lib.get("downloads").and_then(|d| d.get("artifact")) {
+                                if let Some(path_str) = artifact.get("path").and_then(|p| p.as_str()) {
+                                    let client_jar_path = paths.libraries_dir().join(path_str.replace('/', &MAIN_SEPARATOR.to_string()));
+                                    if client_jar_path.exists() {
+                                        return client_jar_path;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            // For modded instances, the client JAR is usually in the libraries folder
-            let client_jar = game_dir.join("libraries").join(format!(
-                "net/minecraftforge/forge/{}/forge-{}-client.jar",
-                minecraft_version,
-                forge_version.unwrap_or("")
-            ));
-            return client_jar;
+            // If Forge client JAR not found in libraries, or if it's a newer Forge that uses vanilla JAR,
+            // use the vanilla JAR specified by inheritsFrom.
+            let version_dir = paths.versions_dir().join(vanilla_version_id);
+            return version_dir.join(format!("{}.jar", vanilla_version_id));
         } else {
-            // For vanilla, just use the standard path
-            let version_dir = game_dir.join("versions").join(minecraft_version);
-            return version_dir.join(format!("{}.jar", minecraft_version));
-        } */
+            // Vanilla instance
+            let version_id = &self.instance.minecraftVersion;
+            let version_dir = paths.versions_dir().join(version_id);
+            return version_dir.join(format!("{}.jar", version_id));
+        }
     }
 }
 
@@ -804,21 +505,18 @@ impl GameLauncher for MinecraftLauncher {
         println!("Game directory: {}", game_dir.display());
 
         // Load and possibly merge manifests
-        let manifest_json = match self.load_merged_manifest(&game_dir, &minecraft_version) {
-            Some(json) => json,
-            None => {
+        let mc_paths = crate::core::minecraft::paths::MinecraftPaths::new(&game_dir, &minecraft_version);
+        let manifest_parser = crate::core::minecraft::manifest::ManifestParser::new(mc_paths);
+        let manifest_json = match manifest_parser.load_merged_manifest() {
+            Ok(json) => json,
+            Err(_) => {
                 println!("Failed to load or merge manifests");
                 return None;
             }
         };
 
         // Get the appropriate client jar path
-        let client_jar = self.get_client_jar_path(
-            &game_dir,
-            &manifest_json,
-            &minecraft_version,
-            self.instance.forgeVersion.as_deref(),
-        );
+        let client_jar = self.get_client_jar_path(&manifest_json, &mc_paths);
 
         // Log paths for debugging
         println!("client_jar: {}", client_jar.display());
@@ -860,7 +558,8 @@ impl GameLauncher for MinecraftLauncher {
             .unwrap_or("legacy");
 
         // Build classpath
-        let classpath_str = self.build_classpath(&manifest_json, &client_jar, &libraries_dir);
+        let classpath_builder = crate::core::minecraft::classpath::ClasspathBuilder::new(&manifest_json, &mc_paths);
+        let classpath_str = classpath_builder.build(&client_jar);
 
         // Process game arguments from manifest
         let game_args = self.process_game_arguments(
