@@ -82,28 +82,57 @@ fn emit_event<T: Serialize + Clone>(event: &str, payload: Option<T>) -> Result<(
     main_window.emit(event, payload).map_err(|e| e.to_string())
 }
 
-// Success HTML page
-const SUCCESS_HTML: &str = r#"
+// Localized content for success page
+struct LocalizedContent {
+    lang_attr: &'static str,
+    title: &'static str,
+    heading: &'static str,
+    line1: &'static str,
+    line2: &'static str,
+    closing_message: &'static str,
+}
+
+const ES_CONTENT: LocalizedContent = LocalizedContent {
+    lang_attr: "es",
+    title: "Autenticación Exitosa",
+    heading: "¡Autenticación Exitosa!",
+    line1: "Has iniciado sesión correctamente.",
+    line2: "Puedes cerrar esta ventana y volver a la aplicación.",
+    closing_message: "Esta ventana se cerrará automáticamente en unos segundos.",
+};
+
+const EN_CONTENT: LocalizedContent = LocalizedContent {
+    lang_attr: "en",
+    title: "Authentication Successful",
+    heading: "Authentication Successful!",
+    line1: "You have successfully logged in.",
+    line2: "You can close this window and return to the application.",
+    closing_message: "This window will close automatically in a few seconds.",
+};
+
+// Success HTML page template
+const SUCCESS_HTML_TEMPLATE: &str = r#"
 <!DOCTYPE html>
-<html>
+<html lang="{lang_attr}">
 <head>
-    <title>Autenticación Exitosa</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; background-color: #f0f0f0; color: #333;}
-        .success { color: #4CAF50; font-size: 24px; }
-        .container { max-width: 500px; margin: 40px auto; padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        p { font-size: 16px; line-height: 1.5; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1 class="success">¡Autenticación Exitosa!</h1>
-        <p>Has iniciado sesión correctamente. Puedes cerrar esta ventana y volver a la aplicación.</p>
-        <p><em>Esta ventana se cerrará automáticamente.</em></p>
-    </div>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script>
-        setTimeout(() => window.close(), 2000);
+        setTimeout(() => window.close(), 3000);
     </script>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center h-screen font-sans">
+    <div class="bg-white p-10 rounded-xl shadow-2xl text-center max-w-lg mx-auto">
+        <svg class="w-16 h-16 text-green-500 mx-auto mb-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <h1 class="text-4xl font-bold text-gray-800 mb-4">{heading}</h1>
+        <p class="text-gray-600 text-lg mb-3">{line1}</p>
+        <p class="text-gray-600 text-lg mb-6">{line2}</p>
+        <p class="text-sm text-gray-500"><em>{closing_message}</em></p>
+    </div>
 </body>
 </html>
 "#;
@@ -222,7 +251,18 @@ async fn handle_callback(
         }
 
         // Devolver página de éxito
-        let mut response = Response::new(Body::from(SUCCESS_HTML));
+        // TODO: Implement language selection logic (e.g., based on system locale or user preference)
+        let selected_content = ES_CONTENT; // Defaulting to Spanish
+
+        let html_body = SUCCESS_HTML_TEMPLATE
+            .replace("{lang_attr}", selected_content.lang_attr)
+            .replace("{title}", selected_content.title)
+            .replace("{heading}", selected_content.heading)
+            .replace("{line1}", selected_content.line1)
+            .replace("{line2}", selected_content.line2)
+            .replace("{closing_message}", selected_content.closing_message);
+
+        let mut response = Response::new(Body::from(html_body));
         response.headers_mut().insert(
             hyper::header::CONTENT_TYPE,
             HeaderValue::from_static("text/html; charset=utf-8"),
