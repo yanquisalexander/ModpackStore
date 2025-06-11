@@ -58,4 +58,8 @@ updatedFrom:
   description: "Última versión desde la que se actualizó el launcher"
   ui_section: internal
 
-# Añadir más configuraciones aquí
+showSnapshots:
+  type: boolean
+  default: false
+  description: "Mostrar versiones de Minecraft Snapshot"
+  ui_section: gameplay

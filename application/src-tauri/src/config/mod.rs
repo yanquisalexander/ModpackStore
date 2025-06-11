@@ -93,7 +93,10 @@ impl ConfigManager {
             // No lanzar error si la clave no está en el esquema
             // Quizá sea de una versión anterior que ya no existe
             // Informamos y eliminamos el valor
-            log::warn!("La clave '{}' no está definida en el esquema de configuración", key);
+            log::warn!(
+                "La clave '{}' no está definida en el esquema de configuración",
+                key
+            );
             self.values.remove(key);
             // Guardar la configuración actualizada
             return Ok(());
@@ -120,6 +123,12 @@ impl ConfigManager {
     /// Obtiene el esquema de configuración
     pub fn get_schema(&self) -> &ConfigSchema {
         &self.schema
+    }
+
+    pub fn show_snapshot_versions(&self) -> bool {
+        self.get("showSnapshots")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
     }
 
     /// Métodos de conveniencia para valores específicos
@@ -162,9 +171,7 @@ impl ConfigManager {
     }
 
     pub fn get_minecraft_memory(&self) -> Option<u32> {
-        self.get("memory")
-            .and_then(Value::as_u64)
-            .map(|v| v as u32)
+        self.get("memory").and_then(Value::as_u64).map(|v| v as u32)
     }
 }
 
@@ -242,6 +249,17 @@ pub fn get_schema() -> Result<Value, String> {
     match get_config_manager().lock() {
         Ok(config_result) => match &*config_result {
             Ok(config) => Ok(json!(config.get_schema())),
+            Err(e) => Err(e.clone()),
+        },
+        Err(_) => Err("Error al obtener el bloqueo del gestor de configuración".to_string()),
+    }
+}
+
+#[tauri::command]
+pub fn get_config_value(key: String) -> Result<Option<Value>, String> {
+    match get_config_manager().lock() {
+        Ok(config_result) => match &*config_result {
+            Ok(config) => Ok(config.get(&key).cloned()),
             Err(e) => Err(e.clone()),
         },
         Err(_) => Err("Error al obtener el bloqueo del gestor de configuración".to_string()),

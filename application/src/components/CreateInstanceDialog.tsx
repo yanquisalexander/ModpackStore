@@ -43,12 +43,13 @@ type InstanceType = "vanilla" | "forge";
 // Props type definition
 interface CreateInstanceDialogProps {
     onInstanceCreated: () => void;
+    instanceNames: string[];
 }
 
 const LAUNCHER_VERSIONS_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
 const FORGE_VERSIONS_URL = "https://mc-versions-api.net/api/forge";
 
-export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialogProps) => {
+export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: CreateInstanceDialogProps) => {
     const [open, setOpen] = useState(false);
     const [instanceName, setInstanceName] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -59,11 +60,25 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
     const [selectedForgeVersion, setSelectedForgeVersion] = useState<string>("");
     const [loadingVersions, setLoadingVersions] = useState(false);
     const [compatibleForgeVersions, setCompatibleForgeVersions] = useState<string[]>([]);
+    const [showSnapshots, setShowSnapshots] = useState(false);
+
+    const checkShowSnapshots = async () => {
+        try {
+            const value = await invoke<boolean>('get_config_value', { key: 'showSnapshots' });
+            console.log("Show Snapshots config value:", value);
+            setShowSnapshots(value);
+        } catch (error) {
+            console.error("Error checking show snapshots:", error);
+        }
+    };
 
     // Fetch Minecraft versions when dialog opens
     useEffect(() => {
         if (open) {
-            fetchMinecraftVersions();
+            checkShowSnapshots().then(() => {
+                // Fetch Minecraft versions after checking showSnapshots config
+                fetchMinecraftVersions();
+            });
         }
     }, [open]);
 
@@ -87,9 +102,9 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
             const response = await fetch(LAUNCHER_VERSIONS_URL);
             const data = await response.json();
 
-            // Filter only release versions
+            // Filter versions: include snapshots if showSnapshots is true, otherwise only releases
             const releaseVersions = data.versions.filter((version: MinecraftVersion) =>
-                version.type === "release"
+                version.type === "release" || (showSnapshots && version.type === "snapshot")
             );
 
             setMinecraftVersions(releaseVersions);
@@ -108,6 +123,8 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
             setLoadingVersions(false);
         }
     };
+
+
 
     const fetchForgeVersions = async (): Promise<void> => {
         try {
@@ -221,7 +238,8 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
     const isCreateButtonDisabled = isLoading ||
         !instanceName.trim() ||
         !selectedMinecraftVersion ||
-        (selectedType === "forge" && !selectedForgeVersion);
+        (selectedType === "forge" && !selectedForgeVersion)
+        || instanceNames.includes(instanceName.trim());
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -261,6 +279,14 @@ export const CreateInstanceDialog = ({ onInstanceCreated }: CreateInstanceDialog
                             onChange={(e) => setInstanceName(e.target.value)}
                             placeholder="Mi nueva instancia"
                         />
+
+                        {
+                            instanceNames.includes(instanceName.trim()) && (
+                                <p className="text-red-400 text-sm mt-1">
+                                    El nombre de la instancia ya está en uso. Por favor, elige otro nombre.
+                                </p>
+                            )
+                        }
                     </div>
 
                     {

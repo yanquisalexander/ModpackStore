@@ -16,7 +16,7 @@ export const CreateInstanceDialog = ({
     onClose,
     modpackId,
     modpackName,
-    onConfirmCreate
+    onConfirmCreate,
 }: CreateInstanceDialogProps) => {
     const [instanceName, setInstanceName] = useState<string>("")
 

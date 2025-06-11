@@ -67,7 +67,9 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                 ))}
                 {
                     (!offlineMode || hasInternetAccess) && (
-                        <CreateInstanceDialog onInstanceCreated={fetchInstances} />
+                        <CreateInstanceDialog
+                            instanceNames={instances.map((i) => i.instanceName)}
+                            onInstanceCreated={fetchInstances} />
                     )
                 }
             </div>

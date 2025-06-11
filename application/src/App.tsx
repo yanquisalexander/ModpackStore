@@ -1,7 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useState } from "react";
 import "./App.css";
-import { Link, Route, Router, Switch, useLocation, useRouter } from "wouter";
+import { Route, Switch } from "wouter";
 import { HomeMainHeader } from "./components/home/MainHeader";
 import { toast } from "sonner";
 import { ExploreSection } from "./views/ExploreSection";

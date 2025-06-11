@@ -84,6 +84,7 @@ pub fn main() {
         .invoke_handler(tauri::generate_handler![
             config::get_config,
             config::get_schema,
+            config::get_config_value,
             config::set_config,
             core::network_utilities::check_connection,
             core::network_utilities::check_real_connection,
