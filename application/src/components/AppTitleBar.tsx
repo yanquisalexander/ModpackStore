@@ -1,6 +1,6 @@
 import { LucideArrowLeft, LucideDownload, LucideMinus, LucidePictureInPicture2, LucideSquare, LucideWifiOff, LucideX } from "lucide-react";
 import { useEffect, useState } from "react";
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { getCurrentWindow, Window } from '@tauri-apps/api/window';
 import { useGlobalContext } from "../stores/GlobalContext";
 import { Link } from "wouter";
 import { exit } from '@tauri-apps/plugin-process';
@@ -23,21 +23,32 @@ import { useCheckConnection } from "@/utils/checkConnection";
 import { useReloadApp } from "@/stores/ReloadContext";
 
 export const AppTitleBar = () => {
-    const [window, setWindow] = useState(getCurrentWindow());
-    const [isMaximized, setIsMaximized] = useState(false);
+    const [window, setWindow] = useState<Window | null>(null);
+    const [isMaximized, setIsMaximized] = useState<boolean | undefined>(undefined);
     const [isExitDialogOpen, setIsExitDialogOpen] = useState(false);
     const { titleBarState, updateState, applyUpdate } = useGlobalContext();
     const { isLoading: isLoadingConnectionCheck, isConnected } = useCheckConnection();
     const { showReloadDialog } = useReloadApp();
 
     useEffect(() => {
+        const initWindow = async () => {
+            const currentWindow = await getCurrentWindow();
+            setWindow(currentWindow);
+        };
+
+        initWindow().catch(error => {
+            console.error("Error initializing window:", error);
+        });
+    }, []);
+
+    useEffect(() => {
         const handleResize = async () => {
-            const maximized = await window.isMaximized();
+            const maximized = await window?.isMaximized();
             setIsMaximized(maximized);
         };
 
         const cleanup = async () => {
-            const unlisten = await window.onResized(handleResize);
+            const unlisten = await window?.onResized(handleResize);
             handleResize();
             return unlisten;
         };
@@ -45,7 +56,9 @@ export const AppTitleBar = () => {
         const unlistenPromise = cleanup();
 
         return () => {
-            unlistenPromise.then(unlisten => unlisten());
+            unlistenPromise.then(unlisten => {
+                if (unlisten) unlisten();
+            });
         };
     }, [window]);
 
@@ -59,10 +72,10 @@ export const AppTitleBar = () => {
 
     const handleMaximize = async () => {
         if (isMaximized) {
-            await window.unmaximize();
+            await window?.unmaximize();
             setIsMaximized(false);
         } else {
-            await window.maximize();
+            await window?.maximize();
             setIsMaximized(true);
         }
     };
@@ -72,12 +85,12 @@ export const AppTitleBar = () => {
     };
 
     const confirmClose = async () => {
-        await window.close();
+        await window?.close();
         exit(0); // Close the application after closing the window
     };
 
     const handleMinimize = () => {
-        window.minimize();
+        window?.minimize();
     };
 
     const showReloadOnOffline = !isLoadingConnectionCheck && !isConnected;
@@ -102,10 +115,13 @@ export const AppTitleBar = () => {
                             <LucideArrowLeft className="h-4 w-4 text-white" />
                         </Link>
 
-                        <div className={`flex gap-x-2 !pointer-events-none select-none duration-500 items-center justify-center text-white/80 transition ${!titleBarState.canGoBack ? '-translate-x-7' : ''}`}>
+                        <div
+                            data-tauri-drag-region
+                            className={`flex gap-x-2 select-none duration-500 items-center justify-center text-white/80 transition ${!titleBarState.canGoBack ? '-translate-x-7' : ''}`}>
                             {
                                 titleBarState.icon && typeof titleBarState.icon === "string" ? (
                                     <img
+                                        data-tauri-drag-region
                                         onError={(e) => {
                                             e.currentTarget.onerror = null; // Prevents looping
                                             e.currentTarget.src = "/images/modpack-fallback.webp"; // Fallback icon
@@ -116,12 +132,15 @@ export const AppTitleBar = () => {
                                     />
                                 ) : (
                                     titleBarState.icon ? (
-                                        <titleBarState.icon className={`size-6 p-0.5 rounded-md border border-solid border-white/10 ${titleBarState.customIconClassName ?? 'bg-pink-500/20'}`} />
+                                        <titleBarState.icon
+                                            data-tauri-drag-region
+                                            className={`size-6 p-0.5 rounded-md border border-solid border-white/10 ${titleBarState.customIconClassName ?? 'bg-pink-500/20'}`} />
                                     ) : null
                                 )
                             }
 
-                            <span className="text-sm font-normal">
+                            <span className="text-sm font-normal select-none pointer-events-none" data-tauri-drag-region
+                            >
                                 {titleBarState.title}
                             </span>
                         </div>

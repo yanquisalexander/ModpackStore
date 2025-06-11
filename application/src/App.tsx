@@ -113,7 +113,7 @@ function App() {
   return (
     <main className="overflow-y-auto h-full">
       <HomeMainHeader />
-      <div className="h-[calc(100vh-6rem)]">
+      <div className="">
         <Switch>
           <Route path="/" component={ExploreSection} />
           <Route path="/my-instances">

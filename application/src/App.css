@@ -57,10 +57,15 @@
 html,
 body,
 #root {
-  @apply h-full w-full custom-scrollbar;
+  @apply max-h-dvh w-full custom-scrollbar;
   /* Scrollar */
   --color-background: var(--color-ms-primary);
   scrollbar-color: #444 #181818FF;
+}
+
+#root {
+  @apply flex flex-col;
+  /* Centrado vertical y horizontal */
 }
 
 @utility with-ligatures {
