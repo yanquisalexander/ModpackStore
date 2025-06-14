@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'application/**'
 
 jobs:
   publish-canary:
@@ -30,6 +32,7 @@ jobs:
       - run: npm install -g pnpm
 
       - name: Install frontend dependencies
+        working-directory: application/
         run: pnpm install
 
       - name: Install Rust stable
@@ -38,7 +41,9 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          # Omit working-directory here, rust-cache automatically picks up on the correct Cargo.toml
+          # working-directory: application/ 
+          workspaces: './application/src-tauri -> ./application/target' # Path is relative to repo root
 
       - name: Install Linux build dependencies
         if: startsWith(matrix.platform, 'ubuntu')
@@ -52,6 +57,7 @@ jobs:
 
       - name: Build & Publish Canary Release
         uses: tauri-apps/tauri-action@v0
+        working-directory: application/
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
