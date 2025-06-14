@@ -1,30 +1,49 @@
-import { Router } from 'express';
+import { Hono, Context } from 'hono';
 import { APIError } from '../lib/APIError';
-import adminRoutes from './v1/admin.routes';
-import authRoutes from './v1/auth.routes';
-import exploreRoutes from './v1/explore.routes';
-import modpackRoutes from './v1/modpacks.routes';
-import versionRoutes from './v1/versions.routes';
+import authRoutes from './v1/auth.routes'; // Now a Hono app
+import adminRoutes from './v1/admin.routes'; // Now a Hono app
+// TODO: MIGRATE_ROUTES - These routes need to be migrated to Hono
+// import exploreRoutes from './v1/explore.routes';
+// import modpackRoutes from './v1/modpacks.routes';
+// import versionRoutes from './v1/versions.routes';
 
-const router = Router();
+const rootRouter = new Hono();
 
 // v1 routes
-router.use('/v1/auth', authRoutes);
-router.use('/v1/admin', adminRoutes);
-router.use('/v1/explore', exploreRoutes);
-router.use('/v1/modpacks', modpackRoutes);
-router.use('/v1/modpacks/:modpackId/versions', versionRoutes); // This is the one I'm working on
+rootRouter.route('/auth', authRoutes);
+rootRouter.route('/admin', adminRoutes); // Mount Hono adminRoutes
+
+// TODO: MIGRATE_ROUTES - These routes need to be migrated and then re-added here
+// rootRouter.route('/explore', exploreRoutes);
+// rootRouter.route('/modpacks', modpackRoutes);
+// rootRouter.route('/modpacks/:modpackId/versions', versionRoutes);
+
 
 // v1 ping
-router.get('/v1/ping', (_req, res) => {
-  res.status(200).json({
+rootRouter.get('/ping', (c: Context) => {
+  return c.json({
     message: 'pong',
     timestamp: new Date().toISOString(),
-  });
+  }, 200);
 });
 
-router.all('*', (_req, _res, next) => {
-  next(new APIError(404, 'Route not found'));
+// 404 Handler for all other routes on this router
+// Note: In Hono, a global `app.notFound` in index.ts is often preferred for overall 404s.
+// This will catch routes not matched within this `rootRouter` specifically.
+// If this router is mounted under /v1, this will handle /v1/* not found.
+rootRouter.notFound((c: Context) => {
+  return c.json({
+    errors: [{
+      status: '404',
+      title: 'Route Not Found',
+      detail: `The route ${c.req.path} was not found on this server.`
+    }]
+  }, 404);
 });
 
-export default router;
+// It's also possible to use app.all for a catch-all, but notFound is more specific.
+// rootRouter.all('*', (c: Context) => {
+//   throw new APIError(404, 'Route not found');
+// });
+
+export default rootRouter;

@@ -1,139 +1,139 @@
-import { Request, Response } from "express";
+import { Context } from 'hono';
 import { newPublisherSchema, publisherUpdateSchema } from "@/models/Publisher.model";
 import { AdminPublishersService } from "@/services/adminPublishers.service";
 import { serializeResource, serializeCollection, serializeError } from "../utils/jsonapi";
 import { z } from "zod";
+import { APIError } from '@/lib/APIError'; // Assuming APIError is in lib
 
-interface AuthenticatedRequest extends Request {
-    user?: {
-        id: string;
-    };
-}
+// Interface for user object potentially set by middleware
+// interface AuthenticatedUser {
+//     id: string;
+// }
 
 export class AdminPublishersController {
-    static async createPublisher(req: AuthenticatedRequest, res: Response) {
+    static async createPublisher(c: Context): Promise<Response> {
         try {
-            const userId = req.user!.id;
-            const validationResult = newPublisherSchema.safeParse(req.body);
+            // TODO: MIGRATE_MIDDLEWARE - This relies on 'c.get('user')' which comes from requireAuth/validateAdmin middleware
+            const user = c.get('user') as { id: string } | undefined;
+            if (!user || !user.id) {
+                throw new APIError(401, 'Unauthorized', 'Admin privileges required.');
+            }
+            const userId = user.id;
+
+            const body = await c.req.json();
+            const validationResult = newPublisherSchema.safeParse(body);
 
             if (!validationResult.success) {
-                return res.status(400).json(serializeError({
+                return c.json(serializeError({
                     status: '400',
                     title: 'Validation Error',
                     detail: "Invalid request body for creating publisher",
                     meta: { errors: validationResult.error.flatten().fieldErrors }
-                }));
+                }), 400);
             }
 
             const publisher = await AdminPublishersService.createPublisher(validationResult.data, userId);
-            res.status(201).json(serializeResource('publisher', publisher));
+            return c.json(serializeResource('publisher', publisher), 201);
         } catch (error: any) {
             console.error("[CONTROLLER_ADMIN_PUBLISHER] Error creating publisher:", error);
-            const statusCode = error.statusCode || 500;
-            res.status(statusCode).json(serializeError({
-                status: statusCode.toString(),
-                title: error.name || 'Create Publisher Error',
-                detail: error.message || "Error creating publisher",
-                code: error.errorCode,
-            }));
+            if (error instanceof APIError) throw error;
+            throw new APIError(error.statusCode || 500, error.name || 'Create Publisher Error', error.message || "Error creating publisher", error.errorCode);
         }
     }
 
-    static async listPublishers(req: Request, res: Response) {
+    static async listPublishers(c: Context): Promise<Response> {
         try {
             const publishers = await AdminPublishersService.listPublishers();
-            res.status(200).json(serializeCollection('publisher', publishers));
+            return c.json(serializeCollection('publisher', publishers), 200);
         } catch (error: any) {
             console.error("[CONTROLLER_ADMIN_PUBLISHER] Error listing publishers:", error);
-            const statusCode = error.statusCode || 500;
-            res.status(statusCode).json(serializeError({
-                status: statusCode.toString(),
-                title: error.name || 'List Publishers Error',
-                detail: error.message || "Error listing publishers"
-            }));
+            if (error instanceof APIError) throw error;
+            throw new APIError(error.statusCode || 500, error.name || 'List Publishers Error', error.message || "Error listing publishers");
         }
     }
 
-    static async getPublisher(req: Request, res: Response) {
+    static async getPublisher(c: Context): Promise<Response> {
         try {
-            const { publisherId } = req.params;
-            // publisherId is guaranteed by the route.
+            const publisherId = c.req.param('publisherId');
+            if (!publisherId) { // Should be guaranteed by route, but good practice
+                 throw new APIError(400, 'Bad Request', 'Publisher ID is missing from path.');
+            }
 
             const publisherDetails = await AdminPublishersService.getPublisherDetails(publisherId);
             if (!publisherDetails) {
-                return res.status(404).json(serializeError({
-                    status: '404',
-                    title: 'Not Found',
-                    detail: "Publisher not found."
-                }));
+                throw new APIError(404, 'Not Found', 'Publisher not found.');
             }
-            res.status(200).json(serializeResource('publisher', publisherDetails));
+            return c.json(serializeResource('publisher', publisherDetails), 200);
         } catch (error: any) {
             console.error("[CONTROLLER_ADMIN_PUBLISHER] Error getting publisher details:", error);
-            const statusCode = error.statusCode || 500;
-            res.status(statusCode).json(serializeError({
-                status: statusCode.toString(),
-                title: error.name || 'Get Publisher Error',
-                detail: error.message || "Error getting publisher details."
-            }));
+            if (error instanceof APIError) throw error;
+            throw new APIError(error.statusCode || 500, error.name || 'Get Publisher Error', error.message || "Error getting publisher details.");
         }
     }
 
-    static async updatePublisher(req: AuthenticatedRequest, res: Response) {
+    static async updatePublisher(c: Context): Promise<Response> {
         try {
-            const { publisherId } = req.params;
-            const adminUserId = req.user!.id;
-            const validationResult = publisherUpdateSchema.safeParse(req.body);
+            // TODO: MIGRATE_MIDDLEWARE - This relies on 'c.get('user')'
+            const user = c.get('user') as { id: string } | undefined;
+            if (!user || !user.id) {
+                throw new APIError(401, 'Unauthorized', 'Admin privileges required.');
+            }
+            const adminUserId = user.id;
+            const publisherId = c.req.param('publisherId');
+            if (!publisherId) {
+                throw new APIError(400, 'Bad Request', 'Publisher ID is missing from path.');
+            }
+
+            const body = await c.req.json();
+            const validationResult = publisherUpdateSchema.safeParse(body);
 
             if (!validationResult.success) {
-                return res.status(400).json(serializeError({
+                return c.json(serializeError({
                     status: '400',
                     title: 'Validation Error',
                     detail: "Invalid request body for updating publisher",
                     meta: { errors: validationResult.error.flatten().fieldErrors }
-                }));
+                }), 400);
             }
 
             if (Object.keys(validationResult.data).length === 0) {
-                return res.status(400).json(serializeError({
+                return c.json(serializeError({
                     status: '400',
                     title: 'Bad Request',
                     detail: "Request body is empty or contains no updatable fields."
-                }));
+                }), 400);
             }
 
             const updatedPublisher = await AdminPublishersService.updatePublisher(publisherId, validationResult.data, adminUserId);
-            res.status(200).json(serializeResource('publisher', updatedPublisher));
+            return c.json(serializeResource('publisher', updatedPublisher), 200);
         } catch (error: any) {
             console.error("[CONTROLLER_ADMIN_PUBLISHER] Error updating publisher:", error);
-            const statusCode = error.statusCode || (error.message.includes("not found") ? 404 : 500);
-            res.status(statusCode).json(serializeError({
-                status: statusCode.toString(),
-                title: error.name || (statusCode === 404 ? 'Not Found' : 'Update Publisher Error'),
-                detail: error.message || "Error updating publisher",
-                code: error.errorCode,
-            }));
+            if (error instanceof APIError) throw error;
+            const statusCode = error.statusCode || (error.message && error.message.includes("not found") ? 404 : 500);
+            throw new APIError(statusCode, error.name || (statusCode === 404 ? 'Not Found' : 'Update Publisher Error'), error.message || "Error updating publisher", error.errorCode);
         }
     }
 
-    static async deletePublisher(req: AuthenticatedRequest, res: Response) {
+    static async deletePublisher(c: Context): Promise<Response> {
         try {
-            const { publisherId } = req.params;
-            const adminUserId = req.user!.id;
+            // TODO: MIGRATE_MIDDLEWARE - This relies on 'c.get('user')'
+            const user = c.get('user') as { id: string } | undefined;
+            if (!user || !user.id) {
+                throw new APIError(401, 'Unauthorized', 'Admin privileges required.');
+            }
+            const adminUserId = user.id;
+            const publisherId = c.req.param('publisherId');
+             if (!publisherId) {
+                throw new APIError(400, 'Bad Request', 'Publisher ID is missing from path.');
+            }
 
             await AdminPublishersService.deletePublisher(publisherId, adminUserId);
-            // JSON:API recommends 204 No Content for successful DELETE.
-            // Alternatively, can return meta: { message: "Publisher deleted successfully." } with 200 OK.
-            res.status(204).send();
+            return c.body(null, 204);
         } catch (error: any) {
             console.error("[CONTROLLER_ADMIN_PUBLISHER] Error deleting publisher:", error);
-            const statusCode = error.statusCode || (error.message.includes("not found") ? 404 : 500);
-            res.status(statusCode).json(serializeError({
-                status: statusCode.toString(),
-                title: error.name || (statusCode === 404 ? 'Not Found' : 'Delete Publisher Error'),
-                detail: error.message || "Error deleting publisher",
-                code: error.errorCode,
-            }));
+            if (error instanceof APIError) throw error;
+            const statusCode = error.statusCode || (error.message && error.message.includes("not found") ? 404 : 500);
+            throw new APIError(statusCode, error.name || (statusCode === 404 ? 'Not Found' : 'Delete Publisher Error'), error.message || "Error deleting publisher", error.errorCode);
         }
     }
 }
