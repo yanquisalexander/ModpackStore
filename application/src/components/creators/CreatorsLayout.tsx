@@ -52,7 +52,7 @@ const CreatorsSidebar = () => {
     ];
 
     return (
-        <div className="bg-ms-primary border-r border-gray-200 overflow-y-auto max-h-dvh h-full sticky top-0">
+        <div className="bg-ms-primary border-r border-neutral-800 overflow-y-auto max-h-dvh h-full sticky top-0">
             <div className="p-4">
                 <nav className="space-y-2">
                     {menuItems.map((item) => {
@@ -64,8 +64,8 @@ const CreatorsSidebar = () => {
                                 key={item.path}
                                 href={item.path}
                                 className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${isActive
-                                    ? "bg-blue-100 text-blue-700 font-medium"
-                                    : "text-gray-700 hover:bg-gray-100"
+                                    ? "bg-blue-500/10 text-blue-500 font-medium"
+                                    : "text-neutral-300 hover:bg-neutral-800"
                                     }`}
                             >
                                 <Icon size={20} />
