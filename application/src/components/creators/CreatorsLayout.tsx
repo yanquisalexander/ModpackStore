@@ -1,4 +1,6 @@
 import { useGlobalContext } from "@/stores/GlobalContext";
+import { MyModpacksView } from "@/views/creator/MyModpacksView";
+import { ManageModpackVersionsView } from "@/views/creator/ManageModpackVersionsView"; // Import the new versions view
 import { LucideBugPlay, Building2, Package, Users, Settings, Plus, Search, Filter, Grid, List } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Route, Switch, Link, useLocation } from "wouter";
@@ -31,8 +33,9 @@ export const CreatorsLayout = () => {
                     <Route path="/creators" component={CreatorsOverview} />
                     <Route path="/creators/organizations" component={OrganizationsView} />
                     <Route path="/creators/organizations/:id" component={OrganizationDetail} />
-                    <Route path="/creators/modpacks" component={ModpacksView} />
-                    <Route path="/creators/modpacks/:id" component={ModpackDetail} />
+                    <Route path="/creators/modpacks" component={MyModpacksView} />
+                    <Route path="/creators/modpacks/:modpackId/versions" component={ManageModpackVersionsView} /> {/* New Route */}
+                    {/* The old /creators/modpacks/:id (ModpackDetail) is replaced or needs a new path if it's for general details vs version management */}
                     <Route path="/creators/settings" component={CreatorsSettings} />
                 </Switch>
             </div>
@@ -294,128 +297,9 @@ const OrganizationsView = () => {
     );
 };
 
-// Vista de modpacks
-const ModpacksView = () => {
-    const [searchTerm, setSearchTerm] = useState("");
-    const [filter, setFilter] = useState("todos");
-
-    // Datos de ejemplo
-    const modpacks = [
-        {
-            id: "1",
-            name: "Adventures Plus",
-            version: "1.19.2",
-            description: "Modpack de aventuras con más de 150 mods",
-            downloads: 1250,
-            status: "Activo",
-            organization: "MineCraft Studios",
-            lastUpdate: "2024-01-15"
-        },
-        {
-            id: "2",
-            name: "Tech Revolution",
-            version: "1.18.2",
-            description: "Modpack tecnológico con automatización avanzada",
-            downloads: 890,
-            status: "En desarrollo",
-            organization: "Tech Builders",
-            lastUpdate: "2024-01-10"
-        },
-        {
-            id: "3",
-            name: "Magic Realms",
-            version: "1.19.2",
-            description: "Explora mundos mágicos llenos de misterio",
-            downloads: 2100,
-            status: "Activo",
-            organization: "Magic Realm",
-            lastUpdate: "2024-01-12"
-        }
-    ];
-
-    const filteredModpacks = modpacks.filter(modpack => {
-        const matchesSearch = modpack.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            modpack.description.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesFilter = filter === "todos" || modpack.status.toLowerCase() === filter;
-        return matchesSearch && matchesFilter;
-    });
-
-    return (
-        <div className="p-6">
-            <div className="flex justify-between items-center mb-6">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Modpacks</h1>
-                    <p className="text-gray-600">Administra tus modpacks de Minecraft</p>
-                </div>
-                <button className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors">
-                    <Plus size={20} />
-                    <span>Nuevo Modpack</span>
-                </button>
-            </div>
-
-            {/* Controles de búsqueda y filtros */}
-            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0 sm:space-x-4">
-                <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-                    <input
-                        type="text"
-                        placeholder="Buscar modpacks..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                </div>
-                <div className="flex items-center space-x-2">
-                    <Filter size={20} className="text-gray-400" />
-                    <select
-                        value={filter}
-                        onChange={(e) => setFilter(e.target.value)}
-                        className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                        <option value="todos">Todos</option>
-                        <option value="activo">Activos</option>
-                        <option value="en desarrollo">En desarrollo</option>
-                        <option value="archivado">Archivados</option>
-                    </select>
-                </div>
-            </div>
-
-            {/* Lista de modpacks */}
-            <div className="space-y-4">
-                {filteredModpacks.map((modpack) => (
-                    <Link key={modpack.id} href={`/creators/modpacks/${modpack.id}`}>
-                        <div className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow cursor-pointer">
-                            <div className="flex items-center justify-between mb-4">
-                                <div className="flex items-center space-x-4">
-                                    <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-blue-500 rounded-lg flex items-center justify-center">
-                                        <Package className="text-white" size={24} />
-                                    </div>
-                                    <div>
-                                        <h3 className="text-lg font-semibold text-gray-900">{modpack.name}</h3>
-                                        <p className="text-sm text-gray-500">v{modpack.version} • {modpack.organization}</p>
-                                    </div>
-                                </div>
-                                <span className={`px-3 py-1 text-sm rounded-full ${modpack.status === "Activo" ? "bg-green-100 text-green-800" :
-                                    modpack.status === "En desarrollo" ? "bg-yellow-100 text-yellow-800" :
-                                        "bg-gray-100 text-gray-800"
-                                    }`}>
-                                    {modpack.status}
-                                </span>
-                            </div>
-                            <p className="text-gray-600 mb-4">{modpack.description}</p>
-                            <div className="flex items-center justify-between text-sm text-gray-500">
-                                <div className="flex items-center space-x-4">
-                                    <span>{modpack.downloads.toLocaleString()} descargas</span>
-                                    <span>Actualizado: {modpack.lastUpdate}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </Link>
-                ))}
-            </div>
-        </div>
-    );
-};
+// The placeholder ModpacksView component is no longer needed as MyModpacksView replaces it.
+// If ModpacksView was more than a placeholder, its contents would be merged or adapted.
+// For this subtask, MyModpacksView is the intended implementation for /creators/modpacks.
 
 // Detalle de organización (placeholder)
 const OrganizationDetail = ({ params }: { params: { id: string } }) => {
@@ -431,19 +315,21 @@ const OrganizationDetail = ({ params }: { params: { id: string } }) => {
     );
 };
 
-// Detalle de modpack (placeholder)
-const ModpackDetail = ({ params }: { params: { id: string } }) => {
-    return (
-        <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                Detalle de Modpack #{params.id}
-            </h1>
-            <p className="text-gray-600">
-                Aquí se mostraría la información detallada del modpack, incluyendo mods, versiones, configuración, estadísticas, etc.
-            </p>
-        </div>
-    );
-};
+// Detalle de modpack (placeholder) - This can be removed if ManageModpackVersionsView serves as the detail/management page
+// Or it can be kept if it's for a different purpose, but the route /creators/modpacks/:id would need to be distinct
+// from /creators/modpacks/:modpackId/versions. For now, let's assume ManageModpackVersionsView is the primary view for a specific modpack.
+// const ModpackDetail = ({ params }: { params: { id: string } }) => {
+//     return (
+//         <div className="p-6">
+//             <h1 className="text-2xl font-bold text-gray-900 mb-4">
+//                 Detalle de Modpack #{params.id}
+//             </h1>
+//             <p className="text-gray-600">
+//                 Aquí se mostraría la información detallada del modpack, incluyendo mods, versiones, configuración, estadísticas, etc.
+//             </p>
+//         </div>
+//     );
+// };
 
 // Configuración del centro de creadores (placeholder)
 const CreatorsSettings = () => {

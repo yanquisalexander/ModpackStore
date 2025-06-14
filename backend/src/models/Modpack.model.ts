@@ -23,6 +23,13 @@ export enum ModpackVisibility {
     PATREON = 'patreon'
 }
 
+export enum ModpackStatus {
+	DRAFT = 'draft',
+	PUBLISHED = 'published',
+	ARCHIVED = 'archived',
+	DELETED = 'deleted',
+}
+
 // Validation schemas
 export const newModpackSchema = z.object({
     name: z.string().min(1).max(100),
@@ -34,12 +41,15 @@ export const newModpackSchema = z.object({
     trailerUrl: z.string().url().optional(),
     password: z.string().optional(),
     visibility: z.nativeEnum(ModpackVisibility),
+    status: z.nativeEnum(ModpackStatus).default(ModpackStatus.DRAFT).optional(),
     publisherId: z.string().uuid(),
     showUserAsPublisher: z.boolean().default(false),
     creatorUserId: z.string().uuid().optional(),
 });
 
-export const modpackUpdateSchema = newModpackSchema.omit({ slug: true }).partial();
+export const modpackUpdateSchema = newModpackSchema.omit({ slug: true }).partial().extend({
+    status: z.nativeEnum(ModpackStatus).optional(),
+});
 
 export class Modpack {
     readonly id: string;
@@ -55,6 +65,7 @@ export class Modpack {
     trailerUrl: string | null;
     password: string | null;
     visibility: ModpackVisibility;
+    status: ModpackStatus;
     showUserAsPublisher: boolean;
     creatorUserId: string | null;
     updatedAt: Date;
@@ -79,6 +90,7 @@ export class Modpack {
         this.trailerUrl = data.trailerUrl;
         this.password = data.password;
         this.visibility = data.visibility as ModpackVisibility;
+        this.status = data.status as ModpackStatus;
         this.showUserAsPublisher = data.showUserAsPublisher ?? false;
         this.creatorUserId = data.creatorUserId;
         this.updatedAt = data.updatedAt;
@@ -232,8 +244,8 @@ export class Modpack {
 
     async delete(): Promise<void> {
         try {
-            // Note: This should cascade delete versions, files, etc. according to your DB constraints
-            await db.delete(ModpacksTable).where(eq(ModpacksTable.id, this.id));
+            // Soft delete by updating status
+            await this.update({ status: ModpackStatus.DELETED });
         } catch (error) {
             throw new Error(`Failed to delete modpack: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
@@ -377,6 +389,7 @@ export class Modpack {
             trailerUrl: this.trailerUrl,
             password: this.password,
             visibility: this.visibility,
+            status: this.status,
             publisherId: this.publisherId,
             showUserAsPublisher: this.showUserAsPublisher,
             creatorUserId: this.creatorUserId,
@@ -385,8 +398,8 @@ export class Modpack {
         };
     }
 
-    toPublicJson(): Omit<ModpackType, 'password'> {
-        const { password, ...publicData } = this.toJson();
+    toPublicJson(): Omit<ModpackType, 'password' | 'status'> {
+        const { password, status, ...publicData } = this.toJson();
         return publicData;
     }
 
