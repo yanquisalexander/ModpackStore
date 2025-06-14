@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useLocation } from 'wouter';
-import { useAuthentication } from '../../../stores/AuthContext';
-import { listPublishers, deletePublisher, PublisherData } from '../../../services/adminPublishers';
-import { Button } from '../../../components/ui/button';
-import { Icons } from '../../../components/Icons'; // Assuming Icons component for loading spinner
+import { useAuthentication } from '@/stores/AuthContext';
+import { listPublishers, deletePublisher, PublisherData } from '@/services/adminPublishers';
+import { Button } from '@/components/ui/button';
+import { LucideEdit, LucideLoader, LucidePlus, LucideTrash } from "lucide-react";
 
 const ManageOrganizationsView: React.FC = () => {
     const { session, isAuthenticated, sessionTokens, loading: authLoading } = useAuthentication();
@@ -29,7 +29,7 @@ const ManageOrganizationsView: React.FC = () => {
     }, [sessionTokens]);
 
     useEffect(() => {
-        if (!authLoading && isAuthenticated && session?.roles.includes('admin')) {
+        if (!authLoading && isAuthenticated && session?.admin) {
             fetchOrganizations();
         }
     }, [authLoading, isAuthenticated, session, fetchOrganizations]);
@@ -53,7 +53,7 @@ const ManageOrganizationsView: React.FC = () => {
     if (authLoading) {
         return (
             <div className="flex justify-center items-center h-screen">
-                <Icons.spinner className="h-10 w-10 animate-spin text-primary" />
+                <LucideLoader className="h-10 w-10 animate-spin text-primary" />
             </div>
         );
     }
@@ -70,7 +70,7 @@ const ManageOrganizationsView: React.FC = () => {
         );
     }
 
-    if (!session?.roles.includes('admin')) {
+    if (!session?.admin) {
         return (
             <div className="container mx-auto p-4 text-center">
                 <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
@@ -84,13 +84,13 @@ const ManageOrganizationsView: React.FC = () => {
             <header className="mb-6 flex justify-between items-center">
                 <h1 className="text-3xl font-bold">Manage Organizations</h1>
                 <Button onClick={() => navigate('/admin/organizations/new')}>
-                    <Icons.plus className="mr-2 h-4 w-4" /> Create New Organization
+                    <LucidePlus className="mr-2 h-4 w-4" /> Create New Organization
                 </Button>
             </header>
 
             {isLoading && !organizations.length && ( // Show central loading only if no data yet
                 <div className="flex justify-center items-center py-10">
-                    <Icons.spinner className="h-8 w-8 animate-spin text-primary" />
+                    <LucideLoader className="h-8 w-8 animate-spin text-primary" />
                 </div>
             )}
 
@@ -124,7 +124,7 @@ const ManageOrganizationsView: React.FC = () => {
                                 </div>
                                 <div className="flex space-x-2 flex-shrink-0">
                                     <Button variant="outline" size="sm" onClick={() => navigate(`/admin/organizations/edit/${org.id}`)}>
-                                        <Icons.edit className="mr-2 h-3.5 w-3.5" /> Edit
+                                        <LucideEdit className="mr-2 h-3.5 w-3.5" /> Edit
                                     </Button>
                                     <Button
                                         variant="destructive"
@@ -132,7 +132,7 @@ const ManageOrganizationsView: React.FC = () => {
                                         onClick={() => handleDelete(org.id)}
                                         disabled={isLoading} // Disable button while any operation is in progress
                                     >
-                                        <Icons.trash className="mr-2 h-3.5 w-3.5" /> Delete
+                                        <LucideTrash className="mr-2 h-3.5 w-3.5" /> Delete
                                     </Button>
                                 </div>
                             </li>

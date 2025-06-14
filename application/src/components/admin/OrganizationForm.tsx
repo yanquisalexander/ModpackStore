@@ -1,10 +1,10 @@
 import React, { useState, useEffect, FC, ChangeEvent } from 'react';
-import { Input } from '../../../components/ui/input';
-import { Button } from '../../../components/ui/button';
-import { Label } from '../../../components/ui/label';
-import { Switch } from '../../../components/ui/switch'; // Using Switch instead of Checkbox
-import { Textarea } from '../../../components/ui/textarea';
-import { PublisherData, NewPublisherData, UpdatePublisherData } from '../../../services/adminPublishers';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch'; // Using Switch instead of Checkbox
+import { PublisherData, NewPublisherData, UpdatePublisherData } from '@/services/adminPublishers';
+import { Textarea } from "@/components/ui/textarea";
 
 interface OrganizationFormProps {
     organizationToEdit?: PublisherData;

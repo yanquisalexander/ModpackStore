@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation, Link } from 'wouter';
 import { toast } from 'sonner';
-import { useAuthentication } from '../../../stores/AuthContext';
-import { getPublisherDetails, updatePublisher, PublisherData, UpdatePublisherData } from '../../../services/adminPublishers';
-import OrganizationForm from '../../../components/admin/OrganizationForm';
-import { Button } from '../../../components/ui/button';
-import { Icons } from '../../../components/Icons'; // Assuming Icons component
+import { getPublisherDetails, updatePublisher, PublisherData, UpdatePublisherData } from '@/services/adminPublishers';
+import { useAuthentication } from "@/stores/AuthContext";
+import { LucideChevronLeft, LucideLoader } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import OrganizationForm from "@/components/admin/OrganizationForm";
 
 interface EditOrganizationViewProps {
     params: { id: string }; // From wouter path="/admin/organizations/edit/:id"
 }
 
 const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) => {
+    console.log({ params }); // Debugging line to check params structure
     const { publisherId } = params; // Corrected to params.publisherId based on standard naming, or params.id
     const { session, isAuthenticated, sessionTokens, loading: authLoading } = useAuthentication();
     const [, navigate] = useLocation();
@@ -39,7 +40,7 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
     }, [publisherId, sessionTokens]);
 
     useEffect(() => {
-        if (!authLoading && isAuthenticated && session?.roles.includes('admin')) {
+        if (!authLoading && isAuthenticated && session?.admin) {
             fetchOrganization();
         }
     }, [authLoading, isAuthenticated, session, fetchOrganization]);
@@ -65,13 +66,13 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
     if (authLoading || isLoadingData) {
         return (
             <div className="flex justify-center items-center h-screen">
-                <Icons.spinner className="h-10 w-10 animate-spin text-primary" />
+                <LucideLoader className="h-10 w-10 animate-spin text-primary" />
             </div>
         );
     }
 
     if (!isAuthenticated) {
-         return (
+        return (
             <div className="container mx-auto p-4 text-center">
                 <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
                 <p>Please <Button variant="link" onClick={() => navigate('/login')}>login</Button> to access this page.</p>
@@ -79,7 +80,7 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
         );
     }
 
-    if (!session?.roles.includes('admin')) {
+    if (!session?.admin) {
         return (
             <div className="container mx-auto p-4 text-center">
                 <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
@@ -95,7 +96,7 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
                 <p>{error}</p>
                 <Link href="/admin/organizations">
                     <Button variant="outline" className="mt-4">
-                        <Icons.arrowLeft className="mr-2 h-4 w-4" /> Back to List
+                        <LucideChevronLeft className="mr-2 h-4 w-4" /> Back to List
                     </Button>
                 </Link>
             </div>
@@ -103,13 +104,13 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
     }
 
     if (!organizationToEdit) {
-         return (
+        return (
             <div className="container mx-auto p-4 text-center">
                 <h1 className="text-2xl font-bold mb-4">Organization Not Found</h1>
                 <p>The requested organization could not be loaded or does not exist.</p>
-                 <Link href="/admin/organizations">
+                <Link href="/admin/organizations">
                     <Button variant="outline" className="mt-4">
-                        <Icons.arrowLeft className="mr-2 h-4 w-4" /> Back to List
+                        <LucideChevronLeft className="mr-2 h-4 w-4" /> Back to List
                     </Button>
                 </Link>
             </div>
@@ -122,7 +123,7 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
                 <h1 className="text-3xl font-bold">Edit Organization</h1>
                 <Link href="/admin/organizations">
                     <Button variant="outline">
-                        <Icons.arrowLeft className="mr-2 h-4 w-4" /> Back to List
+                        <LucideChevronLeft className="mr-2 h-4 w-4" /> Back to List
                     </Button>
                 </Link>
             </header>

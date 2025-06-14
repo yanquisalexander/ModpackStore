@@ -12,7 +12,7 @@ interface UserSession {
   username: string;
   email: string;
   avatarUrl?: string;
-  roles: string[];
+  admin: boolean;
   publisherMemberships: null | {
 
     createdAt: string;

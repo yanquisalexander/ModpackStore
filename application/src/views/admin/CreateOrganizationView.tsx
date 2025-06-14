@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { useLocation, Link } from 'wouter';
 import { toast } from 'sonner';
-import { useAuthentication } from '../../../stores/AuthContext';
-import { createPublisher, NewPublisherData } from '../../../services/adminPublishers';
-import OrganizationForm from '../../../components/admin/OrganizationForm';
-import { Button } from '../../../components/ui/button';
-import { Icons } from '../../../components/Icons'; // Assuming Icons component
+import { useAuthentication } from '@/stores/AuthContext';
+import { createPublisher, NewPublisherData } from '@/services/adminPublishers';
+import OrganizationForm from '@/components/admin/OrganizationForm';
+import { Button } from '@/components/ui/button';
+import { LucideChevronLeft, LucideLoader } from "lucide-react";
 
-const CreateOrganizationView: React.FC = () => {
+export const CreateOrganizationView: React.FC = () => {
     const { session, isAuthenticated, sessionTokens, loading: authLoading } = useAuthentication();
     const [, navigate] = useLocation();
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -33,7 +33,7 @@ const CreateOrganizationView: React.FC = () => {
     if (authLoading) {
         return (
             <div className="flex justify-center items-center h-screen">
-                <Icons.spinner className="h-10 w-10 animate-spin text-primary" />
+                <LucideLoader className="h-10 w-10 animate-spin text-primary" />
             </div>
         );
     }
@@ -47,7 +47,7 @@ const CreateOrganizationView: React.FC = () => {
         );
     }
 
-    if (!session?.roles.includes('admin')) {
+    if (!session?.admin) {
         return (
             <div className="container mx-auto p-4 text-center">
                 <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
@@ -62,7 +62,7 @@ const CreateOrganizationView: React.FC = () => {
                 <h1 className="text-3xl font-bold">Create New Organization</h1>
                 <Link href="/admin/organizations">
                     <Button variant="outline">
-                        <Icons.arrowLeft className="mr-2 h-4 w-4" /> Back to List
+                        <LucideChevronLeft className="mr-2 h-4 w-4" /> Back to List
                     </Button>
                 </Link>
             </header>
@@ -77,4 +77,3 @@ const CreateOrganizationView: React.FC = () => {
     );
 };
 
-export default CreateOrganizationView;
