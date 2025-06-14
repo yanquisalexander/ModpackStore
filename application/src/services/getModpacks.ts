@@ -1,6 +1,7 @@
 import { API_ENDPOINT } from "@/consts"
+import { Modpack } from "@/types/modpacks";
 
-export const getModpacks = async () => {
+export const getModpacks = async (): Promise<Modpack[]> => {
     const response = await fetch(`${API_ENDPOINT}/explore`, {
         method: "GET",
         headers: {
@@ -13,12 +14,11 @@ export const getModpacks = async () => {
         throw new Error('Network response was not ok');
     }
 
-    const { data } = await response.json()
-
-    return data
+    const json = await response.json()
+    return json.data.map((item: any) => item.attributes)
 }
 
-export const searchModpacks = async (query: string) => {
+export const searchModpacks = async (query: string): Promise<Modpack[]> => {
     const url = new URL(`${API_ENDPOINT}/explore/search`)
     url.searchParams.append("q", query)
 
@@ -34,11 +34,11 @@ export const searchModpacks = async (query: string) => {
         throw new Error('Network response was not ok');
     }
 
-    const { data } = await response.json()
-    return data
+    const json = await response.json()
+    return json.data.map((item: any) => item.attributes)
 }
 
-export const getModpackById = async (modpackId: string) => {
+export const getModpackById = async (modpackId: string): Promise<Modpack> => {
     const response = await fetch(`${API_ENDPOINT}/explore/modpack/${modpackId}`, {
         method: "GET",
         headers: {
@@ -51,6 +51,6 @@ export const getModpackById = async (modpackId: string) => {
         throw new Error('Network response was not ok');
     }
 
-    const { data } = await response.json()
-    return data
+    const json = await response.json()
+    return json.data.attributes
 }

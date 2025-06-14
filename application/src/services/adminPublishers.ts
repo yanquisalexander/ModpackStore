@@ -62,7 +62,8 @@ export async function listPublishers(token: string): Promise<PublisherData[]> {
             'Authorization': `Bearer ${token}`,
         },
     });
-    return handleResponse<PublisherData[]>(response);
+    const json = await handleResponse<{ data: any[] }>(response);
+    return json.data.map(item => item.attributes);
 }
 
 export async function getPublisherDetails(publisherId: string, token: string): Promise<PublisherData> {
@@ -72,7 +73,8 @@ export async function getPublisherDetails(publisherId: string, token: string): P
             'Authorization': `Bearer ${token}`,
         },
     });
-    return handleResponse<PublisherData>(response);
+    const json = await handleResponse<{ data: any }>(response);
+    return json.data.attributes;
 }
 
 export async function createPublisher(publisherData: NewPublisherData, token: string): Promise<PublisherData> {
@@ -84,7 +86,8 @@ export async function createPublisher(publisherData: NewPublisherData, token: st
         },
         body: JSON.stringify(publisherData),
     });
-    return handleResponse<PublisherData>(response);
+    const json = await handleResponse<{ data: any }>(response);
+    return json.data.attributes;
 }
 
 export async function updatePublisher(publisherId: string, publisherData: UpdatePublisherData, token: string): Promise<PublisherData> {
@@ -96,7 +99,8 @@ export async function updatePublisher(publisherId: string, publisherData: Update
         },
         body: JSON.stringify(publisherData),
     });
-    return handleResponse<PublisherData>(response);
+    const json = await handleResponse<{ data: any }>(response);
+    return json.data.attributes;
 }
 
 export async function deletePublisher(publisherId: string, token: string): Promise<void> {

@@ -45,14 +45,16 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 }
 
 export async function getUserModpacks(): Promise<Modpack[]> {
-  return request<Modpack[]>('/modpacks', { method: 'GET' });
+  const json = await request<{ data: any[] }>('/modpacks', { method: 'GET' });
+  return json.data.map(item => item.attributes);
 }
 
 export async function createModpack(modpackData: NewModpackData): Promise<Modpack> {
-  return request<Modpack>('/modpacks', {
+  const json = await request<{ data: any }>('/modpacks', {
     method: 'POST',
     body: JSON.stringify(modpackData),
   });
+  return json.data.attributes;
 }
 
 // Example of a more specific error type if needed
@@ -101,35 +103,40 @@ async function requestWithErrorHandling<T>(url: string, options: RequestInit = {
 
 // Update service functions to use the new request function
 export async function getUserModpacksV2(): Promise<Modpack[]> {
-  return requestWithErrorHandling<Modpack[]>('/modpacks', { method: 'GET' });
+  const json = await requestWithErrorHandling<{ data: any[] }>('/modpacks', { method: 'GET' });
+  return json.data.map(item => item.attributes);
 }
 
 export async function createModpackV2(modpackData: NewModpackData): Promise<Modpack> {
-  return requestWithErrorHandling<Modpack>('/modpacks', {
+  const json = await requestWithErrorHandling<{ data: any }>('/modpacks', {
     method: 'POST',
     body: JSON.stringify(modpackData),
   });
+  return json.data.attributes;
 }
 // For clarity, I've added V2 versions. In a real scenario, you'd replace the originals or choose one.
 // For this subtask, I'll assume the V2 versions are preferred due to better error handling.
 // Let's rename them back to original for the rest of the subtask.
 
 export async function getUserModpacksClean(): Promise<Modpack[]> {
-  return requestWithErrorHandling<Modpack[]>('/v1/modpacks', { method: 'GET' });
+  const json = await requestWithErrorHandling<{ data: any[] }>('/v1/modpacks', { method: 'GET' });
+  return json.data.map(item => item.attributes);
 }
 
 export async function createModpackClean(modpackData: NewModpackData): Promise<Modpack> {
-  return requestWithErrorHandling<Modpack>('/v1/modpacks', {
+  const json = await requestWithErrorHandling<{ data: any }>('/v1/modpacks', {
     method: 'POST',
     body: JSON.stringify(modpackData),
   });
+  return json.data.attributes;
 }
 
 export async function updateModpackClean(modpackId: string, modpackData: Partial<NewModpackData>): Promise<Modpack> {
-  return requestWithErrorHandling<Modpack>(`/v1/modpacks/${modpackId}`, {
+  const json = await requestWithErrorHandling<{ data: any }>(`/v1/modpacks/${modpackId}`, {
     method: 'PATCH',
     body: JSON.stringify(modpackData),
   });
+  return json.data.attributes;
 }
 
 export async function deleteModpackClean(modpackId: string): Promise<void> {
@@ -150,18 +157,21 @@ export {
 import { ModpackVersion, NewModpackVersionData } from '@/types/modpacks';
 
 export async function getModpack(modpackId: string): Promise<Modpack> {
-  return requestWithErrorHandling<Modpack>(`/v1/modpacks/${modpackId}`, { method: 'GET' });
+  const json = await requestWithErrorHandling<{ data: any }>(`/v1/modpacks/${modpackId}`, { method: 'GET' });
+  return json.data.attributes;
 }
 
 export async function getModpackVersions(modpackId: string): Promise<ModpackVersion[]> {
-  return requestWithErrorHandling<ModpackVersion[]>(`/v1/modpacks/${modpackId}/versions`, { method: 'GET' });
+  const json = await requestWithErrorHandling<{ data: any[] }>(`/v1/modpacks/${modpackId}/versions`, { method: 'GET' });
+  return json.data.map(item => item.attributes);
 }
 
 export async function createModpackVersion(modpackId: string, versionData: NewModpackVersionData): Promise<ModpackVersion> {
-  return requestWithErrorHandling<ModpackVersion>(`/v1/modpacks/${modpackId}/versions`, {
+  const json = await requestWithErrorHandling<{ data: any }>(`/v1/modpacks/${modpackId}/versions`, {
     method: 'POST',
     body: JSON.stringify(versionData),
   });
+  return json.data.attributes;
 }
 
 // Define a type for the data allowed in version updates, matching backend expectations
@@ -172,14 +182,16 @@ export interface UpdateModpackVersionData {
 }
 
 export async function updateModpackVersion(versionId: string, versionData: UpdateModpackVersionData): Promise<ModpackVersion> {
-  return requestWithErrorHandling<ModpackVersion>(`/v1/versions/${versionId}`, {
+  const json = await requestWithErrorHandling<{ data: any }>(`/v1/versions/${versionId}`, {
     method: 'PATCH',
     body: JSON.stringify(versionData),
   });
+  return json.data.attributes;
 }
 
 export async function publishModpackVersion(versionId: string): Promise<ModpackVersion> {
-  return requestWithErrorHandling<ModpackVersion>(`/v1/versions/${versionId}/publish`, {
+  const json = await requestWithErrorHandling<{ data: any }>(`/v1/versions/${versionId}/publish`, {
     method: 'POST', // No body needed, just the action
   });
+  return json.data.attributes;
 }
