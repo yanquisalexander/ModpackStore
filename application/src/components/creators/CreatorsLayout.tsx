@@ -21,12 +21,12 @@ export const CreatorsLayout = () => {
     }, []);
 
     return (
-        <div className="flex h-full">
-            {/* Sidebar de navegación */}
+        <div className="flex h-dvh">
+            {/* Sidebar de navegación - Fijo */}
             <CreatorsSidebar />
 
-            {/* Contenido principal */}
-            <div className="flex-1 overflow-auto">
+            {/* Contenido principal - Con scroll independiente */}
+            <div className="overflow-auto h-screen">
                 <Switch>
                     <Route path="/creators" component={CreatorsOverview} />
                     <Route path="/creators/organizations" component={OrganizationsView} />
@@ -40,7 +40,7 @@ export const CreatorsLayout = () => {
     );
 };
 
-// Sidebar de navegación
+// Sidebar de navegación - Ahora completamente fijo
 const CreatorsSidebar = () => {
     const [location] = useLocation();
 
@@ -52,27 +52,29 @@ const CreatorsSidebar = () => {
     ];
 
     return (
-        <div className="w-64 bg-gray-50 border-r border-gray-200 p-4">
-            <nav className="space-y-2">
-                {menuItems.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = location === item.path;
+        <div className="bg-ms-primary border-r border-gray-200 overflow-y-auto max-h-dvh h-full sticky top-0">
+            <div className="p-4">
+                <nav className="space-y-2">
+                    {menuItems.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = location === item.path;
 
-                    return (
-                        <Link
-                            key={item.path}
-                            href={item.path}
-                            className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${isActive
-                                ? "bg-blue-100 text-blue-700 font-medium"
-                                : "text-gray-700 hover:bg-gray-100"
-                                }`}
-                        >
-                            <Icon size={20} />
-                            <span>{item.label}</span>
-                        </Link>
-                    );
-                })}
-            </nav>
+                        return (
+                            <Link
+                                key={item.path}
+                                href={item.path}
+                                className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${isActive
+                                    ? "bg-blue-100 text-blue-700 font-medium"
+                                    : "text-gray-700 hover:bg-gray-100"
+                                    }`}
+                            >
+                                <Icon size={20} />
+                                <span>{item.label}</span>
+                            </Link>
+                        );
+                    })}
+                </nav>
+            </div>
         </div>
     );
 };
