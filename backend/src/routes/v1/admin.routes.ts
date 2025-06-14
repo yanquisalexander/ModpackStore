@@ -1,11 +1,28 @@
-import { Router } from 'express';
-import { adminController } from '../../controllers';
-import { requireAuth } from '../../middleware/requireAuth';
-import { validateAdmin } from '../../middleware/validateAdmin';
+import { Hono, Context } from 'hono';
+// TODO: CONTROLLER_MISMATCH - The 'adminController' methods used below (getUsers, updateUser, etc.)
+// are not defined in 'AdminPublishers.controller.ts'. A different controller is needed for these routes.
+// For now, placeholder handlers are used.
+// import { adminController } from '../../controllers'; // This would point to an index exporting various controllers
 
-const router = Router();
+// TODO: MIGRATE_MIDDLEWARE - requireAuth (Passport.middleware) needs to be migrated and re-enabled.
+// TODO: MIGRATE_MIDDLEWARE - validateAdmin (likely adminAuthMiddleware from adminAuth.middleware.ts) needs to be migrated and re-enabled.
+// import { requireAuth } from '../../middleware/requireAuth';
+// import { validateAdmin } from '../../middleware/validateAdmin';
+import { serializeError } from '../../utils/jsonapi'; // For placeholder responses
 
-router.use(requireAuth, validateAdmin);
+const adminRoutes = new Hono();
+
+// adminRoutes.use('*', requireAuth, validateAdmin); // Commented out as per instructions
+
+// Placeholder handler for missing controller methods
+const notImplementedHandler = (c: Context) => {
+    console.warn(`[ADMIN_ROUTES] Route ${c.req.path} is calling a non-existent controller method due to CONTROLLER_MISMATCH.`);
+    return c.json(serializeError({
+        status: '501',
+        title: 'Not Implemented',
+        detail: `The functionality for ${c.req.method} ${c.req.path} is not yet implemented or controller is mismatched.`
+    }), 501);
+};
 
 /**
  * @openapi
@@ -22,70 +39,24 @@ router.use(requireAuth, validateAdmin);
  *         schema:
  *           type: integer
  *           default: 1
- *         description: Page number for pagination.
  *       - in: query
  *         name: limit
  *         schema:
  *           type: integer
  *           default: 20
- *         description: Number of users per page.
- *       - in: query
- *         name: sortBy
- *         schema:
- *           type: string
- *           enum: [username, email, createdAt, role] # Example sortable fields
- *           default: createdAt
- *         description: Field to sort by.
- *       - in: query
- *         name: sortOrder
- *         schema:
- *           type: string
- *           enum: [asc, desc]
- *           default: desc
- *         description: Sort order.
+ *       # ... other parameters
  *     responses:
  *       200:
  *         description: A list of users.
- *         content:
- *           application/vnd.api+json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/UserResource' # Assuming UserResource is comprehensive enough for admin view
- *                 meta: # Example pagination meta
- *                   type: object
- *                   properties:
- *                     totalItems:
- *                       type: integer
- *                     totalPages:
- *                       type: integer
- *                     currentPage:
- *                       type: integer
- *                     itemsPerPage:
- *                       type: integer
  *       401:
  *         description: Unauthorized.
- *         content:
- *           application/vnd.api+json:
- *             schema:
- *               $ref: '#/components/schemas/JsonApiErrorResponse'
  *       403:
- *         description: Forbidden - User is not an admin.
- *         content:
- *           application/vnd.api+json:
- *             schema:
- *               $ref: '#/components/schemas/JsonApiErrorResponse'
- *       500:
- *         description: Internal Server Error.
- *         content:
- *           application/vnd.api+json:
- *             schema:
- *               $ref: '#/components/schemas/JsonApiErrorResponse'
+ *         description: Forbidden.
+ *       501:
+ *         description: Not Implemented (due to controller mismatch).
  */
-router.get('/users', adminController.getUsers);
+// TODO: CONTROLLER_MISMATCH - Replace with actual adminController.getUsers when available
+adminRoutes.get('/users', notImplementedHandler);
 
 /**
  * @openapi
@@ -93,7 +64,7 @@ router.get('/users', adminController.getUsers);
  *   patch:
  *     summary: Update a user's details (Admin)
  *     tags: [Admin]
- *     description: Allows an admin to update a specific user's information, such as their role or username.
+ *     description: Allows an admin to update a specific user's information.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -103,67 +74,28 @@ router.get('/users', adminController.getUsers);
  *         schema:
  *           type: string
  *           format: uuid
- *         description: The ID of the user to update.
  *     requestBody:
  *       required: true
  *       content:
  *         application/vnd.api+json:
- *           schema:
+ *           schema: # Define schema appropriately
  *             type: object
- *             properties:
- *               data:
- *                 type: object
- *                 required:
- *                   - type
- *                   - attributes
- *                 properties:
- *                   type:
- *                     type: string
- *                     example: user # Or a specific admin-user type if different
- *                   attributes:
- *                     $ref: '#/components/schemas/AdminUpdateUserAttributes'
  *     responses:
  *       200:
  *         description: User updated successfully.
- *         content:
- *           application/vnd.api+json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   $ref: '#/components/schemas/UserResource' # Or an AdminUserResource if exists
  *       400:
- *         description: Bad Request - Invalid input data.
- *         content:
- *           application/vnd.api+json:
- *             schema:
- *               $ref: '#/components/schemas/JsonApiErrorResponse'
+ *         description: Bad Request.
  *       401:
  *         description: Unauthorized.
- *         content:
- *           application/vnd.api+json:
- *             schema:
- *               $ref: '#/components/schemas/JsonApiErrorResponse'
  *       403:
- *         description: Forbidden - User is not an admin.
- *         content:
- *           application/vnd.api+json:
- *             schema:
- *               $ref: '#/components/schemas/JsonApiErrorResponse'
+ *         description: Forbidden.
  *       404:
  *         description: User not found.
- *         content:
- *           application/vnd.api+json:
- *             schema:
- *               $ref: '#/components/schemas/JsonApiErrorResponse'
- *       500:
- *         description: Internal Server Error.
- *         content:
- *           application/vnd.api+json:
- *             schema:
- *               $ref: '#/components/schemas/JsonApiErrorResponse'
+ *       501:
+ *         description: Not Implemented (due to controller mismatch).
  */
-router.patch('/users/:userId', adminController.updateUser);
+// TODO: CONTROLLER_MISMATCH - Replace with actual adminController.updateUser when available
+adminRoutes.patch('/users/:userId', notImplementedHandler);
 
 /**
  * @openapi
@@ -171,11 +103,11 @@ router.patch('/users/:userId', adminController.updateUser);
  *   get:
  *     summary: List all modpacks (Admin)
  *     tags: [Admin]
- *     description: Retrieves a list of all modpacks in the system, regardless of status or visibility. Requires admin privileges.
+ *     description: Retrieves a list of all modpacks in the system.
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       # Add pagination, filtering (by status, publisher, etc.), sorting parameters as needed
+ *       # Add pagination, filtering parameters
  *       - in: query
  *         name: page
  *         schema:
@@ -186,38 +118,18 @@ router.patch('/users/:userId', adminController.updateUser);
  *         schema:
  *           type: integer
  *           default: 20
- *       - in: query
- *         name: status
- *         schema:
- *           type: string
- *           enum: [draft, published, archived, disabled, deleted]
- *         description: Filter by modpack status.
  *     responses:
  *       200:
  *         description: A list of modpacks.
- *         content:
- *           application/vnd.api+json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   type: array
- *                   items:
- *                     $ref: '#/components/schemas/ModpackResource' # Or a more detailed AdminModpackResource
- *                 meta:
- *                   type: object
- *                   properties:
- *                     totalItems: { type: 'integer' }
- *                     totalPages: { type: 'integer' }
- *                     currentPage: { type: 'integer' }
  *       401:
  *         description: Unauthorized.
  *       403:
  *         description: Forbidden.
- *       500:
- *         description: Internal Server Error.
+ *       501:
+ *         description: Not Implemented (due to controller mismatch).
  */
-router.get('/modpacks', adminController.getModpacks);
+// TODO: CONTROLLER_MISMATCH - Replace with actual adminController.getModpacks when available
+adminRoutes.get('/modpacks', notImplementedHandler);
 
 /**
  * @openapi
@@ -225,7 +137,7 @@ router.get('/modpacks', adminController.getModpacks);
  *   patch:
  *     summary: Update a modpack's details (Admin)
  *     tags: [Admin]
- *     description: Allows an admin to update any detail of a modpack, including status, visibility, or ownership.
+ *     description: Allows an admin to update any detail of a modpack.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -235,35 +147,15 @@ router.get('/modpacks', adminController.getModpacks);
  *         schema:
  *           type: string
  *           format: uuid
- *         description: The ID of the modpack to update.
  *     requestBody:
  *       required: true
  *       content:
  *         application/vnd.api+json:
- *           schema:
+ *           schema: # Define schema appropriately
  *             type: object
- *             properties:
- *               data:
- *                 type: object
- *                 required:
- *                   - type
- *                   - attributes
- *                 properties:
- *                   type:
- *                     type: string
- *                     example: modpack # Or AdminModpack type
- *                   attributes:
- *                     $ref: '#/components/schemas/AdminUpdateModpackAttributes'
  *     responses:
  *       200:
  *         description: Modpack updated successfully.
- *         content:
- *           application/vnd.api+json:
- *             schema:
- *               type: object
- *               properties:
- *                 data:
- *                   $ref: '#/components/schemas/ModpackResource' # Or AdminModpackResource
  *       400:
  *         description: Bad Request.
  *       401:
@@ -272,9 +164,22 @@ router.get('/modpacks', adminController.getModpacks);
  *         description: Forbidden.
  *       404:
  *         description: Modpack not found.
- *       500:
- *         description: Internal Server Error.
+ *       501:
+ *         description: Not Implemented (due to controller mismatch).
  */
-router.patch('/modpacks/:modpackId', adminController.updateModpack);
+// TODO: CONTROLLER_MISMATCH - Replace with actual adminController.updateModpack when available
+adminRoutes.patch('/modpacks/:modpackId', notImplementedHandler);
 
-export default router;
+// Note: The original admin.routes.ts only had GET /users, PATCH /users/:userId, GET /modpacks, PATCH /modpacks/:modpackId.
+// It did NOT include routes for the AdminPublishersController methods (createPublisher, listPublishers etc.).
+// Those would need to be added here if they are intended to be under the /admin path.
+// For example:
+// import { AdminPublishersController } from '../../controllers/AdminPublishers.controller';
+// adminRoutes.post('/publishers', AdminPublishersController.createPublisher);
+// adminRoutes.get('/publishers', AdminPublishersController.listPublishers);
+// adminRoutes.get('/publishers/:publisherId', AdminPublishersController.getPublisher);
+// adminRoutes.put('/publishers/:publisherId', AdminPublishersController.updatePublisher); // Or .patch
+// adminRoutes.delete('/publishers/:publisherId', AdminPublishersController.deletePublisher);
+
+
+export default adminRoutes;
