@@ -60,6 +60,21 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
     const [activeTab, setActiveTab] = useState<string>("");
     const [sections, setSections] = useState<string[]>([]);
     const [saving, setSaving] = useState<boolean>(false);
+    const [gitHash, setGitHash] = useState<string>('Loading...');
+
+    // Cargar configuración y git hash cuando se abre el diálogo
+    useEffect(() => {
+        if (isOpen) {
+            trackSectionView("configuration");
+            loadConfig();
+            invoke<string>('get_git_hash')
+                .then(setGitHash)
+                .catch(err => {
+                    console.error("Failed to get git hash:", err);
+                    setGitHash('Error fetching hash');
+                });
+        }
+    }, [isOpen]);
 
     // Cargar configuración cuando se abre el diálogo
     useEffect(() => {
@@ -422,7 +437,10 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                         </div>
 
                         {/* Footer */}
-                        <div className="bg-neutral-900 border-t border-neutral-800 p-4 flex justify-end">
+                        <div className="bg-neutral-900 border-t border-neutral-800 p-4 flex justify-between items-center">
+                            <div className="text-xs text-neutral-500">
+                                Commit: {gitHash}
+                            </div>
                             <div className="flex gap-2">
                                 <Button
                                     variant="outline"

@@ -11,6 +11,8 @@ mod core;
 mod interfaces;
 mod utils;
 
+use std::process::Command;
+use std::str;
 use core::auth::*;
 use serde_json::json;
 use std::sync::Arc;
@@ -24,6 +26,30 @@ static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::A
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
 
 static API_ENDPOINT: &str = "https://api-modpackstore.alexitoo.dev/v1";
+
+#[tauri::command]
+async fn get_git_hash() -> String {
+    let output = Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .output();
+
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                let stdout = str::from_utf8(&output.stdout);
+                if let Ok(hash) = stdout {
+                    return hash.trim().to_string();
+                }
+            }
+            // If git command fails or output is not UTF-8, fallback to build-time hash
+            env!("GIT_HASH_BUILD_TIME").to_string()
+        }
+        Err(_) => {
+            // If Command::new fails (e.g., git not found), fallback to build-time hash
+            env!("GIT_HASH_BUILD_TIME").to_string()
+        }
+    }
+}
 
 pub fn main() {
     let logs_dir = dirs::config_dir()
@@ -110,6 +136,7 @@ pub fn main() {
             core::auth::init_session,
             core::microsoft_auth::start_microsoft_auth,
             core::prelaunch_appearance::get_prelaunch_appearance,
+            get_git_hash,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
