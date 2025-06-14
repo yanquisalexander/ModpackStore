@@ -12,12 +12,19 @@ import { eq } from "drizzle-orm";
 type ModpackVersionType = typeof ModpackVersionsTable.$inferSelect;
 type NewModpackVersion = typeof ModpackVersionsTable.$inferInsert;
 
+export enum ModpackVersionStatus {
+	DRAFT = 'draft',
+	PUBLISHED = 'published',
+	ARCHIVED = 'archived',
+}
+
 export const newModpackVersionSchema = z.object({
   modpackId: z.string().uuid(),
   version: z.string().min(1),
   mcVersion: z.string().min(1),
   forgeVersion: z.string().optional(),
   changelog: z.string().min(1),
+  status: z.nativeEnum(ModpackVersionStatus).default(ModpackVersionStatus.DRAFT).optional(),
   createdBy: z.string().uuid(),
 });
 
@@ -25,13 +32,14 @@ export class ModpackVersion {
   readonly id: string;
   readonly modpackId: string;
   readonly createdBy: string;
-  readonly releaseDate: Date;
+  releaseDate: Date | null; // Made nullable
   readonly createdAt: Date;
 
   version: string;
   mcVersion: string;
   forgeVersion: string | null;
   changelog: string;
+  status: ModpackVersionStatus; // Added status
   updatedAt: Date;
 
   // Cached relations
@@ -43,7 +51,7 @@ export class ModpackVersion {
     this.id = data.id;
     this.modpackId = data.modpackId;
     this.createdBy = data.createdBy;
-    this.releaseDate = data.releaseDate;
+    this.releaseDate = data.releaseDate; // Will be null initially
     this.createdAt = data.createdAt;
 
     // Mutable fields
@@ -51,6 +59,7 @@ export class ModpackVersion {
     this.mcVersion = data.mcVersion;
     this.forgeVersion = data.forgeVersion;
     this.changelog = data.changelog;
+    this.status = data.status as ModpackVersionStatus; // Initialize status
     this.updatedAt = data.updatedAt;
   }
 
@@ -73,7 +82,7 @@ export class ModpackVersion {
         .insert(ModpackVersionsTable)
         .values({
           ...parsed.data,
-          releaseDate: now,
+          // releaseDate is not set on creation, will be null by default in DB
           createdAt: now,
           updatedAt: now,
         })
@@ -133,6 +142,7 @@ export class ModpackVersion {
       mcVersion: this.mcVersion,
       forgeVersion: this.forgeVersion,
       changelog: this.changelog,
+      status: this.status, // Added status
       releaseDate: this.releaseDate,
       createdBy: this.createdBy,
       createdAt: this.createdAt,

@@ -94,6 +94,7 @@ export const ModpacksTable = pgTable('modpacks', {
     publisherId: uuid('publisher_id').references(() => PublishersTable.id).notNull(),
     showUserAsPublisher: boolean('show_user_as_publisher').default(false),
     creatorUserId: uuid('creator_user_id').references(() => UsersTable.id),
+    status: text('status').notNull().default('draft'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -106,7 +107,8 @@ export const ModpackVersionsTable = pgTable('modpack_versions', {
     mcVersion: text('mc_version').notNull(),
     forgeVersion: text('forge_version'), // nullable
     changelog: text('changelog').notNull(),
-    releaseDate: timestamp('release_date', { withTimezone: true }).defaultNow().notNull(),
+    status: text('status').notNull().default('draft'),
+    releaseDate: timestamp('release_date', { withTimezone: true }),
     createdBy: uuid('created_by').references(() => UsersTable.id).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
