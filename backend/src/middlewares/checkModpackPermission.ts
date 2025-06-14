@@ -38,48 +38,55 @@ export const checkModpackPermission = (requiredPermissions: Permission[]) => {
         }
 
         const userId = req.user.id;
-        let publisherIdToCheck: string | undefined = req.body.publisherId;
-        const modpackId = req.params.modpackId;
+        let publisherContextId: string | undefined = req.body.publisherId; // For actions like 'createModpack' under a publisher
+        const modpackIdFromParams = req.params.modpackId; // For actions on an existing modpack
 
         try {
-            // If modpackId is present, derive publisherId from it
-            if (modpackId) {
+            // Step 1: Determine the relevant Publisher ID for permission checking.
+            // If a modpackId is provided in the URL params, its publisher is the context.
+            // Otherwise, a publisherId might be in the request body (e.g., for creating a new modpack).
+            if (modpackIdFromParams) {
                 const modpack = await db.query.ModpacksTable.findFirst({
-                    where: eq(ModpacksTable.id, modpackId),
+                    where: eq(ModpacksTable.id, modpackIdFromParams),
                     columns: { publisherId: true }
                 });
                 if (!modpack) {
                     return res.status(404).json({ message: 'Modpack not found.' });
                 }
-                publisherIdToCheck = modpack.publisherId;
+                publisherContextId = modpack.publisherId;
             }
 
-            if (!publisherIdToCheck) {
-                return res.status(400).json({ message: 'Publisher ID or Modpack ID must be provided.' });
+            // If no publisherId could be determined (neither from modpack nor from body), it's a bad request.
+            if (!publisherContextId) {
+                return res.status(400).json({ message: 'A valid Publisher ID or Modpack ID must be provided to check permissions.' });
             }
 
-            // Find the user's membership in the publisher
+            // Step 2: Check if the user is a member of the determined publisher.
             const publisherMember = await db.query.PublisherMembersTable.findFirst({
                 where: and(
                     eq(PublisherMembersTable.userId, userId),
-                    eq(PublisherMembersTable.publisherId, publisherIdToCheck)
+                    eq(PublisherMembersTable.publisherId, publisherContextId)
                 ),
-                columns: { id: true }
+                columns: { id: true } // We only need the membership ID for scope checking.
             });
 
             if (!publisherMember) {
-                return res.status(403).json({ message: 'Forbidden: User is not a member of this publisher.' });
+                return res.status(403).json({ message: 'Forbidden: You are not a member of this publisher.' });
             }
 
-            // Check scopes for the publisher member
-            // Scopes can be general (publisherId set, modpackId null) or modpack-specific
+            // Step 3: Fetch relevant scopes for the user within this publisher context.
+            // Scopes can be organization-wide (publisherId set, modpackId null)
+            // or modpack-specific (modpackId set).
+            const scopeOrConditions = [eq(ScopesTable.publisherId, publisherContextId)];
+            if (modpackIdFromParams) {
+                // If checking permissions for a specific modpack, include its specific scopes.
+                scopeOrConditions.push(eq(ScopesTable.modpackId, modpackIdFromParams));
+            }
+
             const userScopes = await db.query.ScopesTable.findMany({
                 where: and(
                     eq(ScopesTable.publisherMemberId, publisherMember.id),
-                    or(
-                        eq(ScopesTable.publisherId, publisherIdToCheck), // Org-level scope
-                        modpackId ? eq(ScopesTable.modpackId, modpackId) : undefined // Modpack-level scope (if modpackId exists)
-                    )
+                    or(...scopeOrConditions)
                 )
             });
 

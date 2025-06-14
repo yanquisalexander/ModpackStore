@@ -1,7 +1,7 @@
 // src/models/User.ts
 import { client as db } from "@/db/client";
 import { eq } from "drizzle-orm";
-import { userSchema, newUserSchema } from "@/validators/user";
+import { userSchema, newUserSchema, UserSchema } from "@/validators/user";
 import { UsersTable } from "@/db/schema";
 import type { z } from "zod";
 import { Session } from "./Session.model";
@@ -11,7 +11,42 @@ import "dotenv/config";
 // Types
 type UserType = typeof UsersTable.$inferSelect;
 type NewUser = typeof UsersTable.$inferInsert;
-type UserUpdateData = Partial<Omit<NewUser, "id" | "createdAt">>;
+
+// Zod schema for updates, allowing partial updates and omitting certain fields
+const userUpdateSchema = UserSchema.partial().omit({
+    id: true,
+    email: true, // Email changes typically require a verification process
+    createdAt: true,
+    updatedAt: true, // Should be set by the update method
+    discordId: true, // Discord ID is set during initial link, not arbitrary update
+    patreonId: true, // Patreon ID is set during initial link, not arbitrary update
+}).extend({
+    // Explicitly include fields that can be updated, including OAuth tokens
+    username: UserSchema.shape.username.optional(),
+    avatarUrl: UserSchema.shape.avatarUrl.optional().nullable(),
+    admin: UserSchema.shape.admin.optional(),
+    discordAccessToken: UserSchema.shape.discordAccessToken.optional().nullable(),
+    discordRefreshToken: UserSchema.shape.discordRefreshToken.optional().nullable(),
+    patreonAccessToken: UserSchema.shape.patreonAccessToken.optional().nullable(),
+    patreonRefreshToken: UserSchema.shape.patreonRefreshToken.optional().nullable(),
+});
+type UserUpdateData = z.infer<typeof userUpdateSchema>;
+
+// Zod schemas for partial OAuth data updates
+const partialDiscordDataSchema = z.object({
+    discordId: UserSchema.shape.discordId.optional(), // Only if it's ever meant to be set outside initial link
+    accessToken: UserSchema.shape.discordAccessToken.optional(),
+    refreshToken: UserSchema.shape.discordRefreshToken.optional(),
+}).partial();
+type PartialDiscordData = z.infer<typeof partialDiscordDataSchema>;
+
+const partialPatreonDataSchema = z.object({
+    patreonId: UserSchema.shape.patreonId.optional(), // Only if it's ever meant to be set outside initial link
+    accessToken: UserSchema.shape.patreonAccessToken.optional(),
+    refreshToken: UserSchema.shape.patreonRefreshToken.optional(),
+}).partial();
+type PartialPatreonData = z.infer<typeof partialPatreonDataSchema>;
+
 
 interface TokenPayload extends JwtPayload {
     sub: string;
@@ -86,13 +121,29 @@ export class User {
     get patreonAccessToken(): string | null { return this._patreonData.accessToken ?? null; }
     get patreonRefreshToken(): string | null { return this._patreonData.refreshToken ?? null; }
 
-    // OAuth data setters with validation
-    setDiscordData(data: Partial<DiscordData>): void {
-        this._discordData = { ...this._discordData, ...data };
+    // OAuth data setters with validation and persistence
+    async setDiscordData(data: PartialDiscordData): Promise<void> {
+        const parsedData = partialDiscordDataSchema.safeParse(data);
+        if (!parsedData.success) {
+            throw new Error(`Invalid Discord data: ${JSON.stringify(parsedData.error.format())}`);
+        }
+        if (parsedData.data.discordId) this._discordData.discordId = parsedData.data.discordId;
+        if (parsedData.data.accessToken) this._discordData.accessToken = parsedData.data.accessToken;
+        if (parsedData.data.refreshToken) this._discordData.refreshToken = parsedData.data.refreshToken;
+        // Persist changes
+        await this.save();
     }
 
-    setPatreonData(data: Partial<PatreonData>): void {
-        this._patreonData = { ...this._patreonData, ...data };
+    async setPatreonData(data: PartialPatreonData): Promise<void> {
+        const parsedData = partialPatreonDataSchema.safeParse(data);
+        if (!parsedData.success) {
+            throw new Error(`Invalid Patreon data: ${JSON.stringify(parsedData.error.format())}`);
+        }
+        if (parsedData.data.patreonId) this._patreonData.patreonId = parsedData.data.patreonId;
+        if (parsedData.data.accessToken) this._patreonData.accessToken = parsedData.data.accessToken;
+        if (parsedData.data.refreshToken) this._patreonData.refreshToken = parsedData.data.refreshToken;
+        // Persist changes
+        await this.save();
     }
 
     // Static factory methods
@@ -222,31 +273,41 @@ export class User {
         }
     }
 
-    // Instance methods
-    async update(data: UserUpdateData): Promise<User> {
-        const updateData = {
-            ...data,
+    // Static method for updates
+    static async update(id: string, data: UserUpdateData): Promise<User> {
+        const parsedData = userUpdateSchema.safeParse(data);
+        if (!parsedData.success) {
+            throw new Error(`Invalid user update data: ${JSON.stringify(parsedData.error.format())}`);
+        }
+
+        const updatePayload = {
+            ...parsedData.data,
             updatedAt: new Date(),
         };
 
         try {
-            await db.update(UsersTable).set(updateData).where(eq(UsersTable.id, this.id));
+            const [updatedUserRecord] = await db
+                .update(UsersTable)
+                .set(updatePayload)
+                .where(eq(UsersTable.id, id))
+                .returning();
 
-            const updated = await User.findById(this.id);
-            if (!updated) {
-                throw new Error("Failed to retrieve updated user");
+            if (!updatedUserRecord) {
+                throw new Error("User not found or update failed");
             }
-
-            // Update current instance
-            Object.assign(this, updated);
-            return this;
+            return new User(updatedUserRecord);
         } catch (error) {
+            // Log the error for debugging purposes
+            console.error(`Failed to update user ${id}:`, error);
+            // Throw a more generic error or a custom error
             throw new Error(`Failed to update user: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
+    // Instance methods
     async save(): Promise<User> {
-        const updateData = {
+        // Data to be saved, ensure it aligns with UserUpdateData schema
+        const dataToSave: UserUpdateData = {
             username: this.username,
             avatarUrl: this.avatarUrl,
             admin: this.admin,
@@ -254,10 +315,12 @@ export class User {
             discordRefreshToken: this.discordRefreshToken,
             patreonAccessToken: this.patreonAccessToken,
             patreonRefreshToken: this.patreonRefreshToken,
-            updatedAt: new Date(),
         };
 
-        return this.update(updateData);
+        const updatedUser = await User.update(this.id, dataToSave);
+        // Update current instance properties from the successfully saved user data
+        Object.assign(this, updatedUser);
+        return this;
     }
 
     async delete(): Promise<void> {

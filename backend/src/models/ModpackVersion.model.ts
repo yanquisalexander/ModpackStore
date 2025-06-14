@@ -28,6 +28,17 @@ export const newModpackVersionSchema = z.object({
   createdBy: z.string().uuid(),
 });
 
+export const modpackVersionUpdateSchema = newModpackVersionSchema.partial().omit({
+  modpackId: true, // Generally, a version shouldn't move between modpacks
+  createdBy: true, // Creator should not change
+  version: true, // Version number itself is often immutable; changes imply a new version.
+}).extend({
+  releaseDate: z.date().nullable().optional(),
+  // status can be updated via this schema.
+});
+type ModpackVersionUpdateInput = z.infer<typeof modpackVersionUpdateSchema>;
+
+
 export class ModpackVersion {
   readonly id: string;
   readonly modpackId: string;
@@ -103,6 +114,84 @@ export class ModpackVersion {
     } catch (error) {
       console.error(`Error finding modpack version by ID ${id}:`, error);
       return null;
+    }
+  }
+
+  static async findById(id: string): Promise<ModpackVersion | null> {
+    if (!id?.trim()) return null;
+
+    try {
+      const [version] = await db.select().from(ModpackVersionsTable).where(eq(ModpackVersionsTable.id, id));
+      return version ? new ModpackVersion(version) : null;
+    } catch (error) {
+      console.error(`Error finding modpack version by ID ${id}:`, error);
+      return null;
+    }
+  }
+
+  // Static method for updates
+  static async update(id: string, data: ModpackVersionUpdateInput): Promise<ModpackVersion> {
+    const validationResult = modpackVersionUpdateSchema.safeParse(data);
+    if (!validationResult.success) {
+      throw new Error(`Invalid modpack version update data: ${JSON.stringify(validationResult.error.format())}`);
+    }
+
+    if (Object.keys(validationResult.data).length === 0) {
+      const currentVersion = await ModpackVersion.findById(id);
+      if (!currentVersion) throw new Error("ModpackVersion not found for update with empty payload.");
+      return currentVersion;
+    }
+
+    const updatePayload = {
+      ...validationResult.data,
+      updatedAt: new Date(),
+    };
+
+    try {
+      const [updatedRecord] = await db
+        .update(ModpackVersionsTable)
+        .set(updatePayload)
+        .where(eq(ModpackVersionsTable.id, id))
+        .returning();
+
+      if (!updatedRecord) {
+        throw new Error("ModpackVersion not found or update failed.");
+      }
+      return new ModpackVersion(updatedRecord);
+    } catch (error) {
+      console.error(`Failed to update modpack version ${id}:`, error);
+      throw new Error(`Failed to update modpack version: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // Instance method for saving current state
+  async save(): Promise<ModpackVersion> {
+    const dataToSave: ModpackVersionUpdateInput = {
+      // Fields from modpackVersionUpdateSchema
+      mcVersion: this.mcVersion,
+      forgeVersion: this.forgeVersion ?? undefined,
+      changelog: this.changelog,
+      status: this.status,
+      releaseDate: this.releaseDate,
+      // 'version' field is omitted as it's often immutable. If it were mutable:
+      // version: this.version,
+    };
+
+    const updatedVersion = await ModpackVersion.update(this.id, dataToSave);
+    // Update current instance properties from the successfully saved data
+    Object.assign(this, updatedVersion);
+    return this;
+  }
+
+  // Instance method for soft deletion (setting status to ARCHIVED)
+  async delete(): Promise<void> {
+    try {
+      const updatedVersion = await ModpackVersion.update(this.id, { status: ModpackVersionStatus.ARCHIVED });
+      this.status = updatedVersion.status;
+      this.updatedAt = updatedVersion.updatedAt; // Ensure updatedAt is also updated on the instance
+    } catch (error) {
+      // Log the specific error from the update attempt if needed
+      throw new Error(`Failed to soft-delete modpack version ${this.id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 

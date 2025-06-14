@@ -14,7 +14,7 @@ import {
 // Types
 type ModpackType = typeof ModpacksTable.$inferSelect;
 type NewModpack = typeof ModpacksTable.$inferInsert;
-type ModpackUpdateData = Partial<Omit<NewModpack, "id" | "createdAt">>;
+// ModpackUpdateData is now inferred from modpackUpdateSchema
 
 // Enums
 export enum ModpackVisibility {
@@ -219,33 +219,66 @@ export class Modpack {
         }
     }
 
-    // Instance methods
-    async update(data: ModpackUpdateData): Promise<Modpack> {
-        const updateData = {
-            ...data,
+    // Static method for updates
+    static async update(id: string, data: z.infer<typeof modpackUpdateSchema>): Promise<Modpack> {
+        const parsedData = modpackUpdateSchema.safeParse(data);
+        if (!parsedData.success) {
+            throw new Error(`Invalid modpack update data: ${JSON.stringify(parsedData.error.format())}`);
+        }
+
+        const updatePayload = {
+            ...parsedData.data,
             updatedAt: new Date(),
         };
 
         try {
-            await db.update(ModpacksTable).set(updateData).where(eq(ModpacksTable.id, this.id));
+            const [updatedModpackRecord] = await db
+                .update(ModpacksTable)
+                .set(updatePayload)
+                .where(eq(ModpacksTable.id, id))
+                .returning();
 
-            const updated = await Modpack.findById(this.id);
-            if (!updated) {
-                throw new Error("Failed to retrieve updated modpack");
+            if (!updatedModpackRecord) {
+                throw new Error("Modpack not found or update failed");
             }
-
-            // Update current instance
-            Object.assign(this, updated);
-            return this;
+            return new Modpack(updatedModpackRecord);
         } catch (error) {
+            console.error(`Failed to update modpack ${id}:`, error);
             throw new Error(`Failed to update modpack: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
+    // Instance methods
+    async save(): Promise<Modpack> {
+        const dataToSave: z.infer<typeof modpackUpdateSchema> = {
+            name: this.name,
+            shortDescription: this.shortDescription ?? undefined,
+            description: this.description ?? undefined,
+            iconUrl: this.iconUrl,
+            bannerUrl: this.bannerUrl,
+            trailerUrl: this.trailerUrl ?? undefined,
+            password: this.password ?? undefined,
+            visibility: this.visibility,
+            status: this.status,
+            publisherId: this.publisherId, // publisherId is part of newModpackSchema, so it's in modpackUpdateSchema
+            showUserAsPublisher: this.showUserAsPublisher,
+            creatorUserId: this.creatorUserId ?? undefined,
+        };
+
+        // Note: slug is not part of modpackUpdateSchema, so it's not included in dataToSave.
+
+        const updatedModpack = await Modpack.update(this.id, dataToSave);
+        // Update current instance properties from the successfully saved modpack data
+        Object.assign(this, updatedModpack);
+        return this;
+    }
+
     async delete(): Promise<void> {
         try {
-            // Soft delete by updating status
-            await this.update({ status: ModpackStatus.DELETED });
+            // Soft delete by updating status using the new static update method
+            const updatedModpack = await Modpack.update(this.id, { status: ModpackStatus.DELETED });
+            this.status = updatedModpack.status;
+            this.updatedAt = updatedModpack.updatedAt;
         } catch (error) {
             throw new Error(`Failed to delete modpack: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
