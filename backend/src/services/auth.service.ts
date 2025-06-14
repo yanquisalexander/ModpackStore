@@ -54,7 +54,7 @@ export class AuthService {
             } catch (guildError: any) {
                 console.error("[SERVICE_AUTH][DISCORD] Error checking guild membership:", guildError.message);
                 if (axios.isAxiosError(guildError) && guildError.response?.status === 401) {
-                     const error = new Error('Invalid Discord token when checking guilds.');
+                    const error = new Error('Invalid Discord token when checking guilds.');
                     (error as any).statusCode = 401; // Unauthorized or token issue
                     throw error;
                 }
@@ -72,9 +72,10 @@ export class AuthService {
                 discordId: discordApiUser.id,
                 username: discordApiUser.username, // Consider handling username conflicts/uniqueness if necessary
                 email: discordApiUser.email, // Ensure email is verified if used for critical functions
-                avatarUrl: userAvatarUrl,
+                avatarUrl: userAvatarUrl ?? undefined,
                 discordAccessToken: discordToken.access_token,
                 discordRefreshToken: discordToken.refresh_token,
+                admin: false,
             });
         } else {
             console.log(`[SERVICE_AUTH][DISCORD] User ${discordApiUser.id} found. Updating tokens and avatar.`);
@@ -96,6 +97,7 @@ export class AuthService {
 
         const jwtTokens = await user.generateTokens(session); // generateTokens should be an instance method on User
         console.log("[SERVICE_AUTH] JWTs generated.");
+        console.log("[SERVICE_AUTH] Access Token:", jwtTokens.accessToken);
 
         return {
             token_type: 'bearer',

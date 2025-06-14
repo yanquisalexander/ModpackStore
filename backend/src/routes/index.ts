@@ -1,9 +1,8 @@
 import { Hono, Context } from 'hono';
-import { APIError } from '../lib/APIError';
 import authRoutes from './v1/auth.routes'; // Now a Hono app
 import adminRoutes from './v1/admin.routes'; // Now a Hono app
 // TODO: MIGRATE_ROUTES - These routes need to be migrated to Hono
-// import exploreRoutes from './v1/explore.routes';
+import exploreRoutes from './v1/explore.routes';
 // import modpackRoutes from './v1/modpacks.routes';
 // import versionRoutes from './v1/versions.routes';
 
@@ -12,6 +11,7 @@ const rootRouter = new Hono();
 // v1 routes
 rootRouter.route('/auth', authRoutes);
 rootRouter.route('/admin', adminRoutes); // Mount Hono adminRoutes
+rootRouter.route('/explore', exploreRoutes); // Mount Hono exploreRoutes
 
 // TODO: MIGRATE_ROUTES - These routes need to be migrated and then re-added here
 // rootRouter.route('/explore', exploreRoutes);
@@ -31,15 +31,6 @@ rootRouter.get('/ping', (c: Context) => {
 // Note: In Hono, a global `app.notFound` in index.ts is often preferred for overall 404s.
 // This will catch routes not matched within this `rootRouter` specifically.
 // If this router is mounted under /v1, this will handle /v1/* not found.
-rootRouter.notFound((c: Context) => {
-  return c.json({
-    errors: [{
-      status: '404',
-      title: 'Route Not Found',
-      detail: `The route ${c.req.path} was not found on this server.`
-    }]
-  }, 404);
-});
 
 // It's also possible to use app.all for a catch-all, but notFound is more specific.
 // rootRouter.all('*', (c: Context) => {

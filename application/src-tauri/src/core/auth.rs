@@ -14,9 +14,8 @@ use tokio::sync::Mutex;
 // --- JSON:API Response Structures ---
 #[derive(Deserialize, Debug, Clone)]
 struct JsonApiResource<T> {
-    // id: String, // Not currently needed for UserSession/TokenResponse attributes
-    // #[serde(rename = "type")] // 'type' is a keyword, rename if needed
-    // type_name: String,
+    #[serde(rename = "type")]
+    type_name: String,
     attributes: T,
 }
 
@@ -49,8 +48,14 @@ pub struct UserSession {
 // Token response from API
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct TokenResponse {
+    #[serde(rename = "accessToken")]
     access_token: String,
+    #[serde(rename = "refreshToken")]
     refresh_token: String,
+    #[serde(rename = "expiresIn")]
+    expires_in: Option<u64>, // Es opcional por si el backend no lo manda siempre
+    #[serde(rename = "tokenType")]
+    token_type: Option<String>,
 }
 
 // Auth steps for frontend
@@ -196,6 +201,56 @@ async fn remove_tokens_from_store(app_handle: &tauri::AppHandle) -> Result<(), S
     Ok(())
 }
 
+// --- Helpers reutilizables ---
+
+/// Helper para emitir eventos de error de autenticación
+fn emit_auth_error(msg: impl ToString) {
+    let _ = emit_event::<String>("auth-error", Some(msg.to_string()));
+}
+
+/// Helper para obtener la sesión de usuario dado un access_token
+async fn fetch_user_session(client: &Client, token: &str) -> Result<UserSession, String> {
+    let session_endpoint = format!("{}/auth/me", API_ENDPOINT);
+    let resp = client
+        .get(&session_endpoint)
+        .bearer_auth(token)
+        .send()
+        .await
+        .map_err(|e| format!("Error al contactar API: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("Error al obtener sesión: {}", resp.status()));
+    }
+    let json_api_resp = resp
+        .json::<JsonApiResponse<UserSession>>()
+        .await
+        .map_err(|e| format!("Error al parsear sesión JSON:API: {}", e))?;
+    Ok(json_api_resp.data.attributes)
+}
+
+/// Helper para renovar tokens
+async fn renew_tokens(
+    app_handle: &tauri::AppHandle,
+    refresh_token: &str,
+) -> Result<TokenResponse, String> {
+    let client = Client::new();
+    let refresh_endpoint = format!("{}/auth/refresh", API_ENDPOINT);
+    let resp = client
+        .post(&refresh_endpoint)
+        .json(&json!({ "refresh_token": refresh_token }))
+        .send()
+        .await
+        .map_err(|e| format!("Error al contactar API para renovación: {}", e))?;
+    if !resp.status().is_success() {
+        return Err(format!("Error al renovar tokens: {}", resp.status()));
+    }
+    let json_api_resp = resp
+        .json::<JsonApiResponse<TokenResponse>>()
+        .await
+        .map_err(|e| format!("Error al parsear respuesta de tokens renovados: {}", e))?;
+    save_tokens_to_store(app_handle, &json_api_resp.data.attributes).await?;
+    Ok(json_api_resp.data.attributes)
+}
+
 // HTTP server handler for OAuth callback
 async fn handle_callback(
     req: Request<Body>,
@@ -269,158 +324,54 @@ pub async fn init_session(
             println!("Tokens encontrados en store, verificando sesión...");
 
             let client = Client::new();
-            let session_endpoint = format!("{}/auth/me", API_ENDPOINT);
 
-            match client
-                .get(&session_endpoint)
-                .bearer_auth(&tokens.access_token)
-                .send()
-                .await
-            {
-                Ok(user_resp) => {
-                    if user_resp.status().is_success() {
-                        match user_resp.json::<JsonApiResponse<UserSession>>().await {
-                            Ok(json_api_resp) => {
-                                let user = json_api_resp.data.attributes;
-                                println!("Sesión recuperada con éxito");
-                                // Guardar la sesión en memoria
-                                let mut session_guard = auth_state.session.lock().await;
-                                *session_guard = Some(user.clone());
-                                drop(session_guard);
+            match fetch_user_session(&client, &tokens.access_token).await {
+                Ok(user) => {
+                    println!("Sesión recuperada con éxito");
+                    // Guardar la sesión en memoria
+                    let mut session_guard = auth_state.session.lock().await;
+                    *session_guard = Some(user.clone());
+                    drop(session_guard);
 
-                                // Notificar al frontend
-                                let _ = emit_event("auth-status-changed", Some(user.clone()));
+                    // Notificar al frontend
+                    let _ = emit_event("auth-status-changed", Some(user.clone()));
 
-                                return Ok(Some(user));
-                            }
-                            Err(e) => {
-                                eprintln!("Error al parsear datos de sesión JSON:API: {}", e);
-                                // Si hay error de parseo, eliminar tokens
-                                let _ = remove_tokens_from_store(&app_handle).await;
-                            }
-                        }
-                    }
-                    // can't compare tauri_plugin_http::reqwest::StatusCode with hyper::StatusCode
-                    // Replace the problematic section in the init_session function with this code:
-                    else if user_resp.status() == StatusCode::UNAUTHORIZED {
-                        println!("Tokens expirados, intentando renovar...");
+                    return Ok(Some(user));
+                }
+                Err(_) => {
+                    println!("Tokens expirados, intentando renovar...");
 
-                        // Acceder directamente al refresh_token como String
-                        let refresh_token = tokens.refresh_token.clone();
+                    match renew_tokens(&app_handle, &tokens.refresh_token).await {
+                        Ok(new_tokens) => {
+                            println!("Tokens renovados con éxito");
 
-                        let client = Client::new();
-                        let refresh_endpoint = format!("{}/auth/refresh", API_ENDPOINT);
+                            match fetch_user_session(&client, &new_tokens.access_token).await {
+                                Ok(user) => {
+                                    println!("Sesión recuperada con éxito tras renovar tokens");
+                                    // Guardar la sesión en memoria
+                                    let mut session_guard = auth_state.session.lock().await;
+                                    *session_guard = Some(user.clone());
+                                    drop(session_guard);
 
-                        match client
-                            .post(&refresh_endpoint)
-                            .json(&json!({ "refresh_token": refresh_token }))
-                            .send()
-                            .await
-                        {
-                            Ok(resp) if resp.status().is_success() => {
-                                match resp.json::<JsonApiResponse<TokenResponse>>().await {
-                                    Ok(json_api_resp) => {
-                                        let new_tokens = json_api_resp.data.attributes;
-                                        // Guardar los nuevos tokens
-                                        if let Err(e) =
-                                            save_tokens_to_store(&app_handle, &new_tokens).await
-                                        {
-                                            eprintln!("Error al guardar tokens renovados: {}", e);
-                                            return Ok(None);
-                                        }
+                                    // Notificar al frontend
+                                    let _ = emit_event("auth-status-changed", Some(user.clone()));
 
-                                        println!("Tokens renovados con éxito");
-
-                                        // Intentar nuevamente obtener la sesión con el nuevo token
-                                        let session_endpoint = format!("{}/auth/me", API_ENDPOINT);
-
-                                        match client
-                                            .get(&session_endpoint)
-                                            .bearer_auth(&new_tokens.access_token)
-                                            .send()
-                                            .await
-                                        {
-                                            Ok(new_user_resp)
-                                                if new_user_resp.status().is_success() =>
-                                            {
-                                                match new_user_resp.json::<JsonApiResponse<UserSession>>().await {
-                                                    Ok(json_api_resp) => {
-                                                        let user = json_api_resp.data.attributes;
-                                                        println!("Sesión recuperada con éxito tras renovar tokens");
-                                                        // Guardar la sesión en memoria
-                                                        let mut session_guard =
-                                                            auth_state.session.lock().await;
-                                                        *session_guard = Some(user.clone());
-                                                        drop(session_guard);
-
-                                                        // Notificar al frontend
-                                                        let _ = emit_event(
-                                                            "auth-status-changed",
-                                                            Some(user.clone()),
-                                                        );
-
-                                                        return Ok(Some(user));
-                                                    }
-                                                    Err(e) => {
-                                                        eprintln!("Error al parsear datos de sesión JSON:API tras renovar: {}", e);
-                                                        let _ =
-                                                            remove_tokens_from_store(&app_handle)
-                                                                .await;
-                                                    }
-                                                }
-                                            }
-                                            Ok(_) => {
-                                                eprintln!("Error al verificar sesión con tokens renovados");
-                                                let _ = remove_tokens_from_store(&app_handle).await;
-                                            }
-                                            Err(e) => {
-                                                eprintln!("Error al contactar API tras renovar tokens: {}", e);
-                                                let _ = remove_tokens_from_store(&app_handle).await;
-                                            }
-                                        }
-                                    }
-                                    Err(e) => {
-                                        eprintln!(
-                                            "Error al parsear respuesta de tokens renovados: {}",
-                                            e
-                                        );
-                                        let _ = remove_tokens_from_store(&app_handle).await;
-                                    }
+                                    return Ok(Some(user));
+                                }
+                                Err(e) => {
+                                    eprintln!(
+                                        "Error al verificar sesión con tokens renovados: {}",
+                                        e
+                                    );
+                                    let _ = remove_tokens_from_store(&app_handle).await;
                                 }
                             }
-                            Ok(resp) => {
-                                eprintln!("Error al renovar tokens: {}", resp.status());
-                                eprintln!("Cuerpo de error: {}", resp.text().await.unwrap_or_default());
-                                let _ = remove_tokens_from_store(&app_handle).await;
-                            }
-                            Err(e) => {
-                                eprintln!("Error al contactar API para renovación: {}", e);
-                                let _ = remove_tokens_from_store(&app_handle).await;
-                            }
                         }
-                    } else {
-                        let status_code = user_resp.status();
-                        eprintln!("Error al verificar sesión: {}", status_code);
-
-                        if status_code.is_server_error() {
-                            log::error!("Error del servidor: {}", status_code);
-                            // Don't remove tokens, just log the error
-                           emit_event::<String>(
-                                "auth-error",
-                                Some(format!("Error del servidor: {}", status_code)),
-                            )?;
-                        } else {
-                            // Si no es un error del servidor, eliminar tokens
+                        Err(e) => {
+                            eprintln!("Error al renovar tokens: {}", e);
                             let _ = remove_tokens_from_store(&app_handle).await;
-                            eprintln!("Tokens inválidos, eliminando...");
-                            let _ = emit_event("auth-status-changed", Option::<UserSession>::None);
-                            return Ok(None);
                         }
-                        
                     }
-                }
-                Err(e) => {
-                    eprintln!("Error al contactar API: {}", e);
                 }
             }
         }
@@ -547,10 +498,18 @@ pub async fn start_discord_auth(
                                 "No se pudo leer el cuerpo del error".to_string()
                             });
                             eprintln!("Error de API de tokens: {} - {}", status, error_body);
-                            let _ = emit_event::<String>("auth-error", Some(error_body));
+                            emit_auth_error(error_body);
                             return;
                         }
 
+                        // DEBUG: Imprimir respuesta cruda antes de intentar deserializar
+                        let raw_body = resp
+                            .text()
+                            .await
+                            .unwrap_or_else(|_| "<no body>".to_string());
+                        println!("Respuesta cruda de tokens: {}", raw_body);
+                        // Volver a hacer la petición para parsear el JSON (ya que .text() consume el body)
+                        let resp = client.get(&token_endpoint).send().await.unwrap();
                         match resp.json::<JsonApiResponse<TokenResponse>>().await {
                             Ok(json_api_resp) => {
                                 let tokens = json_api_resp.data.attributes;
@@ -569,99 +528,42 @@ pub async fn start_discord_auth(
                                     "auth-step-changed",
                                     Some(AuthStep::RequestingSession),
                                 );
-                                let session_endpoint = format!("{}/auth/me", API_ENDPOINT);
-                                println!(
-                                    "Solicitando sesión de usuario desde: {}",
-                                    session_endpoint
-                                );
 
-                                match client
-                                    .get(&session_endpoint)
-                                    .bearer_auth(&tokens.access_token)
-                                    .send()
-                                    .await
-                                {
-                                    Ok(user_resp) => {
-                                        if !user_resp.status().is_success() {
-                                            let status = user_resp.status();
-                                            let error_body =
-                                                user_resp.text().await.unwrap_or_else(|_| {
-                                                    "No se pudo leer el cuerpo del error"
-                                                        .to_string()
-                                                });
-                                            eprintln!(
-                                                "Error de API de sesión: {} - {}",
-                                                status, error_body
-                                            );
-                                            let _ = emit_event::<String>(
-                                                "auth-error",
-                                                Some(format!(
-                                                    "Error de API de sesión: {} - {}",
-                                                    status, error_body
-                                                )),
-                                            );
-                                            return;
+                                match fetch_user_session(&client, &tokens.access_token).await {
+                                    Ok(user) => {
+                                        println!("Sesión de usuario recibida: {}", user.extra);
+
+                                        // Guardar sesión
+                                        {
+                                            let mut session_guard =
+                                                auth_state_clone.session.lock().await;
+                                            *session_guard = Some(user.clone());
                                         }
 
-                                        match user_resp.json::<JsonApiResponse<UserSession>>().await {
-                                            Ok(json_api_resp) => {
-                                                let user = json_api_resp.data.attributes;
-                                                println!(
-                                                    "Sesión de usuario recibida: {}",
-                                                    user.extra
-                                                );
-
-                                                // Guardar sesión
-                                                {
-                                                    let mut session_guard =
-                                                        auth_state_clone.session.lock().await;
-                                                    *session_guard = Some(user.clone());
-                                                }
-
-                                                // Notificar éxito con datos de usuario
-                                                let _ =
-                                                    emit_event("auth-status-changed", Some(user));
-                                                return;
-                                            }
-                                            Err(e) => {
-                                                eprintln!(
-                                                    "Error al parsear sesión de usuario JSON:API: {}",
-                                                    e
-                                                );
-                                                let _ = emit_event::<String>(
-                                                    "auth-error",
-                                                    Some(format!("Error al parsear sesión JSON:API: {}", e)),
-                                                );
-                                                return;
-                                            }
-                                        }
+                                        // Notificar éxito con datos de usuario
+                                        let _ = emit_event("auth-status-changed", Some(user));
+                                        return;
                                     }
                                     Err(e) => {
                                         eprintln!("Error al solicitar sesión de usuario: {}", e);
-                                        let _ = emit_event::<String>(
-                                            "auth-error",
-                                            Some(format!("Error al solicitar sesión: {}", e)),
-                                        );
+                                        emit_auth_error(format!(
+                                            "Error al solicitar sesión: {}",
+                                            e
+                                        ));
                                         return;
                                     }
                                 }
                             }
                             Err(e) => {
                                 eprintln!("Error al parsear respuesta de tokens JSON:API: {}", e);
-                                let _ = emit_event::<String>(
-                                    "auth-error",
-                                    Some(format!("Error al parsear tokens JSON:API: {}", e)),
-                                );
+                                emit_auth_error(format!("Error al parsear tokens JSON:API: {}", e));
                                 return;
                             }
                         }
                     }
                     Err(e) => {
                         eprintln!("Error al llamar API de tokens: {}", e);
-                        let _ = emit_event::<String>(
-                            "auth-error",
-                            Some(format!("Error al llamar API de tokens: {}", e)),
-                        );
+                        emit_auth_error(format!("Error al llamar API de tokens: {}", e));
                         return;
                     }
                 }
@@ -682,7 +584,7 @@ pub async fn start_discord_auth(
             "Autenticación expiró después de {} segundos.",
             MAX_WAIT_SECS
         );
-        let _ = emit_event::<String>("auth-error", Some("Timeout de autenticación".to_string()));
+        emit_auth_error("Timeout de autenticación".to_string());
 
         // Asegurar que el servidor se apague si hay timeout antes del callback
         let mut state = app_state_mutex.lock().await;

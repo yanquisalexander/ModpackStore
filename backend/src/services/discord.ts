@@ -1,27 +1,26 @@
-import { DISCORD_GUILD_ID } from "@/consts"; // DISCORD_GUILD_ID seems unused in this file's functions.
 import { REST } from '@discordjs/rest';
-// import { Routes } from 'discord-api-types/v10'; // Routes seems unused.
 import axios, { AxiosError } from 'axios';
 
-// TODO: Replace console.log with a dedicated logger solution throughout the service.
+// TODO: Reemplazar console.log con una solución de logging dedicada en todo el servicio.
 
 const DISCORD_CLIENT_ID = process.env.DISCORD_CLIENT_ID;
 const DISCORD_CLIENT_SECRET = process.env.DISCORD_CLIENT_SECRET;
 const DISCORD_REDIRECT_URI = process.env.DISCORD_CALLBACK_URL;
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN;
+
 const DISCORD_TOKEN_URL = 'https://discord.com/api/oauth2/token';
 const DISCORD_USER_URL = 'https://discord.com/api/users/@me';
 
-// Validate essential OAuth configuration on module load or within functions
+// Validación de configuración crítica al cargar el módulo para "fallar rápido".
 if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI) {
-    console.error("[SERVICE_DISCORD] Critical Discord OAuth environment variables are missing!");
-    // Depending on application startup strategy, this could throw an error to halt startup:
-    // throw new Error("Critical Discord OAuth environment variables are missing!");
+    console.error("[SERVICE_DISCORD] ¡Variables de entorno críticas para Discord OAuth no encontradas!");
+    // Dependiendo de la estrategia de inicio, se podría lanzar un error para detener la aplicación.
+    // throw new Error("¡Variables de entorno críticas para Discord OAuth no encontradas!");
 }
 
-export const discord = new REST({ version: '10' }).setToken(process.env.DISCORD_BOT_TOKEN ?? '');
-// Note: The `discord` REST client instance is exported but not used by exchangeCodeForToken or getDiscordUser.
-// It's likely intended for other Discord API interactions (e.g., bot commands).
-
+// Nota: La instancia del cliente REST `discord` se exporta pero no se utiliza en las funciones de este archivo.
+// Probablemente está destinada a otras interacciones con la API de Discord (ej. comandos de bot).
+export const discord = new REST({ version: '10' }).setToken(DISCORD_BOT_TOKEN ?? '');
 
 export interface DiscordTokenResponse {
     access_token: string;
@@ -36,7 +35,7 @@ export interface DiscordUser {
     username: string;
     discriminator: string;
     avatar: string | null;
-    email: string;
+    email: string; // Este campo requiere el scope 'email'
     verified?: boolean;
     locale?: string;
     mfa_enabled?: boolean;
@@ -44,80 +43,78 @@ export interface DiscordUser {
     premium_type?: number;
 }
 
+/**
+ * Intercambia un código de autorización de Discord por un token de acceso.
+ * @param code El código de autorización recibido de Discord.
+ * @returns Una promesa que se resuelve con la respuesta del token de Discord.
+ */
 export async function exchangeCodeForToken(code: string): Promise<DiscordTokenResponse> {
-    console.log("[DISCORD] Exchanging code for token", code);
+    console.log(`[SERVICE_DISCORD] Intercambiando código por token (código parcial: ${code ? code.substring(0, 10) + "..." : "indefinido/vacío"})`);
+
+    // La validación de las variables de entorno ya se hizo al inicio del módulo.
+
     const body = new URLSearchParams({
-        client_id: DISCORD_CLIENT_ID,
-        client_secret: DISCORD_CLIENT_SECRET,
+        client_id: DISCORD_CLIENT_ID!,
+        client_secret: DISCORD_CLIENT_SECRET!,
         grant_type: 'authorization_code',
         code,
-        redirect_uri: DISCORD_REDIRECT_URI,
-    });
-
-    console.log("[DISCORD] Body", body.toString());
-    console.log("[DISCORD] Token URL", DISCORD_TOKEN_URL);
-
-    if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI) {
-        throw new Error("Discord service is not properly configured due to missing environment variables.");
-    }
-
-    console.log("[SERVICE_DISCORD] Exchanging code for token (code partial):", code ? code.substring(0, 10) + "..." : "undefined/empty");
-    const body = new URLSearchParams({
-        client_id: DISCORD_CLIENT_ID,
-        client_secret: DISCORD_CLIENT_SECRET,
-        grant_type: 'authorization_code',
-        code,
-        redirect_uri: DISCORD_REDIRECT_URI,
+        redirect_uri: DISCORD_REDIRECT_URI!,
     });
 
     try {
         const response = await axios.post<DiscordTokenResponse>(DISCORD_TOKEN_URL, body.toString(), {
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            timeout: 15000, // Adjusted timeout
+            timeout: 15000,
         });
         return response.data;
-    } catch (error: any) {
-        console.error("[SERVICE_DISCORD] Error exchanging code for token:", error.message);
+    } catch (error) {
+        console.error("[SERVICE_DISCORD] Error al intercambiar código por token:", (error as Error).message);
         if (axios.isAxiosError(error)) {
             const axiosError = error as AxiosError<any>;
-            const err = new Error(`Discord API error during token exchange: ${axiosError.response?.data?.error_description || axiosError.response?.statusText || axiosError.message}`);
+            const errorMessage = `Error de la API de Discord durante el intercambio de token: ${axiosError.response?.data?.error_description || axiosError.message}`;
+            const err = new Error(errorMessage);
             (err as any).statusCode = axiosError.response?.status || 500;
             (err as any).originalErrorData = axiosError.response?.data;
             throw err;
         }
-        // For non-Axios errors, rethrow a generic error or the original one
-        const serviceErr = new Error(`Unexpected error during token exchange: ${error.message}`);
+        const serviceErr = new Error(`Error inesperado durante el intercambio de token: ${(error as Error).message}`);
         (serviceErr as any).statusCode = 500;
         throw serviceErr;
     }
 }
 
+/**
+ * Obtiene los datos del usuario de Discord utilizando un token de acceso.
+ * @param accessToken El token de acceso OAuth2 del usuario.
+ * @returns Una promesa que se resuelve con los datos del usuario de Discord.
+ */
 export async function getDiscordUser(accessToken: string): Promise<DiscordUser> {
     if (!accessToken) {
-        const err = new Error("Access token is required to fetch Discord user.");
-        (err as any).statusCode = 400; // Bad Request or 401 if it implies unauthenticated state for this action
+        const err = new Error("Se requiere un token de acceso para obtener el perfil de usuario de Discord.");
+        (err as any).statusCode = 400; // Bad Request
         throw err;
     }
 
-    console.log("[SERVICE_DISCORD] Fetching Discord user profile.");
+    console.log("[SERVICE_DISCORD] Obteniendo perfil de usuario de Discord.");
     try {
         const response = await axios.get<DiscordUser>(DISCORD_USER_URL, {
             headers: {
                 Authorization: `Bearer ${accessToken}`,
             },
-            timeout: 15000, // Adjusted timeout
+            timeout: 15000,
         });
         return response.data;
-    } catch (error: any) {
-        console.error("[SERVICE_DISCORD] Error fetching Discord user:", error.message);
+    } catch (error) {
+        console.error("[SERVICE_DISCORD] Error al obtener el usuario de Discord:", (error as Error).message);
         if (axios.isAxiosError(error)) {
             const axiosError = error as AxiosError<any>;
-            const err = new Error(`Discord API error fetching user: ${axiosError.response?.data?.message || axiosError.response?.statusText || axiosError.message}`);
+            const errorMessage = `Error de la API de Discord al obtener el usuario: ${axiosError.response?.data?.message || axiosError.message}`;
+            const err = new Error(errorMessage);
             (err as any).statusCode = axiosError.response?.status || 500;
-            (err as any).originalErrorData = axiosError.response?.data; // For more detailed logging if needed
+            (err as any).originalErrorData = axiosError.response?.data;
             throw err;
         }
-        const serviceErr = new Error(`Unexpected error fetching Discord user: ${error.message}`);
+        const serviceErr = new Error(`Error inesperado al obtener el usuario de Discord: ${(error as Error).message}`);
         (serviceErr as any).statusCode = 500;
         throw serviceErr;
     }

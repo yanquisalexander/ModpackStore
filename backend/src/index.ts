@@ -1,7 +1,7 @@
-import { Hono } from 'hono';
+import { Context, Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { cors } from 'hono/cors';
-import { router } from "./routes"; // Assuming this will be adapted for Hono
+import rootRouter from "./routes"; // Corrected import for router
 import Passport from "./lib/Passport";
 import "dotenv/config";
 // import { upload } from "./middlewares/upload.middleware"; // Multer setup will be handled later
@@ -12,7 +12,7 @@ import swaggerSpec from './config/swaggerConfig'; // Import the generated spec
 
 // Global JSON:API Error Handling Utilities
 import { serializeError } from './utils/jsonapi';
-import { APIError } from './lib/APIError'; // Assuming APIError is a custom error class
+import { APIError } from "./lib/APIError";
 
 const app = new Hono();
 const port = Number(process.env.PORT) || 3000;
@@ -37,9 +37,19 @@ initializeServices()
 // CORS Middleware
 app.use('*', cors({
   origin: process.env.CORS_ORIGIN || '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'], // Added OPTIONS & PATCH
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowHeaders: ['Content-Type', 'Authorization'],
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH']
 }));
+
+app.notFound((c: Context) => {
+  return c.json({
+    errors: [{
+      status: '404',
+      title: 'Route Not Found',
+      detail: `The route ${c.req.path} was not found on this server.`
+    }]
+  }, 404);
+});
 
 // JSON body parsing is typically handled by Hono by default for correct Content-Types.
 // If specific needs arise, `hono/body-parse` middleware can be added.
@@ -47,16 +57,15 @@ app.use('*', cors({
 // Swagger UI Route
 // Serve Swagger UI at /v1/api-docs
 app.get('/v1/api-docs/*', swaggerUI({
-  getSpec: () => swaggerSpec,
-  // Optional: Add custom options if needed, similar to swaggerUiOptions
-  // Example:
-  // title: "Modpack Store API Docs Hono",
+  url: '/v1/openapi.json',
+  spec: swaggerSpec,
 }));
 
+// Exponer el spec de OpenAPI en /v1/openapi.json
+app.get('/v1/openapi.json', (c) => c.json(swaggerSpec));
+
 // Mount API routes
-// The `router` from `./routes` will need to be a Hono instance or compatible.
-// This will be addressed in a subsequent step.
-app.route('/v1', router);
+app.route('/v1', rootRouter);
 
 // Test upload route (temporarily commented out/removed)
 /*
@@ -82,7 +91,7 @@ app.onError((err: any, c) => {
       title: err.name || 'API Error',
       detail: err.message,
       code: err.errorCode, // If APIError has an errorCode property
-    }), err.statusCode);
+    }), err.statusCode as any);
   } else if (err.status && typeof err.status === 'number') {
     // Handle errors with a .status property (like some Hono errors or manually thrown)
     // Hono's HTTPException often comes here.
@@ -113,4 +122,3 @@ serve({
 // Basic health check or root route (optional)
 app.get('/', (c) => c.text('Modpack Store API is running!'));
 
-[end of backend/src/index.ts]

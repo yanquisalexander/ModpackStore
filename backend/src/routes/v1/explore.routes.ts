@@ -1,10 +1,9 @@
-import { Router } from 'express';
-// Corrected import to use ExploreModpacksController directly
+import { Hono } from 'hono';
 import { ExploreModpacksController } from '../../controllers/ExploreModpacks.controller';
-import { requireAuth } from '../../middleware/requireAuth';
-import { validateCanExplore } from '../../middleware/validateCanExplore'; // Assuming this middleware exists and is correct
+import { requireAuth } from '../../middlewares/auth.middleware';
+import { validateCanExplore } from '../../middlewares/explore.middleware';
 
-const router = Router();
+const app = new Hono();
 
 /**
  * @openapi
@@ -16,7 +15,6 @@ const router = Router();
  *     security:
  *       - bearerAuth: []
  *     parameters:
- *       # Add relevant query parameters for pagination, filtering, sorting if applicable
  *       - in: query
  *         name: page
  *         schema:
@@ -27,7 +25,7 @@ const router = Router();
  *         name: limit
  *         schema:
  *           type: integer
- *           default: 10 # Or your default
+ *           default: 10
  *         description: Number of modpacks per page.
  *       - in: query
  *         name: category
@@ -78,8 +76,7 @@ const router = Router();
  *             schema:
  *               $ref: '#/components/schemas/JsonApiErrorResponse'
  */
-// Assuming exploreController.getExplore corresponds to ExploreModpacksController.getHomepage
-router.get('/', requireAuth, validateCanExplore, ExploreModpacksController.getHomepage);
+app.get('/', requireAuth, validateCanExplore, ExploreModpacksController.getHomepage);
 
 /**
  * @openapi
@@ -139,12 +136,7 @@ router.get('/', requireAuth, validateCanExplore, ExploreModpacksController.getHo
  *       500:
  *         description: Internal Server Error.
  */
-router.get(
-  '/search',
-  requireAuth,
-  validateCanExplore,
-  ExploreModpacksController.search,
-);
+app.get('/search', requireAuth, validateCanExplore, ExploreModpacksController.search);
 
 /**
  * @openapi
@@ -186,11 +178,6 @@ router.get(
  *       500:
  *         description: Internal Server Error.
  */
-router.get(
-  '/modpack/:modpackId',
-  requireAuth,
-  validateCanExplore,
-  ExploreModpacksController.getModpack,
-);
+app.get('/modpack/:modpackId', requireAuth, validateCanExplore, ExploreModpacksController.getModpack);
 
-export default router;
+export default app;

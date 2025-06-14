@@ -1,9 +1,9 @@
 // src/models/User.ts
 import { client as db } from "@/db/client";
 import { eq } from "drizzle-orm";
-import { userSchema, newUserSchema, UserSchema } from "@/validators/user";
+import { userSchema, newUserSchema } from "@/validators/user";
 import { UsersTable } from "@/db/schema";
-import type { z } from "zod";
+import { z } from "zod";
 import { Session } from "./Session.model";
 import { sign, verify, JwtPayload } from "jsonwebtoken";
 import "dotenv/config";
@@ -13,7 +13,7 @@ type UserType = typeof UsersTable.$inferSelect;
 type NewUser = typeof UsersTable.$inferInsert;
 
 // Zod schema for updates, allowing partial updates and omitting certain fields
-const userUpdateSchema = UserSchema.partial().omit({
+const userUpdateSchema = userSchema.partial().omit({
     id: true,
     email: true, // Email changes typically require a verification process
     createdAt: true,
@@ -22,35 +22,35 @@ const userUpdateSchema = UserSchema.partial().omit({
     patreonId: true, // Patreon ID is set during initial link, not arbitrary update
 }).extend({
     // Explicitly include fields that can be updated, including OAuth tokens
-    username: UserSchema.shape.username.optional(),
-    avatarUrl: UserSchema.shape.avatarUrl.optional().nullable(),
-    admin: UserSchema.shape.admin.optional(),
-    discordAccessToken: UserSchema.shape.discordAccessToken.optional().nullable(),
-    discordRefreshToken: UserSchema.shape.discordRefreshToken.optional().nullable(),
-    patreonAccessToken: UserSchema.shape.patreonAccessToken.optional().nullable(),
-    patreonRefreshToken: UserSchema.shape.patreonRefreshToken.optional().nullable(),
+    username: userSchema.shape.username.optional(),
+    avatarUrl: userSchema.shape.avatarUrl.optional().nullable(),
+    admin: userSchema.shape.admin.optional(),
+    discordAccessToken: userSchema.shape.discordAccessToken.optional().nullable(),
+    discordRefreshToken: userSchema.shape.discordRefreshToken.optional().nullable(),
+    patreonAccessToken: userSchema.shape.patreonAccessToken.optional().nullable(),
+    patreonRefreshToken: userSchema.shape.patreonRefreshToken.optional().nullable(),
 });
 type UserUpdateData = z.infer<typeof userUpdateSchema>;
 
 // Zod schemas for partial OAuth data updates
 const partialDiscordDataSchema = z.object({
-    discordId: UserSchema.shape.discordId.optional(), // Only if it's ever meant to be set outside initial link
-    accessToken: UserSchema.shape.discordAccessToken.optional(),
-    refreshToken: UserSchema.shape.discordRefreshToken.optional(),
+    discordId: userSchema.shape.discordId.optional(), // Only if it's ever meant to be set outside initial link
+    accessToken: userSchema.shape.discordAccessToken.optional(),
+    refreshToken: userSchema.shape.discordRefreshToken.optional(),
 }).partial();
 type PartialDiscordData = z.infer<typeof partialDiscordDataSchema>;
 
 const partialPatreonDataSchema = z.object({
-    patreonId: UserSchema.shape.patreonId.optional(), // Only if it's ever meant to be set outside initial link
-    accessToken: UserSchema.shape.patreonAccessToken.optional(),
-    refreshToken: UserSchema.shape.patreonRefreshToken.optional(),
+    patreonId: userSchema.shape.patreonId.optional(), // Only if it's ever meant to be set outside initial link
+    accessToken: userSchema.shape.patreonAccessToken.optional(),
+    refreshToken: userSchema.shape.patreonRefreshToken.optional(),
 }).partial();
 type PartialPatreonData = z.infer<typeof partialPatreonDataSchema>;
 
 
-interface TokenPayload extends JwtPayload {
+export interface TokenPayload extends JwtPayload {
     sub: string;
-    sessionId: string;
+    sessionId: number;
 }
 
 interface UserTokens {
