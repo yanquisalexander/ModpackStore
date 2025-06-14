@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ModpackVersion, NewModpackVersionData } from '@/types/modpacks'; // Reusing NewModpackVersionData for partial type
 import { updateModpackVersion, ApiError, UpdateModpackVersionData } from '@/services/userModpacks';
-import { useToast } from "@/components/ui/use-toast";
 import { Label } from '@/components/ui/label';
+import { toast } from "sonner";
 
 interface EditVersionDialogProps {
   isOpen: boolean;
@@ -29,7 +29,6 @@ export const editVersionFormSchema = z.object({
 type EditVersionFormValues = z.infer<typeof editVersionFormSchema>;
 
 export const EditVersionDialog: React.FC<EditVersionDialogProps> = ({ isOpen, onClose, onSuccess, modpackVersion }) => {
-  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -58,9 +57,11 @@ export const EditVersionDialog: React.FC<EditVersionDialogProps> = ({ isOpen, on
     if (!modpackVersion) return;
 
     if (modpackVersion.status !== 'draft') {
-        toast({ title: "Error", description: "Only draft versions can be edited.", variant: "destructive"});
-        onClose();
-        return;
+      toast.error("Error", {
+        description: "Only draft versions can be edited.",
+      });
+      onClose();
+      return;
     }
 
     setIsSubmitting(true);
@@ -75,7 +76,7 @@ export const EditVersionDialog: React.FC<EditVersionDialogProps> = ({ isOpen, on
       await updateModpackVersion(modpackVersion.id, updatePayload);
       onSuccess();
       onClose();
-      toast({ title: "Version Updated", description: `Version ${modpackVersion.version} has been updated successfully.` });
+      toast.success(`Version ${modpackVersion.version} has been updated successfully.`);
     } catch (error: any) {
       console.error("Update version error:", error);
       if (error instanceof ApiError) {
@@ -84,10 +85,10 @@ export const EditVersionDialog: React.FC<EditVersionDialogProps> = ({ isOpen, on
         } else {
           setServerError(error.message || 'An unknown error occurred.');
         }
-        toast({ title: "Update Failed", description: error.message, variant: "destructive" });
+        toast.error(error.message);
       } else {
         setServerError('An unexpected error occurred. Please try again.');
-        toast({ title: "Update Failed", description: 'An unexpected error occurred.', variant: "destructive" });
+        toast.error('An unexpected error occurred. Please try again.');
       }
     } finally {
       setIsSubmitting(false);

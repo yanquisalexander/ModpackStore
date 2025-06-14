@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { NewModpackVersionData } from '@/types/modpacks';
 import { createModpackVersion, ApiError } from '@/services/userModpacks'; // Assuming ApiError is exported
-import { useToast } from "@/components/ui/use-toast";
 import { Label } from '@/components/ui/label';
+import { toast } from "sonner";
 
 interface CreateVersionDialogProps {
   isOpen: boolean;
@@ -30,7 +30,6 @@ export const createVersionFormSchema = z.object({
 type CreateVersionFormValues = z.infer<typeof createVersionFormSchema>;
 
 export const CreateVersionDialog: React.FC<CreateVersionDialogProps> = ({ isOpen, onClose, onSuccess, modpackId, modpackName }) => {
-  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -65,19 +64,23 @@ export const CreateVersionDialog: React.FC<CreateVersionDialogProps> = ({ isOpen
       await createModpackVersion(modpackId, versionPayload);
       onSuccess();
       onClose();
-      toast({ title: "Version Created", description: `Version ${data.version} has been created successfully for ${modpackName || 'the modpack'}.` });
+      toast.success(`Version ${data.version} has been created successfully for ${modpackName || 'the modpack'}.`);
     } catch (error: any) {
       console.error("Create version error:", error);
       if (error instanceof ApiError) {
-         if (error.field && Object.keys(errors).includes(error.field)) {
+        if (error.field && Object.keys(errors).includes(error.field)) {
           setFormError(error.field as keyof CreateVersionFormValues, { type: 'server', message: error.message });
         } else {
           setServerError(error.message || 'An unknown error occurred.');
         }
-        toast({ title: "Creation Failed", description: error.message, variant: "destructive" });
+        toast.error("Creation Failed", {
+          description: error.message,
+        });
       } else {
         setServerError('An unexpected error occurred. Please try again.');
-        toast({ title: "Creation Failed", description: 'An unexpected error occurred.', variant: "destructive" });
+        toast.error("Creation Failed", {
+          description: 'An unexpected error occurred.',
+        });
       }
     } finally {
       setIsSubmitting(false);

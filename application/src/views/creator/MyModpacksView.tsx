@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate, Link as WouterLink } from 'wouter'; // Import Link for navigation
+import { Link as WouterLink } from 'wouter'; // Import Link for navigation
 import { Modpack } from '@/types/modpacks';
 import { getUserModpacks, deleteModpack, ApiError } from '@/services/userModpacks';
 import { Button } from '@/components/ui/button';
 import { CreateModpackDialog } from '@/components/creator/CreateModpackDialog';
 import { EditModpackDialog } from '@/components/creator/EditModpackDialog';
-import { useToast } from "@/components/ui/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { LucideEdit, LucideTrash2, LucideLayers } from 'lucide-react'; // Added LucideLayers for versions icon
+import { toast } from "sonner";
 
 interface ModpackListItemProps {
   modpack: Modpack;
@@ -21,12 +21,11 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
       <div>
         <img src={modpack.iconUrl || '/placeholder-icon.png'} alt={modpack.name} className="w-full h-32 object-cover rounded-md mb-3" />
         <h3 className="text-lg font-semibold mb-1">{modpack.name}</h3>
-        <p className="text-sm text-gray-600 mb-1">Status: <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-          modpack.status === 'published' ? 'bg-green-100 text-green-800' :
+        <p className="text-sm text-gray-600 mb-1">Status: <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${modpack.status === 'published' ? 'bg-green-100 text-green-800' :
           modpack.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-          modpack.status === 'archived' ? 'bg-gray-100 text-gray-700' :
-          'bg-red-100 text-red-700' // deleted or other
-        }`}>{modpack.status}</span></p>
+            modpack.status === 'archived' ? 'bg-gray-100 text-gray-700' :
+              'bg-red-100 text-red-700' // deleted or other
+          }`}>{modpack.status}</span></p>
         <p className="text-xs text-gray-500 mt-1">Slug: {modpack.slug}</p>
         <p className="text-xs text-gray-500 mb-2">Last updated: {new Date(modpack.updatedAt).toLocaleDateString()}</p>
       </div>
@@ -57,21 +56,22 @@ export const MyModpacksView: React.FC = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletingModpack, setDeletingModpack] = useState<Modpack | null>(null);
 
-  const { toast } = useToast();
-  const navigate = useNavigate();
 
   const fetchModpacks = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
       const data = await getUserModpacks();
+      console.log("Fetched modpacks:", data); // Debug log
       setModpacks(data);
     } catch (err: any) {
       let message = 'Failed to fetch modpacks.';
       if (err instanceof ApiError) message = err.message;
       else if (err instanceof Error) message = err.message;
       setError(message);
-      toast({ title: "Error", description: message, variant: "destructive" });
+      toast.error(message, {
+        description: message,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -83,12 +83,16 @@ export const MyModpacksView: React.FC = () => {
 
   const handleCreateSuccess = () => {
     fetchModpacks();
-    toast({ title: "Modpack Created", description: "Your new modpack has been created successfully." });
+    toast.success("Modpack Created", {
+      description: "Your new modpack has been created successfully.",
+    });
   };
 
   const handleEditSuccess = () => {
     fetchModpacks();
-    toast({ title: "Modpack Updated", description: "Modpack details saved successfully." });
+    toast.success("Modpack Updated", {
+      description: "Modpack details saved successfully.",
+    });
   };
 
   const openEditDialog = (modpack: Modpack) => {
@@ -106,12 +110,16 @@ export const MyModpacksView: React.FC = () => {
     try {
       await deleteModpack(deletingModpack.id);
       setModpacks(modpacks.filter(m => m.id !== deletingModpack.id)); // Optimistic update
-      toast({ title: "Modpack Deleted", description: `"${deletingModpack.name}" has been marked as deleted.` });
+      toast.success(`Modpack Deleted`, {
+        description: `"${deletingModpack.name}" has been marked as deleted.`,
+      });
     } catch (err: any) {
       let message = 'Failed to delete modpack.';
       if (err instanceof ApiError) message = err.message;
       else if (err instanceof Error) message = err.message;
-      toast({ title: "Error Deleting Modpack", description: message, variant: "destructive" });
+      toast.error(message, {
+        description: message,
+      });
     } finally {
       setIsDeleteDialogOpen(false);
       setDeletingModpack(null);
@@ -135,7 +143,7 @@ export const MyModpacksView: React.FC = () => {
 
       {!isLoading && !error && modpacks.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {modpacks.map((modpack) => (
+          {modpacks?.map((modpack) => (
             <ModpackListItem
               key={modpack.id}
               modpack={modpack}

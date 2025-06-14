@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Modpack, NewModpackData, ModpackVisibilityEnum } from '@/types/modpacks'; // Assuming NewModpackData can be used for partial updates
+import { Modpack, NewModpackData, ModpackVisibilityEnum } from '@/types/modpacks.d'; // Assuming NewModpackData can be used for partial updates
 import { updateModpack, ApiError } from '@/services/userModpacks';
-import { useToast } from "@/components/ui/use-toast";
 import { Label } from '@/components/ui/label';
+import { toast } from "sonner";
 
 interface EditModpackDialogProps {
   isOpen: boolean;
@@ -35,7 +35,6 @@ export const editModpackFormSchema = z.object({
 type EditModpackFormValues = z.infer<typeof editModpackFormSchema>;
 
 export const EditModpackDialog: React.FC<EditModpackDialogProps> = ({ isOpen, onClose, onSuccess, modpack }) => {
-  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -92,7 +91,9 @@ export const EditModpackDialog: React.FC<EditModpackDialogProps> = ({ isOpen, on
       await updateModpack(modpack.id, updatePayload);
       onSuccess();
       onClose();
-      toast({ title: "Modpack Updated", description: "Your modpack has been updated successfully." });
+      toast.success("Modpack Updated", {
+        description: "Your modpack has been updated successfully.",
+      });
     } catch (error: any) {
       console.error("Update modpack error:", error);
       if (error instanceof ApiError) {
@@ -101,10 +102,14 @@ export const EditModpackDialog: React.FC<EditModpackDialogProps> = ({ isOpen, on
         } else {
           setServerError(error.message || 'An unknown error occurred.');
         }
-        toast({ title: "Update Failed", description: error.message, variant: "destructive" });
+        toast.error("Update Failed", {
+          description: error.message,
+        });
       } else {
         setServerError('An unexpected error occurred. Please try again.');
-        toast({ title: "Update Failed", description: 'An unexpected error occurred.', variant: "destructive" });
+        toast.error("Update Failed", {
+          description: 'An unexpected error occurred.',
+        });
       }
     } finally {
       setIsSubmitting(false);

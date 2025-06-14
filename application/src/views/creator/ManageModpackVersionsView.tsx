@@ -5,9 +5,9 @@ import { getModpack, getModpackVersions, publishModpackVersion, ApiError } from 
 import { Button } from '@/components/ui/button';
 import { CreateVersionDialog } from '@/components/creator/CreateVersionDialog';
 import { EditVersionDialog } from '@/components/creator/EditVersionDialog'; // Added EditVersionDialog
-import { useToast } from "@/components/ui/use-toast";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"; // Added AlertDialog
 import { LucidePlus, LucideArrowLeft, LucideEdit2, LucideUploadCloud } from 'lucide-react'; // Added more icons
+import { toast } from "sonner";
 
 interface VersionListItemProps {
   version: ModpackVersion;
@@ -23,11 +23,10 @@ const VersionListItem: React.FC<VersionListItemProps> = ({ version, onEdit, onPu
           <h3 className="text-lg font-semibold text-blue-600">{version.version}</h3>
           <p className="text-sm text-gray-500">Minecraft: {version.mcVersion} {version.forgeVersion ? `(Forge: ${version.forgeVersion})` : ''}</p>
         </div>
-        <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-          version.status === 'published' ? 'bg-green-100 text-green-800' :
-          version.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-          'bg-gray-100 text-gray-700' // archived or other
-        }`}>{version.status}</span>
+        <span className={`px-3 py-1 text-xs font-medium rounded-full ${version.status === 'published' ? 'bg-green-100 text-green-800' :
+            version.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+              'bg-gray-100 text-gray-700' // archived or other
+          }`}>{version.status}</span>
       </div>
       <div className="mb-3 pt-3 border-t border-gray-200">
         <h4 className="text-sm font-semibold text-gray-700 mb-1">Changelog:</h4>
@@ -68,7 +67,6 @@ export const ManageModpackVersionsView: React.FC = () => {
   const [editingVersion, setEditingVersion] = useState<ModpackVersion | null>(null); // State for version being edited
   const [isPublishDialogOpen, setIsPublishDialogOpen] = useState(false); // State for Publish Dialog
   const [publishingVersion, setPublishingVersion] = useState<ModpackVersion | null>(null); // State for version being published
-  const { toast } = useToast();
 
   const fetchModpackDetailsAndVersions = useCallback(async () => {
     if (!modpackId) {
@@ -90,11 +88,13 @@ export const ManageModpackVersionsView: React.FC = () => {
       if (err instanceof ApiError) message = err.message;
       else if (err instanceof Error) message = err.message;
       setError(message);
-      toast({ title: "Error", description: message, variant: "destructive" });
+      toast.error("Error", {
+        description: message,
+      })
     } finally {
       setIsLoading(false);
     }
-  }, [modpackId, toast]);
+  }, [modpackId]);
 
   useEffect(() => {
     fetchModpackDetailsAndVersions();
@@ -119,13 +119,16 @@ export const ManageModpackVersionsView: React.FC = () => {
     if (!publishingVersion) return;
     try {
       await publishModpackVersion(publishingVersion.id);
-      toast({ title: "Version Published", description: `Version ${publishingVersion.version} has been published.` });
+      toast.success(`Version ${publishingVersion.version} has been published.`);
       fetchModpackDetailsAndVersions(); // Refresh to show updated status and releaseDate
     } catch (err: any) {
       let message = 'Failed to publish version.';
       if (err instanceof ApiError) message = err.message;
       else if (err instanceof Error) message = err.message;
-      toast({ title: "Error Publishing Version", description: message, variant: "destructive" });
+      toast.error(message, {
+        description: message,
+      });
+      console.error("Error publishing version:", err);
     } finally {
       setIsPublishDialogOpen(false);
       setPublishingVersion(null);
@@ -146,15 +149,15 @@ export const ManageModpackVersionsView: React.FC = () => {
           </Button>
         </WouterLink>
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-            <div>
-                <h1 className="text-3xl font-bold text-gray-800">{modpack.name}</h1>
-                <p className="text-md text-gray-500">Manage Versions</p>
-            </div>
-            {modpack.status !== 'deleted' && modpack.status !== 'archived' && (
-              <Button onClick={() => setIsCreateVersionDialogOpen(true)} className="mt-3 sm:mt-0">
-                  <LucidePlus size={18} className="mr-2" /> Create New Version
-              </Button>
-            )}
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800">{modpack.name}</h1>
+            <p className="text-md text-gray-500">Manage Versions</p>
+          </div>
+          {modpack.status !== 'deleted' && modpack.status !== 'archived' && (
+            <Button onClick={() => setIsCreateVersionDialogOpen(true)} className="mt-3 sm:mt-0">
+              <LucidePlus size={18} className="mr-2" /> Create New Version
+            </Button>
+          )}
         </div>
       </div>
 

@@ -1,7 +1,7 @@
+import { API_ENDPOINT } from "@/consts";
 import { Modpack, NewModpackData } from '@/types/modpacks';
 
 // Placeholder for API base URL - replace with actual config if available
-const API_BASE_URL = '/api'; // Or process.env.REACT_APP_API_URL, etc.
 
 // Placeholder for authentication token retrieval
 // Replace with actual implementation, e.g., from AuthContext or a store
@@ -24,7 +24,7 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
     headers.append('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`${API_BASE_URL}${url}`, {
+  const response = await fetch(`${API_ENDPOINT}${url}`, {
     ...options,
     headers,
   });
@@ -45,11 +45,11 @@ async function request<T>(url: string, options: RequestInit = {}): Promise<T> {
 }
 
 export async function getUserModpacks(): Promise<Modpack[]> {
-  return request<Modpack[]>('/v1/modpacks', { method: 'GET' });
+  return request<Modpack[]>('/modpacks', { method: 'GET' });
 }
 
 export async function createModpack(modpackData: NewModpackData): Promise<Modpack> {
-  return request<Modpack>('/v1/modpacks', {
+  return request<Modpack>('/modpacks', {
     method: 'POST',
     body: JSON.stringify(modpackData),
   });
@@ -75,7 +75,7 @@ async function requestWithErrorHandling<T>(url: string, options: RequestInit = {
     headers.append('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`${API_BASE_URL}${url}`, {
+  const response = await fetch(`${API_ENDPOINT}${url}`, {
     ...options,
     headers,
   });
@@ -83,10 +83,10 @@ async function requestWithErrorHandling<T>(url: string, options: RequestInit = {
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({ message: response.statusText }));
     throw new ApiError(
-        errorData.message || `API request failed with status ${response.status}`,
-        response.status,
-        errorData.field, // Assuming backend might return a 'field' for validation errors
-        errorData.errors // Assuming backend might return 'errors' for detailed validation messages
+      errorData.message || `API request failed with status ${response.status}`,
+      response.status,
+      errorData.field, // Assuming backend might return a 'field' for validation errors
+      errorData.errors // Assuming backend might return 'errors' for detailed validation messages
     );
   }
 
@@ -94,18 +94,18 @@ async function requestWithErrorHandling<T>(url: string, options: RequestInit = {
   if (contentType && contentType.indexOf("application/json") !== -1) {
     return response.json() as Promise<T>;
   } else {
-     // @ts-ignore
+    // @ts-ignore
     return response.text() as Promise<T>;
   }
 }
 
 // Update service functions to use the new request function
 export async function getUserModpacksV2(): Promise<Modpack[]> {
-  return requestWithErrorHandling<Modpack[]>('/v1/modpacks', { method: 'GET' });
+  return requestWithErrorHandling<Modpack[]>('/modpacks', { method: 'GET' });
 }
 
 export async function createModpackV2(modpackData: NewModpackData): Promise<Modpack> {
-  return requestWithErrorHandling<Modpack>('/v1/modpacks', {
+  return requestWithErrorHandling<Modpack>('/modpacks', {
     method: 'POST',
     body: JSON.stringify(modpackData),
   });
@@ -142,10 +142,8 @@ export async function deleteModpackClean(modpackId: string): Promise<void> {
 // The actual implementation of requestWithErrorHandling will be used.
 
 export {
-    getUserModpacksClean as getUserModpacks,
-    createModpackClean as createModpack,
-    updateModpackClean as updateModpack,
-    deleteModpackClean as deleteModpack
+  updateModpackClean as updateModpack,
+  deleteModpackClean as deleteModpack
 };
 
 // Assuming ModpackVersion and NewModpackVersionData are imported from '@/types/modpacks'

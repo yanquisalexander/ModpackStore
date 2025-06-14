@@ -71,6 +71,13 @@
       "when": 1748913001948,
       "tag": "0009_swift_omega_red",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1749869627624,
+      "tag": "0010_regular_princess_powerful",
+      "breakpoints": true
     }
   ]
 }

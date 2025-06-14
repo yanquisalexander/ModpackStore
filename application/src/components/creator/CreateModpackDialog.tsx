@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Assuming Select is available
-import { NewModpackData, ModpackVisibilityEnum } from '@/types/modpacks';
+import { NewModpackData, ModpackVisibilityEnum } from '@/types/modpacks.d';
 import { createModpack, ApiError } from '@/services/userModpacks';
-import { useToast } from "@/components/ui/use-toast";
 import { Label } from '@/components/ui/label'; // Assuming Label is available
+import { toast } from "sonner";
 
 interface CreateModpackDialogProps {
   isOpen: boolean;
@@ -38,7 +38,6 @@ const createModpackFormSchema = z.object({
 type CreateModpackFormValues = z.infer<typeof createModpackFormSchema>;
 
 export const CreateModpackDialog: React.FC<CreateModpackDialogProps> = ({ isOpen, onClose, onSuccess }) => {
-  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -90,10 +89,14 @@ export const CreateModpackDialog: React.FC<CreateModpackDialogProps> = ({ isOpen
         } else {
           setServerError(error.message || 'An unknown error occurred.');
         }
-        toast({ title: "Creation Failed", description: error.message, variant: "destructive" });
+        toast.error("Creation Failed", {
+          description: error.message,
+        });
       } else {
         setServerError('An unexpected error occurred. Please try again.');
-        toast({ title: "Creation Failed", description: 'An unexpected error occurred.', variant: "destructive" });
+        toast.error("Creation Failed", {
+          description: 'An unexpected error occurred.',
+        });
       }
     } finally {
       setIsSubmitting(false);
