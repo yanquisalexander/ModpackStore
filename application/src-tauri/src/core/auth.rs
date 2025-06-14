@@ -11,6 +11,21 @@ use tauri_plugin_opener;
 use tauri_plugin_store::StoreExt;
 use tokio::sync::Mutex;
 
+// --- JSON:API Response Structures ---
+#[derive(Deserialize, Debug, Clone)]
+struct JsonApiResource<T> {
+    // id: String, // Not currently needed for UserSession/TokenResponse attributes
+    // #[serde(rename = "type")] // 'type' is a keyword, rename if needed
+    // type_name: String,
+    attributes: T,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct JsonApiResponse<T> {
+    data: JsonApiResource<T>,
+}
+// --- /JSON:API Response Structures ---
+
 // Importaciones de Hyper
 use hyper::header::HeaderValue;
 use hyper::server::Server;
@@ -264,8 +279,9 @@ pub async fn init_session(
             {
                 Ok(user_resp) => {
                     if user_resp.status().is_success() {
-                        match user_resp.json::<UserSession>().await {
-                            Ok(user) => {
+                        match user_resp.json::<JsonApiResponse<UserSession>>().await {
+                            Ok(json_api_resp) => {
+                                let user = json_api_resp.data.attributes;
                                 println!("Sesión recuperada con éxito");
                                 // Guardar la sesión en memoria
                                 let mut session_guard = auth_state.session.lock().await;
@@ -278,7 +294,7 @@ pub async fn init_session(
                                 return Ok(Some(user));
                             }
                             Err(e) => {
-                                eprintln!("Error al parsear datos de sesión: {}", e);
+                                eprintln!("Error al parsear datos de sesión JSON:API: {}", e);
                                 // Si hay error de parseo, eliminar tokens
                                 let _ = remove_tokens_from_store(&app_handle).await;
                             }
@@ -302,8 +318,9 @@ pub async fn init_session(
                             .await
                         {
                             Ok(resp) if resp.status().is_success() => {
-                                match resp.json::<TokenResponse>().await {
-                                    Ok(new_tokens) => {
+                                match resp.json::<JsonApiResponse<TokenResponse>>().await {
+                                    Ok(json_api_resp) => {
+                                        let new_tokens = json_api_resp.data.attributes;
                                         // Guardar los nuevos tokens
                                         if let Err(e) =
                                             save_tokens_to_store(&app_handle, &new_tokens).await
@@ -326,8 +343,9 @@ pub async fn init_session(
                                             Ok(new_user_resp)
                                                 if new_user_resp.status().is_success() =>
                                             {
-                                                match new_user_resp.json::<UserSession>().await {
-                                                    Ok(user) => {
+                                                match new_user_resp.json::<JsonApiResponse<UserSession>>().await {
+                                                    Ok(json_api_resp) => {
+                                                        let user = json_api_resp.data.attributes;
                                                         println!("Sesión recuperada con éxito tras renovar tokens");
                                                         // Guardar la sesión en memoria
                                                         let mut session_guard =
@@ -344,7 +362,7 @@ pub async fn init_session(
                                                         return Ok(Some(user));
                                                     }
                                                     Err(e) => {
-                                                        eprintln!("Error al parsear datos de sesión tras renovar: {}", e);
+                                                        eprintln!("Error al parsear datos de sesión JSON:API tras renovar: {}", e);
                                                         let _ =
                                                             remove_tokens_from_store(&app_handle)
                                                                 .await;
@@ -533,8 +551,9 @@ pub async fn start_discord_auth(
                             return;
                         }
 
-                        match resp.json::<TokenResponse>().await {
-                            Ok(tokens) => {
+                        match resp.json::<JsonApiResponse<TokenResponse>>().await {
+                            Ok(json_api_resp) => {
+                                let tokens = json_api_resp.data.attributes;
                                 println!("Tokens recibidos correctamente.");
 
                                 // Guardar tokens en el store
@@ -584,8 +603,9 @@ pub async fn start_discord_auth(
                                             return;
                                         }
 
-                                        match user_resp.json::<UserSession>().await {
-                                            Ok(user) => {
+                                        match user_resp.json::<JsonApiResponse<UserSession>>().await {
+                                            Ok(json_api_resp) => {
+                                                let user = json_api_resp.data.attributes;
                                                 println!(
                                                     "Sesión de usuario recibida: {}",
                                                     user.extra
@@ -605,12 +625,12 @@ pub async fn start_discord_auth(
                                             }
                                             Err(e) => {
                                                 eprintln!(
-                                                    "Error al parsear sesión de usuario: {}",
+                                                    "Error al parsear sesión de usuario JSON:API: {}",
                                                     e
                                                 );
                                                 let _ = emit_event::<String>(
                                                     "auth-error",
-                                                    Some(format!("Error al parsear sesión: {}", e)),
+                                                    Some(format!("Error al parsear sesión JSON:API: {}", e)),
                                                 );
                                                 return;
                                             }
@@ -627,10 +647,10 @@ pub async fn start_discord_auth(
                                 }
                             }
                             Err(e) => {
-                                eprintln!("Error al parsear respuesta de tokens: {}", e);
+                                eprintln!("Error al parsear respuesta de tokens JSON:API: {}", e);
                                 let _ = emit_event::<String>(
                                     "auth-error",
-                                    Some(format!("Error al parsear tokens: {}", e)),
+                                    Some(format!("Error al parsear tokens JSON:API: {}", e)),
                                 );
                                 return;
                             }
@@ -769,8 +789,9 @@ pub async fn refresh_tokens(
     {
         Ok(resp) => {
             if resp.status().is_success() {
-                match resp.json::<TokenResponse>().await {
-                    Ok(new_tokens) => {
+                match resp.json::<JsonApiResponse<TokenResponse>>().await {
+                    Ok(json_api_resp) => {
+                        let new_tokens = json_api_resp.data.attributes;
                         // Guardar nuevos tokens
                         if let Err(e) = save_tokens_to_store(&app_handle, &new_tokens).await {
                             return Err(format!("Error al guardar tokens renovados: {}", e));
@@ -779,7 +800,7 @@ pub async fn refresh_tokens(
                         println!("Tokens renovados exitosamente");
                         Ok(true)
                     }
-                    Err(e) => Err(format!("Error al parsear tokens renovados: {}", e)),
+                    Err(e) => Err(format!("Error al parsear tokens renovados JSON:API: {}", e)),
                 }
             } else {
                 // Si hay error en la renovación, limpiar tokens
