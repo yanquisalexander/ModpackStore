@@ -41,7 +41,7 @@ export const UpdateStatus = () => {
     if (!isUpdating) return null;
 
     const stateIcon = {
-        downloading: <LucideDownload className="size-5 animate-spin text-blue-400" />,
+        downloading: <LucideDownload className="size-5 text-blue-400" />,
         "ready-to-install": <LucideRocket className="size-5 text-green-400" />,
         error: <LucideAlertCircle className="size-5 text-red-400" />,
     }[updateState as string] ?? (
