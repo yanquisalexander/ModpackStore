@@ -18,103 +18,170 @@ export const createCategorySchema = z.object({
 export const updateCategorySchema = createCategorySchema.partial();
 
 export class Category {
-  private data: CategorySelect;
+  readonly id: string;
+  name: string;
+  shortDescription: string | null;
+  description: string | null;
+  iconUrl: string | null;
+  readonly createdAt: Date;
 
   constructor(data: CategorySelect) {
-    this.data = data;
+    this.id = data.id;
+    this.name = data.name;
+    this.shortDescription = data.shortDescription;
+    this.description = data.description;
+    this.iconUrl = data.iconUrl;
+    this.createdAt = data.createdAt;
   }
 
-  // Getters para acceso a propiedades
-  get id() { return this.data.id; }
-  get name() { return this.data.name; }
-  get shortDescription() { return this.data.shortDescription; }
-  get description() { return this.data.description; }
-  get iconUrl() { return this.data.iconUrl; }
-  get createdAt() { return this.data.createdAt; }
-
-  // Crear nueva categoría
+  // Static method for creation
   static async create(data: z.infer<typeof createCategorySchema>): Promise<Category> {
-    const parsed = createCategorySchema.parse(data);
+    // Using safeParse for better error handling if needed, though parse throws and can be caught upstream.
+    const validationResult = createCategorySchema.safeParse(data);
+    if (!validationResult.success) {
+      // Or handle error more specifically, e.g., throw new CustomValidationError(...)
+      throw new Error(`Invalid category data: ${JSON.stringify(validationResult.error.format())}`);
+    }
 
-    const [inserted] = await db
+    const [insertedRecord] = await db
       .insert(CategoriesTable)
-      .values(parsed)
+      .values(validationResult.data)
       .returning();
 
-    return new Category(inserted);
+    if (!insertedRecord) {
+        throw new Error("Failed to create category: No record returned.");
+    }
+    return new Category(insertedRecord);
   }
 
-  // Buscar por ID
+  // Static method for finding by ID
   static async findById(id: string): Promise<Category | null> {
-    const [category] = await db
-      .select()
-      .from(CategoriesTable)
-      .where(eq(CategoriesTable.id, id));
-
-    return category ? new Category(category) : null;
+    if (!id?.trim()) return null;
+    try {
+      const [record] = await db
+        .select()
+        .from(CategoriesTable)
+        .where(eq(CategoriesTable.id, id));
+      return record ? new Category(record) : null;
+    } catch (error) {
+      console.error(`Error finding category by ID ${id}:`, error);
+      return null; // Or throw, depending on desired error handling strategy
+    }
   }
 
-  // Buscar por slug/nombre
+  // Static method for finding by name
   static async findByName(name: string): Promise<Category | null> {
-    const [category] = await db
-      .select()
-      .from(CategoriesTable)
-      .where(eq(CategoriesTable.name, name));
-
-    return category ? new Category(category) : null;
+    if (!name?.trim()) return null;
+    try {
+      const [record] = await db
+        .select()
+        .from(CategoriesTable)
+        .where(eq(CategoriesTable.name, name));
+      return record ? new Category(record) : null;
+    } catch (error)
+    {
+      console.error(`Error finding category by name ${name}:`, error);
+      return null;
+    }
   }
 
-  // Obtener todas las categorías
+  // Static method for finding all categories
   static async findAll(): Promise<Category[]> {
-    const categories = await db.select().from(CategoriesTable);
-    return categories.map(cat => new Category(cat));
+    try {
+      const records = await db.select().from(CategoriesTable);
+      return records.map(record => new Category(record));
+    } catch (error) {
+      console.error("Error finding all categories:", error);
+      return [];
+    }
   }
 
-  // Actualizar categoría
-  async update(data: z.infer<typeof updateCategorySchema>): Promise<Category> {
-    const parsed = updateCategorySchema.parse(data);
+  // Static method for updates
+  static async update(id: string, data: z.infer<typeof updateCategorySchema>): Promise<Category> {
+    const validationResult = updateCategorySchema.safeParse(data);
+    if (!validationResult.success) {
+      throw new Error(`Invalid category update data: ${JSON.stringify(validationResult.error.format())}`);
+    }
+    if (Object.keys(validationResult.data).length === 0) {
+      // If there's nothing to update after validation (e.g. empty object passed)
+      // Depending on desired behavior, either throw error or return current state
+      const currentCategory = await Category.findById(id);
+      if (!currentCategory) throw new Error("Category not found for update with empty payload.");
+      return currentCategory;
+    }
 
-    const [updated] = await db
+    const [updatedRecord] = await db
       .update(CategoriesTable)
-      .set(parsed)
-      .where(eq(CategoriesTable.id, this.data.id))
+      .set(validationResult.data)
+      .where(eq(CategoriesTable.id, id))
       .returning();
 
-    this.data = updated;
+    if (!updatedRecord) {
+      throw new Error("Category not found or update failed.");
+    }
+    return new Category(updatedRecord);
+  }
+
+  // Instance method for saving
+  async save(): Promise<Category> {
+    const dataToSave: z.infer<typeof updateCategorySchema> = {
+      name: this.name,
+      shortDescription: this.shortDescription ?? undefined,
+      description: this.description ?? undefined,
+      iconUrl: this.iconUrl ?? undefined,
+    };
+
+    const updatedCategory = await Category.update(this.id, dataToSave);
+    // Update current instance properties
+    this.name = updatedCategory.name;
+    this.shortDescription = updatedCategory.shortDescription;
+    this.description = updatedCategory.description;
+    this.iconUrl = updatedCategory.iconUrl;
+    // Note: `id` and `createdAt` are readonly and should not change.
     return this;
   }
 
-  // Eliminar categoría
+  // Instance method for deletion
   async delete(): Promise<void> {
-    await db
-      .delete(CategoriesTable)
-      .where(eq(CategoriesTable.id, this.data.id));
+    try {
+      await db
+        .delete(CategoriesTable)
+        .where(eq(CategoriesTable.id, this.id));
+    } catch (error) {
+      console.error(`Failed to delete category ${this.id}:`, error);
+      throw new Error(`Failed to delete category: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
-  // Verificar si existe
+  // Instance method to check existence (uses its own ID)
   async exists(): Promise<boolean> {
-    const [category] = await db
-      .select({ id: CategoriesTable.id })
-      .from(CategoriesTable)
-      .where(eq(CategoriesTable.id, this.data.id));
-
-    return !!category;
+    try {
+      const [category] = await db
+        .select({ id: CategoriesTable.id })
+        .from(CategoriesTable)
+        .where(eq(CategoriesTable.id, this.id));
+      return !!category;
+    } catch (error) {
+      console.error(`Error checking existence for category ${this.id}:`, error);
+      return false; // Or throw
+    }
   }
 
-  // Serializar para JSON
+  // Serialization for JSON
   toJSON(): CategorySelect {
-    return { ...this.data };
+    return {
+      id: this.id,
+      name: this.name,
+      shortDescription: this.shortDescription,
+      description: this.description,
+      iconUrl: this.iconUrl,
+      createdAt: this.createdAt,
+    };
   }
 
-  // Serializar para API pública (sin campos sensibles si los hubiera)
+  // Serialization for public API
   toPublic() {
-    return {
-      id: this.data.id,
-      name: this.data.name,
-      shortDescription: this.data.shortDescription,
-      description: this.data.description,
-      iconUrl: this.data.iconUrl,
-      createdAt: this.data.createdAt,
-    };
+    // For Category, toJSON and toPublic might be the same if no sensitive fields.
+    return this.toJSON();
   }
 }

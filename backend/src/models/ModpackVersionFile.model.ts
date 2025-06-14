@@ -16,8 +16,14 @@ export const newModpackVersionFileSchema = z.object({
     modpackVersionId: z.string().uuid(),
     type: z.enum(['mods', 'configs', 'resources', 'full_pack']),
     hash: z.string().min(1),
-    size: z.number().int().min(0).optional(),
+    size: z.number().int().min(0).optional(), // Made optional in schema, implies can be null in DB or not provided
 });
+
+export const modpackVersionFileUpdateSchema = z.object({
+    type: z.enum(['mods', 'configs', 'resources', 'full_pack']).optional(),
+    size: z.number().int().min(0).optional().nullable(), // Allowing size to be explicitly set to null or updated
+});
+type ModpackVersionFileUpdateInput = z.infer<typeof modpackVersionFileUpdateSchema>;
 
 export class ModpackVersionFile {
     readonly id: number;
@@ -94,6 +100,60 @@ export class ModpackVersionFile {
         } catch (error) {
             console.error(`Error finding modpack version file by hash ${hash}:`, error);
             return null;
+        }
+    }
+
+    // Static method for updates
+    static async update(id: number, data: ModpackVersionFileUpdateInput): Promise<ModpackVersionFile> {
+        const validationResult = modpackVersionFileUpdateSchema.safeParse(data);
+        if (!validationResult.success) {
+            throw new Error(`Invalid modpack version file update data: ${JSON.stringify(validationResult.error.format())}`);
+        }
+
+        if (Object.keys(validationResult.data).length === 0) {
+            const currentFile = await ModpackVersionFile.findById(id);
+            if (!currentFile) throw new Error("ModpackVersionFile not found for update with empty payload.");
+            return currentFile;
+        }
+
+        try {
+            const [updatedRecord] = await db
+                .update(ModpackVersionFilesTable)
+                .set(validationResult.data) // No `updatedAt` field in ModpackVersionFilesTable
+                .where(eq(ModpackVersionFilesTable.id, id))
+                .returning();
+
+            if (!updatedRecord) {
+                throw new Error("ModpackVersionFile not found or update failed.");
+            }
+            return new ModpackVersionFile(updatedRecord);
+        } catch (error) {
+            console.error(`Failed to update modpack version file ${id}:`, error);
+            throw new Error(`Failed to update modpack version file: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    // Instance method for saving current state
+    async save(): Promise<ModpackVersionFile> {
+        const dataToSave: ModpackVersionFileUpdateInput = {
+            type: this.type as 'mods' | 'configs' | 'resources' | 'full_pack', // Cast needed if this.type is just string
+            size: this.size,
+        };
+
+        const updatedFile = await ModpackVersionFile.update(this.id, dataToSave);
+        // Update current instance properties
+        this.type = updatedFile.type;
+        this.size = updatedFile.size;
+        return this;
+    }
+
+    // Instance method for deletion
+    async delete(): Promise<void> {
+        try {
+            await db.delete(ModpackVersionFilesTable).where(eq(ModpackVersionFilesTable.id, this.id));
+        } catch (error) {
+            console.error(`Failed to delete modpack version file ${this.id}:`, error);
+            throw new Error(`Failed to delete modpack version file: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 

@@ -12,7 +12,7 @@ export const router = Router();
 
 const authMiddleware = Passport.middleware;
 
-router.get("/ping", (req, res) => {
+router.get("/v1/ping", (req, res) => {
     res.send("pong");
 })
 
@@ -20,13 +20,13 @@ router.get("/a", authMiddleware, (req, res) => {
     res.json({ message: "Authenticated" });
 })
 
-router.get("/auth/discord/callback", AccountsController.callbackDiscord);
-router.get("/auth/me", authMiddleware, AccountsController.getCurrentUser);
-router.post("/auth/refresh", AccountsController.refreshTokens);
+router.get("/v1/auth/discord/callback", AccountsController.callbackDiscord);
+router.get("/v1/auth/me", authMiddleware, AccountsController.getCurrentUser);
+router.post("/v1/auth/refresh", AccountsController.refreshTokens);
 
-router.get('/explore', ExploreModpacksController.getHomepage)
-router.get('/explore/search', ExploreModpacksController.search)
-router.get('/explore/modpack/:modpackId', ExploreModpacksController.getModpack)
+router.get('/v1/explore', ExploreModpacksController.getHomepage)
+router.get('/v1/explore/search', ExploreModpacksController.search)
+router.get('/v1/explore/modpack/:modpackId', ExploreModpacksController.getModpack)
 
 // Admin routes
 const adminRouter = Router();
@@ -39,7 +39,7 @@ adminRouter.get("/publishers", AdminPublishersController.listPublishers);
 adminRouter.get("/publishers/:publisherId", AdminPublishersController.getPublisher);
 adminRouter.delete("/publishers/:publisherId", AdminPublishersController.deletePublisher);
 
-router.use("/admin", adminRouter);
+router.use("/v1/admin", adminRouter);
 
 // New Modpack Management Routes for Authenticated Users
 const modpackRouter = Router();

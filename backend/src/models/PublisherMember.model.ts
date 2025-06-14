@@ -273,30 +273,52 @@ export class PublisherMember {
         }
     }
 
-    // Instance methods
-    async update(data: PublisherMemberUpdateData): Promise<PublisherMember> {
-        const updateData = {
-            ...data,
+    // Static method for updates
+    static async update(id: number, data: z.infer<typeof publisherMemberUpdateSchema>): Promise<PublisherMember> {
+        const validationResult = publisherMemberUpdateSchema.safeParse(data);
+        if (!validationResult.success) {
+            throw new Error(`Invalid publisher member update data: ${JSON.stringify(validationResult.error.format())}`);
+        }
+
+        if (Object.keys(validationResult.data).length === 0) {
+            const currentMember = await PublisherMember.findById(id);
+            if (!currentMember) throw new Error("PublisherMember not found for update with empty payload.");
+            return currentMember;
+        }
+
+        const updatePayload = {
+            ...validationResult.data,
             updatedAt: new Date(),
         };
 
         try {
-            await db
+            const [updatedRecord] = await db
                 .update(PublisherMembersTable)
-                .set(updateData)
-                .where(eq(PublisherMembersTable.id, this.id));
+                .set(updatePayload)
+                .where(eq(PublisherMembersTable.id, id))
+                .returning();
 
-            const updated = await PublisherMember.findById(this.id);
-            if (!updated) {
-                throw new Error("Failed to retrieve updated publisher member");
+            if (!updatedRecord) {
+                throw new Error("PublisherMember not found or update failed.");
             }
-
-            // Update current instance
-            Object.assign(this, updated);
-            return this;
+            return new PublisherMember(updatedRecord);
         } catch (error) {
+            console.error(`Failed to update publisher member ${id}:`, error);
             throw new Error(`Failed to update publisher member: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+    }
+
+    // Instance methods
+    async save(): Promise<PublisherMember> {
+        const dataToSave: z.infer<typeof publisherMemberUpdateSchema> = {
+            role: this.role,
+        };
+
+        const updatedMember = await PublisherMember.update(this.id, dataToSave);
+        // Update current instance properties
+        this.role = updatedMember.role;
+        this.updatedAt = updatedMember.updatedAt;
+        return this;
     }
 
     async delete(): Promise<void> {
@@ -317,7 +339,12 @@ export class PublisherMember {
             }
         }
 
-        return this.update({ role: newRole });
+        // Call the static update method
+        const updatedMember = await PublisherMember.update(this.id, { role: newRole });
+        // Update instance properties
+        this.role = updatedMember.role;
+        this.updatedAt = updatedMember.updatedAt;
+        return this;
     }
 
     // Relation methods

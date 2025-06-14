@@ -110,26 +110,34 @@ export class Publisher {
         const now = new Date();
 
         try {
-            // Create publisher
-            const [insertedPublisher] = await db
-                .insert(PublishersTable)
-                .values({
-                    ...parsed.data,
+            const newPublisher = await db.transaction(async (tx) => {
+                // Create publisher
+                const [insertedPublisherRecord] = await tx
+                    .insert(PublishersTable)
+                    .values({
+                        ...parsed.data,
+                        createdAt: now, // PublishersTable does not have updatedAt
+                    })
+                    .returning();
+
+                if (!insertedPublisherRecord) {
+                    throw new Error("Publisher creation failed: No record returned.");
+                }
+
+                // Add owner as member
+                await tx.insert(PublisherMembersTable).values({
+                    publisherId: insertedPublisherRecord.id,
+                    userId: ownerId,
+                    role: PublisherRole.OWNER,
                     createdAt: now,
-                })
-                .returning();
+                    updatedAt: now, // PublisherMembersTable has createdAt and updatedAt
+                });
 
-            // Add owner as member
-            await db.insert(PublisherMembersTable).values({
-                publisherId: insertedPublisher.id,
-                userId: ownerId,
-                role: PublisherRole.OWNER,
-                createdAt: now,
-                updatedAt: now,
+                return new Publisher(insertedPublisherRecord);
             });
-
-            return new Publisher(insertedPublisher);
+            return newPublisher;
         } catch (error) {
+            console.error(`Failed to create publisher and add owner:`, error);
             throw new Error(`Failed to create publisher: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
@@ -234,22 +242,63 @@ export class Publisher {
         }
     }
 
-    // Instance methods
-    async update(data: PublisherUpdateData): Promise<Publisher> {
+    // Static method for updates
+    static async update(id: string, data: z.infer<typeof publisherUpdateSchema>): Promise<Publisher> {
+        const validationResult = publisherUpdateSchema.safeParse(data);
+        if (!validationResult.success) {
+            throw new Error(`Invalid publisher update data: ${JSON.stringify(validationResult.error.format())}`);
+        }
+
+        if (Object.keys(validationResult.data).length === 0) {
+            const currentPublisher = await Publisher.findById(id);
+            if (!currentPublisher) throw new Error("Publisher not found for update with empty payload.");
+            return currentPublisher;
+        }
+
+        // PublishersTable does not have an 'updatedAt' column in the provided schema.ts
+        // If it were added, it would be:
+        // const updatePayload = { ...validationResult.data, updatedAt: new Date() };
+        const updatePayload = validationResult.data;
+
+
         try {
-            await db.update(PublishersTable).set(data).where(eq(PublishersTable.id, this.id));
+            const [updatedRecord] = await db
+                .update(PublishersTable)
+                .set(updatePayload)
+                .where(eq(PublishersTable.id, id))
+                .returning();
 
-            const updated = await Publisher.findById(this.id);
-            if (!updated) {
-                throw new Error("Failed to retrieve updated publisher");
+            if (!updatedRecord) {
+                throw new Error("Publisher not found or update failed.");
             }
-
-            // Update current instance
-            Object.assign(this, updated);
-            return this;
+            return new Publisher(updatedRecord);
         } catch (error) {
+            console.error(`Failed to update publisher ${id}:`, error);
             throw new Error(`Failed to update publisher: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
+    }
+
+    // Instance methods
+    async save(): Promise<Publisher> {
+        const dataToSave: z.infer<typeof publisherUpdateSchema> = {
+            publisherName: this.publisherName,
+            tosUrl: this.tosUrl,
+            privacyUrl: this.privacyUrl,
+            bannerUrl: this.bannerUrl,
+            logoUrl: this.logoUrl,
+            description: this.description,
+            websiteUrl: this.websiteUrl ?? undefined,
+            discordUrl: this.discordUrl ?? undefined,
+            banned: this.banned,
+            verified: this.verified,
+            partnered: this.partnered,
+            isHostingPartner: this.isHostingPartner,
+        };
+
+        const updatedPublisher = await Publisher.update(this.id, dataToSave);
+        // Update current instance properties
+        Object.assign(this, updatedPublisher);
+        return this;
     }
 
     async delete(): Promise<void> {
@@ -263,17 +312,17 @@ export class Publisher {
 
     // Member management
     async getMembers() {
-        if (this._members) {
+        if (this._members && this._members.length > 0) { // Check if cache is populated
             return this._members;
         }
 
         try {
-            const members = await db
+            const membersData = await db
                 .select({
                     id: PublisherMembersTable.id,
                     role: PublisherMembersTable.role,
                     userId: PublisherMembersTable.userId,
-                    user: {
+                    userRecord: { // Avoid conflict with 'user' property if PublisherMember class is instantiated
                         id: UsersTable.id,
                         username: UsersTable.username,
                         email: UsersTable.email,
@@ -286,7 +335,16 @@ export class Publisher {
                 .innerJoin(UsersTable, eq(PublisherMembersTable.userId, UsersTable.id))
                 .where(eq(PublisherMembersTable.publisherId, this.id));
 
-            this._members = members;
+            // This assumes the structure matches what's expected for `this._members`
+            // Or, you might instantiate PublisherMember objects here if you have such a class.
+            this._members = membersData.map(m => ({
+                id: m.id,
+                role: m.role,
+                userId: m.userId,
+                user: m.userRecord, // Map to 'user'
+                createdAt: m.createdAt,
+                updatedAt: m.updatedAt,
+            }));
             return this._members;
         } catch (error) {
             console.error(`Error getting members for publisher ${this.id}:`, error);

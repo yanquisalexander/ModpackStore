@@ -17,30 +17,29 @@ export const ensureAdmin = (req: Request, res: Response, next: NextFunction) => 
   // Cast req to AdminRequest to access the typed user property
   const adminReq = req as AdminRequest;
 
-  if (adminReq.user && adminReq.user.admin === true) {
+  // Cast req to AdminRequest to access the typed user property
+  const adminReq = req as AdminRequest;
+
+  // 1. Check if user is authenticated (req.user should be populated by a preceding auth middleware)
+  if (!adminReq.user) {
+    return res.status(401).json({
+      error: "Unauthorized",
+      message: "Authentication required. You must be logged in to perform this action.",
+    });
+  }
+
+  // 2. Check if user is an admin
+  // The `admin` property could be explicitly undefined or null if not set.
+  // We strictly check for `admin === true`.
+  if (adminReq.user.admin === true) {
     // User is authenticated and is an admin
-    next();
-  } else if (adminReq.user && adminReq.user.admin !== true) {
-    // User is authenticated but not an admin
-    res.status(403).json({
-      error: "Forbidden",
-      message: "You do not have administrative privileges.",
-    });
+    return next();
   }
-  // else if (!adminReq.user) {
-    // This case should ideally be caught by a preceding general auth middleware
-    // If ensureAdmin is used without a general auth middleware, this would be hit.
-    // res.status(401).json({
-    //   error: "Unauthorized",
-    //   message: "You must be logged in to perform this action.",
-    // });
-  // }
-  else {
-    // Fallback for any other case (e.g. user object exists but no admin field)
-    // This could also indicate an issue with how the user object is populated.
-    res.status(403).json({
-      error: "Forbidden",
-      message: "Administrative status could not be verified.",
-    });
-  }
+
+  // 3. User is authenticated but not an admin, or admin status is not explicitly true
+  // This also covers cases where adminReq.user.admin is false, undefined, or null.
+  return res.status(403).json({
+    error: "Forbidden",
+    message: "You do not have administrative privileges.",
+  });
 };
