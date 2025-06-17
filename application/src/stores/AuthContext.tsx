@@ -38,8 +38,11 @@ interface AuthError {
 }
 
 interface SessionTokens {
-  access_token: string;
-  refresh_token: string;
+
+  accessToken: string;
+  expiresIn: number;
+  refreshToken: string;
+  tokenType: string;
 }
 
 interface AuthContextType {
@@ -82,6 +85,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   // Computed value
   const isAuthenticated = !!session && !!sessionTokens;
+
+  console.log({ sessionTokens })
 
   // Parse error helper
   const parseError = (err: unknown): AuthError => {

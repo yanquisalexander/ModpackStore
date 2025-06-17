@@ -11,9 +11,7 @@ const app = new Hono();
  *   get:
  *     summary: Get homepage modpacks
  *     tags: [Explore]
- *     description: Retrieves a list of modpacks for the homepage or general exploration. Requires user to be authenticated and have explore permissions.
- *     security:
- *       - bearerAuth: []
+ *     description: Retrieves a list of modpacks for the homepage or general exploration.
  *     parameters:
  *       - in: query
  *         name: page
@@ -76,7 +74,7 @@ const app = new Hono();
  *             schema:
  *               $ref: '#/components/schemas/JsonApiErrorResponse'
  */
-app.get('/', requireAuth, validateCanExplore, ExploreModpacksController.getHomepage);
+app.get('/', ExploreModpacksController.getHomepage);
 
 /**
  * @openapi
@@ -84,9 +82,7 @@ app.get('/', requireAuth, validateCanExplore, ExploreModpacksController.getHomep
  *   get:
  *     summary: Search for modpacks
  *     tags: [Explore]
- *     description: Performs a search for modpacks based on a query string. Requires user to be authenticated and have explore permissions.
- *     security:
- *       - bearerAuth: []
+ *     description: Performs a search for modpacks based on a query string.
  *     parameters:
  *       - in: query
  *         name: q
@@ -136,7 +132,7 @@ app.get('/', requireAuth, validateCanExplore, ExploreModpacksController.getHomep
  *       500:
  *         description: Internal Server Error.
  */
-app.get('/search', requireAuth, validateCanExplore, ExploreModpacksController.search);
+app.get('/search', ExploreModpacksController.search);
 
 /**
  * @openapi
@@ -178,6 +174,6 @@ app.get('/search', requireAuth, validateCanExplore, ExploreModpacksController.se
  *       500:
  *         description: Internal Server Error.
  */
-app.get('/modpack/:modpackId', requireAuth, validateCanExplore, ExploreModpacksController.getModpack);
+app.get('/modpack/:modpackId', ExploreModpacksController.getModpack);
 
 export default app;

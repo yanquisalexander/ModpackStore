@@ -7,6 +7,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 export async function requireAuth(c: Context, next: Next) {
     const authHeader = c.req.header('authorization');
+    console.log(`[AUTH_MIDDLEWARE] Authorization header: ${authHeader}`);
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         throw new APIError(401, 'Unauthorized', 'NO_AUTH_HEADER');
     }

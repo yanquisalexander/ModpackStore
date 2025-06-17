@@ -30,18 +30,16 @@ export class AccountsController {
             if (error instanceof APIError) {
                 throw error;
             }
-            throw new APIError(error.statusCode || 500, error.name || 'Authentication Error', error.message || 'Internal server error', error.errorCode);
+            throw new APIError(error.statusCode || 500, error.message || 'Internal server error');
         }
     }
 
-    static async getCurrentUser(c: Context): Promise<Response> {
-        // TODO: MIGRATE_MIDDLEWARE - This relies on 'c.get('user')' which comes from requireAuth middleware
-        const authenticatedUser = c.get('user') as User
+    static async getCurrentUser(c: Context) {
+        // Hono: El tipo de retorno puede ser Response o void, Hono maneja el response
+        const authenticatedUser = c.get('user') as User;
 
         if (!authenticatedUser || !authenticatedUser.id) {
-            // This error should ideally be thrown by the requireAuth middleware itself.
-            // If requireAuth is properly migrated, it would throw an error before reaching here if user is not auth.
-            throw new APIError(401, 'Unauthorized', 'No valid user session.');
+            throw new APIError(401, 'No valid user session.');
         }
 
         try {
@@ -54,15 +52,15 @@ export class AccountsController {
             if (error instanceof APIError) {
                 throw error;
             }
-            throw new APIError(error.statusCode || 500, error.name || 'User Profile Error', error.message || 'Internal server error');
+            throw new APIError(error.statusCode || 500, error.message || 'Internal server error');
         }
     }
 
-    static async refreshTokens(c: Context): Promise<Response> {
+    static async refreshTokens(c: Context) {
         const body = await c.req.json();
-        const refreshTokenString = body.refresh_token;
+        const refreshToken = body.refresh_token;
 
-        if (!refreshTokenString) {
+        if (!refreshToken) {
             return c.json(serializeError({
                 status: '400',
                 title: 'Bad Request',
@@ -71,16 +69,16 @@ export class AccountsController {
         }
 
         try {
-            console.log("[CONTROLLER_ACCOUNTS] Refreshing tokens. Token (partial):", refreshTokenString.substring(0, 10) + "...");
-            const newTokens = await AuthService.refreshAuthTokens(refreshTokenString);
+            console.log("[CONTROLLER_ACCOUNTS] Refreshing tokens. Token (partial):", refreshToken.substring(0, 10) + "...");
+            const newTokens = await AuthService.refreshAuthTokens(refreshToken);
             console.log("[CONTROLLER_ACCOUNTS] Tokens refreshed successfully by service.");
-            return c.json(serializeResource('token', { id: newTokens.userId || 'session-refreshed', ...newTokens }), 200);
+            return c.json(serializeResource('token', { ...newTokens }), 200);
         } catch (error: any) {
             console.error('[CONTROLLER_ACCOUNTS] Error refreshing tokens:', error.message);
             if (error instanceof APIError) {
                 throw error;
             }
-            throw new APIError(error.statusCode || 500, error.name || 'Token Refresh Error', error.message || 'Internal server error', error.errorCode);
+            throw new APIError(error.statusCode || 500, error.message || 'Internal server error');
         }
     }
 }
