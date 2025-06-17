@@ -96,8 +96,6 @@ export class AuthService {
         console.log(`[SERVICE_AUTH] Session created for user ${user.id}: ${session.id}`);
 
         const jwtTokens = await user.generateTokens(session); // generateTokens should be an instance method on User
-        console.log("[SERVICE_AUTH] JWTs generated.");
-        console.log("[SERVICE_AUTH] Access Token:", jwtTokens.accessToken);
 
         return {
             token_type: 'bearer',
@@ -198,11 +196,10 @@ export class AuthService {
             throw error;
         }
 
-        // User.getCompleteUser was a method in the original User model.
-        // Assuming it fetches the user with all necessary relations (like publisher memberships).
-        // And User model has a toPublicJson method.
-        // Use User.getCompleteUser to fetch user with publisherMemberships
+        // DEBUG: Log before DB call
+        console.log('[SERVICE_AUTH] Calling User.getCompleteUser with:', userId);
         const userWithRelations = await User.getCompleteUser(userId);
+        console.log('[SERVICE_AUTH] getCompleteUser result:', userWithRelations);
 
         if (!userWithRelations) {
             console.warn(`[SERVICE_AUTH] User ${userId} not found when fetching complete profile.`);
@@ -218,7 +215,6 @@ export class AuthService {
         // Combine public user data with any additional relations that are safe to return
         // For example, publisherMemberships. Ensure no sensitive details from memberships are leaked.
         // This example assumes publisherMemberships from getCompleteUser is an array of appropriate objects.
-        // A more robust solution might involve mapping/transforming publisherMemberships as well.
         return {
             ...publicUserProfile,
             publisherMemberships: userWithRelations.publisherMemberships || [],

@@ -53,7 +53,7 @@ struct TokenResponse {
     #[serde(rename = "refreshToken")]
     refresh_token: String,
     #[serde(rename = "expiresIn")]
-    expires_in: Option<u64>, // Es opcional por si el backend no lo manda siempre
+    expires_in: Option<u64>,
     #[serde(rename = "tokenType")]
     token_type: Option<String>,
 }
@@ -328,34 +328,24 @@ pub async fn init_session(
             match fetch_user_session(&client, &tokens.access_token).await {
                 Ok(user) => {
                     println!("Sesión recuperada con éxito");
-                    // Guardar la sesión en memoria
                     let mut session_guard = auth_state.session.lock().await;
                     *session_guard = Some(user.clone());
                     drop(session_guard);
-
-                    // Notificar al frontend
                     let _ = emit_event("auth-status-changed", Some(user.clone()));
-
                     return Ok(Some(user));
                 }
                 Err(_) => {
                     println!("Tokens expirados, intentando renovar...");
-
                     match renew_tokens(&app_handle, &tokens.refresh_token).await {
                         Ok(new_tokens) => {
                             println!("Tokens renovados con éxito");
-
                             match fetch_user_session(&client, &new_tokens.access_token).await {
                                 Ok(user) => {
                                     println!("Sesión recuperada con éxito tras renovar tokens");
-                                    // Guardar la sesión en memoria
                                     let mut session_guard = auth_state.session.lock().await;
                                     *session_guard = Some(user.clone());
                                     drop(session_guard);
-
-                                    // Notificar al frontend
                                     let _ = emit_event("auth-status-changed", Some(user.clone()));
-
                                     return Ok(Some(user));
                                 }
                                 Err(e) => {
@@ -490,80 +480,45 @@ pub async fn start_discord_auth(
                     format!("{}/auth/discord/callback?code={}", API_ENDPOINT, code);
                 println!("Solicitando tokens desde: {}", token_endpoint);
 
-                match client.get(&token_endpoint).send().await {
-                    Ok(resp) => {
-                        if !resp.status().is_success() {
-                            let status = resp.status();
-                            let error_body = resp.text().await.unwrap_or_else(|_| {
-                                "No se pudo leer el cuerpo del error".to_string()
-                            });
-                            eprintln!("Error de API de tokens: {} - {}", status, error_body);
-                            emit_auth_error(error_body);
-                            return;
+                let resp = client.get(&token_endpoint).send().await.unwrap();
+                match resp.json::<JsonApiResponse<TokenResponse>>().await {
+                    Ok(json_api_resp) => {
+                        let tokens = json_api_resp.data.attributes;
+                        println!("Tokens recibidos correctamente.");
+
+                        // Guardar tokens en el store
+                        if let Err(e) = save_tokens_to_store(&app_handle_clone, &tokens).await {
+                            eprintln!("Error al guardar tokens: {}", e);
+                            // Continuar a pesar del error para intentar completar el flujo
                         }
 
-                        // DEBUG: Imprimir respuesta cruda antes de intentar deserializar
-                        let raw_body = resp
-                            .text()
-                            .await
-                            .unwrap_or_else(|_| "<no body>".to_string());
-                        println!("Respuesta cruda de tokens: {}", raw_body);
-                        // Volver a hacer la petición para parsear el JSON (ya que .text() consume el body)
-                        let resp = client.get(&token_endpoint).send().await.unwrap();
-                        match resp.json::<JsonApiResponse<TokenResponse>>().await {
-                            Ok(json_api_resp) => {
-                                let tokens = json_api_resp.data.attributes;
-                                println!("Tokens recibidos correctamente.");
+                        // Solicitar sesión de usuario
+                        let _ = emit_event("auth-step-changed", Some(AuthStep::RequestingSession));
 
-                                // Guardar tokens en el store
-                                if let Err(e) =
-                                    save_tokens_to_store(&app_handle_clone, &tokens).await
+                        match fetch_user_session(&client, &tokens.access_token).await {
+                            Ok(user) => {
+                                println!("Sesión de usuario recibida: {}", user.extra);
+
+                                // Guardar sesión
                                 {
-                                    eprintln!("Error al guardar tokens: {}", e);
-                                    // Continuar a pesar del error para intentar completar el flujo
+                                    let mut session_guard = auth_state_clone.session.lock().await;
+                                    *session_guard = Some(user.clone());
                                 }
 
-                                // Solicitar sesión de usuario
-                                let _ = emit_event(
-                                    "auth-step-changed",
-                                    Some(AuthStep::RequestingSession),
-                                );
-
-                                match fetch_user_session(&client, &tokens.access_token).await {
-                                    Ok(user) => {
-                                        println!("Sesión de usuario recibida: {}", user.extra);
-
-                                        // Guardar sesión
-                                        {
-                                            let mut session_guard =
-                                                auth_state_clone.session.lock().await;
-                                            *session_guard = Some(user.clone());
-                                        }
-
-                                        // Notificar éxito con datos de usuario
-                                        let _ = emit_event("auth-status-changed", Some(user));
-                                        return;
-                                    }
-                                    Err(e) => {
-                                        eprintln!("Error al solicitar sesión de usuario: {}", e);
-                                        emit_auth_error(format!(
-                                            "Error al solicitar sesión: {}",
-                                            e
-                                        ));
-                                        return;
-                                    }
-                                }
+                                // Notificar éxito con datos de usuario
+                                let _ = emit_event("auth-status-changed", Some(user));
+                                return;
                             }
                             Err(e) => {
-                                eprintln!("Error al parsear respuesta de tokens JSON:API: {}", e);
-                                emit_auth_error(format!("Error al parsear tokens JSON:API: {}", e));
+                                eprintln!("Error al solicitar sesión de usuario: {}", e);
+                                emit_auth_error(format!("Error al solicitar sesión: {}", e));
                                 return;
                             }
                         }
                     }
                     Err(e) => {
-                        eprintln!("Error al llamar API de tokens: {}", e);
-                        emit_auth_error(format!("Error al llamar API de tokens: {}", e));
+                        eprintln!("Error de Serde al deserializar tokens: {}", e);
+                        emit_auth_error(format!("Error de Serde: {}.", e));
                         return;
                     }
                 }

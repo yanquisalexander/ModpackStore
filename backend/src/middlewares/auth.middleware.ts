@@ -20,7 +20,8 @@ export async function requireAuth(c: Context, next: Next) {
         if (!user) {
             throw new APIError(401, 'Unauthorized', 'USER_NOT_FOUND');
         }
-        c.set('user', { id: user.id, admin: user.admin });
+        c.set('payload', payload);
+        c.set('user', user);
         await next();
     } catch (err: any) {
         throw new APIError(401, 'Unauthorized', err.message || 'INVALID_TOKEN');

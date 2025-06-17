@@ -81,7 +81,7 @@ app.post('/test-upload', upload.single('file'), (c) => {
 */
 
 // Global Error Handling
-app.onError((err: any, c) => {
+/* app.onError((err: any, c) => {
   console.error("[GLOBAL_ERROR_HANDLER]", err); // Log the error for debugging
 
   if (err instanceof APIError) {
@@ -108,7 +108,7 @@ app.onError((err: any, c) => {
       detail: (err instanceof Error ? err.message : 'An unexpected internal server error occurred.'),
     }), 500);
   }
-});
+}); */
 
 // Start the server
 console.log(`Server is preparing to run on port ${port}`);

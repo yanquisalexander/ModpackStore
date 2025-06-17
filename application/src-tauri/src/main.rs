@@ -11,10 +11,10 @@ mod core;
 mod interfaces;
 mod utils;
 
-use std::process::Command;
-use std::str;
 use core::auth::*;
 use serde_json::json;
+use std::process::Command;
+use std::str;
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager; // Necesario para get_window y emit
@@ -75,8 +75,8 @@ pub fn main() {
         .plugin(tauri_plugin_drpc::init())
         .plugin(
             tauri_plugin_log::Builder::new()
-                .level(log::LevelFilter::Info)
-                .level_for("reqwest", log::LevelFilter::Info)
+                //  .level(log::LevelFilter::Info)
+                //  .level_for("reqwest", log::LevelFilter::Info)
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
                 .target(tauri_plugin_log::Target::new(
                     tauri_plugin_log::TargetKind::Folder {

@@ -6,6 +6,7 @@ import { Context } from 'hono';
 import { AuthService } from "@/services/auth.service";
 import { serializeResource, serializeError } from "../utils/jsonapi";
 import { APIError } from "../lib/APIError"; // For throwing errors
+import { User } from "@/models/User.model";
 
 export class AccountsController {
     static async callbackDiscord(c: Context): Promise<Response> {
@@ -20,10 +21,10 @@ export class AccountsController {
         }
 
         try {
-            console.log("[CONTROLLER_ACCOUNTS][DISCORD] Callback received, calling AuthService. Code:", code.substring(0,10) + "...");
+            console.log("[CONTROLLER_ACCOUNTS][DISCORD] Callback received, calling AuthService. Code:", code.substring(0, 10) + "...");
             const tokens = await AuthService.handleDiscordCallback(code);
             console.log("[CONTROLLER_ACCOUNTS][DISCORD] Tokens received from service, sending to client.");
-            return c.json(serializeResource('token', { id: tokens.userId || 'session', ...tokens }), 200);
+            return c.json(serializeResource('token', { ...tokens }), 200);
         } catch (error: any) {
             console.error('[CONTROLLER_ACCOUNTS][DISCORD] Error in callback:', error.message);
             if (error instanceof APIError) {
@@ -35,7 +36,7 @@ export class AccountsController {
 
     static async getCurrentUser(c: Context): Promise<Response> {
         // TODO: MIGRATE_MIDDLEWARE - This relies on 'c.get('user')' which comes from requireAuth middleware
-        const authenticatedUser = c.get('user') as { id: string } | undefined;
+        const authenticatedUser = c.get('user') as User
 
         if (!authenticatedUser || !authenticatedUser.id) {
             // This error should ideally be thrown by the requireAuth middleware itself.
@@ -70,7 +71,7 @@ export class AccountsController {
         }
 
         try {
-            console.log("[CONTROLLER_ACCOUNTS] Refreshing tokens. Token (partial):", refreshTokenString.substring(0,10) + "...");
+            console.log("[CONTROLLER_ACCOUNTS] Refreshing tokens. Token (partial):", refreshTokenString.substring(0, 10) + "...");
             const newTokens = await AuthService.refreshAuthTokens(refreshTokenString);
             console.log("[CONTROLLER_ACCOUNTS] Tokens refreshed successfully by service.");
             return c.json(serializeResource('token', { id: newTokens.userId || 'session-refreshed', ...newTokens }), 200);

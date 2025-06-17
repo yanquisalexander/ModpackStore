@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { AccountsController } from '../../controllers/Accounts.controller';
-// TODO: MIGRATE_MIDDLEWARE - requireAuth middleware needs to be migrated to Hono
-// import { requireAuth } from '../../middleware/requireAuth';
+import { requireAuth } from "@/middlewares";
 
 const authRoutes = new Hono();
 
@@ -135,6 +134,6 @@ authRoutes.post('/refresh', AccountsController.refreshTokens);
  */
 // TODO: MIGRATE_MIDDLEWARE - requireAuth middleware needs to be migrated and re-enabled.
 // authRoutes.get('/me', requireAuth, AccountsController.getCurrentUser);
-authRoutes.get('/me', AccountsController.getCurrentUser); // requireAuth temporarily removed
+authRoutes.get('/me', requireAuth, AccountsController.getCurrentUser);
 
 export default authRoutes;
