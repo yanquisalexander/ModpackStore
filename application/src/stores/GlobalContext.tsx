@@ -124,6 +124,25 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
 
     }, []);
 
+    // Consulta periódica de actualizaciones en segundo plano (cada 30 minutos)
+    useEffect(() => {
+        const interval = setInterval(async () => {
+            try {
+                const hasUpdate = await check();
+                if (hasUpdate) {
+                    setUpdate(hasUpdate);
+                    setIsUpdating(true);
+                    setUpdateVersion(hasUpdate.version);
+                    setUpdateState("ready-to-install");
+                }
+            } catch (err) {
+                // Silencioso, solo log si es necesario
+                // console.error("Error checking update in background:", err);
+            }
+        }, 30 * 60 * 1000); // 30 minutos
+        return () => clearInterval(interval);
+    }, []);
+
     return (
         <GlobalContext.Provider
             value={{

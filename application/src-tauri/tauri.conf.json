@@ -76,8 +76,7 @@
         "center": true,
         "url": "splash.html",
         "decorations": false,
-        "visible": true,
-        "alwaysOnTop": true
+        "visible": true
       }
     ]
   }

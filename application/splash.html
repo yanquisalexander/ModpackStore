@@ -111,7 +111,11 @@
   <main>
     <div class="flex flex-col items-center justify-center">
       <img src="/armadillo_running.gif" alt="Armadillo running" class="h-14 mb-4" />
-      <h1 class="text-xl font-minecraft-ten tracking-wide mb-2">Cargando...</h1>
+      <h1 id="splash-status" class="text-xl font-minecraft-ten tracking-wide mb-2">Comprobando actualizaciones...</h1>
+      <div id="splash-progressbar"
+        style="width:220px;height:8px;background:#222;border-radius:6px;overflow:hidden;display:none;margin-bottom:10px">
+        <div id="splash-progress" style="height:100%;width:0%;background:#3b82f6;transition:width 0.2s;"></div>
+      </div>
       <div class="loader">
         <div class="circle"></div>
         <div class="circle"></div>
@@ -121,21 +125,7 @@
       </div>
   </main>
 
-  <script type="module">
-    import { invoke } from '@tauri-apps/api/core';
-
-    const splashDone = async () => {
-      try {
-        await invoke('splash_done');
-      } catch (error) {
-        console.error('Error closing splash screen:', error);
-      }
-    };
-
-    setTimeout(() => {
-      splashDone();
-    }, 5000);
-  </script>
+  <script type="module" src="/src/splash_script.ts"></script>
 </body>
 
 </html>
