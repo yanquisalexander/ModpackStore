@@ -1,5 +1,6 @@
 import { check } from '@tauri-apps/plugin-updater';
 import { invoke } from '@tauri-apps/api/core';
+import { error, info } from "@tauri-apps/plugin-log";
 
 const h1 = document.getElementById('splash-status')!;
 const progressBar = document.getElementById('splash-progressbar')!;
@@ -28,6 +29,7 @@ async function runUpdateFlow() {
     try {
         const update = await check();
         if (update) {
+            info(`Found update: ${update.version}`);
             h1.textContent = 'Descargando...';
             progressBar.style.display = 'block';
             let downloaded = 0;
@@ -36,17 +38,20 @@ async function runUpdateFlow() {
             await update.download((event) => {
                 switch (event.event) {
                     case 'Started':
+                        info('Update download started');
                         contentLength = event.data.contentLength || 0;
                         break;
                     case 'Progress':
                         downloaded += event.data.chunkLength;
                         const percent = contentLength ? Math.round((downloaded / contentLength) * 100) : 0;
                         progress.style.width = percent + '%';
+                        info(`Download progress: ${percent}%`);
                         break;
                     case 'Finished':
                         progress.style.width = '100%';
                         h1.textContent = 'Cargando...';
                         finishedDownload = true;
+                        info('Update download finished');
                         break;
                 }
             });
@@ -59,6 +64,7 @@ async function runUpdateFlow() {
         }
     } catch (err) {
         h1.textContent = 'Cargando...';
+        error(String(err));
         progressBar.style.display = 'none';
         setTimeout(splashDone, 3500);
     }
