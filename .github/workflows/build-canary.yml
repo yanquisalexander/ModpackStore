@@ -60,7 +60,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
           GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
         with:
-          projectPath: application/
+          projectPath: ./application
           tagName: canary
           releaseName: Canary Build canary
           releaseBody: Automated canary build for testing
