@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'application/**'
+      - '.github/workflows/**'
 
 jobs:
   publish-canary:
