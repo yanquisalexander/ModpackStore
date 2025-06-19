@@ -32,7 +32,8 @@ async function runUpdateFlow() {
             progressBar.style.display = 'block';
             let downloaded = 0;
             let contentLength = 0;
-            await update.download(async (event) => {
+            let finishedDownload = false;
+            await update.download((event) => {
                 switch (event.event) {
                     case 'Started':
                         contentLength = event.data.contentLength || 0;
@@ -45,10 +46,13 @@ async function runUpdateFlow() {
                     case 'Finished':
                         progress.style.width = '100%';
                         h1.textContent = 'Cargando...';
-                        await update.install();
+                        finishedDownload = true;
                         break;
                 }
             });
+            if (finishedDownload) {
+                await update.install();
+            }
         } else {
             h1.textContent = 'Cargando...';
             setTimeout(splashDone, 3500);
