@@ -109,7 +109,7 @@ export const searchModpacks = async (query: string, limit = 25): Promise<Modpack
                 not(eq(ModpacksTable.visibility, "private")),
                 ilike(ModpacksTable.name, `%${query}%`)
             ),
-            columns: { // Explicitly list needed columns
+            columns: { // Asegúrate de incluir el id aquí
                 id: true, name: true, shortDescription: true, description: true, slug: true,
                 iconUrl: true, bannerUrl: true, trailerUrl: true, visibility: true, status: true,
                 createdAt: true, updatedAt: true, showUserAsPublisher: true
@@ -117,11 +117,9 @@ export const searchModpacks = async (query: string, limit = 25): Promise<Modpack
             with: {
                 creatorUser: { columns: { username: true, avatarUrl: true } },
                 publisher: { columns: { id: true, publisherName: true, verified: true, partnered: true, isHostingPartner: true } },
-                // Categories are fetched but then removed. If not needed at all, exclude from query.
-                // For now, assuming the structure might be shared and transformation is acceptable.
                 categories: {
                     columns: {},
-                    with: { category: {columns: {id: true, name: true}}} // Minimal category data if needed for any reason
+                    with: { category: { columns: { id: true, name: true } } }
                 }
             },
             orderBy: asc(ModpacksTable.name),
@@ -129,10 +127,14 @@ export const searchModpacks = async (query: string, limit = 25): Promise<Modpack
         });
 
         console.log(`[SERVICE_MODPACKS] Found ${modpacks.length} modpacks for query "${query}".`);
-        // Remove categories from the final output as per original logic
+        // El id ya está incluido en cleanModpack
         return modpacks.map(modpack => {
             const { categories, ...cleanModpack } = modpack;
-            return cleanModpack as ModpackForExplore;
+            return {
+                ...cleanModpack,
+                id: modpack.id, // asegurar que id siempre esté presente
+                categories: categories ? categories.map((c: any) => c.category) : []
+            } as ModpackForExplore;
         });
     } catch (error: any) {
         console.error(`[SERVICE_MODPACKS] Error in searchModpacks for query "${query}":`, error);

@@ -42,13 +42,13 @@ export function serializeCollection(type: string, data: any[], options?: any) {
   const serializedData = data.map(item => ({ ...item, id: String(item.id) }));
 
   return new Serializer(type, {
-    attributes: Object.keys(serializedData[0] || {}).filter(key => key !== 'id' && !key.endsWith('Id') && key !== 'passwordHash'),
+    attributes: Object.keys(serializedData[0] || {}).filter(key => !key.endsWith('Id') && key !== 'passwordHash'),
     keyForAttribute: 'camelCase',
     transform: (record: any) => {
       // Remove null or undefined attributes
       const attributes: any = {};
       for (const key in record) {
-        if (record[key] !== null && record[key] !== undefined && key !== 'id' && !key.endsWith('Id') && key !== 'passwordHash') {
+        if (record[key] !== null && record[key] !== undefined && !key.endsWith('Id') && key !== 'passwordHash') {
           attributes[key] = record[key];
         }
       }

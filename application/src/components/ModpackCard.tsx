@@ -4,7 +4,7 @@ import { LucideCheck, LucidePackage, LucidePlay, LucideSparkles, LucideUser2, Lu
 export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: { modpack: any, href?: string, className?: string }) => {
     // Verificamos si debemos mostrar el usuario como publicador
     const { showUserAsPublisher } = modpack
-
+    console.log({ modpack, showUserAsPublisher })
     // Creamos una copia del publisher para mostrar el usuario si es necesario
     let displayPublisher = { ...modpack.publisher }
     const originalPublisherName = displayPublisher.publisherName
