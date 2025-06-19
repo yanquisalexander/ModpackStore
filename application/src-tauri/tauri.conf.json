@@ -74,7 +74,7 @@
         "resizable": false,
         "fullscreen": false,
         "center": true,
-        "url": "/splash",
+        "url": "splash.html",
         "decorations": false,
         "visible": true,
         "alwaysOnTop": true
