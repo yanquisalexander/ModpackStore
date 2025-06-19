@@ -54,6 +54,7 @@
     },
     "windows": [
       {
+        "label": "main",
         "title": "Modpack Store",
         "width": 960,
         "height": 600,
@@ -62,7 +63,21 @@
         "minWidth": 960,
         "decorations": false,
         "center": true,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "visible": false
+      },
+      {
+        "label": "splash",
+        "title": "Cargando Modpack Store...",
+        "width": 400,
+        "height": 300,
+        "resizable": false,
+        "fullscreen": false,
+        "center": true,
+        "url": "/splash",
+        "decorations": false,
+        "visible": true,
+        "alwaysOnTop": true
       }
     ]
   }

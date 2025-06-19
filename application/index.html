@@ -10,12 +10,15 @@
   -->
   <link rel="preload" href="/src/assets/fonts/Monocraft-SemiBold.ttf" as="font" type="font/ttf"
     crossorigin="anonymous" />
+  <link rel="preload" href="/armadillo_running.gif" as="image" type="image/gif" />
   <link rel="preload" href="/src/assets/fonts/MinecraftTen.ttf" as="font" type="font/ttf" crossorigin="anonymous" />
   <link rel="preload" href="/src/assets/fonts/Monocraft.ttf" as="font" type="font/ttf" crossorigin="anonymous" />
 </head>
 
 <body class="bg-transparent overflow-hidden h-full">
   <div id="root"></div>
+  <!-- Imagen oculta para asegurar precarga y caché -->
+  <img src="/armadillo_running.gif" style="display:none" alt="preload armadillo" />
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

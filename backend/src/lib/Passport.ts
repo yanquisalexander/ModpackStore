@@ -4,7 +4,6 @@ import { Strategy as JwtStrategy, ExtractJwt, StrategyOptionsWithRequest } from 
 import { Strategy as DiscordStrategy } from '@williamdasilva/passport-discord'
 import { Strategy as PatreonStrategy } from '@oauth-everything/passport-patreon'
 
-import type { Request, Response, NextFunction, RequestHandler } from 'express'
 import type { Profile } from 'passport'
 import chalk from 'chalk'
 

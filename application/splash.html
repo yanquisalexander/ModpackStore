@@ -1,14 +1,146 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 
 <head>
   <meta charset="UTF-8" />
   <title>Splash</title>
+  <link rel="stylesheet" href="/src/App.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preload" href="/src/assets/fonts/MinecraftTen.ttf" as="font" type="font/ttf" crossorigin="anonymous" />
+  <link rel="preload" href="/armadillo_running.gif" as="image" type="image/gif" />
 </head>
 
-<body style="background:#2e3440;color:white;display:flex;justify-content:center;align-items:center;height:100vh;">
-  <div id="root">Cargando Modpack Store...</div>
-  <script type="module" src="/src/splash.tsx"></script>
+<style>
+  .loader {
+    --size: 20px;
+    position: relative;
+    width: var(--size);
+    height: var(--size);
+    margin-top: 10px;
+  }
+
+  .loader .circle {
+    --size: 28px;
+    position: absolute;
+    width: var(--size);
+    height: var(--size);
+    opacity: 0;
+    transform: rotate(225deg);
+    animation-iteration-count: infinite;
+    animation-name: orbit;
+    animation-duration: 5.5s;
+  }
+
+  .loader .circle:after {
+    --size: 4px;
+    content: '';
+    position: absolute;
+    width: var(--size);
+    height: var(--size);
+
+    border-radius: 5px;
+    background: #fff;
+  }
+
+  .loader .circle:nth-child(1) {
+    animation-delay: 0ms;
+  }
+
+  .loader .circle:nth-child(2) {
+    animation-delay: 240ms;
+  }
+
+  .loader .circle:nth-child(3) {
+    animation-delay: 480ms;
+  }
+
+  .loader .circle:nth-child(4) {
+    animation-delay: 720ms;
+  }
+
+  .loader .circle:nth-child(5) {
+    animation-delay: 960ms;
+  }
+
+  @keyframes orbit {
+    0% {
+      transform: rotate(225deg);
+      opacity: 1;
+      animation-timing-function: ease-out;
+    }
+
+    7% {
+      transform: rotate(345deg);
+      animation-timing-function: linear;
+    }
+
+    30% {
+      transform: rotate(455deg);
+      animation-timing-function: ease-in-out;
+    }
+
+    39% {
+      transform: rotate(690deg);
+      animation-timing-function: linear;
+    }
+
+    70% {
+      transform: rotate(815deg);
+      opacity: 1;
+      animation-timing-function: ease-out;
+    }
+
+    75% {
+      transform: rotate(945deg);
+      animation-timing-function: ease-out;
+    }
+
+    76% {
+      transform: rotate(945deg);
+      opacity: 0;
+    }
+
+    100% {
+      transform: rotate(945deg);
+      opacity: 0;
+    }
+  }
+</style>
+
+<body class="bg-ms-primary min-h-dvh h-full w-full text-white flex flex-col justify-center items-center">
+  <main>
+    <div class="flex flex-col items-center justify-center">
+      <img src="/armadillo_running.gif" alt="Armadillo running" class="h-14 mb-4" />
+      <h1 class="text-xl font-minecraft-ten tracking-wide mb-2">Cargando...</h1>
+
+      <!-- 
+        Windows 10 css loading spinner style
+      -->
+
+      <div class="loader">
+        <div class="circle"></div>
+        <div class="circle"></div>
+        <div class="circle"></div>
+        <div class="circle"></div>
+        <div class="circle"></div>
+      </div>
+  </main>
+
+  <script type="module">
+    import { invoke } from '@tauri-apps/api/core';
+
+    const splashDone = async () => {
+      try {
+        await invoke('splash_done');
+      } catch (error) {
+        console.error('Error closing splash screen:', error);
+      }
+    };
+
+    setTimeout(() => {
+      splashDone();
+    }, 5000);
+  </script>
 </body>
 
 </html>

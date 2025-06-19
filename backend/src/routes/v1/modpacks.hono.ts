@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { UserModpacksController } from '../../controllers/UserModpacksController';
 import { requireAuth } from '@/middlewares';
-import { checkModpackPermissionHono, Permission } from '@/middlewares/checkModpackPermission.hono';
 
 const modpackRoutes = new Hono();
 
@@ -109,19 +108,5 @@ async function removeCollaboratorHono(c: Context) {
     }) as Response;
 }
 
-// Crear modpack (requiere permiso de creación)
-modpackRoutes.post('/', requireAuth, checkModpackPermissionHono(['canCreateModpacks']), createModpackHono);
-// Listar modpacks del usuario (solo autenticación)
-modpackRoutes.get('/', requireAuth, listUserModpacksHono);
-// Obtener modpack específico (requiere permiso de edición)
-modpackRoutes.get('/:modpackId', requireAuth, checkModpackPermissionHono(['canEditModpacks']), getModpackHono);
-// Actualizar modpack
-modpackRoutes.patch('/:modpackId', requireAuth, checkModpackPermissionHono(['canEditModpacks']), updateModpackHono);
-// Eliminar modpack
-modpackRoutes.delete('/:modpackId', requireAuth, checkModpackPermissionHono(['canDeleteModpacks']), deleteModpackHono);
-// Añadir colaborador
-modpackRoutes.post('/:modpackId/collaborators', requireAuth, checkModpackPermissionHono(['canManageMembers']), addCollaboratorHono);
-// Eliminar colaborador
-modpackRoutes.delete('/:modpackId/collaborators/:userId', requireAuth, checkModpackPermissionHono(['canManageMembers']), removeCollaboratorHono);
 
 export default modpackRoutes;

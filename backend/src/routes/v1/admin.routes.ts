@@ -1,4 +1,5 @@
 import { Hono, Context } from 'hono';
+import adminUsersRouter from '../admin/users.route';
 // TODO: CONTROLLER_MISMATCH - The 'adminController' methods used below (getUsers, updateUser, etc.)
 // are not defined in 'AdminPublishers.controller.ts'. A different controller is needed for these routes.
 // For now, placeholder handlers are used.
@@ -170,6 +171,8 @@ adminRoutes.get('/modpacks', notImplementedHandler);
 // TODO: CONTROLLER_MISMATCH - Replace with actual adminController.updateModpack when available
 adminRoutes.patch('/modpacks/:modpackId', notImplementedHandler);
 
+// Montar el router de usuarios admin de Express bajo /users
+
 // Note: The original admin.routes.ts only had GET /users, PATCH /users/:userId, GET /modpacks, PATCH /modpacks/:modpackId.
 // It did NOT include routes for the AdminPublishersController methods (createPublisher, listPublishers etc.).
 // Those would need to be added here if they are intended to be under the /admin path.
@@ -180,6 +183,5 @@ adminRoutes.patch('/modpacks/:modpackId', notImplementedHandler);
 // adminRoutes.get('/publishers/:publisherId', AdminPublishersController.getPublisher);
 // adminRoutes.put('/publishers/:publisherId', AdminPublishersController.updatePublisher); // Or .patch
 // adminRoutes.delete('/publishers/:publisherId', AdminPublishersController.deletePublisher);
-
 
 export default adminRoutes;

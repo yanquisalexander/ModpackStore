@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link as WouterLink } from 'wouter'; // Import Link for navigation
+import { Link as WouterLink, useLocation } from 'wouter'; // Import Link for navigation and useLocation
 import { Modpack } from '@/types/modpacks';
 import { getUserModpacks, deleteModpack, ApiError } from '@/services/userModpacks';
 import { Button } from '@/components/ui/button';
@@ -55,7 +55,16 @@ export const MyModpacksView: React.FC = () => {
   const [editingModpack, setEditingModpack] = useState<Modpack | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [deletingModpack, setDeletingModpack] = useState<Modpack | null>(null);
+  const [location] = useLocation();
 
+  // Detectar si hay organización seleccionada en la ruta
+  const orgMatch = location.match(/^\/creators\/organizations\/(\w+)/);
+  const selectedOrgId = orgMatch ? orgMatch[1] : undefined;
+
+  // Filtrar modpacks por organización si aplica (mock)
+  const filteredModpacks = selectedOrgId
+    ? modpacks.filter((m) => m.organizationId === selectedOrgId)
+    : modpacks;
 
   const fetchModpacks = useCallback(async () => {
     setIsLoading(true);
@@ -78,8 +87,15 @@ export const MyModpacksView: React.FC = () => {
   }, [toast]);
 
   useEffect(() => {
-    fetchModpacks();
-  }, [fetchModpacks]);
+    setModpacks([
+      { id: "1", name: "Modpack A", slug: "modpack-a", status: "published", updatedAt: new Date().toISOString(), iconUrl: "", organizationId: "1", visibility: "public", publisherId: "org-1", createdAt: new Date().toISOString() },
+      { id: "2", name: "Modpack B", slug: "modpack-b", status: "draft", updatedAt: new Date().toISOString(), iconUrl: "", organizationId: "2", visibility: "private", publisherId: "org-2", createdAt: new Date().toISOString() },
+      { id: "3", name: "Modpack C", slug: "modpack-c", status: "published", updatedAt: new Date().toISOString(), iconUrl: "", organizationId: "1", visibility: "public", publisherId: "org-1", createdAt: new Date().toISOString() },
+      { id: "4", name: "Modpack D", slug: "modpack-d", status: "archived", updatedAt: new Date().toISOString(), iconUrl: "", organizationId: "3", visibility: "patreon", publisherId: "org-3", createdAt: new Date().toISOString() },
+      { id: "5", name: "Modpack E", slug: "modpack-e", status: "published", updatedAt: new Date().toISOString(), iconUrl: "", visibility: "public", publisherId: "user-1", createdAt: new Date().toISOString() }, // Sin organización
+    ]);
+    setIsLoading(false);
+  }, []);
 
   const handleCreateSuccess = () => {
     fetchModpacks();
@@ -137,13 +153,17 @@ export const MyModpacksView: React.FC = () => {
       {isLoading && <p className="text-center py-8">Loading modpacks...</p>}
       {error && <p className="text-red-500 text-center py-8">{error}</p>}
 
-      {!isLoading && !error && modpacks.length === 0 && (
-        <p className="text-center py-8 text-gray-600">You haven't created or been added to any modpacks yet.</p>
+      {!isLoading && !error && filteredModpacks.length === 0 && (
+        <p className="text-center py-8 text-gray-600">
+          {selectedOrgId
+            ? "Esta organización no tiene modpacks aún."
+            : "You haven't created or been added to any modpacks yet."}
+        </p>
       )}
 
-      {!isLoading && !error && modpacks.length > 0 && (
+      {!isLoading && !error && filteredModpacks.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {modpacks?.map((modpack) => (
+          {filteredModpacks?.map((modpack) => (
             <ModpackListItem
               key={modpack.id}
               modpack={modpack}

@@ -12,6 +12,7 @@ export interface Modpack {
   creatorUserId?: string; // Added from backend schema consideration
   updatedAt: string; // Or Date
   createdAt: string; // Or Date
+  organizationId?: string; // ID de la organización a la que pertenece el modpack (opcional para UI contextual)
   // trailerUrl, password, showUserAsPublisher can be added if needed
 }
 

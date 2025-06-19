@@ -136,6 +136,17 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         </Link>
                     )}
 
+                    {session?.admin && (
+                        <Link
+                            href="/admin/organizations"
+                            onClick={closeMenu}
+                            className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
+                        >
+                            <LucideSettings2 size={16} />
+                            Panel de administración
+                        </Link>
+                    )}
+
                     <button
                         onClick={handleLogout}
                         className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-red-600/20 rounded text-left cursor-pointer"

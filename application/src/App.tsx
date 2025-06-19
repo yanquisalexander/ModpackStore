@@ -13,9 +13,6 @@ import { Login } from "./views/Login";
 import { NotFound } from "./views/NotFound";
 import { KonamiCode } from "./components/KonamiCode";
 import { AccountsSection } from "./views/AccountsSection";
-import ManageOrganizationsView from "./views/admin/ManageOrganizationsView";
-import { CreateOrganizationView } from "./views/admin/CreateOrganizationView";
-import EditOrganizationView from "./views/admin/EditOrganizationView";
 import { initAnalytics } from "./lib/analytics";
 import { trackEvent } from "@aptabase/web";
 import { ModpackOverview } from "./views/ModpackOverview";
@@ -24,7 +21,7 @@ import { OfflineMode } from "./views/OfflineMode";
 import NoticeTestBuild from "./components/NoticeTestBuild";
 import CommandPalette from "./components/CommandPalette";
 import { CreatorsLayout } from "./components/creators/CreatorsLayout";
-import { Link } from "wouter";
+import { AdminLayout } from "./components/admin/AdminLayout";
 
 // Componente de carga para unificar la presentación
 const LoadingScreen = () => (
@@ -131,32 +128,17 @@ function App() {
           </Route>
           <Route path="/mc-accounts" component={AccountsSection} />
 
-          {/* Admin Routes */}
+          {/* Admin Layout para admins */}
           {isAuthenticated && session?.admin && (
-            <>
-              <Route path="/admin/organizations" component={ManageOrganizationsView} />
-              <Route path="/admin/organizations/new" component={CreateOrganizationView} />
-              <Route path="/admin/organizations/edit/:publisherId" component={EditOrganizationView} />
-            </>
+            <Route path="/admin/:rest*" component={AdminLayout} />
           )}
 
           {(session?.publisherMemberships && session.publisherMemberships.length > 0) && (
             <CreatorsLayout />
           )}
 
-
           <Route component={NotFound} />
         </Switch>
-        {/* Example Admin Link - to be placed appropriately in layout later */}
-        {isAuthenticated && session?.admin && (
-          <div className="fixed bottom-4 left-4 z-50">
-            <Link href="/admin/organizations">
-              <a className="bg-primary text-primary-foreground p-2 rounded-md shadow-lg hover:bg-primary/90 transition-colors">
-                Manage Orgs
-              </a>
-            </Link>
-          </div>
-        )}
         <NoticeTestBuild />
         <CommandPalette />
         <KonamiCode />

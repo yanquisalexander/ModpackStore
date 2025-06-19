@@ -51,6 +51,16 @@ async fn get_git_hash() -> String {
     }
 }
 
+#[tauri::command]
+fn splash_done(app: tauri::AppHandle) {
+    let splash_window = app.get_webview_window("splash").unwrap();
+    let main_window = app.get_webview_window("main").unwrap();
+    splash_window.close().unwrap();
+    main_window.set_focus().unwrap();
+    log::info!("Splash screen closed, main window focused.");
+    main_window.show().unwrap();
+}
+
 pub fn main() {
     let logs_dir = dirs::config_dir()
         .expect("No se pudo obtener el directorio de configuración")
@@ -88,10 +98,6 @@ pub fn main() {
         )
         .manage(Arc::new(AuthState::new()))
         .setup(|app| {
-            let main_window = app.get_webview_window("main").unwrap();
-            // Focus the main window
-            main_window.set_focus().unwrap();
-
             log::info!("Starting Modpack Store...");
             log::info!(
                 "Running on: {}, {}",
@@ -103,7 +109,6 @@ pub fn main() {
             let mut app_handle = GLOBAL_APP_HANDLE.lock().unwrap();
             *app_handle = Some(app.handle().clone());
             // Emit an event to the main window
-            main_window.emit("app-ready", ()).unwrap();
 
             Ok(())
         })
@@ -137,6 +142,7 @@ pub fn main() {
             core::microsoft_auth::start_microsoft_auth,
             core::prelaunch_appearance::get_prelaunch_appearance,
             get_git_hash,
+            splash_done,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

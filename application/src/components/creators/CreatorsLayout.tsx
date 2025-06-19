@@ -1,9 +1,14 @@
 import { useGlobalContext } from "@/stores/GlobalContext";
-import { MyModpacksView } from "@/views/creator/MyModpacksView";
-import { ManageModpackVersionsView } from "@/views/creator/ManageModpackVersionsView"; // Import the new versions view
+import { ManageModpackVersionsView } from "@/views/creator/ManageModpackVersionsView";
+import { ModpackDetailView } from "@/views/creator/ModpackDetailView";
+import { OrganizationDetailView } from "@/views/creator/OrganizationDetailView";
+import { OrganizationModpacksView } from "@/views/creator/OrganizationModpacksView";
+import { EditModpackPage } from "@/views/creator/EditModpackPage";
+import { NewModpackVersionPage } from "@/views/creator/NewModpackVersionPage";
 import { LucideBugPlay, Building2, Package, Users, Settings, Plus, Search, Filter, Grid, List } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Route, Switch, Link, useLocation } from "wouter";
+import { CreatorsSidebar, SidebarContext } from "@/components/creators/Sidebar";
 
 // Componente principal del Centro de Creadores
 export const CreatorsLayout = () => {
@@ -22,61 +27,35 @@ export const CreatorsLayout = () => {
         });
     }, []);
 
+    // Determinar contexto de sidebar según la ruta
+    const [location] = useLocation();
+    let sidebarContext: SidebarContext = { type: "root" };
+    const orgMatch = location.match(/^\/creators\/organizations\/(\w+)/);
+    const modpackMatch = location.match(/^\/creators\/modpacks\/(\w+)/);
+    if (orgMatch) {
+        sidebarContext = { type: "organization", orgId: orgMatch[1] };
+    } else if (modpackMatch) {
+        sidebarContext = { type: "modpack", modpackId: modpackMatch[1] };
+    }
+
     return (
         <div className="flex h-dvh">
-            {/* Sidebar de navegación - Fijo */}
-            <CreatorsSidebar />
+            {/* Sidebar contextual */}
+            <CreatorsSidebar context={sidebarContext} />
 
             {/* Contenido principal - Con scroll independiente */}
             <div className="overflow-auto h-screen">
                 <Switch>
                     <Route path="/creators" component={CreatorsOverview} />
                     <Route path="/creators/organizations" component={OrganizationsView} />
-                    <Route path="/creators/organizations/:id" component={OrganizationDetail} />
-                    <Route path="/creators/modpacks" component={MyModpacksView} />
-                    <Route path="/creators/modpacks/:modpackId/versions" component={ManageModpackVersionsView} /> {/* New Route */}
-                    {/* The old /creators/modpacks/:id (ModpackDetail) is replaced or needs a new path if it's for general details vs version management */}
+                    <Route path="/creators/organizations/:id" component={OrganizationDetailView} />
+                    <Route path="/creators/organizations/:id/modpacks" component={OrganizationModpacksView} />
+                    <Route path="/creators/modpacks/:modpackId" component={ModpackDetailView} />
+                    <Route path="/creators/modpacks/:modpackId/versions" component={ManageModpackVersionsView} />
+                    <Route path="/creators/modpacks/:modpackId/edit" component={EditModpackPage} />
+                    <Route path="/creators/modpacks/:modpackId/versions/new" component={NewModpackVersionPage} />
                     <Route path="/creators/settings" component={CreatorsSettings} />
                 </Switch>
-            </div>
-        </div>
-    );
-};
-
-// Sidebar de navegación - Ahora completamente fijo
-const CreatorsSidebar = () => {
-    const [location] = useLocation();
-
-    const menuItems = [
-        { path: "/creators", label: "Resumen", icon: Grid },
-        { path: "/creators/organizations", label: "Organizaciones", icon: Building2 },
-        { path: "/creators/modpacks", label: "Modpacks", icon: Package },
-        { path: "/creators/settings", label: "Configuración", icon: Settings },
-    ];
-
-    return (
-        <div className="bg-ms-primary border-r border-neutral-800 overflow-y-auto max-h-dvh h-full sticky top-0">
-            <div className="p-4">
-                <nav className="space-y-2">
-                    {menuItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = location === item.path;
-
-                        return (
-                            <Link
-                                key={item.path}
-                                href={item.path}
-                                className={`flex items-center space-x-3 px-3 py-2 rounded-lg transition-colors ${isActive
-                                    ? "bg-blue-500/10 text-blue-500 font-medium"
-                                    : "text-neutral-300 hover:bg-neutral-800"
-                                    }`}
-                            >
-                                <Icon size={20} />
-                                <span>{item.label}</span>
-                            </Link>
-                        );
-                    })}
-                </nav>
             </div>
         </div>
     );
@@ -296,40 +275,6 @@ const OrganizationsView = () => {
         </div>
     );
 };
-
-// The placeholder ModpacksView component is no longer needed as MyModpacksView replaces it.
-// If ModpacksView was more than a placeholder, its contents would be merged or adapted.
-// For this subtask, MyModpacksView is the intended implementation for /creators/modpacks.
-
-// Detalle de organización (placeholder)
-const OrganizationDetail = ({ params }: { params: { id: string } }) => {
-    return (
-        <div className="p-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-4">
-                Detalle de Organización #{params.id}
-            </h1>
-            <p className="text-gray-600">
-                Aquí se mostraría la información detallada de la organización, incluyendo miembros, modpacks, configuración, etc.
-            </p>
-        </div>
-    );
-};
-
-// Detalle de modpack (placeholder) - This can be removed if ManageModpackVersionsView serves as the detail/management page
-// Or it can be kept if it's for a different purpose, but the route /creators/modpacks/:id would need to be distinct
-// from /creators/modpacks/:modpackId/versions. For now, let's assume ManageModpackVersionsView is the primary view for a specific modpack.
-// const ModpackDetail = ({ params }: { params: { id: string } }) => {
-//     return (
-//         <div className="p-6">
-//             <h1 className="text-2xl font-bold text-gray-900 mb-4">
-//                 Detalle de Modpack #{params.id}
-//             </h1>
-//             <p className="text-gray-600">
-//                 Aquí se mostraría la información detallada del modpack, incluyendo mods, versiones, configuración, estadísticas, etc.
-//             </p>
-//         </div>
-//     );
-// };
 
 // Configuración del centro de creadores (placeholder)
 const CreatorsSettings = () => {
