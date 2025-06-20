@@ -33,15 +33,16 @@ async function splashDone() {
     finished = true;
 
     const elapsed = Date.now() - splashStart;
-    if (elapsed < MIN_SPLASH) {
-        setTimeout(splashDone, MIN_SPLASH - elapsed);
-        return;
+    const remaining = MIN_SPLASH - elapsed;
+
+    if (remaining > 0) {
+        await new Promise(resolve => setTimeout(resolve, remaining));
     }
 
     try {
         await invoke('splash_done');
     } catch (err) {
-        console.error('Error closing splash screen:', err);
+        error('Error closing splash screen: ' + String(err));
     }
 }
 
@@ -52,18 +53,15 @@ async function handleDownload(update: Update) {
     let downloaded = 0;
     let contentLength = 0;
 
-    console.log('Starting update download:', update);
-    // Hasta aquí funciona, pero luego dentro del evento de descarga no se actualiza el progreso ni 
-    // hay console.logs
+    info('Starting update download: ' + JSON.stringify(update));
     await update.download(async (event) => {
-        console.log({ event });
+        info('Download event: ' + JSON.stringify(event));
         switch (event.event) {
             case 'Started':
                 contentLength = event.data.contentLength || 0;
                 info('Update download started');
                 break;
             case 'Progress':
-                console.log({ event });
                 downloaded += event.data.chunkLength;
                 const percent = contentLength ? Math.round((downloaded / contentLength) * 100) : 0;
                 updateProgress(percent);
@@ -86,24 +84,26 @@ async function runUpdateFlow() {
 
     try {
         const update = await check();
-        if (update) {
+        if (update !== null) {
             info(`Update available: ${update.version}`);
             await handleDownload(update);
             await update.install().catch((err) => {
                 hideProgress();
                 h1.textContent = "Ocurrió un error... Iniciando"
                 error(`Error installing update: ${err}`);
-                splashDone();
+                splashDone().catch((err) => {
+                    error(`Error closing splash screen after update error: ${err}`);
+                });
             });
         } else {
             h1.textContent = 'Cargando...';
-            splashDone();
+            await splashDone();
         }
     } catch (err) {
         h1.textContent = 'Cargando...';
         error(String(err));
         hideProgress();
-        splashDone();
+        await splashDone();
     }
 }
 
