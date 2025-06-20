@@ -1,10 +1,9 @@
-import { LucideArrowLeft, LucideDownload, LucideMinus, LucidePictureInPicture2, LucideSquare, LucideWifiOff, LucideX } from "lucide-react";
-import { useEffect, useState } from "react";
+import { LucideArrowLeft, LucideWifiOff, LucideX } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
 import { getCurrentWindow, Window } from '@tauri-apps/api/window';
 import { useGlobalContext } from "../stores/GlobalContext";
 import { Link } from "wouter";
 import { exit } from '@tauri-apps/plugin-process';
-import PatreonIcon from "@/icons/PatreonIcon";
 import { open } from "@tauri-apps/plugin-shell";
 import { CurrentUser } from "./CurrentUser";
 import { RunningInstances } from "./RunningInstances";
@@ -21,6 +20,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useCheckConnection } from "@/utils/checkConnection";
 import { useReloadApp } from "@/stores/ReloadContext";
+import { WindowControls } from "./appbar/WindowControls";
+import { UpdateButton } from "./appbar/UpdateButton";
+import { PatreonButton } from "./appbar/PatreonButton";
+import { NativeContextMenu } from "./appbar/ContextMenu";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState<Window | null>(null);
@@ -29,6 +32,7 @@ export const AppTitleBar = () => {
     const { titleBarState, updateState, applyUpdate } = useGlobalContext();
     const { isLoading: isLoadingConnectionCheck, isConnected } = useCheckConnection();
     const { showReloadDialog } = useReloadApp();
+    const contextMenuTriggerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
         const initWindow = async () => {
@@ -81,7 +85,10 @@ export const AppTitleBar = () => {
     };
 
     const handleClose = () => {
-        setIsExitDialogOpen(true);
+        // Forzar cierre del menú contextual si está abierto
+        const evt = new MouseEvent('click', { bubbles: true });
+        contextMenuTriggerRef.current?.dispatchEvent(evt);
+        setTimeout(() => setIsExitDialogOpen(true), 0);
     };
 
     const confirmClose = async () => {
@@ -101,122 +108,94 @@ export const AppTitleBar = () => {
 
     return (
         <>
-            <div
-                data-tauri-drag-region
-                className={`flex z-999 top-0 h-9 transition ease-in-out w-full items-center justify-between sticky text-white select-none ${titleBarState.opaque ? 'bg-ms-primary' : 'bg-transparent'}`}
+            <NativeContextMenu
+                onMinimize={handleMinimize}
+                onMaximize={handleMaximize}
+                onRestore={handleMaximize}
+                onCloseWindow={handleClose}
+                isMaximized={!!isMaximized}
             >
-                <div className="flex items-center justify-center">
-                    <div className="flex items-center gap-2">
-                        <Link
-                            href="/"
-                            className={`cursor-pointer transition-transform duration-500 flex size-9 aspect-square items-center justify-center hover:bg-neutral-800 ${!titleBarState.canGoBack && '-translate-x-9'}`}
-                            aria-label="Back"
-                        >
-                            <LucideArrowLeft className="h-4 w-4 text-white" />
-                        </Link>
-
-                        <div
-                            data-tauri-drag-region
-                            className={`flex gap-x-2 select-none duration-500 items-center justify-center text-white/80 transition ${!titleBarState.canGoBack ? '-translate-x-7' : ''}`}>
-                            {
-                                titleBarState.icon && typeof titleBarState.icon === "string" ? (
-                                    <img
-                                        data-tauri-drag-region
-                                        onError={(e) => {
-                                            e.currentTarget.onerror = null; // Prevents looping
-                                            e.currentTarget.src = "/images/modpack-fallback.webp"; // Fallback icon
-                                        }}
-                                        src={titleBarState.icon}
-                                        className={`size-6 ${titleBarState.customIconClassName}`}
-                                        alt="icon"
-                                    />
-                                ) : (
-                                    titleBarState.icon ? (
-                                        <titleBarState.icon
-                                            data-tauri-drag-region
-                                            className={`size-6 p-0.5 rounded-md border border-solid border-white/10 ${titleBarState.customIconClassName ?? 'bg-pink-500/20'}`} />
-                                    ) : null
-                                )
-                            }
-
-                            <span className="text-sm font-normal select-none pointer-events-none" data-tauri-drag-region
+                <div
+                    ref={contextMenuTriggerRef}
+                    data-tauri-drag-region
+                    className={`flex z-999 top-0 h-9 transition ease-in-out w-full items-center justify-between sticky text-white select-none ${titleBarState.opaque ? 'bg-ms-primary' : 'bg-transparent'}`}
+                >
+                    <div className="flex items-center justify-center">
+                        <div className="flex items-center gap-2">
+                            <Link
+                                href="/"
+                                className={`cursor-pointer transition-transform duration-500 flex size-9 aspect-square items-center justify-center hover:bg-neutral-800 ${!titleBarState.canGoBack && '-translate-x-9'}`}
+                                aria-label="Back"
                             >
-                                {titleBarState.title}
-                            </span>
+                                <LucideArrowLeft className="h-4 w-4 text-white" />
+                            </Link>
+
+                            <div
+                                data-tauri-drag-region
+                                className={`flex gap-x-2 select-none duration-500 items-center justify-center text-white/80 transition ${!titleBarState.canGoBack ? '-translate-x-7' : ''}`}>
+                                {
+                                    titleBarState.icon && typeof titleBarState.icon === "string" ? (
+                                        <img
+                                            data-tauri-drag-region
+                                            onError={(e) => {
+                                                e.currentTarget.onerror = null; // Prevents looping
+                                                e.currentTarget.src = "/images/modpack-fallback.webp"; // Fallback icon
+                                            }}
+                                            src={titleBarState.icon}
+                                            className={`size-6 ${titleBarState.customIconClassName}`}
+                                            alt="icon"
+                                        />
+                                    ) : (
+                                        titleBarState.icon ? (
+                                            <titleBarState.icon
+                                                data-tauri-drag-region
+                                                className={`size-6 p-0.5 rounded-md border border-solid border-white/10 ${titleBarState.customIconClassName ?? 'bg-pink-500/20'}`} />
+                                        ) : null
+                                    )
+                                }
+
+                                <span className="text-sm font-normal select-none pointer-events-none" data-tauri-drag-region
+                                >
+                                    {titleBarState.title}
+                                </span>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <div className="flex ml-auto border-r px-1 mr-1 border-white/10">
-
-                    {
-                        showReloadOnOffline && (
-                            <button
-                                onClick={handleReloadAppOffline}
-                                title="Recargar aplicación (offline)"
-                                className="cursor-pointer flex  size-9 aspect-square items-center justify-center hover:bg-neutral-800"
-                                aria-label="Reload"
-                            >
-                                <LucideWifiOff className="size-4 text-yellow-400" />
-                            </button>
-                        )
-                    }
-
-                    {updateState === 'ready-to-install' && (
-                        <button
-                            onClick={applyUpdate}
-                            title="Listo para reiniciar"
-                            className="cursor-pointer flex animate-fade-in-down duration-500 size-9 aspect-square items-center justify-center hover:bg-neutral-800"
-                            aria-label="Update"
-                        >
-                            <LucideDownload className="size-4 text-green-400" />
-                        </button>
-                    )}
-
-                    <RunningTasks />
-                    <RunningInstances />
-
-                    <button
-                        onClick={handlePatreonClick}
-                        title="Colaborar con el desarrollo"
-                        className="cursor-pointer flex group size-9 aspect-square items-center justify-center hover:bg-neutral-800"
-                        aria-label="Patreon"
-                    >
-                        <PatreonIcon className="size-4 text-white/80 group-hover:text-pink-500" />
-                    </button>
-
-                    <CurrentUser titleBarOpaque={titleBarState.opaque} />
-                </div>
-
-                {/* Right side - window controls */}
-                <div className="flex items-center justify-end">
-                    <button
-                        className="cursor-pointer flex size-9 aspect-square items-center justify-center hover:bg-neutral-800"
-                        aria-label="Minimize"
-                        onClick={handleMinimize}
-                    >
-                        <LucideMinus className="h-4 w-4" />
-                    </button>
-                    <button
-                        className="cursor-pointer flex size-9 aspect-square items-center justify-center hover:bg-neutral-800"
-                        aria-label="Maximize"
-                        onClick={handleMaximize}
-                    >
-                        {isMaximized
-                            ? <LucidePictureInPicture2 className="h-4 w-4" />
-                            : <LucideSquare className="h-3.5 w-3.5" />
+                    <div className="flex ml-auto border-r px-1 mr-1 border-white/10" onContextMenu={(e) => {
+                        e.preventDefault();
+                    }}>
+                        {
+                            showReloadOnOffline && (
+                                <button
+                                    onClick={handleReloadAppOffline}
+                                    title="Recargar aplicación (offline)"
+                                    className="cursor-pointer flex  size-9 aspect-square items-center justify-center hover:bg-neutral-800"
+                                    aria-label="Reload"
+                                >
+                                    <LucideWifiOff className="size-4 text-yellow-400" />
+                                </button>
+                            )
                         }
-                    </button>
-                    <button
-                        onClick={handleClose}
-                        className="cursor-pointer flex size-9 aspect-square items-center justify-center hover:bg-red-600"
-                        aria-label="Close"
-                    >
-                        <LucideX className="h-4 w-4" />
-                    </button>
-                </div>
-            </div>
 
+                        <UpdateButton updateState={updateState} applyUpdate={applyUpdate} />
+                        <RunningTasks />
+                        <RunningInstances />
+
+                        <PatreonButton />
+
+                        <CurrentUser titleBarOpaque={titleBarState.opaque} />
+                    </div>
+
+                    <WindowControls
+                        window={window}
+                        isMaximized={isMaximized}
+                        onMinimize={handleMinimize}
+                        onMaximize={handleMaximize}
+                        onClose={handleClose}
+                    />
+                </div>
+            </NativeContextMenu>
             <AlertDialog open={isExitDialogOpen} onOpenChange={setIsExitDialogOpen}>
                 <AlertDialogContent className="bg-neutral-900 border border-neutral-800 text-white">
                     <AlertDialogHeader>
