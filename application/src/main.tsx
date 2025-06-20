@@ -50,7 +50,6 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
               <ConfigDialogLoader />
               <App />
               <Toaster theme="dark" />
-              <UpdateStatus />
             </ConfigDialogProvider>
           </ReloadProvider>
         </InstancesProvider>

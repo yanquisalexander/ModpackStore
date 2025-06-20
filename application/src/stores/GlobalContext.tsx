@@ -78,10 +78,11 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     };
 
+    // Consulta periódica de actualizaciones en segundo plano (cada 30 minutos)
     useEffect(() => {
-        const checkAndDownload = async () => {
-            setUpdateState("checking");
-
+        let stopped = false;
+        const interval = setInterval(async () => {
+            if (stopped) return;
             try {
                 const hasUpdate = await check();
                 if (hasUpdate) {
@@ -89,10 +90,8 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
                     setIsUpdating(true);
                     setUpdateVersion(hasUpdate.version);
                     setUpdateState("downloading");
-
                     let downloaded = 0;
                     let contentLength = 0;
-
                     await hasUpdate.download((event) => {
                         switch (event.event) {
                             case 'Started':
@@ -100,44 +99,17 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
                                 break;
                             case 'Progress':
                                 downloaded += event.data.chunkLength;
-                                const percent = (downloaded / contentLength) * 100;
-                                setUpdateProgress(Math.round(percent));
                                 break;
                             case 'Finished':
                                 setUpdateState("ready-to-install");
-                                setUpdateProgress(100);
+                                stopped = true;
+                                clearInterval(interval);
                                 break;
                         }
                     });
-                } else {
-                    setUpdateState("idle");
-                    setIsUpdating(false);
-                }
-            } catch (err) {
-                console.error("Error checking/downloading update:", err);
-
-                setIsUpdating(false);
-            }
-        };
-
-        checkAndDownload();
-
-    }, []);
-
-    // Consulta periódica de actualizaciones en segundo plano (cada 30 minutos)
-    useEffect(() => {
-        const interval = setInterval(async () => {
-            try {
-                const hasUpdate = await check();
-                if (hasUpdate) {
-                    setUpdate(hasUpdate);
-                    setIsUpdating(true);
-                    setUpdateVersion(hasUpdate.version);
-                    setUpdateState("ready-to-install");
                 }
             } catch (err) {
                 // Silencioso, solo log si es necesario
-                // console.error("Error checking update in background:", err);
             }
         }, 30 * 60 * 1000); // 30 minutos
         return () => clearInterval(interval);
