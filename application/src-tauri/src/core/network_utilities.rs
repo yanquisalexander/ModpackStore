@@ -1,5 +1,5 @@
 // src/core/NetworkUtilities.rs
-use tauri_plugin_http::reqwest;
+use tauri_plugin_http::reqwest::{self, blocking};
 
 use crate::API_ENDPOINT;
 #[tauri::command]
@@ -18,22 +18,36 @@ pub async fn check_connection() -> bool {
 
 #[tauri::command]
 pub fn check_real_connection() -> bool {
-    // Backend maybe is not reachable,
-    // but the internet connection is ok
-    // So let's ping other website, like google
-
-    // This is used internally, for example at the moment of
-    // downloading assets (This uses official Minecraft Servers)
-
-    let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(5))
+    let client = blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
         .build();
 
+    let urls = [
+        "https://www.google.com",
+        "https://1.1.1.1", // Cloudflare DNS (HTTPS)
+        "http://1.1.1.1",  // Cloudflare DNS (HTTP)
+        "https://8.8.8.8", // Google DNS (HTTPS, puede fallar)
+        "http://8.8.8.8",  // Google DNS (HTTP, puede fallar)
+        "https://www.cloudflare.com",
+        "https://www.bing.com",
+        "https://example.com",
+        "https://dns.google/",
+        "https://cloudflare-dns.com/",
+    ];
+
     if let Ok(client) = client {
-        let response = client.get("https://www.google.com").send();
-        if let Ok(resp) = response {
-            if resp.status().is_success() {
-                return true;
+        for url in urls.iter() {
+            let response = client.get(*url).send();
+            match response {
+                Ok(resp) => {
+                    log::info!("[check_real_connection] {} => {}", url, resp.status());
+                    if resp.status().is_success() {
+                        return true;
+                    }
+                }
+                Err(e) => {
+                    log::warn!("[check_real_connection] {} => error: {:?}", url, e);
+                }
             }
         }
     }
