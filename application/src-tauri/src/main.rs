@@ -29,26 +29,9 @@ static API_ENDPOINT: &str = "https://api-modpackstore.alexitoo.dev/v1";
 
 #[tauri::command]
 async fn get_git_hash() -> String {
-    let output = Command::new("git")
-        .args(["rev-parse", "--short", "HEAD"])
-        .output();
-
-    match output {
-        Ok(output) => {
-            if output.status.success() {
-                let stdout = str::from_utf8(&output.stdout);
-                if let Ok(hash) = stdout {
-                    return hash.trim().to_string();
-                }
-            }
-            // If git command fails or output is not UTF-8, fallback to build-time hash
-            env!("GIT_HASH_BUILD_TIME").to_string()
-        }
-        Err(_) => {
-            // If Command::new fails (e.g., git not found), fallback to build-time hash
-            env!("GIT_HASH_BUILD_TIME").to_string()
-        }
-    }
+    option_env!("GIT_HASH_BUILD_TIME")
+        .unwrap_or("Not available")
+        .to_string()
 }
 
 #[tauri::command]
@@ -85,8 +68,8 @@ pub fn main() {
         .plugin(tauri_plugin_drpc::init())
         .plugin(
             tauri_plugin_log::Builder::new()
-                .level(log::LevelFilter::Info)
-                .level_for("reqwest", log::LevelFilter::Info)
+                /* .level(log::LevelFilter::Info)
+                .level_for("reqwest", log::LevelFilter::Info) */
                 .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepAll)
                 .target(tauri_plugin_log::Target::new(
                     tauri_plugin_log::TargetKind::Folder {
