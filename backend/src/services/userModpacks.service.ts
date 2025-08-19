@@ -319,6 +319,65 @@ export class UserModpacksService {
         return publishedVersion.toJson();
     }
 
+    static async uploadModpackVersionFile(versionId: string, file: Express.Multer.File, userId: string): Promise<ModpackVersionJson> {
+        console.log(`[SERVICE_USER_MODPACKS] User ${userId} uploading file for version ID: ${versionId}`);
+
+        const modpackVersion = await ModpackVersion.findById(versionId);
+        if (!modpackVersion) {
+            const serviceError = new Error('Modpack version not found.');
+            (serviceError as any).statusCode = 404;
+            throw serviceError;
+        }
+
+        if (modpackVersion.status !== ModpackVersionStatus.DRAFT) {
+            const serviceError = new Error('Files can only be uploaded to draft versions.');
+            (serviceError as any).statusCode = 400;
+            throw serviceError;
+        }
+
+        // Authorization: Check if user can upload files to this version
+        // if (!await checkUserPermissionForModpack(userId, modpackVersion.modpackId, 'canPublishVersions')) { /* ... throw 403 ... */ }
+
+        // Import the ModpackFileUploadService
+        const { ModpackFileUploadService, FileType } = await import('./modpackFileUpload');
+        
+        // Create an instance of the upload service
+        const uploadService = new ModpackFileUploadService(
+            process.env.R2_REGION || 'auto',
+            process.env.R2_BUCKET_NAME || 'modpackstore',
+            process.env.R2_ENDPOINT
+        );
+
+        try {
+            // Determine file type based on the field name
+            let fileType = FileType.MODS; // Default to MODS
+            
+            // Check the fieldname from multer to determine the file type
+            if (file.fieldname === 'configsFile') {
+                fileType = FileType.CONFIGS;
+            } else if (file.fieldname === 'resourcesFile') {
+                fileType = FileType.RESOURCES;
+            }
+
+            // Upload the file
+            const uploadResult = await uploadService.uploadFile(
+                userId,
+                modpackVersion.modpackId,
+                versionId,
+                fileType,
+                file.buffer
+            );
+
+            console.log(`[SERVICE_USER_MODPACKS] File uploaded successfully for version ID: ${versionId}. Result:`, uploadResult);
+
+            // Return the updated version
+            return modpackVersion.toJson();
+        } catch (error) {
+            console.error(`[SERVICE_USER_MODPACKS] Error uploading file for version ID: ${versionId}:`, error);
+            throw error;
+        }
+    }
+
     static async listModpackVersions(modpackId: string, userId: string): Promise<ModpackVersionJson[]> {
         console.log(`[SERVICE_USER_MODPACKS] User ${userId} listing versions for modpack ID: ${modpackId}`);
 

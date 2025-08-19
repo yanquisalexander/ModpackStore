@@ -4,7 +4,7 @@ import { cors } from 'hono/cors';
 import rootRouter from "./routes"; // Corrected import for router
 import Passport from "./lib/Passport";
 import "dotenv/config";
-// import { upload } from "./middlewares/upload.middleware"; // Multer setup will be handled later
+import "./middleware/upload.middleware"; // Import multer middleware
 
 // Swagger UI Setup
 import { swaggerUI } from '@hono/swagger-ui';

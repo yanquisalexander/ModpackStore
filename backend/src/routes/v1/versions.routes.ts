@@ -180,9 +180,9 @@ router.delete(
  * @openapi
  * /modpacks/{modpackId}/versions/{versionId}/file:
  *   post:
- *     summary: Upload a file for a modpack version
+ *     summary: Upload mods file for a modpack version
  *     tags: [Versions]
- *     description: Uploads the actual modpack archive (e.g., .zip) for a specific version. User must have management permissions.
+ *     description: Uploads the mods archive (ZIP) for a specific version. User must have management permissions.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -195,17 +195,89 @@ router.delete(
  *           schema:
  *             type: object
  *             properties:
- *               versionFile: # Or 'file', must match upload middleware config
+ *               versionFile:
  *                 type: string
  *                 format: binary
- *                 description: The modpack version archive file.
+ *                 description: The mods ZIP archive file.
  *     responses:
  *       200:
- *         description: File uploaded successfully. Returns updated version details with file URL.
+ *         description: Mods file uploaded successfully. Returns updated version details.
  *         content:
  *           application/vnd.api+json:
  *             schema:
- *               $ref: '#/components/schemas/VersionFileUploadResponse' # Or ModpackVersionResource with updated file attributes
+ *               $ref: '#/components/schemas/VersionFileUploadResponse'
+ *       400: { description: "Bad Request (no file, invalid type/size)" }
+ *       401: { description: "Unauthorized" }
+ *       403: { description: "Forbidden" }
+ *       404: { description: "Modpack or Version not found" }
+ */
+
+/**
+ * @openapi
+ * /modpacks/{modpackId}/versions/{versionId}/configs:
+ *   post:
+ *     summary: Upload configs file for a modpack version
+ *     tags: [Versions]
+ *     description: Uploads the configs archive (ZIP) for a specific version. User must have management permissions.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/ModpackIdPath'
+ *       - $ref: '#/components/parameters/VersionIdPath'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               configsFile:
+ *                 type: string
+ *                 format: binary
+ *                 description: The configs ZIP archive file.
+ *     responses:
+ *       200:
+ *         description: Configs file uploaded successfully. Returns updated version details.
+ *         content:
+ *           application/vnd.api+json:
+ *             schema:
+ *               $ref: '#/components/schemas/VersionFileUploadResponse'
+ *       400: { description: "Bad Request (no file, invalid type/size)" }
+ *       401: { description: "Unauthorized" }
+ *       403: { description: "Forbidden" }
+ *       404: { description: "Modpack or Version not found" }
+ */
+
+/**
+ * @openapi
+ * /modpacks/{modpackId}/versions/{versionId}/resources:
+ *   post:
+ *     summary: Upload resources file for a modpack version
+ *     tags: [Versions]
+ *     description: Uploads the resources archive (ZIP) for a specific version. User must have management permissions.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/ModpackIdPath'
+ *       - $ref: '#/components/parameters/VersionIdPath'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               resourcesFile:
+ *                 type: string
+ *                 format: binary
+ *                 description: The resources ZIP archive file.
+ *     responses:
+ *       200:
+ *         description: Resources file uploaded successfully. Returns updated version details.
+ *         content:
+ *           application/vnd.api+json:
+ *             schema:
+ *               $ref: '#/components/schemas/VersionFileUploadResponse'
  *       400: { description: "Bad Request (no file, invalid type/size)" }
  *       401: { description: "Unauthorized" }
  *       403: { description: "Forbidden" }
@@ -215,8 +287,24 @@ router.post(
   '/:versionId/file',
   requireAuth,
   validateCanManageModpack,
-  upload.single('versionFile'), // Field name for the version file
-  UserModpacksController.uploadModpackVersionFile, // Assuming this method exists
+  upload.single('versionFile'), // Field name for the mods file
+  UserModpacksController.uploadModpackVersionFile, // Handles the file upload
+);
+
+router.post(
+  '/:versionId/configs',
+  requireAuth,
+  validateCanManageModpack,
+  upload.single('configsFile'), // Field name for the configs file
+  UserModpacksController.uploadModpackVersionFile, // Reuse the same controller method
+);
+
+router.post(
+  '/:versionId/resources',
+  requireAuth,
+  validateCanManageModpack,
+  upload.single('resourcesFile'), // Field name for the resources file
+  UserModpacksController.uploadModpackVersionFile, // Reuse the same controller method
 );
 
 /**

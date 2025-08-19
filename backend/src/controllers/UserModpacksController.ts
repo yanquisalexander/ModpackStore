@@ -18,6 +18,40 @@ interface AuthenticatedRequest extends Request {
 }
 
 export class UserModpacksController {
+    // POST /v1/modpacks/versions/:versionId/file
+    static async uploadModpackVersionFile(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
+        if (!req.user || !req.user.id) {
+            res.status(401).json(serializeError({ status: '401', title: 'Unauthorized', detail: 'User authentication required.' }));
+            return;
+        }
+        const userId = req.user.id;
+        const { versionId } = req.params;
+
+        if (!versionId) {
+            res.status(400).json(serializeError({ status: '400', title: 'Bad Request', detail: 'Version ID is required.' }));
+            return;
+        }
+
+        // Handle file upload
+        if (!req.file) {
+            res.status(400).json(serializeError({ status: '400', title: 'Bad Request', detail: 'No file uploaded.' }));
+            return;
+        }
+
+        try {
+            const updatedVersion = await UserModpacksService.uploadModpackVersionFile(versionId, req.file, userId);
+            res.status(200).json(serializeResource('modpackVersion', updatedVersion));
+        } catch (error: any) {
+            console.error('[CONTROLLER_USER_MODPACKS] Error uploading modpack version file:', error);
+            const statusCode = error.statusCode || (error.message.includes("not found") ? 404 : 500);
+            res.status(statusCode).json(serializeError({
+                status: statusCode.toString(),
+                title: error.name || (statusCode === 404 ? 'Not Found' : 'Upload File Error'),
+                detail: error.message || 'Failed to upload modpack version file.'
+            }));
+        }
+    }
+
     // POST /v1/modpacks
     static async createModpack(req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> {
         if (!req.user || !req.user.id) {

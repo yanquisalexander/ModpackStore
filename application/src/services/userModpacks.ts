@@ -195,3 +195,36 @@ export async function publishModpackVersion(versionId: string): Promise<ModpackV
   });
   return json.data.attributes;
 }
+
+/**
+ * Upload a file for a modpack version
+ * @param versionId The ID of the version to upload the file for
+ * @param file The file to upload
+ * @param fileType The type of file being uploaded (mods, configs, resources)
+ * @returns The updated ModpackVersion object
+ */
+export async function uploadModpackVersionFile(versionId: string, file: File, fileType: string = 'mods'): Promise<ModpackVersion> {
+  const formData = new FormData();
+  
+  // Set the endpoint and field name based on the file type
+  let endpoint = `/v1/versions/${versionId}/file`;
+  let fieldName = 'versionFile';
+  
+  if (fileType === 'configs') {
+    endpoint = `/v1/versions/${versionId}/configs`;
+    fieldName = 'configsFile';
+  } else if (fileType === 'resources') {
+    endpoint = `/v1/versions/${versionId}/resources`;
+    fieldName = 'resourcesFile';
+  }
+  
+  formData.append(fieldName, file);
+  
+  const json = await requestWithErrorHandling<{ data: any }>(endpoint, {
+    method: 'POST',
+    body: formData,
+    // Don't set Content-Type header, let the browser set it with the boundary
+  });
+  
+  return json.data.attributes;
+}
