@@ -3,7 +3,7 @@ import { LucideConstruction, LucideTrafficCone, LucideFrown, LucideHome } from "
 
 export const NotFound = () => {
     return (
-        <div className="relative flex flex-col items-center justify-center h-full text-white overflow-hidden">
+        <div className="relative min-h-dvh flex flex-col items-center justify-center text-white overflow-hidden">
             {/* Íconos de fondo */}
             <LucideConstruction className="absolute text-white opacity-10 w-64 h-64 -top-10 -left-20 rotate-12" />
             <LucideTrafficCone className="absolute text-white opacity-10 w-64 h-64 -bottom-10 -right-20 -rotate-12" />

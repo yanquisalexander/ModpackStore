@@ -93,13 +93,13 @@ class Passport {
     private static setupDiscord(): void {
         if (!logMissingEnv('DISCORD')) return
 
-        passport.use('discord', new DiscordStrategy({
+        passport.use('discord', new (DiscordStrategy as any)({
             clientID: process.env.DISCORD_CLIENT_ID!,
             clientSecret: process.env.DISCORD_CLIENT_SECRET!,
             callbackURL: process.env.DISCORD_CALLBACK_URL!,
             scope: SCOPES.DISCORD,
-            // @ts-ignore
-            prompt: 'consent'
+            prompt: 'consent',
+
         }, async (accessToken, refreshToken, profile: Profile, done) => {
             try {
                 return done(null, profile)

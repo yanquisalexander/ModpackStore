@@ -20,9 +20,9 @@ import { preloadSounds } from "./utils/sounds";
 import { OfflineMode } from "./views/OfflineMode";
 import NoticeTestBuild from "./components/NoticeTestBuild";
 import CommandPalette from "./components/CommandPalette";
-import { CreatorsLayout } from "./components/creators/CreatorsLayout";
-import { AdminLayout } from "./components/admin/AdminLayout";
-
+/* import { CreatorsLayout } from "./components/creators/CreatorsLayout";
+/*  import { AdminLayout } from "./components/admin/AdminLayout";
+ */
 // Componente de carga para unificar la presentación
 const LoadingScreen = () => (
   <div className="absolute inset-0 flex items-center justify-center min-h-dvh h-full w-full">
@@ -129,13 +129,13 @@ function App() {
           <Route path="/mc-accounts" component={AccountsSection} />
 
           {/* Admin Layout para admins */}
-          {isAuthenticated && session?.admin && (
+          {/* {isAuthenticated && session?.admin && (
             <Route path="/admin/:rest*" component={AdminLayout} />
-          )}
+          )} */}
 
-          {(session?.publisherMemberships && session.publisherMemberships.length > 0) && (
+          {/*  {(session?.publisherMemberships && session.publisherMemberships.length > 0) && (
             <CreatorsLayout />
-          )}
+          )} */}
 
           <Route component={NotFound} />
         </Switch>

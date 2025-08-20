@@ -55,7 +55,7 @@ export const Login = () => {
         const toastMessages = {
             "starting-auth": "Conectando con Discord...",
             "waiting-callback": "Esperando respuesta de Discord...",
-            "processing-callback": "Procesando información...",
+            "processing-callback": "Cargando información...",
         };
 
         // Show loading toast for valid auth steps or dismiss for requesting-session
