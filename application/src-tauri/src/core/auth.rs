@@ -381,10 +381,12 @@ pub async fn start_discord_auth(
     );
 
     println!("Abriendo URL de autenticación: {}", discord_url);
-    tauri_plugin_opener::open_url(discord_url, None::<String>).map_err(|e| {
-        eprintln!("Error al abrir URL: {}", e);
-        "Error al abrir URL de autenticación".to_string()
-    })?;
+    std::thread::spawn(move || {
+        if let Err(e) = tauri_plugin_opener::open_url(discord_url, None::<String>) {
+            eprintln!("Error al abrir URL: {}", e);
+            let _ = emit_event::<String>("auth-error", Some("Error al abrir URL de autenticación".to_string()));
+        }
+    });
 
     emit_event("auth-step-changed", Some(AuthStep::WaitingCallback))?;
 

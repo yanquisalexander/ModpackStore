@@ -1,50 +1,26 @@
-import { useGlobalContext } from "@/stores/GlobalContext"
-import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance"
-import { getDefaultAppeareance } from "@/utils/prelaunch"
-import { invoke } from "@tauri-apps/api/core"
-import { LucideGamepad2, LucideLoaderCircle, LucideUnplug } from "lucide-react"
-import { CSSProperties, useEffect, useState, useCallback, useRef, memo } from "react"
-import { toast } from "sonner"
-import { navigate } from "wouter/use-browser-location"
-import { useInstances } from "@/stores/InstancesContext"
-import { MinecraftInstance, TauriCommandReturns } from "@/types/TauriCommandReturns"
-import { Activity, Timestamps } from "tauri-plugin-drpc/activity"
-import { setActivity } from "tauri-plugin-drpc"
-import { playSound, SOUNDS } from "@/utils/sounds"
-import { trackEvent } from "@aptabase/web"
-import { useTasksContext } from "@/stores/TasksContext"
-import { merge } from 'lodash-es';
-// Import the new component
-import PreLaunchQuickActions from "@/components/PreLaunchQuickActions"
-import { InstanceCrashDialog } from "@/components/InstanceCrashDialog"
-import {
-    info
-} from "@tauri-apps/plugin-log"
-import { BackgroundVideo } from "@/components/LauncherBackgroundVideo"
+import { usePrelaunchInstance } from "@/hooks/usePrelaunchInstance";
+import { LucideGamepad2, LucideLoaderCircle } from "lucide-react";
+import { toast } from "sonner";
+import { memo } from "react";
+import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance";
+import { BackgroundVideo } from "@/components/LauncherBackgroundVideo";
+import PreLaunchQuickActions from "@/components/PreLaunchQuickActions";
+import { InstanceCrashDialog } from "@/components/InstanceCrashDialog";
 
-// Constants
-const DEFAULT_LOADING_STATE = {
-    isLoading: false,
-    message: "Descargando archivos necesarios...",
-    progress: 0,
-    logs: []
-};
-
-const RANDOM_MESSAGES = [
-    "Descargando archivos necesarios...",
-    "Cargando modpack...",
-    "Muy pronto estarás jugando...",
-    "Seguro que te va a encantar...",
-    "Preparando todo para ti...",
-];
 
 // Memoized Background Component
-const Background = memo(({ imageUrl, videoUrl }) => {
+const Background = memo(({ imageUrl, videoUrl }: PreLaunchAppearance['background']) => {
     if (imageUrl) {
         return (
             <img
                 className="absolute inset-0 z-0 h-full w-full object-cover animate-fade-in ease-in-out duration-1000"
                 src={imageUrl}
+                onError={(e => {
+                    e
+                    if (!videoUrl) {
+                        videoUrl = "/assets/videos/prelaunch-default-1.mp4"
+                    }
+                })}
                 alt="Background"
             />
         );
@@ -60,7 +36,7 @@ const Background = memo(({ imageUrl, videoUrl }) => {
 });
 
 // Memoized Logo Component
-const Logo = memo(({ logo }) => {
+const Logo = memo(({ logo, onLoadError }: { logo: PreLaunchAppearance['logo'], onLoadError: (resource: string, error: string) => void }) => {
     if (!logo?.url) return null;
 
     const logoHasCustomPosition = logo?.position &&
@@ -70,6 +46,10 @@ const Logo = memo(({ logo }) => {
         <img
             src={logo.url}
             alt="Logo"
+            onError={(e) => {
+                onLoadError("Logo", `Failed to load ${logo.url}`);
+                (e.currentTarget as HTMLImageElement).src = "/images/mc_logo.svg";
+            }}
             style={{
                 top: logo.position?.top,
                 left: logo.position?.left,
@@ -84,7 +64,7 @@ const Logo = memo(({ logo }) => {
 });
 
 // Memoized Loading Indicator Component
-const LoadingIndicator = memo(({ isLoading, message }) => {
+const LoadingIndicator = memo(({ isLoading, message }: { isLoading: boolean, message: string }) => {
     if (!isLoading) return null;
 
     return (
@@ -177,368 +157,59 @@ const Footer = memo(({ appearance, isLoading, isPlaying, isInstanceBootstraping,
 });
 
 export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
-    // Context and state
-    const { setTitleBarState } = useGlobalContext();
-    const { instances } = useInstances();
-    const { instancesBootstraping } = useTasksContext()
-    const isInstanceBootstraping = instancesBootstraping.includes(instanceId)
-    const currentInstanceRunning = instances.find(inst => inst.id === instanceId) || null;
-    const isPlaying = currentInstanceRunning?.status === "running";
-    const [showConfig, setShowConfig] = useState(false);
+    const {
+        prelaunchState,
+        appearance,
+        loadingStatus,
+        isPlaying,
+        isInstanceBootstraping,
+        IS_FORGE,
+        showConfig,
+        crashErrorState,
+        setCrashErrorState,
+        handlePlayButtonClick,
+        fetchInstanceData,
+        handleResourceError,
+        navigate
+    } = usePrelaunchInstance(instanceId);
 
-    // Refs
-    const audioRef = useRef<HTMLAudioElement | null>(null);
-    const messageIntervalRef = useRef<number | null>(null);
-
-    // State
-    const [appearance, setAppearance] = useState<PreLaunchAppearance | null>(null);
-    const [prelaunchState, setPrelaunchState] = useState({
-        isLoading: true,
-        error: null as string | null,
-        instance: null as MinecraftInstance | null,
-    });
-    const [errorState, setErrorState] = useState({
-        exitCode: -1,
-        message: "",
-        showModal: false,
-        data: null,
-    })
-    const [loadingStatus, setLoadingStatus] = useState(DEFAULT_LOADING_STATE);
-
-    const IS_FORGE = prelaunchState.instance?.forgeVersion !== undefined && prelaunchState.instance?.forgeVersion !== null;
-
-    // Helper functions
-    const getRandomMessage = useCallback(() => {
-        return RANDOM_MESSAGES[Math.floor(Math.random() * RANDOM_MESSAGES.length)];
-    }, []);
-
-    useEffect(() => {
-        const handleInstanceCrash = (event: Event) => {
-            const customEvent = event as CustomEvent<{ instanceId: string; message?: string, data?: any; exitCode: number }>;
-            const { instanceId: crashedInstanceId, message, data, exitCode } = customEvent.detail;
-            console.log({ crashedInstanceId, message, data, exitCode });
-            if (crashedInstanceId === instanceId) {
-                setErrorState({
-                    exitCode,
-                    message: message || "Minecraft se ha cerrado inesperadamente",
-                    showModal: true,
-                    data,
-                });
-            }
-        };
-        document.addEventListener("instance-crash", handleInstanceCrash as EventListener);
-        return () => {
-            document.removeEventListener("instance-crash", handleInstanceCrash as EventListener);
-        };
-    }, [instanceId]);
-
-    // Instance loading functions
-    const fetchInstanceData = useCallback(async () => {
-        setPrelaunchState(prev => ({
-            ...prev,
-            isLoading: true,
-            error: null,
-        }));
-
-        try {
-            const instance = await invoke<TauriCommandReturns['get_instance_by_id']>("get_instance_by_id", { instanceId });
-
-            if (!instance) throw new Error("Instance not found");
-
-            setPrelaunchState({
-                isLoading: false,
-                error: null,
-                instance,
-            });
-
-            updateTitleBar(instance);
-            return instance;
-        } catch (error) {
-            console.error("Error fetching instance data:", error);
-            setPrelaunchState({
-                isLoading: false,
-                error: "Ocurrió un error al cargar la instancia",
-                instance: null,
-            });
-            return null;
-        }
-    }, [instanceId]);
-
-    const updateTitleBar = useCallback((instance: any) => {
-        setTitleBarState(prev => ({
-            ...prev,
-            title: instance.instanceName,
-            canGoBack: true,
-            customIconClassName: "",
-            opaque: false,
-        }));
-    }, [setTitleBarState]);
-
-    const loadAppearance = useCallback(async () => {
-        try {
-            const defaultAppearance = getDefaultAppeareance({
-                logoUrl: "/images/mc_logo.svg",
-            });
-
-            const appearanceData = await invoke("get_prelaunch_appearance", { instanceId }) as PreLaunchAppearance;
-            console.log("Appearance data:", appearanceData);
-
-            if (!appearanceData) {
-                console.warn("No appearance data found, using default");
-                setAppearance(defaultAppearance);
-                console.log("Default appearance:", defaultAppearance);
-                return;
-            }
-
-            const mergedAppearance = merge(defaultAppearance, appearanceData);
-
-            setAppearance(mergedAppearance);
-        } catch (err) {
-            // Handle error
-        }
-    }, [instanceId, prelaunchState.instance]);
-
-    // Launch instance handling
-    const startMessageInterval = useCallback(() => {
-        // Clear existing interval
-        if (messageIntervalRef.current) {
-            window.clearInterval(messageIntervalRef.current);
-        }
-
-        // Create new interval for random messages
-        messageIntervalRef.current = window.setInterval(() => {
-            // Check if we should stop the interval
-            if (currentInstanceRunning?.status !== "running" && currentInstanceRunning?.status !== "preparing") {
-                if (messageIntervalRef.current) {
-                    window.clearInterval(messageIntervalRef.current);
-                    messageIntervalRef.current = null;
-                }
-                return;
-            }
-
-            setLoadingStatus(prev => ({
-                ...prev,
-                message: getRandomMessage(),
-            }));
-        }, 5000) as unknown as number;
-    }, [currentInstanceRunning?.status, getRandomMessage]);
-
-    const handlePlayButtonClick = useCallback(async () => {
-        if (loadingStatus.isLoading || isPlaying || isInstanceBootstraping) return;
-
-        const instance = prelaunchState.instance;
-
-        if (!instance) {
-            playSound('ERROR_NOTIFICATION');
-            toast.error("Error al iniciar la instancia", {
-                description: "No se pudo iniciar la instancia. Intenta nuevamente más tarde.",
-                dismissible: true,
-            });
-            return;
-        }
-
-        // Validar que haya una cuenta seleccionada
-        if (!instance.accountUuid) {
-            playSound('ERROR_NOTIFICATION');
-            toast.error("Sin cuenta seleccionada", {
-                description: "Debes seleccionar una cuenta de Minecraft para jugar (puedes hacerlo desde la configuración de instancia).",
-                dismissible: true,
-                icon: <LucideUnplug className="size-4 text-white" />,
-            });
-            return;
-        }
-
-        const accountExists = await invoke<TauriCommandReturns['ensure_account_exists']>("ensure_account_exists", { uuid: instance.accountUuid });
-        if (!accountExists) {
-            playSound('ERROR_NOTIFICATION');
-            toast.error("Cuenta no encontrada", {
-                description: "La cuenta asociada a esta instancia no existe. Por favor, verifica la configuración de la instancia.",
-                dismissible: true,
-            });
-            return;
-        }
-
-        try {
-            // Registrar evento y actualizar estado antes de lanzar
-            trackEvent("play_instance_clicked", {
-                name: "Play Minecraft Instance Clicked",
-                modpackId: "null",
-                timestamp: new Date().toISOString(),
-            });
-
-            setLoadingStatus(prev => ({ ...prev, isLoading: true }));
-            await invoke("launch_mc_instance", { instanceId });
-            startMessageInterval();
-        } catch (error) {
-            console.error("Error launching instance:", error);
-            playSound('ERROR_NOTIFICATION');
-            toast.error("Error al iniciar la instancia", {
-                description: "No se pudo iniciar la instancia. Intenta nuevamente más tarde.",
-                dismissible: true,
-            });
-        }
-    }, [instanceId, loadingStatus.isLoading, isPlaying, prelaunchState.instance, startMessageInterval, isInstanceBootstraping]);
-
-    // Discord RPC handling
-    const updateDiscordRPC = useCallback(() => {
-        if (!prelaunchState.instance) return;
-
-        const activity = new Activity()
-            .setState(isPlaying ? "Jugando" : "Preparando instancia")
-            .setDetails(prelaunchState.instance.instanceName)
-            .setTimestamps(new Timestamps(Date.now()))
-
-        setActivity(activity)
-            .catch(error => console.error("Error setting Discord activity:", error))
-            .then(() => console.log("Discord activity set successfully"));
-    }, [isPlaying, prelaunchState.instance]);
-
-    // Audio handling
-    const handleAudio = useCallback(() => {
-        if (!appearance?.audio?.url) return;
-
-        // Initialize audio if it doesn't exist yet
-        if (!audioRef.current) {
-            audioRef.current = new Audio(appearance.audio.url);
-            audioRef.current.loop = true;
-            audioRef.current.volume = 0.01;
-        }
-
-        const audio = audioRef.current;
-
-        // Control playback based on game state
-        if (isPlaying) {
-            audio.pause();
-            audio.currentTime = 0;
-        } else {
-            audio.play().catch(error => console.error("Error playing audio:", error));
-        }
-
-        return () => {
-            audio.pause();
-            audio.currentTime = 0;
-        };
-    }, [appearance?.audio?.url, isPlaying]);
-
-    // Update loading status based on instance
-    const updateLoadingStatus = useCallback(() => {
-        if (!currentInstanceRunning) return;
-
-        const isLoading = currentInstanceRunning.status === "preparing" || currentInstanceRunning.status === "downloading-assets";
-
-        setLoadingStatus(prev => ({
-            ...prev,
-            isLoading,
-            message: currentInstanceRunning.message || getRandomMessage(),
-        }));
-
-        // Show error toast if instance has an error
-        if (currentInstanceRunning.status === "error") {
-            toast.error("Error en la instancia", {
-                id: "instance-runtime-error",
-                description: currentInstanceRunning.message || "Ha ocurrido un error al ejecutar la instancia.",
-                dismissible: false,
-            });
-        }
-    }, [currentInstanceRunning, getRandomMessage]);
-
-    // Effect hooks
-    // 1. Initial setup and cleanup
-    useEffect(() => {
-        setTitleBarState(prev => ({ ...prev, canGoBack: true }));
-
-        const searchParams = new URLSearchParams(window.location.search);
-        const showConfig = searchParams.get("showSettings") === "true";
-        if (showConfig) {
-            setShowConfig(true);
-            const newUrl = window.location.pathname + window.location.hash;
-            window.history.replaceState({}, "", newUrl);
-        } else {
-            setShowConfig(false);
-        }
-
-        // Cleanup function
-        return () => {
-            if (messageIntervalRef.current) {
-                window.clearInterval(messageIntervalRef.current);
-                messageIntervalRef.current = null;
-            }
-        };
-    }, [setTitleBarState]);
-
-    // 2. Initial instance loading
-    useEffect(() => {
-        fetchInstanceData();
-    }, [fetchInstanceData]);
-
-    // 3. Load appearance
-    useEffect(() => {
-        loadAppearance();
-    }, [loadAppearance]);
-
-    // 4. Update Discord RPC
-    useEffect(() => {
-        updateDiscordRPC();
-    }, [updateDiscordRPC]);
-
-    // 5. Audio handling
-    useEffect(() => {
-        return handleAudio();
-    }, [handleAudio]);
-
-    // 6. Update loading status based on current instance
-    useEffect(() => {
-        updateLoadingStatus();
-    }, [updateLoadingStatus]);
-
-    // Render functions
-    const renderLoading = () => (
-        <div className="flex items-center justify-center min-h-screen h-full w-full">
-            <LucideLoaderCircle className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
-        </div>
-    );
-
-    const renderError = () => {
-        toast.error(prelaunchState.error || "Error desconocido", {
-            id: "instance-error",
-            description: "No se pudo cargar la instancia. Intenta nuevamente más tarde.",
-            dismissible: false,
-            action: {
-                label: "Volver a inicio",
-                onClick: () => navigate("/")
-            },
-        });
-
+    if (prelaunchState.isLoading) {
         return (
-            <div className="flex items-center justify-center min-h-screen h-full w-full">
-                <div className="text-white text-lg">{prelaunchState.error}</div>
+            <div className="flex items-center justify-center min-h-screen">
+                <LucideLoaderCircle className="size-10 animate-spin-clockwise text-white" />
             </div>
         );
-    };
-
-    // Loading and error handling
-    if (prelaunchState.isLoading) {
-        return renderLoading();
     }
 
     if (prelaunchState.error) {
-        return renderError();
+        toast.error(prelaunchState.error, {
+            id: "instance-load-error",
+            description: "No se pudo cargar la instancia. Intenta nuevamente.",
+            action: { label: "Volver a inicio", onClick: () => navigate("/") },
+        });
+        return (
+            <div className="flex items-center justify-center min-h-screen text-white">
+                {prelaunchState.error}
+            </div>
+        );
     }
 
-    // Main render
     return (
         <div className="absolute inset-0">
             <div className="relative h-full w-full overflow-hidden">
-                {/* Memoized components that won't re-render unnecessarily */}
                 <Background
                     imageUrl={appearance?.background?.imageUrl}
                     videoUrl={appearance?.background?.videoUrl}
+                    onLoadError={handleResourceError} // Pasar la función de notificación
                 />
                 <LoadingIndicator
                     isLoading={loadingStatus.isLoading}
                     message={loadingStatus.message}
                 />
-                <Logo logo={appearance?.logo} />
+                <Logo
+                    logo={appearance?.logo}
+                    onLoadError={handleResourceError} // Pasar la función de notificación
+                />
                 <Footer
                     appearance={appearance}
                     isLoading={loadingStatus.isLoading}
@@ -556,11 +227,11 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                     />
                 )}
                 <InstanceCrashDialog
-                    open={errorState.showModal}
-                    onOpenChange={(open) => setErrorState(prev => ({ ...prev, showModal: open }))}
-                    errorMessage={errorState.message}
-                    data={errorState.data}
-                    exitCode={errorState.exitCode}
+                    open={crashErrorState.showModal}
+                    onOpenChange={(open) => setCrashErrorState(prev => ({ ...prev, showModal: open }))}
+                    errorMessage={crashErrorState.message}
+                    data={crashErrorState.data}
+                    exitCode={crashErrorState.exitCode}
                 />
             </div>
         </div>

@@ -182,6 +182,15 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                     message: message || "Ha ocurrido un error"
                 });
 
+                const instance = instances.find(inst => inst.id === id);
+
+                toast.error(`Error al iniciar la instancia "${instance?.name || id}"`, {
+                    duration: 10000,
+                    description: message || "Revisa los logs para más detalles.",
+                });
+
+                playSound("ERROR_NOTIFICATION");
+
                 // Unminima la ventana de la aplicación
                 const window = getCurrentWindow();
                 window.unminimize();

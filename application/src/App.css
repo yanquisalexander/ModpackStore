@@ -73,9 +73,9 @@ body,
 }
 
 @utility mc-play-btn {
-  --border: #000;
-  --top-border: #27ce40;
-  --bottom-border: #064d2a;
+  --border: var(--color-border, #000);
+  --top-border: var(--color-primary, #27ce40);
+  --bottom-border: var(--color-secondary, #064d2a);
   box-shadow: 0 -3px 0 0 var(--top-border), 0 3px 0 0 var(--bottom-border), -3px 0 0 0 #0c6e3d, 3px 0 0 0 #0c6e3d, -2px -5px 0 0 var(--border), 2px -5px 0 0 var(--border), -5px -2px 0 0 var(--border), 5px -2px 0 0 var(--border), -2px 5px 0 0 var(--border), 2px 5px 0 0 var(--border), -5px 2px 0 0 var(--border), 5px 2px 0 0 var(--border);
 
 }

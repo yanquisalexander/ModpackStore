@@ -96,7 +96,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                 title="Usuario actual"
             >
                 <img src={session?.avatarUrl} alt="Avatar" className="size-5 rounded-md object-cover" />
-                <span className="text-sm font-medium">{session?.username}</span>
+                <span className="text-sm font-medium whitespace-nowrap">{session?.username}</span>
             </div>
 
             <div
@@ -106,12 +106,12 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                     transform: openMenu ? "translateY(0)" : "translateY(-5px)",
                     transition: "opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease",
                 }}
-                className="absolute right-0 mt-2 w-48 bg-neutral-900 border border-neutral-700 rounded shadow-lg z-50 p-2">
+                className="absolute right-0 mt-2 min-w-48 max-w-56 w-auto bg-neutral-900 border border-neutral-700 rounded shadow-lg z-50 p-2">
                 <ul className="text-sm text-white flex flex-col">
                     <Link
                         href="/profile"
                         onClick={closeMenu}
-                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
+                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded whitespace-nowrap"
                     >
                         <LucideSquareUserRound size={16} />
                         Ver perfil
@@ -119,7 +119,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
                     <button
                         onClick={handleOpenConfig}
-                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded text-left cursor-pointer"
+                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded text-left cursor-pointer whitespace-nowrap"
                     >
                         <LucideSettings2 size={16} />
                         Configuración
@@ -129,7 +129,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         <Link
                             href="/creators"
                             onClick={closeMenu}
-                            className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
+                            className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded whitespace-nowrap"
                         >
                             <LucidePackageOpen size={16} />
                             Centro de creadores
@@ -140,7 +140,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         <Link
                             href="/admin/organizations"
                             onClick={closeMenu}
-                            className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded"
+                            className="w-full shrink-0 flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded whitespace-nowrap"
                         >
                             <LucideSettings2 size={16} />
                             Panel de administración
@@ -149,7 +149,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
                     <button
                         onClick={handleLogout}
-                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-red-600/20 rounded text-left cursor-pointer"
+                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-red-600/20 rounded text-left cursor-pointer whitespace-nowrap"
                     >
                         <LucideLogOut size={16} />
                         Cerrar sesión
@@ -162,7 +162,8 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                             {/* Additional options here when shift is pressed */}
                             <button
                                 onClick={handleReloadApp}
-                                className="cursor-pointer w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded">
+                                className="cursor-pointer w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded whitespace-nowrap"
+                            >
                                 <LucideAppWindowMac size={16} />
                                 Recargar aplicación
                             </button>

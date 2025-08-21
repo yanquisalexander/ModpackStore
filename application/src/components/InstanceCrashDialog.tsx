@@ -55,7 +55,7 @@ export const InstanceCrashDialog = ({
                         {
                             data?.detectedError && (
                                 <code className="text-red-500 text-sm">
-                                    {data.detectedError}
+                                    {data.detectedError?.code}
                                 </code>
                             )
                         }

@@ -1,11 +1,9 @@
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance";
 
 export const getDefaultAppeareance = ({ title, description, logoUrl }: { title?: string; description?: string; logoUrl?: string }): PreLaunchAppearance => {
-
     return {
         title,
         description,
-
         logo: {
             url: logoUrl,
             height: "56px",
@@ -24,7 +22,6 @@ export const getDefaultAppeareance = ({ title, description, logoUrl }: { title?:
             hoverColor: "#262626",
             textColor: "#ffffff",
             borderColor: "#ffffff",
-
             fadeInDuration: "500ms",
             fadeInDelay: "1500ms"
         },
@@ -32,8 +29,6 @@ export const getDefaultAppeareance = ({ title, description, logoUrl }: { title?:
         background: {
             videoUrl: "/assets/videos/prelaunch-default-1.mp4",
         },
-
-
         news: {
             position: {
                 top: "3rem",
