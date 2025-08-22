@@ -6,6 +6,8 @@ import Passport from "./lib/Passport";
 import "dotenv/config";
 import "./middleware/upload.middleware"; // Import multer middleware
 import { logger } from 'hono/logger'
+import { HTTPException } from 'hono/http-exception';
+
 
 // Swagger UI Setup
 import { swaggerUI } from '@hono/swagger-ui';
@@ -83,34 +85,43 @@ app.post('/test-upload', upload.single('file'), (c) => {
 */
 
 // Global Error Handling
-/* app.onError((err: any, c) => {
-  console.error("[GLOBAL_ERROR_HANDLER]", err); // Log the error for debugging
+app.onError((err: Error, c: Context) => {
+  console.error('[GLOBAL_ERROR_HANDLER]:', err);
+
+  let statusCode: number = 500;
+  let errorResponse = {
+    status: '500',
+    title: 'Internal Server Error',
+    detail: 'Ocurrió un error interno en el servidor.',
+    code: 'INTERNAL_SERVER_ERROR'
+  };
 
   if (err instanceof APIError) {
-    // Handle APIError instances specifically
-    return c.json(serializeError({
+    statusCode = err.statusCode;
+    errorResponse = {
       status: err.statusCode.toString(),
-      title: err.name || 'API Error',
+      title: err.name,
       detail: err.message,
-      code: err.errorCode, // If APIError has an errorCode property
-    }), err.statusCode as any);
-  } else if (err.status && typeof err.status === 'number') {
-    // Handle errors with a .status property (like some Hono errors or manually thrown)
-    // Hono's HTTPException often comes here.
-    return c.json(serializeError({
+      code: err.errorCode ?? 'API_ERROR'
+    };
+  } else if (err instanceof HTTPException) {
+    statusCode = err.status;
+    errorResponse = {
       status: err.status.toString(),
-      title: err.name || 'Error', // err.name might not always be suitable
-      detail: err.message || 'An unexpected error occurred.',
-    }), err.status);
-  } else {
-    // Generic fallback for other types of errors
-    return c.json(serializeError({
-      status: '500',
-      title: 'Internal Server Error',
-      detail: (err instanceof Error ? err.message : 'An unexpected internal server error occurred.'),
-    }), 500);
+      title: err.message, // HTTPException usa 'message' como título
+      detail: err.message,
+      code: 'HTTP_EXCEPTION'
+    };
+  } else if (process.env.NODE_ENV !== 'production') {
+    // Errores genéricos en desarrollo: muestra más detalles.
+    errorResponse.detail = err.message;
+    errorResponse.title = err.name;
   }
-}); */
+
+  // Finalmente, envía la respuesta JSON una sola vez.
+  // El 'as any' en statusCode es a veces necesario porque c.json espera un tipo literal específico.
+  return c.json({ errors: [errorResponse] }, statusCode as any);
+});
 
 // Start the server
 console.log(`Server is preparing to run on port ${port}`);

@@ -1,5 +1,5 @@
 import { LucideLayoutGrid, LucideServer, LucideUsers, LucideWrench } from "lucide-react"
-import {Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 export const HomeMainHeader = () => {
     const location = useLocation();

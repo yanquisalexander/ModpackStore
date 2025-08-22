@@ -1,75 +1,67 @@
 // /controllers/AccountsController.ts
-import "dotenv/config";
 import { Context } from 'hono';
-// import { User } from "@/models/User.model"; // May not be directly needed here anymore
-// import { Session } from "@/models/Session.model"; // May not be directly needed here anymore
-import { AuthService } from "@/services/auth.service";
-import { APIError } from "../lib/APIError"; // For throwing errors
-import { User } from "@/models/User.model";
+import { AuthService } from '@/services/auth.service';
+import { APIError } from '@/lib/APIError';
+import { AuthVariables } from "@/middlewares/auth.middleware";
+
+// Define un tipo para el cuerpo de la petición de refresh para mayor seguridad
+type RefreshTokenPayload = {
+    refresh_token?: string;
+};
 
 export class AccountsController {
+    /**
+     * Maneja el callback de la autenticación de Discord.
+     */
     static async callbackDiscord(c: Context): Promise<Response> {
         const code = c.req.query('code');
 
+        // 2. Lanza un error estandarizado en lugar de retornar una respuesta manual
         if (!code) {
-            return c.json({ error: 'Missing authorization code' }, 400);
+            throw new APIError(400, 'Authorization code is required.', 'MISSING_CODE');
         }
 
-        try {
-            console.log("[CONTROLLER_ACCOUNTS][DISCORD] Callback received, calling AuthService. Code:", code.substring(0, 10) + "...");
-            const tokens = await AuthService.handleDiscordCallback(code);
-            console.log("[CONTROLLER_ACCOUNTS][DISCORD] Tokens received from service, sending to client.");
-            return c.json(tokens, 200);
-        } catch (error: any) {
-            console.error('[CONTROLLER_ACCOUNTS][DISCORD] Error in callback:', error.message);
-            if (error instanceof APIError) {
-                throw error;
-            }
-            throw new APIError(error.statusCode || 500, error.message || 'Internal server error');
-        }
+        // 3. Se elimina el try/catch. El manejador de errores global se encargará.
+        console.log(`[ACCOUNTS] Processing Discord callback...`);
+        const tokens = await AuthService.handleDiscordCallback(code);
+
+        return c.json(tokens);
     }
 
-    static async getCurrentUser(c: Context) {
-        // Hono: El tipo de retorno puede ser Response o void, Hono maneja el response
-        const authenticatedUser = c.get('user') as User;
+    /**
+     * Obtiene el perfil del usuario actualmente autenticado.
+     * Esta ruta debe estar protegida por el middleware `requireAuth`.
+     */
+    static async getCurrentUser(c: Context<{ Variables: AuthVariables }>) {
+        // 4. El contexto ya está tipado, no se necesita `as User`.
+        const authenticatedUser = c.get('user');
 
-        if (!authenticatedUser || !authenticatedUser.id) {
-            throw new APIError(401, 'No valid user session.');
+        // Esta comprobación es una capa extra de seguridad, aunque `requireAuth` ya lo garantiza.
+        if (!authenticatedUser) {
+            throw new APIError(401, 'No valid user found in context.', 'USER_NOT_IN_CONTEXT');
         }
 
-        try {
-            console.log(`[CONTROLLER_ACCOUNTS] Getting current user profile for ID: ${authenticatedUser.id}`);
-            const userProfile = await AuthService.getAuthenticatedUserProfile(authenticatedUser.id);
-            console.log("[CONTROLLER_ACCOUNTS] Profile retrieved from service.");
-            return c.json(userProfile, 200);
-        } catch (error: any) {
-            console.error('[CONTROLLER_ACCOUNTS] Error getting current user:', error.message);
-            if (error instanceof APIError) {
-                throw error;
-            }
-            throw new APIError(error.statusCode || 500, error.message || 'Internal server error');
-        }
+        console.log(`[ACCOUNTS] Getting profile for user ID: ${authenticatedUser.id}`);
+        const userProfile = await AuthService.getAuthenticatedUserProfile(authenticatedUser.id);
+
+        return c.json(userProfile);
     }
 
+    /**
+     * Refresca los tokens de autenticación usando un refresh token.
+     */
     static async refreshTokens(c: Context) {
-        const body = await c.req.json();
-        const refreshToken = body.refresh_token;
+        // 5. Se aplica el tipo al cuerpo de la petición para obtener autocompletado y seguridad.
+        const body = await c.req.json<RefreshTokenPayload>();
+        const { refresh_token } = body;
 
-        if (!refreshToken) {
-            return c.json({ error: 'Missing refresh token' }, 400);
+        if (!refresh_token) {
+            throw new APIError(400, 'Refresh token is required.', 'MISSING_REFRESH_TOKEN');
         }
 
-        try {
-            console.log("[CONTROLLER_ACCOUNTS] Refreshing tokens. Token (partial):", refreshToken.substring(0, 10) + "...");
-            const newTokens = await AuthService.refreshAuthTokens(refreshToken);
-            console.log("[CONTROLLER_ACCOUNTS] Tokens refreshed successfully by service.");
-            return c.json(newTokens, 200);
-        } catch (error: any) {
-            console.error('[CONTROLLER_ACCOUNTS] Error refreshing tokens:', error.message);
-            if (error instanceof APIError) {
-                throw error;
-            }
-            throw new APIError(error.statusCode || 500, error.message || 'Internal server error');
-        }
+        console.log(`[ACCOUNTS] Refreshing tokens...`);
+        const newTokens = await AuthService.refreshAuthTokens(refresh_token);
+
+        return c.json(newTokens);
     }
 }

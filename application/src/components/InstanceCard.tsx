@@ -30,7 +30,7 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
     const [isOpen, setIsOpen] = useState(false)
     const [showDeleteAlert, setShowDeleteAlert] = useState(false)
 
-
+    const navigate = useNavigate()
 
 
     const handleDeleteInstance = async () => {

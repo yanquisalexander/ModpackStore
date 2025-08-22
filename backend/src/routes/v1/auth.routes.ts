@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { AccountsController } from '../../controllers/Accounts.controller';
-import { requireAuth } from "@/middlewares";
+import { requireAuth } from "@/middlewares/auth.middleware";
 
 const authRoutes = new Hono();
 
