@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLocation, Link } from 'wouter';
+import { useNavigate, Link } from "react-router-dom";
 import { toast } from 'sonner';
 import { useAuthentication } from '@/stores/AuthContext';
 import { createPublisher, NewPublisherData } from '@/services/adminPublishers';
@@ -9,7 +9,7 @@ import { LucideChevronLeft, LucideLoader } from "lucide-react";
 
 export const CreateOrganizationView: React.FC = () => {
     const { session, isAuthenticated, sessionTokens, loading: authLoading } = useAuthentication();
-    const [, navigate] = useLocation();
+    const navigate = useNavigate();
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
     const handleSubmit = async (data: NewPublisherData) => {
@@ -60,7 +60,7 @@ export const CreateOrganizationView: React.FC = () => {
         <div className="container mx-auto p-4">
             <header className="mb-6 flex justify-between items-center">
                 <h1 className="text-3xl font-bold">Create New Organization</h1>
-                <Link href="/admin/organizations">
+                <Link to="/admin/organizations">
                     <Button variant="outline">
                         <LucideChevronLeft className="mr-2 h-4 w-4" /> Back to List
                     </Button>

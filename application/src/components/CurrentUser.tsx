@@ -1,7 +1,7 @@
 import { useAuthentication } from "@/stores/AuthContext";
 import { LucideAppWindowMac, LucideLogOut, LucidePackageOpen, LucideSettings2, LucideSquareUserRound } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "wouter";
+import { Link } from "react-router-dom";
 import { useConfigDialog } from "@/stores/ConfigDialogContext";
 import { useReloadApp } from "@/stores/ReloadContext"; // Importar el nuevo hook
 import { useCheckConnection } from "@/utils/checkConnection";
@@ -109,7 +109,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                 className="absolute right-0 mt-2 min-w-48 max-w-56 w-auto bg-neutral-900 border border-neutral-700 rounded shadow-lg z-50 p-2">
                 <ul className="text-sm text-white flex flex-col">
                     <Link
-                        href="/profile"
+                        to="/profile"
                         onClick={closeMenu}
                         className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded whitespace-nowrap"
                     >
@@ -127,7 +127,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
                     {isPublisher && (
                         <Link
-                            href="/creators"
+                            to="/creators"
                             onClick={closeMenu}
                             className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded whitespace-nowrap"
                         >
@@ -138,7 +138,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
                     {session?.admin && (
                         <Link
-                            href="/admin/organizations"
+                            to="/admin/organizations"
                             onClick={closeMenu}
                             className="w-full shrink-0 flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded whitespace-nowrap"
                         >

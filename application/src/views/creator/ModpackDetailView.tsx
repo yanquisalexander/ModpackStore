@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { LucideEdit2, LucideLayers, Users, Settings } from "lucide-react";
 
@@ -50,17 +50,17 @@ export const ModpackDetailView = () => {
             </div>
             <div className="flex gap-4 mt-8">
                 <Button asChild variant="secondary">
-                    <a href={`/creators/modpacks/${modpack.id}/versions`}>
+                    <a to={`/creators/modpacks/${modpack.id}/versions`}>
                         <LucideLayers size={18} className="mr-2" /> Gestionar versiones
                     </a>
                 </Button>
                 <Button asChild variant="secondary">
-                    <a href="#colaboradores">
+                    <a to="#colaboradores">
                         <Users size={18} className="mr-2" /> Colaboradores
                     </a>
                 </Button>
                 <Button asChild variant="secondary">
-                    <a href={`/creators/modpacks/${modpack.id}/edit`}>
+                    <a to={`/creators/modpacks/${modpack.id}/edit`}>
                         <LucideEdit2 size={18} className="mr-2" /> Editar modpack
                     </a>
                 </Button>

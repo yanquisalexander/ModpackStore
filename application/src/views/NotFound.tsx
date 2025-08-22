@@ -1,4 +1,4 @@
-import { Link } from "wouter"
+import { Link } from "react-router-dom"
 import { LucideConstruction, LucideTrafficCone, LucideFrown, LucideHome } from "lucide-react"
 
 export const NotFound = () => {
@@ -17,7 +17,7 @@ export const NotFound = () => {
             </p>
 
             <Link
-                href="/"
+                to="/"
                 className="z-10 mt-6 px-4 py-2 bg-transparent rounded hover:bg-white/10 transition flex items-center justify-center gap-2 text-white font-medium border border-white/20 hover:border-white/30"
             >
                 <LucideHome className="w-4 h-4" />

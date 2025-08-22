@@ -1,4 +1,4 @@
-import { useParams } from "wouter";
+import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Building2, Users, Package, Settings, LucideEdit2 } from "lucide-react";
 
@@ -50,17 +50,17 @@ export const OrganizationDetailView = () => {
             </div>
             <div className="flex gap-4 mt-8">
                 <Button asChild variant="secondary">
-                    <a href={`/creators/organizations/${org.id}/members`}>
+                    <a to={`/creators/organizations/${org.id}/members`}>
                         <Users size={18} className="mr-2" /> Gestionar miembros
                     </a>
                 </Button>
                 <Button asChild variant="secondary">
-                    <a href={`/creators/organizations/${org.id}/modpacks`}>
+                    <a to={`/creators/organizations/${org.id}/modpacks`}>
                         <Package size={18} className="mr-2" /> Ver modpacks
                     </a>
                 </Button>
                 <Button asChild variant="secondary">
-                    <a href={`/creators/organizations/${org.id}/settings`}>
+                    <a to={`/creators/organizations/${org.id}/settings`}>
                         <Settings size={18} className="mr-2" /> Configuración
                     </a>
                 </Button>

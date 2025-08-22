@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { navigate } from "wouter/use-browser-location";
+import { useNavigate } from "react-router-dom";
 import { merge } from 'lodash-es';
 import { useGlobalContext } from "@/stores/GlobalContext";
 import { useInstances } from "@/stores/InstancesContext";
@@ -34,6 +34,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
     const { setTitleBarState } = useGlobalContext();
     const { instances } = useInstances();
     const { instancesBootstraping } = useTasksContext();
+    const navigate = useNavigate();
 
     // Refs
     const audioRef = useRef<HTMLAudioElement | null>(null);

@@ -1,7 +1,7 @@
 import { useInstances } from "@/stores/InstancesContext";
 import { LucidePackageSearch } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Link } from "wouter";
+import { Link } from "react-router-dom";
 
 /* 
     Titlebar button that shows current active instances of Minecraft
@@ -61,7 +61,7 @@ export const RunningInstances = () => {
                     <ul className="text-sm text-white flex flex-col">
                         {runningInstances.map(instance => (
                             <Link
-                                href={`/prelaunch/${instance.id}`}
+                                to={`/prelaunch/${instance.id}`}
                                 key={instance.id} className="w-full py-1 px-2 hover:bg-neutral-800 rounded">
                                 {instance.name}
                             </Link>

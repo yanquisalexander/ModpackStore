@@ -2,7 +2,7 @@ import { LucideArrowLeft, LucideWifiOff, LucideX } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { getCurrentWindow, Window } from '@tauri-apps/api/window';
 import { useGlobalContext } from "../stores/GlobalContext";
-import { Link } from "wouter";
+import { useNavigate } from "react-router-dom";
 import { exit } from '@tauri-apps/plugin-process';
 import { open } from "@tauri-apps/plugin-shell";
 import { CurrentUser } from "./CurrentUser";
@@ -24,7 +24,6 @@ import { WindowControls } from "./appbar/WindowControls";
 import { UpdateButton } from "./appbar/UpdateButton";
 import { PatreonButton } from "./appbar/PatreonButton";
 import { NativeContextMenu } from "./appbar/ContextMenu";
-import { navigate } from "wouter/use-browser-location";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState<Window | null>(null);
@@ -34,6 +33,7 @@ export const AppTitleBar = () => {
     const { isLoading: isLoadingConnectionCheck, isConnected } = useCheckConnection();
     const { showReloadDialog } = useReloadApp();
     const contextMenuTriggerRef = useRef<HTMLDivElement>(null);
+    const navigateRouter = useNavigate();
 
     useEffect(() => {
         const initWindow = async () => {
@@ -84,12 +84,12 @@ export const AppTitleBar = () => {
         if (globalThis.location.pathname !== '/' && globalThis.window.history.length <= 2) {
             const parentPath = globalThis.location.pathname.substring(0, globalThis.location.pathname.lastIndexOf('/'));
             // Si el resultado es una cadena vacía (porque estábamos en '/algo'), vamos a la raíz.
-            navigate(parentPath || '/');
+            navigateRouter(parentPath || '/');
             return;
         }
 
         // CASO 3: Por defecto, para cualquier otra situación, ir a la raíz.
-        navigate("/");
+        navigateRouter("/");
     };
 
     const handleMaximize = async () => {

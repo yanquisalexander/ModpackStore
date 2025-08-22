@@ -1,4 +1,4 @@
-import { Link } from "wouter"
+import { Link } from "react-router-dom";
 import { LucidePlay, LucideHardDrive, LucideMoreVertical, LucideSettings, LucideTrash2, LucideDownload, LucideRefreshCw, LucideGamepad2 } from "lucide-react"
 import { useState } from "react"
 import {
@@ -21,7 +21,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { invoke } from "@tauri-apps/api/core"
-import { navigate } from "wouter/use-browser-location"
+import { useNavigate } from "react-router-dom";
 
 //                            onDelete={() => openDeleteDialog(instance)}
 
@@ -83,7 +83,7 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
                       after:rounded-2xl after:bg-black after:absolute after:blur-3xl hover:after:opacity-40 
                       after:-z-10 after:opacity-0 after:transition after:duration-200 ${className} ${isOpen ? 'ring-2 ring-sky-500 ring-offset-2 ring-offset-black' : ''}`}>
 
-                        <Link href={`/prelaunch/${instance.instanceId}`} className="flex aspect-video flex-col h-full p-4">
+                        <Link to={`/prelaunch/${instance.instanceId}`} className="flex aspect-video flex-col h-full p-4">
                             {/* Background image */}
                             <img
                                 {...isBootstrapping && { "data-bootstraping": true }}

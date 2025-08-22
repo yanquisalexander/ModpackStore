@@ -1,8 +1,8 @@
 import { LucideLayoutGrid, LucideServer, LucideUsers, LucideWrench } from "lucide-react"
-import { Link, useLocation } from "wouter"
+import {Link, useNavigate } from "react-router-dom";
 
 export const HomeMainHeader = () => {
-    const [location] = useLocation();
+    const location = useLocation();
     const SECTIONS = [
         {
             path: "/",
@@ -24,7 +24,7 @@ export const HomeMainHeader = () => {
     //(alias) matchRoute<undefined, PathPattern>(parser: Parser, pattern: PathPattern, path: string, loose?: boolean): Match<RegexRouteParams | {
 
 
-    const SHOULD_SHOW_HEADER = SECTIONS.some((section) => section.path === location)
+    const SHOULD_SHOW_HEADER = SECTIONS.some((section) => section.path === location.pathname)
 
 
 
@@ -40,9 +40,9 @@ export const HomeMainHeader = () => {
                 {
                     SECTIONS.map((section) => (
                         <Link
-                            href={section.path}
+                            to={section.path}
                             key={section.path}
-                            className={`flex items-center transition hover:bg-neutral-800 gap-2 text-white py-2 px-3 ${location === section.path ? "bg-neutral-500/10" : ""}`}
+                            className={`flex items-center transition hover:bg-neutral-800 gap-2 text-white py-2 px-3 ${location.pathname === section.path ? "bg-neutral-500/10" : ""}`}
                         >
                             <section.icon className="h-5 w-5" />
                             {section.title}
