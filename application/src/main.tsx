@@ -1,59 +1,31 @@
-import React, { useEffect } from "react";
-import ReactDOM from "react-dom/client";
+// main.jsx
+import React from "react";
+import { createRoot } from "react-dom/client";
 import App from "./App";
 import { AppTitleBar } from "./components/AppTitleBar";
 import { Toaster } from "sonner";
-import { GlobalContextProvider } from "./stores/GlobalContext";
-import { TasksProvider } from "./stores/TasksContext";
-import { InstancesProvider } from "./stores/InstancesContext";
 import { UpdateStatus } from "./components/UpdateStatus";
 import { start as startDiscordRpc } from "tauri-plugin-drpc";
-import { AuthProvider } from "./stores/AuthContext";
-import { ConfigDialogProvider } from "./stores/ConfigDialogContext";
-import { useConfigDialog } from "./stores/ConfigDialogContext";
-import { ConfigurationDialog } from "./components/ConfigurationDialog";
-import { ReloadProvider } from "./stores/ReloadContext";
+import { AppProviders } from "./providers/AppProviders"; // Importas el nuevo componente
 
-const ConfigDialogLoader = () => {
-  const { isConfigOpen, closeConfigDialog, openConfigDialog } = useConfigDialog();
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === ',') {
-        openConfigDialog();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openConfigDialog]);
-
-  return <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />;
-};
-
-
+// La llamada a Discord RPC se mantiene igual
 startDiscordRpc("943184136976334879").catch((err) => {
   console.error("Failed to start Discord RPC:", err);
-  // This is only a warning, we can still run the app without it
-})
+});
 
+const $root = document.getElementById("root");
 
+if (!$root) {
+  throw new Error("Root element not found");
+}
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <GlobalContextProvider>
-    <AuthProvider>
-      <TasksProvider>
-        <InstancesProvider>
-          <ReloadProvider>
-            <ConfigDialogProvider>
-              <AppTitleBar />
-              <ConfigDialogLoader />
-              <App />
-              <Toaster theme="dark" />
-            </ConfigDialogProvider>
-          </ReloadProvider>
-        </InstancesProvider>
-      </TasksProvider>
-    </AuthProvider>
-  </GlobalContextProvider>
+createRoot($root).render(
+  <React.StrictMode> {/* Buena práctica para desarrollo */}
+    <AppProviders>
+      <AppTitleBar />
+      <App />
+      <Toaster theme="dark" />
+      <UpdateStatus />
+    </AppProviders>
+  </React.StrictMode>
 );

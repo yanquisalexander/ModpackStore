@@ -5,6 +5,7 @@ import rootRouter from "./routes"; // Corrected import for router
 import Passport from "./lib/Passport";
 import "dotenv/config";
 import "./middleware/upload.middleware"; // Import multer middleware
+import { logger } from 'hono/logger'
 
 // Swagger UI Setup
 import { swaggerUI } from '@hono/swagger-ui';
@@ -15,6 +16,7 @@ import { serializeError } from './utils/jsonapi';
 import { APIError } from "./lib/APIError";
 
 const app = new Hono();
+app.use(logger())
 const port = Number(process.env.PORT) || 3000;
 
 const initializeServices = async (): Promise<void> => {

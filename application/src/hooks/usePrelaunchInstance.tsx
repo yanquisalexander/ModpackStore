@@ -42,7 +42,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
     const messageTimeoutRef = useRef<number | null>(null);
 
     // Estados
-    const [appearance, setAppearance] = useState<PreLaunchAppearance | null>(null);
+    const [appearance, setAppearance] = useState<PreLaunchAppearance | undefined>(undefined);
     const [prelaunchState, setPrelaunchState] = useState({
         isLoading: true,
         error: null as string | null,

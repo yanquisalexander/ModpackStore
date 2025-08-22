@@ -15,7 +15,9 @@ import { getVersion } from '@tauri-apps/api/app';
 interface TitleBarState {
     title: string;
     icon?: string | LucideIcon;
-    canGoBack?: boolean;
+    canGoBack?: boolean | {
+        history: boolean;
+    }
     customIconClassName?: string;
     opaque?: boolean;
 }

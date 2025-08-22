@@ -9,16 +9,17 @@ import { InstanceCrashDialog } from "@/components/InstanceCrashDialog";
 
 
 // Memoized Background Component
-const Background = memo(({ imageUrl, videoUrl }: PreLaunchAppearance['background']) => {
+const Background = memo((props: PreLaunchAppearance['background'] | undefined) => {
+    if (!props) return null;
+    const { imageUrl, videoUrl } = props;
     if (imageUrl) {
         return (
             <img
                 className="absolute inset-0 z-0 h-full w-full object-cover animate-fade-in ease-in-out duration-1000"
                 src={imageUrl}
                 onError={(e => {
-                    e
                     if (!videoUrl) {
-                        videoUrl = "/assets/videos/prelaunch-default-1.mp4"
+                        (e.currentTarget as HTMLImageElement).src = "/assets/videos/prelaunch-default-1.mp4";
                     }
                 })}
                 alt="Background"
@@ -76,7 +77,15 @@ const LoadingIndicator = memo(({ isLoading, message }: { isLoading: boolean, mes
 });
 
 // Memoized Footer Component with Play Button
-const Footer = memo(({ appearance, isLoading, isPlaying, isInstanceBootstraping, onPlay }) => {
+type FooterProps = {
+    appearance: PreLaunchAppearance | undefined;
+    isLoading: boolean;
+    isPlaying: boolean;
+    isInstanceBootstraping: boolean;
+    onPlay: () => void;
+};
+
+const Footer = memo(({ appearance, isLoading, isPlaying, isInstanceBootstraping, onPlay }: FooterProps) => {
     const hasCustomPosition = appearance?.playButton?.position &&
         Object.values(appearance.playButton.position).some(value => value != null);
 
@@ -94,7 +103,7 @@ const Footer = memo(({ appearance, isLoading, isPlaying, isInstanceBootstraping,
                         right: appearance?.playButton?.position?.right,
                         bottom: appearance?.playButton?.position?.bottom,
                         transform: appearance?.playButton?.position?.transform,
-                    } as CSSProperties}
+                    } as React.CSSProperties}
                     id="play-button"
                     onClick={onPlay}
                     disabled={isLoading || isPlaying || isInstanceBootstraping}
@@ -200,7 +209,6 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
                 <Background
                     imageUrl={appearance?.background?.imageUrl}
                     videoUrl={appearance?.background?.videoUrl}
-                    onLoadError={handleResourceError} // Pasar la función de notificación
                 />
                 <LoadingIndicator
                     isLoading={loadingStatus.isLoading}

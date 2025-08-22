@@ -1,7 +1,5 @@
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { LucideAlertOctagon, LucideClipboard, LucideEye } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -39,6 +37,15 @@ export const InstanceCrashDialog = ({
         setCopied(true);
         toast.success("Código de error copiado al portapapeles");
     };
+
+    // Avoid typescript unused function warnings
+    {
+        unusedFunctions: [
+            onViewCrashReport,
+            onSendCrashReport,
+            copyExitCode
+        ]
+    }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>

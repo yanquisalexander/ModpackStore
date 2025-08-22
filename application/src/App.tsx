@@ -20,6 +20,7 @@ import { preloadSounds } from "./utils/sounds";
 import { OfflineMode } from "./views/OfflineMode";
 import NoticeTestBuild from "./components/NoticeTestBuild";
 import CommandPalette from "./components/CommandPalette";
+import { CreatorsLayout } from "./components/layouts/CreatorsLayout";
 /* import { CreatorsLayout } from "./components/creators/CreatorsLayout";
 /*  import { AdminLayout } from "./components/admin/AdminLayout";
  */
@@ -133,9 +134,9 @@ function App() {
             <Route path="/admin/:rest*" component={AdminLayout} />
           )} */}
 
-          {/*  {(session?.publisherMemberships && session.publisherMemberships.length > 0) && (
+          {(session?.publisherMemberships && session.publisherMemberships.length > 0) && (
             <CreatorsLayout />
-          )} */}
+          )}
 
           <Route component={NotFound} />
         </Switch>

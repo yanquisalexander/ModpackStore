@@ -24,6 +24,7 @@ import { WindowControls } from "./appbar/WindowControls";
 import { UpdateButton } from "./appbar/UpdateButton";
 import { PatreonButton } from "./appbar/PatreonButton";
 import { NativeContextMenu } from "./appbar/ContextMenu";
+import { navigate } from "wouter/use-browser-location";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState<Window | null>(null);
@@ -66,12 +67,29 @@ export const AppTitleBar = () => {
         };
     }, [window]);
 
-    const handlePatreonClick = async () => {
-        try {
-            await open("https://www.patreon.com/AlexitooDEV");
-        } catch (error) {
-            console.error("Error opening Patreon link:", error);
+
+
+    const handleBackClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+        e.preventDefault();
+
+        // CASO 1: Se fuerza el uso del historial del navegador.
+        if (typeof titleBarState.canGoBack === 'object' && titleBarState.canGoBack.history) {
+            globalThis.window.history.back();
+            return;
         }
+
+        // CASO 2: No hay historial y no estamos en la raíz.
+        // Se sube un nivel en la ruta (ej: de /a/b/c a /a/b).
+        // `window.history.length <= 2` es una forma de detectar que no hay un "atrás" real en la sesión.
+        if (globalThis.location.pathname !== '/' && globalThis.window.history.length <= 2) {
+            const parentPath = globalThis.location.pathname.substring(0, globalThis.location.pathname.lastIndexOf('/'));
+            // Si el resultado es una cadena vacía (porque estábamos en '/algo'), vamos a la raíz.
+            navigate(parentPath || '/');
+            return;
+        }
+
+        // CASO 3: Por defecto, para cualquier otra situación, ir a la raíz.
+        navigate("/");
     };
 
     const handleMaximize = async () => {
@@ -122,13 +140,15 @@ export const AppTitleBar = () => {
                 >
                     <div className="flex items-center justify-center">
                         <div className="flex items-center gap-2">
-                            <Link
+                            <a
                                 href="/"
-                                className={`cursor-pointer transition-transform duration-500 flex size-9 aspect-square items-center justify-center hover:bg-neutral-800 ${!titleBarState.canGoBack && '-translate-x-9'}`}
+                                onClick={handleBackClick}
+                                className={`cursor-pointer transition-all duration-300 flex size-9 aspect-square items-center justify-center rounded-full hover:bg-neutral-800 ${!titleBarState.canGoBack ? 'opacity-0 -translate-x-9 pointer-events-none' : 'opacity-100 translate-x-0'}`}
                                 aria-label="Back"
                             >
                                 <LucideArrowLeft className="h-4 w-4 text-white" />
-                            </Link>
+                            </a>
+
 
                             <div
                                 data-tauri-drag-region
