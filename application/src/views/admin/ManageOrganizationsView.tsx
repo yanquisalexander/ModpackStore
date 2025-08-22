@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useLocation } from 'wouter';
+import { useLocation } from "react-router-dom";
 import { useAuthentication } from '@/stores/AuthContext';
 import { listPublishers, deletePublisher, PublisherData } from '@/services/adminPublishers';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,7 @@ import { LucideEdit, LucideLoader, LucidePlus, LucideTrash } from "lucide-react"
 
 const ManageOrganizationsView: React.FC = () => {
     const { session, isAuthenticated, sessionTokens, loading: authLoading } = useAuthentication();
-    const [, navigate] = useLocation();
+    const navigate = useNavigate();
 
     const [organizations, setOrganizations] = useState<PublisherData[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(false);

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { useLocation } from "wouter";
+import { useLocation } from "react-router-dom";
 import { Modpack } from "@/types/modpacks";
 import { Button } from "@/components/ui/button";
 import { CreateModpackDialog } from "@/components/creator/CreateModpackDialog";
@@ -15,7 +15,7 @@ interface ModpackListItemProps {
 }
 
 const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDelete }) => {
-    const [, setLocation] = useLocation();
+    const navigate = useNavigate();
     return (
         <div className="p-4 border rounded-lg shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
             <div>
@@ -29,14 +29,14 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
                 <Button variant="outline" size="sm" onClick={() => onEdit(modpack)} title="Editar Modpack">
                     <LucideEdit size={16} />
                 </Button>
-                <Button variant="outline" size="sm" className="w-full" title="Gestionar Versiones" onClick={() => setLocation(`/creators/modpacks/${modpack.id}/versions/new`)}>
+                <Button variant="outline" size="sm" className="w-full" title="Gestionar Versiones" onClick={() => navigate(`/creators/modpacks/${modpack.id}/versions/new`)}>
                     <LucideLayers size={16} />
                 </Button>
                 <Button variant="destructive" size="sm" onClick={() => onDelete(modpack)} title="Eliminar Modpack">
                     <LucideTrash2 size={16} />
                 </Button>
             </div>
-            <Button variant="secondary" size="sm" className="mt-2 w-full" onClick={() => setLocation(`/creators/modpacks/${modpack.id}/edit`)}>
+            <Button variant="secondary" size="sm" className="mt-2 w-full" onClick={() => navigate(`/creators/modpacks/${modpack.id}/edit`)}>
                 Editar detalles
             </Button>
         </div>

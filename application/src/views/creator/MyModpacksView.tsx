@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Link as WouterLink, useLocation } from 'wouter'; // Import Link for navigation and useLocation
+import {Link as WouterLink, useNavigate } from "react-router-dom"; // Import Link for navigation and useLocation
 import { Modpack } from '@/types/modpacks';
 import { getUserModpacks, deleteModpack, ApiError } from '@/services/userModpacks';
 import { Button } from '@/components/ui/button';
@@ -33,7 +33,7 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
         <Button variant="outline" size="sm" onClick={() => onEdit(modpack)} title="Edit Modpack">
           <LucideEdit size={16} />
         </Button>
-        <WouterLink href={`/creator/modpacks/${modpack.id}/versions`}>
+        <WouterLink to={`/creator/modpacks/${modpack.id}/versions`}>
           <Button variant="outline" size="sm" className="w-full" title="Manage Versions">
             <LucideLayers size={16} />
           </Button>

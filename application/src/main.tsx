@@ -1,6 +1,7 @@
 // main.jsx
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { AppTitleBar } from "./components/AppTitleBar";
 import { Toaster } from "sonner";
@@ -21,11 +22,13 @@ if (!$root) {
 
 createRoot($root).render(
   <React.StrictMode> {/* Buena práctica para desarrollo */}
-    <AppProviders>
-      <AppTitleBar />
-      <App />
-      <Toaster theme="dark" />
-      <UpdateStatus />
-    </AppProviders>
+    <BrowserRouter>
+      <AppProviders>
+        <AppTitleBar />
+        <App />
+        <Toaster theme="dark" />
+        <UpdateStatus />
+      </AppProviders>
+    </BrowserRouter>
   </React.StrictMode>
 );

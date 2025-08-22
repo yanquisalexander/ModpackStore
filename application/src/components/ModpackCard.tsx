@@ -1,7 +1,7 @@
-import { Link } from "wouter"
+import { Link } from "react-router-dom";
 import { LucideCheck, LucidePackage, LucidePlay, LucideSparkles, LucideUser2, LucideVerified } from "lucide-react"
 
-export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: { modpack: any, href?: string, className?: string }) => {
+export const ModpackCard = ({ modpack, to = "/prelaunch/", className = "" }: { modpack: any, to?: string, className?: string }) => {
     // Verificamos si debemos mostrar el usuario como publicador
     const { showUserAsPublisher } = modpack
     console.log({ modpack, showUserAsPublisher })
@@ -64,7 +64,7 @@ export const ModpackCard = ({ modpack, href = "/prelaunch/", className = "" }: {
                 </div>
             )}
 
-            <Link href={href} className="flex aspect-video flex-col h-full p-4">
+            <Link to={to} className="flex aspect-video flex-col h-full p-4">
                 {/* Background image */}
                 <img
                     src={modpack.bannerUrl}

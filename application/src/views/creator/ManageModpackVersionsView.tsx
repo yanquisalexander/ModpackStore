@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link as WouterLink } from 'wouter';
+import { useParams, Link as WouterLink } from "react-router-dom";
 import { Modpack, ModpackVersion } from '@/types/modpacks';
 import { getModpack, getModpackVersions, publishModpackVersion, ApiError } from '@/services/userModpacks'; // Added publishModpackVersion
 import { Button } from '@/components/ui/button';
@@ -143,7 +143,7 @@ export const ManageModpackVersionsView: React.FC = () => {
   return (
     <div className="container mx-auto p-4">
       <div className="mb-8">
-        <WouterLink href="/creator/modpacks">
+        <WouterLink to="/creator/modpacks">
           <Button variant="outline" className="mb-4">
             <LucideArrowLeft size={16} className="mr-2" /> Back to My Modpacks
           </Button>

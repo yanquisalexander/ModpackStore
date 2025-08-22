@@ -27,7 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { invoke } from '@tauri-apps/api/core';
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
-import { navigate } from "wouter/use-browser-location";
+import { useNavigate } from "react-router-dom";
 import { useReloadApp } from "@/stores/ReloadContext";
 
 export default function ModpackCommandPalette() {

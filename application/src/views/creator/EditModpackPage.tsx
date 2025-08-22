@@ -1,11 +1,11 @@
-import { useParams, useLocation } from "wouter";
+import {useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { ChevronLeft, UploadCloud } from "lucide-react";
 
 export const EditModpackPage = () => {
     const params = useParams<{ modpackId: string }>();
-    const [, setLocation] = useLocation();
+    const navigate = useNavigate();
     const [name, setName] = useState("");
     const [description, setDescription] = useState("");
     const [banner, setBanner] = useState<File | null>(null);
@@ -15,7 +15,7 @@ export const EditModpackPage = () => {
 
     return (
         <div className="max-w-2xl mx-auto p-8">
-            <button className="flex items-center gap-2 text-neutral-400 hover:text-white mb-8" onClick={() => setLocation(-1)}>
+            <button className="flex items-center gap-2 text-neutral-400 hover:text-white mb-8" onClick={() => navigate(-1)}>
                 <ChevronLeft size={18} /> Volver
             </button>
             <h1 className="text-2xl font-bold mb-6">Editar Modpack</h1>

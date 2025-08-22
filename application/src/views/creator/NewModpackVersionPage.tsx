@@ -1,4 +1,4 @@
-import { useParams, useLocation } from "wouter";
+import {useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useRef, useState, useEffect } from "react";
 import { ChevronLeft, UploadCloud, FileArchive, AlertTriangle } from "lucide-react";
@@ -11,7 +11,7 @@ import { Modpack } from "@/types/modpacks";
 
 export const NewModpackVersionPage = () => {
     const params = useParams<{ modpackId: string }>();
-    const [, setLocation] = useLocation();
+    const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [modpack, setModpack] = useState<Modpack | null>(null);
@@ -113,7 +113,7 @@ export const NewModpackVersionPage = () => {
             });
             
             // Redirect back to versions page
-            setLocation(`/creators/modpacks/${params.modpackId}/versions`);
+            navigate(`/creators/modpacks/${params.modpackId}/versions`);
         } catch (error) {
             console.error("Error creating version:", error);
             if (error instanceof ApiError) {
@@ -137,7 +137,7 @@ export const NewModpackVersionPage = () => {
 
     return (
         <div className="max-w-2xl mx-auto p-8">
-            <button className="flex items-center gap-2 text-neutral-400 hover:text-white mb-8" onClick={() => setLocation(-1)}>
+            <button className="flex items-center gap-2 text-neutral-400 hover:text-white mb-8" onClick={() => navigate(-1)}>
                 <ChevronLeft size={18} /> Volver
             </button>
             

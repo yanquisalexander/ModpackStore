@@ -8,13 +8,52 @@ import {
     ArrowLeft, // Icono para volver
 } from "lucide-react";
 import { useEffect } from "react";
-import { Link, Route, Switch, useRoute } from "wouter";
+import { Link, Routes, Route, useMatch, useParams, Outlet } from "react-router-dom";
+
+// Wrapper components for organization routes
+const OrganizationWrapper = () => {
+    const { orgId } = useParams<{ orgId: string }>();
+    return (
+        <div className="text-lg font-medium">
+            🏠 Inicio de la Organización: {orgId}
+        </div>
+    );
+};
+
+const OrganizationModpacksWrapper = () => {
+    const { orgId } = useParams<{ orgId: string }>();
+    return (
+        <div className="text-lg font-medium">
+            📦 Modpacks de {orgId}
+        </div>
+    );
+};
+
+const OrganizationMembersWrapper = () => {
+    const { orgId } = useParams<{ orgId: string }>();
+    return (
+        <div className="text-lg font-medium">
+            👥 Miembros de {orgId}
+        </div>
+    );
+};
+
+const OrganizationSettingsWrapper = () => {
+    const { orgId } = useParams<{ orgId: string }>();
+    return (
+        <div className="text-lg font-medium">
+            ⚙️ Configuración de {orgId}
+        </div>
+    );
+};
 
 export const CreatorsLayout = () => {
     const { setTitleBarState } = useGlobalContext();
 
     // Hook para detectar si estamos en la ruta de una organización
-    const [isOrgRoute, params] = useRoute("/creators/org/:orgId/:rest*");
+    const orgRouteMatch = useMatch("/creators/org/:orgId/*");
+    const isOrgRoute = !!orgRouteMatch;
+    const params = orgRouteMatch?.params;
 
     // --- Definición de los elementos de navegación ---
 
@@ -100,7 +139,7 @@ export const CreatorsLayout = () => {
                 <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
                     {/* Botón para volver al dashboard principal si estás en una org */}
                     {isOrgRoute && (
-                        <Link href="/creators">
+                        <Link to="/creators">
                             <a className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-zinc-700/50 hover:text-gray-200 transition mb-4 border border-zinc-700">
                                 <ArrowLeft className="w-5 h-5" />
                                 Todos los paneles
@@ -111,7 +150,7 @@ export const CreatorsLayout = () => {
                     {navItems.map((item) => (
                         // Aquí podrías agregar la lógica de roles:
                         // item.show === false ? null : ( ... )
-                        <Link key={item.path} href={item.path}>
+                        <Link key={item.path} to={item.path}>
                             <a className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-300 hover:bg-blue-500/20 hover:text-blue-400 transition">
                                 <item.icon className="w-5 h-5" />
                                 {item.label}
@@ -123,51 +162,29 @@ export const CreatorsLayout = () => {
 
             {/* Content */}
             <main className="flex-1 ml-64 pt-9 p-8">
-                {/* Rutas Base */}
-                <Route
-                    path="/creators"
-                    component={() => (
-                        <div className="text-lg font-medium">
-                            🏠 Bienvenido al panel de Creadores
-                        </div>
-                    )}
-                />
-                <Route
-                    path="/creators/settings"
-                    component={() => (
-                        <div className="text-lg font-medium">⚙️ Configuración General</div>
-                    )}
-                />
+                <Routes>
+                    {/* Rutas Base */}
+                    <Route
+                        index
+                        element={
+                            <div className="text-lg font-medium">
+                                🏠 Bienvenido al panel de Creadores
+                            </div>
+                        }
+                    />
+                    <Route
+                        path="settings"
+                        element={
+                            <div className="text-lg font-medium">⚙️ Configuración General</div>
+                        }
+                    />
 
-                {/* Rutas de Organización (anidadas) */}
-                <Route path="/creators/org/:orgId">
-                    {(params) => (
-                        <div className="text-lg font-medium">
-                            🏠 Inicio de la Organización: {params.orgId}
-                        </div>
-                    )}
-                </Route>
-                <Route path="/creators/org/:orgId/modpacks">
-                    {(params) => (
-                        <div className="text-lg font-medium">
-                            📦 Modpacks de {params.orgId}
-                        </div>
-                    )}
-                </Route>
-                <Route path="/creators/org/:orgId/members">
-                    {(params) => (
-                        <div className="text-lg font-medium">
-                            👥 Miembros de {params.orgId}
-                        </div>
-                    )}
-                </Route>
-                <Route path="/creators/org/:orgId/settings">
-                    {(params) => (
-                        <div className="text-lg font-medium">
-                            ⚙️ Configuración de {params.orgId}
-                        </div>
-                    )}
-                </Route>
+                    {/* Rutas de Organización (anidadas) */}
+                    <Route path="org/:orgId" element={<OrganizationWrapper />} />
+                    <Route path="org/:orgId/modpacks" element={<OrganizationModpacksWrapper />} />
+                    <Route path="org/:orgId/members" element={<OrganizationMembersWrapper />} />
+                    <Route path="org/:orgId/settings" element={<OrganizationSettingsWrapper />} />
+                </Routes>
             </main>
         </div>
     );

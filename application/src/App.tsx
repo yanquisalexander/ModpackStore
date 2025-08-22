@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import { Route, Switch } from "wouter";
+import { Routes, Route, useParams } from "react-router-dom";
 import { HomeMainHeader } from "./components/home/MainHeader";
 import { toast } from "sonner";
 import { ExploreSection } from "./views/ExploreSection";
@@ -30,6 +30,21 @@ const LoadingScreen = () => (
     <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
   </div>
 );
+
+// Wrapper components for route parameters
+const PreLaunchInstanceWrapper = () => {
+  const { instanceId } = useParams<{ instanceId: string }>();
+  return <PreLaunchInstance instanceId={instanceId!} />;
+};
+
+const ModpackOverviewWrapper = () => {
+  const { modpackId } = useParams<{ modpackId: string }>();
+  return <ModpackOverview modpackId={modpackId!} />;
+};
+
+const MyInstancesSectionWrapper = () => {
+  return <MyInstancesSection offlineMode={false} />;
+};
 
 function App() {
   const { loading: authLoading, isAuthenticated, session } = useAuthentication();
@@ -95,13 +110,11 @@ function App() {
       Minimal router (Offline mode at /) and prelaunch instance
     */
     return (
-      <Switch>
-        <Route path="/" component={OfflineMode} />
-        <Route path="/prelaunch/:instanceId">
-          {(params) => <PreLaunchInstance instanceId={params.instanceId} />}
-        </Route>
-        <Route component={NotFound} />
-      </Switch>
+      <Routes>
+        <Route path="/" element={<OfflineMode />} />
+        <Route path="/prelaunch/:instanceId" element={<PreLaunchInstanceWrapper />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
     );
   }
 
@@ -116,30 +129,24 @@ function App() {
       <HomeMainHeader />
       <div className="">
 
-        <Switch>
-          <Route path="/" component={ExploreSection} />
-          <Route path="/my-instances">
-            {() => <MyInstancesSection offlineMode={false} />}
-          </Route>
-          <Route path="/prelaunch/:instanceId">
-            {(params) => <PreLaunchInstance instanceId={params.instanceId} />}
-          </Route>
-          <Route path="/modpack/:modpackId">
-            {(params) => <ModpackOverview modpackId={params.modpackId} />}
-          </Route>
-          <Route path="/mc-accounts" component={AccountsSection} />
+        <Routes>
+          <Route path="/" element={<ExploreSection />} />
+          <Route path="/my-instances" element={<MyInstancesSectionWrapper />} />
+          <Route path="/prelaunch/:instanceId" element={<PreLaunchInstanceWrapper />} />
+          <Route path="/modpack/:modpackId" element={<ModpackOverviewWrapper />} />
+          <Route path="/mc-accounts" element={<AccountsSection />} />
 
           {/* Admin Layout para admins */}
           {/* {isAuthenticated && session?.admin && (
-            <Route path="/admin/:rest*" component={AdminLayout} />
+            <Route path="/admin/*" element={<AdminLayout />} />
           )} */}
 
           {(session?.publisherMemberships && session.publisherMemberships.length > 0) && (
-            <CreatorsLayout />
+            <Route path="/creators/*" element={<CreatorsLayout />} />
           )}
 
-          <Route component={NotFound} />
-        </Switch>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
         <NoticeTestBuild />
         <CommandPalette />
         <KonamiCode />
