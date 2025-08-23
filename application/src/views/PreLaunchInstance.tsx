@@ -25,7 +25,7 @@ const Background = memo((props: PreLaunchAppearance['background'] | undefined) =
                 alt="Background"
             />
         );
-    } else if (videoUrl) {
+    } else if (videoUrl && Array.isArray(videoUrl) && videoUrl.length > 0) {
         return (
             <BackgroundVideo
                 key={"background-video"}

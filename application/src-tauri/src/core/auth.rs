@@ -236,8 +236,8 @@ mod api {
                     .unwrap_or_else(
                         |_| json!({ "error": "No se pudo parsear el cuerpo de la respuesta" }),
                     );
-                events::emit_auth_error(error_body.to_string());
-                return Err(format!("Error de API: {}", error_body));
+                events::emit_auth_error(&error_body); // Emitir directamente el JSON
+                return Err(format!("{}", &error_body));
             }
 
             response

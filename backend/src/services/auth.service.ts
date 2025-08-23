@@ -111,35 +111,29 @@ export class AuthService {
     // --- Métodos de Ayuda (Helper Methods) ---
 
     /**
-     * Verifica si un usuario pertenece al servidor de Discord requerido.
+     * Verifica si un usuario pertenece al servidor de Discord requerido usando fetch.
      * @private
      */
     private static async verifyGuildMembership(discordAccessToken: string, discordUserId: string): Promise<void> {
-        try {
-            const response = await axios.get("https://discord.com/api/users/@me/guilds", {
-                headers: { Authorization: `Bearer ${discordAccessToken}` },
-            });
-            const guilds = response.data as { id: string }[];
-            const isMember = guilds.some(guild => guild.id === DISCORD_GUILD_ID);
+        const response = await fetch("https://discord.com/api/users/@me/guilds", {
+            method: "GET",
+            headers: {
+                Authorization: `Bearer ${discordAccessToken}`,
+            },
+        });
 
-            if (!isMember) {
-                throw new APIError(403, 'Access denied. User is not in the required Discord server.', 'NOT_IN_GUILD');
+        if (!response.ok) {
+            if (response.status === 401) {
+                throw new APIError(401, 'Invalid Discord token.', 'DISCORD_TOKEN_INVALID');
             }
-        } catch (error) {
-            if (axios.isAxiosError(error)) {
-                console.error(`[AUTH_SERVICE] Axios error while checking guild for user ${discordUserId}:`, {
-                    status: error.response?.status,
-                    data: error.response?.data,
-                });
-
-                if (error.response?.status === 401) {
-                    throw new APIError(401, 'Invalid Discord token.', 'DISCORD_TOKEN_INVALID');
-                }
-            } else {
-                console.error(`[AUTH_SERVICE] Unexpected error while checking guild for user ${discordUserId}:`, error);
-            }
-
             throw new APIError(502, 'Failed to verify Discord server membership.', 'GUILD_CHECK_FAILED');
+        }
+
+        const guilds = (await response.json()) as { id: string }[];
+        const isMember = guilds.some(guild => guild.id === DISCORD_GUILD_ID);
+
+        if (!isMember) {
+            throw new APIError(403, 'Access denied. User is not in the required Discord server.', 'NOT_IN_GUILD');
         }
     }
 

@@ -1,11 +1,11 @@
 // AuthContext.tsx
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
-import { listen } from '@tauri-apps/api/event';
-import type { UnlistenFn } from '@tauri-apps/api/event';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from 'react';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from "@tauri-apps/api/core";
 import { load } from '@tauri-apps/plugin-store';
 
-// Define types
+// --- Type Definitions ---
+
 interface UserSession {
   id: string;
   name: string;
@@ -14,7 +14,6 @@ interface UserSession {
   avatarUrl?: string;
   admin: boolean;
   publisherMemberships: null | {
-
     createdAt: string;
     id: number;
     permissions: Record<string, unknown>;
@@ -24,7 +23,13 @@ interface UserSession {
   }[];
 }
 
-// Auth steps para mostrar el estado actual del proceso de autenticación
+interface SessionTokens {
+  accessToken: string;
+  expiresIn: number;
+  refreshToken: string;
+  tokenType: string;
+}
+
 type AuthStep =
   | null
   | 'starting-auth'
@@ -32,18 +37,27 @@ type AuthStep =
   | 'processing-callback'
   | 'requesting-session';
 
+// --- Error Type Definitions (Improved) ---
+
+// Represents the structured error from the backend
+interface ApiErrorDetail {
+  code: string;
+  detail: string;
+  status: string;
+  title: string;
+}
+
+interface ApiErrorPayload {
+  errors: ApiErrorDetail[];
+}
+
+// Standardized error object for the context state
 interface AuthError {
-  error_code: string;
-  error: string;
+  code: string;
+  message: string;
 }
 
-interface SessionTokens {
-
-  accessToken: string;
-  expiresIn: number;
-  refreshToken: string;
-  tokenType: string;
-}
+// --- Context Type Definition ---
 
 interface AuthContextType {
   session: UserSession | null;
@@ -56,93 +70,95 @@ interface AuthContextType {
   sessionTokens: SessionTokens | null;
 }
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
+// --- Provider Component ---
 
-// Crear un valor por defecto para el contexto
-const defaultContextValue: AuthContextType = {
-  session: null,
-  loading: true,
-  error: null,
-  authStep: null,
-  startDiscordAuth: async () => { throw new Error('AuthContext not initialized') },
-  logout: async () => { throw new Error('AuthContext not initialized') },
-  isAuthenticated: false,
-  sessionTokens: null
-};
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Create context with default values
-export const AuthContext = createContext<AuthContextType>(defaultContextValue);
-
-// Auth provider component
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [session, setSession] = useState<UserSession | null>(null);
+  const [sessionTokens, setSessionTokens] = useState<SessionTokens | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<AuthError | null>(null);
   const [authStep, setAuthStep] = useState<AuthStep>(null);
-  const [sessionTokens, setSessionTokens] = useState<SessionTokens | null>(null);
 
-  // Computed value
-  const isAuthenticated = !!session && !!sessionTokens;
+  // --- Memoized Values ---
 
-  console.log({ sessionTokens })
+  // Memoize isAuthenticated to prevent recalculation on every render
+  const isAuthenticated = useMemo(() => !!session && !!sessionTokens, [session, sessionTokens]);
 
-  // Parse error helper
+  // --- Helper Functions ---
+
+  // CORRECTED: Handles simple strings, Error objects, and the specific JSON error structure
   const parseError = (err: unknown): AuthError => {
-    if (err instanceof Error) {
-      return { error_code: 'UNKNOWN_ERROR', error: err.message };
-    }
-
+    // 1. Handle the specific JSON error string from the backend
     if (typeof err === 'string') {
       try {
-        return JSON.parse(err) as AuthError;
-      } catch {
-        return { error_code: 'PARSE_ERROR', error: err };
+        const parsed = JSON.parse(err) as ApiErrorPayload;
+        if (parsed.errors && parsed.errors.length > 0) {
+          const firstError = parsed.errors[0];
+          return {
+            code: firstError.code || 'UNKNOWN_API_ERROR',
+            message: firstError.detail || 'An API error occurred.',
+          };
+        }
+      } catch (e) {
+        // It's a plain string, not JSON
+        return { code: 'RAW_STRING_ERROR', message: err };
       }
     }
 
-    return { error_code: 'UNKNOWN_ERROR', error: 'Unknown authentication error occurred' };
+    // 2. Handle standard Error objects
+    if (err instanceof Error) {
+      return { code: 'CLIENT_ERROR', message: err.message };
+    }
+
+    // 3. Fallback for other unknown error types
+    return { code: 'UNKNOWN_ERROR', message: 'An unknown error occurred' };
   };
 
-  // Reset auth state helper
   const resetAuthState = useCallback(() => {
     setAuthStep(null);
     setError(null);
   }, []);
 
-  // Initialize auth state on load
+  // --- Effects ---
+
   useEffect(() => {
     const unlistenFunctions: UnlistenFn[] = [];
 
-    const setupListeners = async (): Promise<void> => {
-      // Listen for auth status updates from Tauri backend
+    const setupListeners = async () => {
+      // Listen for auth status updates
       const authStatusUnlisten = await listen<UserSession | null>('auth-status-changed', async (event) => {
         try {
           const store = await load('auth_store.json');
-          const tokens = await store.get<SessionTokens>('auth_tokens');
-
+          const tokens = await store.get<any>('auth_tokens');
           if (tokens) {
-            setSessionTokens(tokens);
+            setSessionTokens({
+              accessToken: tokens.access_token,
+              expiresIn: tokens.expires_in,
+              refreshToken: tokens.refresh_token,
+              tokenType: tokens.token_type,
+            });
+          } else {
+            setSessionTokens(null);
           }
-
           setSession(event.payload);
           resetAuthState();
         } catch (err) {
-          console.error('Error handling auth status:', err);
           setError(parseError(err));
         } finally {
+          // El listener también puede detener la carga si se activa
           setLoading(false);
         }
       });
       unlistenFunctions.push(authStatusUnlisten);
 
-      // Listen for auth errors from Tauri backend
+      // Listen for auth errors
       const authErrorUnlisten = await listen<string>('auth-error', (event) => {
-        console.error('Auth error:', event.payload);
         setError(parseError(event.payload));
-        setLoading(false);
+        console.error("Auth error received:", event.payload);
         setAuthStep(null);
+        setLoading(false); // Detener la carga en error
       });
       unlistenFunctions.push(authErrorUnlisten);
 
@@ -153,67 +169,58 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       unlistenFunctions.push(authStepUnlisten);
     };
 
-    const initAuth = async (): Promise<void> => {
+    const initAuth = async () => {
       try {
         setLoading(true);
-
-        // Set up event listeners
         await setupListeners();
-
-        // Initialize auth on rust side
         await invoke('init_session');
       } catch (err) {
-        console.error('Auth initialization error:', err);
         setError(parseError(err));
       } finally {
+        // --- ESTA ES LA LÍNEA CLAVE ---
+        // Se asegura de que la carga termine después de que `init_session` se complete,
+        // incluso si no se emiten eventos.
         setLoading(false);
       }
     };
 
-    // Start the auth initialization
     initAuth();
 
-    // Clean up listeners on unmount
+    // Cleanup listeners on unmount
     return () => {
       unlistenFunctions.forEach(unlisten => unlisten());
     };
   }, [resetAuthState]);
 
-  // Start Discord OAuth flow
-  const startDiscordAuth = useCallback(async (): Promise<void> => {
-    try {
-      setError(null);
-      setAuthStep('starting-auth');
+  // --- Public Actions ---
 
-      // Invoke the Tauri command to start Discord OAuth flow
+  const startDiscordAuth = useCallback(async (): Promise<void> => {
+    resetAuthState();
+    setAuthStep('starting-auth');
+    try {
       await invoke('start_discord_auth');
     } catch (err) {
-      const parsedError = parseError(err);
-      setError({ ...parsedError, error_code: 'DISCORD_AUTH_ERROR' });
+      setError(parseError(err));
       setAuthStep(null);
-      throw err;
+      throw err; // Re-throw for component-level handling if needed
     }
-  }, []);
+  }, [resetAuthState]);
 
-  // Logout function
   const logout = useCallback(async (): Promise<void> => {
     try {
-      // Invoke the Tauri command to logout
       await invoke('logout');
-
-      // Reset React state
       setSession(null);
       setSessionTokens(null);
       resetAuthState();
     } catch (err) {
-      const parsedError = parseError(err);
-      setError({ ...parsedError, error_code: 'LOGOUT_ERROR' });
-      throw err;
+      setError(parseError(err));
+      throw err; // Re-throw for component-level handling if needed
     }
   }, [resetAuthState]);
 
-  // Context value
-  const value: AuthContextType = {
+  // --- Context Value ---
+
+  const value = useMemo(() => ({
     session,
     loading,
     error,
@@ -222,7 +229,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     logout,
     isAuthenticated,
     sessionTokens,
-  };
+  }), [session, loading, error, authStep, startDiscordAuth, logout, isAuthenticated, sessionTokens]);
 
   return (
     <AuthContext.Provider value={value}>
@@ -231,10 +238,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   );
 };
 
-// Custom hook for using auth context
+// --- Custom Hook ---
+
 export const useAuthentication = (): AuthContextType => {
   const context = useContext(AuthContext);
-  if (!context) {
+  if (context === undefined) {
     throw new Error('useAuthentication must be used within an AuthProvider');
   }
   return context;

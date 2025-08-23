@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { boolean, integer, jsonb, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, numeric, pgEnum, timestamp, uuid } from "drizzle-orm/pg-core";
 import { pgTable, serial, text, varchar } from "drizzle-orm/pg-core";
 
 // Tabla de usuarios (sin cambios)
@@ -95,6 +95,8 @@ export const ModpacksTable = pgTable('modpacks', {
     showUserAsPublisher: boolean('show_user_as_publisher').default(false),
     creatorUserId: uuid('creator_user_id').references(() => UsersTable.id),
     status: text('status').notNull().default('draft'),
+    isPaid: boolean('is_paid').default(false),
+    price: numeric('price', { precision: 10, scale: 2 }).default('0').notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -114,24 +116,27 @@ export const ModpackVersionsTable = pgTable('modpack_versions', {
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-// Archivos de versiones (para sistema de manifiestos)
-export const ModpackVersionFilesTable = pgTable('modpack_version_files', {
-    id: serial('id').primaryKey(),
-    modpackVersionId: uuid('modpack_version_id').references(() => ModpackVersionsTable.id).notNull(),
-    type: text('type').notNull(), // 'mods', 'configs', 'resources', 'full_pack'
-    hash: text('hash').notNull(), // Hash del archivo - usado como identificador para descarga
-    size: integer('size'), // Tamaño del archivo en bytes
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+/* 
+    Sistema de de-duplicación
+    Almacenaremos todos los archivos, y si
+    alguna versión de otro modpack lo utiliza y ya lo tenemos guardado
+    reutilizamos
+*/
+// Archivos únicos, deduplicados globalmente
+export const ModpackFilesTable = pgTable('modpack_files', {
+    hash: varchar('hash', { length: 64 }).primaryKey(), // SHA256 en hex
+    size: integer('size').notNull(),                     // bytes
+    mimeType: text('mime_type'),
+    uploadedAt: timestamp('uploaded_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
-// Contenido individual de los archivos (para referencia y debugging)
-export const ModpackVersionIndividualFilesTable = pgTable('modpack_version_individual_files', {
-    id: serial('id').primaryKey(),
-    modpackVersionFileId: integer('modpack_version_file_id').references(() => ModpackVersionFilesTable.id).notNull(),
-    path: text('path').notNull(), // ruta relativa dentro del ZIP
-    hash: text('hash').notNull(), // Hash del archivo individual
-    size: integer('size'), // Tamaño del archivo individual
-    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+
+// Archivos de versiones de modpacks
+export const ModpackVersionFilesTable = pgTable('modpack_version_files', {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    modpackVersionId: uuid('modpack_version_id').references(() => ModpackVersionsTable.id).notNull(),
+    fileHash: varchar('file_hash', { length: 64 }).references(() => ModpackFilesTable.hash).notNull(),
+    path: text('path').notNull(), // ej: "mods/jei.jar" dentro del pack
 });
 
 // Categorías
@@ -151,6 +156,37 @@ export const ModpackCategoriesTable = pgTable('modpack_categories', {
     categoryId: uuid('category_id').references(() => CategoriesTable.id).notNull(),
 });
 
+export const WalletsTable = pgTable('wallets', {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    publisherId: uuid('publisher_id').references(() => PublishersTable.id).notNull(),
+    balance: numeric('balance', { precision: 10, scale: 2 }).default('0').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const transactionTypeEnum = pgEnum('transaction_type', ['purchase', 'commission', 'deposit', 'withdrawal']);
+
+export const WalletTransactionsTable = pgTable('wallet_transactions', {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    walletId: uuid('wallet_id').references(() => WalletsTable.id).notNull(),
+    // 'purchase', 'commission', 'deposit', 'withdrawal'
+    type: transactionTypeEnum('type').notNull(),
+    amount: numeric('amount', { precision: 10, scale: 2 }).notNull(),
+    relatedUserId: uuid('related_user_id').references(() => UsersTable.id), // usuario que compró
+    relatedModpackId: uuid('related_modpack_id').references(() => ModpacksTable.id),
+    description: text('description'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const UserPurchasesTable = pgTable('user_purchases', {
+    id: uuid('id').primaryKey().notNull().defaultRandom(),
+    userId: uuid('user_id').references(() => UsersTable.id).notNull(),
+    modpackId: uuid('modpack_id').references(() => ModpacksTable.id).notNull(),
+    pricePaid: numeric('price_paid', { precision: 10, scale: 2 }).notNull(),
+    purchasedAt: timestamp('purchased_at', { withTimezone: true }).defaultNow().notNull(),
+});
+
+
 
 
 // RELACIONES
@@ -165,7 +201,7 @@ export const usersRelations = relations(UsersTable, ({ many }) => ({
 export const publishersRelations = relations(PublishersTable, ({ many }) => ({
     members: many(PublisherMembersTable),
     modpacks: many(ModpacksTable),
-    organizationScopes: many(ScopesTable, { relationName: 'publisherScopes' }),
+    teamScopes: many(ScopesTable, { relationName: 'publisherScopes' }),
 }));
 
 export const publisherMembersRelations = relations(PublisherMembersTable, ({ one, many }) => ({
@@ -207,11 +243,7 @@ export const modpackVersionsRelations = relations(ModpackVersionsTable, ({ one, 
     files: many(ModpackVersionFilesTable),
 }));
 
-export const modpackVersionFilesRelations = relations(ModpackVersionFilesTable, ({ one, many }) => ({
+export const modpackVersionFilesRelations = relations(ModpackVersionFilesTable, ({ one }) => ({
     modpackVersion: one(ModpackVersionsTable, { fields: [ModpackVersionFilesTable.modpackVersionId], references: [ModpackVersionsTable.id] }),
-    individualFiles: many(ModpackVersionIndividualFilesTable),
-}));
-
-export const modpackVersionIndividualFilesRelations = relations(ModpackVersionIndividualFilesTable, ({ one }) => ({
-    modpackVersionFile: one(ModpackVersionFilesTable, { fields: [ModpackVersionIndividualFilesTable.modpackVersionFileId], references: [ModpackVersionFilesTable.id] }),
+    file: one(ModpackFilesTable, { fields: [ModpackVersionFilesTable.fileHash], references: [ModpackFilesTable.hash] }),
 }));

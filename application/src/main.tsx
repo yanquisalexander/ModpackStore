@@ -21,14 +21,12 @@ if (!$root) {
 }
 
 createRoot($root).render(
-  <React.StrictMode> {/* Buena práctica para desarrollo */}
-    <BrowserRouter>
-      <AppProviders>
-        <AppTitleBar />
-        <App />
-        <Toaster theme="dark" />
-        <UpdateStatus />
-      </AppProviders>
-    </BrowserRouter>
-  </React.StrictMode>
+  <BrowserRouter>
+    <AppProviders>
+      <AppTitleBar />
+      <App />
+      <Toaster theme="dark" />
+      <UpdateStatus />
+    </AppProviders>
+  </BrowserRouter>
 );

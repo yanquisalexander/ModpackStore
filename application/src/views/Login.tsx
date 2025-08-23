@@ -21,7 +21,7 @@ export const Login = () => {
 
         // Handle error cases
         if (error) {
-            if (error.error_code === "NOT_IN_GUILD") {
+            if (error.code === "NOT_IN_GUILD") {
                 toast.dismiss(TOAST_ID); // Force disable loading toast
                 toast.custom(() => (
                     <div className="flex items-center justify-center p-4 bg-gradient-to-r from-gray-700 to-gray-600 text-white rounded-md shadow-md transform">

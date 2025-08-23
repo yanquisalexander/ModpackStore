@@ -1,3 +1,5 @@
+import { API_ENDPOINT } from "@/consts";
+import { useAuthentication } from "@/stores/AuthContext";
 import { useGlobalContext } from "@/stores/GlobalContext";
 import {
     LucidePencilRuler,
@@ -49,11 +51,24 @@ const OrganizationSettingsWrapper = () => {
 
 export const CreatorsLayout = () => {
     const { setTitleBarState } = useGlobalContext();
+    const { sessionTokens } = useAuthentication();
 
     // Hook para detectar si estamos en la ruta de una organización
     const orgRouteMatch = useMatch("/creators/org/:orgId/*");
     const isOrgRoute = !!orgRouteMatch;
     const params = orgRouteMatch?.params;
+
+    useEffect(() => {
+        fetch(`${API_ENDPOINT}/creators`, {
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${sessionTokens?.accessToken}`,
+                "Content-Type": "application/json",
+            },
+        }).then(response => response.json()).then(data => {
+            console.log(data);
+        })
+    }, []);
 
     // --- Definición de los elementos de navegación ---
 

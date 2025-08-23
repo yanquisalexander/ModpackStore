@@ -77,7 +77,32 @@ body,
   --top-border: var(--color-primary, #27ce40);
   --bottom-border: var(--color-secondary, #064d2a);
   box-shadow: 0 -3px 0 0 var(--top-border), 0 3px 0 0 var(--bottom-border), -3px 0 0 0 #0c6e3d, 3px 0 0 0 #0c6e3d, -2px -5px 0 0 var(--border), 2px -5px 0 0 var(--border), -5px -2px 0 0 var(--border), 5px -2px 0 0 var(--border), -2px 5px 0 0 var(--border), 2px 5px 0 0 var(--border), -5px 2px 0 0 var(--border), 5px 2px 0 0 var(--border);
+}
 
+/* 
+  Efecto de temblor para toda la interfaz
+*/
+
+@utility temblor {
+  animation: temblor 0.1s infinite;
+}
+
+@keyframes temblor {
+  0% {
+    transform: translate(0);
+  }
+  25% {
+    transform: translate(-2px, -2px);
+  }
+  50% {
+    transform: translate(2px, 2px);
+  }
+  75% {
+    transform: translate(-2px, 2px);
+  }
+  100% {
+    transform: translate(0);
+  }
 }
 
 @utility scrollbar-hide {

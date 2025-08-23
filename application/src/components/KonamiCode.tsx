@@ -73,6 +73,8 @@ export const KonamiCode = () => {
                     konamiRef.current?.removeAttribute("aria-hidden");
                     videoRef.current?.play();
 
+                    document.body.classList.add("temblor"); // Agregar clase al body
+
                     reset();
                 }
             } else {
@@ -84,6 +86,7 @@ export const KonamiCode = () => {
         const handleVideoEnd = () => {
             konamiRef.current?.classList.add("opacity-0", "pointer-events-none");
             konamiRef.current?.setAttribute("aria-hidden", "true");
+            document.body.classList.remove("temblor"); // Remover clase del body
             setActive(false); // Permitir nuevamente
         };
 

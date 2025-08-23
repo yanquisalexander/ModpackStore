@@ -58,6 +58,10 @@ export const AccountCard = ({ account, onRemove }: { account: TauriCommandReturn
                             <img
                                 src={headUrl}
                                 alt={account.username}
+                                onLoad={(e) => {
+                                    // fade in effect
+                                    e.currentTarget.classList.add("animate-fade-in");
+                                }}
                                 className="w-full h-full object-contain drop-shadow-2xl"
                                 onError={(e) => {
                                     // Fallback to generic head image if the 3D head fails to load
