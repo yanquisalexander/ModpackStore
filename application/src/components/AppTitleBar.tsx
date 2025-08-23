@@ -143,7 +143,7 @@ export const AppTitleBar = () => {
                             <a
                                 href="/"
                                 onClick={handleBackClick}
-                                className={`cursor-pointer transition-all duration-300 flex size-9 aspect-square items-center justify-center rounded-full hover:bg-neutral-800 ${!titleBarState.canGoBack ? 'opacity-0 -translate-x-9 pointer-events-none' : 'opacity-100 translate-x-0'}`}
+                                className={`cursor-pointer transition-transform duration-500 flex size-9 aspect-square items-center justify-center hover:bg-neutral-800 ${!titleBarState.canGoBack && '-translate-x-9'}`}
                                 aria-label="Back"
                             >
                                 <LucideArrowLeft className="h-4 w-4 text-white" />

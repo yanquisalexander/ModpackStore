@@ -1,206 +1,66 @@
-import { API_ENDPOINT } from "@/consts";
+// CreatorsLayout.tsx
+import { useMatch } from "react-router-dom";
 import { useAuthentication } from "@/stores/AuthContext";
-import { useGlobalContext } from "@/stores/GlobalContext";
-import {
-    LucidePencilRuler,
-    Home,
-    Settings,
-    Users,
-    Package, // Icono para Modpacks
-    ArrowLeft, // Icono para volver
-} from "lucide-react";
-import { useEffect } from "react";
-import { Link, Routes, Route, useMatch, useParams, Outlet } from "react-router-dom";
+import { getBaseNavItems, getOrgNavItems } from "../creators/navigation";
+import { ErrorScreen } from "@/components/ErrorScreen";
+import { CreatorsRoutes } from "../creators/CreatorsRoutes";
+import { CreatorsSidebar } from "../creators/CreatorsSidebar";
+import { LoaderCircle } from "lucide-react";
+import { useTitleBar } from "@/hooks/creators/useTitleBar";
+import { useTeams } from "@/hooks/creators/useTeams";
 
-// Wrapper components for organization routes
-const OrganizationWrapper = () => {
-    const { orgId } = useParams<{ orgId: string }>();
+export const LoadingScreen = ({ message = "Cargando panel de creador..." }) => {
     return (
-        <div className="text-lg font-medium">
-            🏠 Inicio de la Organización: {orgId}
-        </div>
-    );
-};
-
-const OrganizationModpacksWrapper = () => {
-    const { orgId } = useParams<{ orgId: string }>();
-    return (
-        <div className="text-lg font-medium">
-            📦 Modpacks de {orgId}
-        </div>
-    );
-};
-
-const OrganizationMembersWrapper = () => {
-    const { orgId } = useParams<{ orgId: string }>();
-    return (
-        <div className="text-lg font-medium">
-            👥 Miembros de {orgId}
-        </div>
-    );
-};
-
-const OrganizationSettingsWrapper = () => {
-    const { orgId } = useParams<{ orgId: string }>();
-    return (
-        <div className="text-lg font-medium">
-            ⚙️ Configuración de {orgId}
+        <div className="flex min-h-screen bg-[#202020] text-gray-100 items-center justify-center">
+            <div className="flex flex-col items-center gap-4">
+                <LoaderCircle className="w-12 h-12 animate-spin text-blue-500" />
+                <p className="text-lg text-gray-300">{message}</p>
+            </div>
         </div>
     );
 };
 
 export const CreatorsLayout = () => {
-    const { setTitleBarState } = useGlobalContext();
     const { sessionTokens } = useAuthentication();
 
-    // Hook para detectar si estamos en la ruta de una organización
+    // Hook para detectar si la ruta actual corresponde a una organización
     const orgRouteMatch = useMatch("/creators/org/:orgId/*");
     const isOrgRoute = !!orgRouteMatch;
-    const params = orgRouteMatch?.params;
+    const orgId = orgRouteMatch?.params?.orgId;
 
-    useEffect(() => {
-        fetch(`${API_ENDPOINT}/creators`, {
-            method: "GET",
-            headers: {
-                "Authorization": `Bearer ${sessionTokens?.accessToken}`,
-                "Content-Type": "application/json",
-            },
-        }).then(response => response.json()).then(data => {
-            console.log(data);
-        })
-    }, []);
+    // Custom hooks
+    const { teams, isLoading, error } = useTeams(sessionTokens?.accessToken);
+    useTitleBar(isOrgRoute, teams, orgId);
 
-    // --- Definición de los elementos de navegación ---
+    // Configurar elementos de navegación
+    const navItems = isOrgRoute && orgId
+        ? getOrgNavItems(orgId)
+        : getBaseNavItems();
 
-    // Navegación base para el dashboard de creadores
-    const baseNavItems = [
-        { path: "/creators", label: "Inicio", icon: Home },
-        { path: "/creators/settings", label: "Configuración", icon: Settings },
-        // Aquí podrías agregar un link para ver tus organizaciones
-    ];
+    // Estados de carga y error
+    if (isLoading) {
+        return <LoadingScreen />;
+    }
 
-    // Navegación contextual para cuando estás dentro de una organización
-    const orgNavItems = [
-        {
-            path: `/creators/org/${params?.orgId}`,
-            label: "Inicio de la Org",
-            icon: Home,
-        },
-        {
-            path: `/creators/org/${params?.orgId}/modpacks`,
-            label: "Modpacks",
-            icon: Package,
-        },
-        {
-            path: `/creators/org/${params?.orgId}/members`,
-            label: "Miembros",
-            icon: Users,
-        },
-        {
-            path: `/creators/org/${params?.orgId}/settings`,
-            label: "Configuración",
-            icon: Settings,
-            // Ejemplo de lógica de roles:
-            // show: user.role === 'admin' // Suponiendo que tienes info del usuario
-        },
-    ];
+    if (error) {
+        return <ErrorScreen error={error} />;
+    }
 
-    // Selecciona el menú de navegación a mostrar
-    const navItems = isOrgRoute ? orgNavItems : baseNavItems;
-
-    // Actualiza el estado de la barra de título dinámicamente
-    useEffect(() => {
-        if (isOrgRoute) {
-            setTitleBarState({
-                title: `Org: ${params.orgId}`, // Título dinámico con el ID de la org
-                canGoBack: {
-                    history: true,
-                },
-                opaque: true,
-                icon: Users, // Icono representativo de una organización
-                customIconClassName: "text-green-500",
-            });
-        } else {
-            setTitleBarState({
-                title: "Creators Dashboard",
-                canGoBack: true,
-                opaque: true,
-                icon: LucidePencilRuler,
-                customIconClassName: "text-blue-500",
-            });
-        }
-    }, [isOrgRoute, params]); // Se ejecuta cuando cambia la ruta
-
+    // Renderizado principal
     return (
         <div className="flex min-h-screen bg-[#202020] text-gray-100">
-            {/* Sidebar */}
-            <aside className="fixed left-0 top-9 h-[calc(100vh-2.25rem)] w-64 bg-ms-primary shadow-lg flex flex-col border-r border-zinc-800">
-                <div className="h-16 flex items-center justify-center border-b border-zinc-800">
-                    <h1 className="text-xl font-bold text-blue-500 flex items-center gap-2">
-                        {isOrgRoute ? (
-                            <>
-                                <Users className="w-5 h-5 text-green-500" />
-                                {params.orgId}
-                            </>
-                        ) : (
-                            <>
-                                <LucidePencilRuler className="w-5 h-5" />
-                                Creators
-                            </>
-                        )}
-                    </h1>
-                </div>
+            <CreatorsSidebar
+                isOrgRoute={isOrgRoute}
+                orgId={orgId}
+                navItems={navItems}
+                teams={teams}
+            />
 
-                <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-                    {/* Botón para volver al dashboard principal si estás en una org */}
-                    {isOrgRoute && (
-                        <Link to="/creators">
-                            <a className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-zinc-700/50 hover:text-gray-200 transition mb-4 border border-zinc-700">
-                                <ArrowLeft className="w-5 h-5" />
-                                Todos los paneles
-                            </a>
-                        </Link>
-                    )}
-
-                    {navItems.map((item) => (
-                        // Aquí podrías agregar la lógica de roles:
-                        // item.show === false ? null : ( ... )
-                        <Link key={item.path} to={item.path}>
-                            <a className="flex items-center gap-3 px-3 py-2 rounded-lg text-gray-300 hover:bg-blue-500/20 hover:text-blue-400 transition">
-                                <item.icon className="w-5 h-5" />
-                                {item.label}
-                            </a>
-                        </Link>
-                    ))}
-                </nav>
-            </aside>
-
-            {/* Content */}
             <main className="flex-1 ml-64 pt-9 p-8">
-                <Routes>
-                    {/* Rutas Base */}
-                    <Route
-                        index
-                        element={
-                            <div className="text-lg font-medium">
-                                🏠 Bienvenido al panel de Creadores
-                            </div>
-                        }
-                    />
-                    <Route
-                        path="settings"
-                        element={
-                            <div className="text-lg font-medium">⚙️ Configuración General</div>
-                        }
-                    />
-
-                    {/* Rutas de Organización (anidadas) */}
-                    <Route path="org/:orgId" element={<OrganizationWrapper />} />
-                    <Route path="org/:orgId/modpacks" element={<OrganizationModpacksWrapper />} />
-                    <Route path="org/:orgId/members" element={<OrganizationMembersWrapper />} />
-                    <Route path="org/:orgId/settings" element={<OrganizationSettingsWrapper />} />
-                </Routes>
+                <CreatorsRoutes teams={teams} />
             </main>
         </div>
     );
 };
+
+export default CreatorsLayout;

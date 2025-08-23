@@ -2,11 +2,12 @@
 import { client as db } from "@/db/client";
 import { eq } from "drizzle-orm";
 import { userSchema, newUserSchema } from "@/validators/user";
-import { UsersTable } from "@/db/schema";
+import { PublisherMembersTable, PublishersTable, UsersTable } from "@/db/schema";
 import { z } from "zod";
 import { Session } from "./Session.model";
 import { sign, verify, JwtPayload } from "jsonwebtoken";
 import "dotenv/config";
+import { Publisher } from "./Publisher.model";
 
 // Types
 type UserType = typeof UsersTable.$inferSelect;
@@ -357,20 +358,40 @@ export class User {
 
         try {
             const accessToken = sign(payload, secret, {
-                expiresIn: '1h',
-                issuer: 'your-app-name', // Add issuer for better security
-                audience: 'your-app-users',
+                expiresIn: '4h',
+                issuer: 'ModpackStore', // Cambiado a ModpackStore
             });
 
             const refreshToken = sign(payload, secret, {
                 expiresIn: '30d',
-                issuer: 'your-app-name',
-                audience: 'your-app-users',
+                issuer: 'ModpackStore', // Cambiado a ModpackStore
             });
 
             return { accessToken, refreshToken };
         } catch (error) {
             throw new Error(`Failed to generate tokens: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    // método para obtener a que teams/publishers/organizaciones
+    //pertenece
+
+    async getTeams(): Promise<Publisher[]> {
+        try {
+            const publishersRaw = await db
+                .select({ PublishersTable }) // Seleccionar explícitamente la tabla
+                .from(PublishersTable)
+                .innerJoin(
+                    PublisherMembersTable,
+                    eq(PublishersTable.id, PublisherMembersTable.publisherId)
+                )
+                .where(eq(PublisherMembersTable.userId, this.id));
+
+            // publishersRaw es un array de objetos con la estructura { PublishersTable: ..., PublisherMembersTable: ... }
+            return publishersRaw.map((row) => new Publisher(row.PublishersTable));
+        } catch (error: unknown) {
+            console.error(`Error al obtener los equipos para el usuario ${this.id}:`, error);
+            throw new Error(`Failed to get publishers: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 

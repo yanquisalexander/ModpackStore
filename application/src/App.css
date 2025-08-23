@@ -41,6 +41,7 @@
   --font-minecraft-five: "Minecraft Five", sans-serif;
   --default-font-family: var(--font-jost);
   --color-twitch-purple: #9146FF;
+  --color-box: #0b1422;
   --animate-spin: spin 1s linear infinite;
 }
 

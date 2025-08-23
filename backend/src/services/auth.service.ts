@@ -45,7 +45,7 @@ export class AuthService {
 
         return {
             token_type: 'bearer',
-            expires_in: 3600, // 1 hora
+            expires_in: 3600 * 4, // 4 horas
             access_token: jwtTokens.accessToken,
             refresh_token: jwtTokens.refreshToken,
         };
