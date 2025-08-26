@@ -40,7 +40,7 @@ jobs:
           cache: 'pnpm'
 
       - name: Install frontend dependencies
-        working-directory: application/
+        working-directory: ./application/
         run: pnpm install --frozen-lockfile
 
       - name: Install Rust stable
