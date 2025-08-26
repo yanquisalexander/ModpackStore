@@ -9,7 +9,10 @@ fn main() {
     let git_hash = match output {
         Ok(output) => {
             if output.status.success() {
-                str::from_utf8(&output.stdout).unwrap_or("unknown").trim().to_string()
+                str::from_utf8(&output.stdout)
+                    .unwrap_or("unknown")
+                    .trim()
+                    .to_string()
             } else {
                 "unknown".to_string()
             }

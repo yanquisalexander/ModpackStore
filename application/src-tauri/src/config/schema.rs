@@ -147,14 +147,51 @@ fn process_default_value(value: &serde_json::Value) -> serde_json::Value {
 }
 
 /// Determina si un string probablemente representa una ruta
-fn value_is_likely_path(s: &str) -> bool {
-    // Comprueba si contiene separadores de ruta comunes
-    s.contains('/') || 
-    s.contains('\\') || 
-    // Comprueba si comienza con una letra de unidad en Windows (e.g., "C:")
-    (s.len() >= 2 && s.chars().nth(1) == Some(':')) ||
-    // Comprueba si es una ruta absoluta
-    Path::new(s).is_absolute()
+pub fn value_is_likely_path(s: &str) -> bool {
+    // Un string vacío no es una ruta válida.
+    if s.is_empty() {
+        return false;
+    }
+
+    let path = Path::new(s);
+
+    // 1. Una ruta es absoluta ("/", "C:\..."). Este es un indicador muy fuerte.
+    if path.is_absolute() {
+        return true;
+    }
+
+    // 2. Si tiene más de un "componente", es casi seguro una ruta.
+    //    - "data/config.json" -> ["data", "config.json"] (2 componentes)
+    //    - "config.json"      -> ["config.json"] (1 componente)
+    //    - "un_texto_simple"  -> ["un_texto_simple"] (1 componente)
+    if path.components().count() > 1 {
+        return true;
+    }
+
+    // 3. Comprobaciones explícitas para rutas relativas comunes que `components` no siempre captura solo.
+    //    - "./file", "../project", "~/"
+    if s.starts_with("./")
+        || s.starts_with(".\\")
+        || s.starts_with("../")
+        || s.starts_with("..\\")
+        || s.starts_with("~/")
+        || s.starts_with("~\\")
+    {
+        return true;
+    }
+
+    // 4. Caso especial para letras de unidad de Windows (ej. "C:").
+    //    El código original lo hacía, pero de forma insegura.
+    //    Esto comprueba que tenga 2 caracteres, el primero sea una letra y el segundo sea ':'.
+    if s.len() == 2 && s.ends_with(':') {
+        if let Some(first_char) = s.chars().next() {
+            if first_char.is_ascii_alphabetic() {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 /// Normaliza una ruta según el sistema operativo
@@ -169,7 +206,7 @@ pub fn normalize_path(path_str: &str) -> String {
     } else {
         PathBuf::from(path_str)
     };
-    
+
     path.to_string_lossy().to_string()
 }
 

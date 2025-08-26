@@ -202,7 +202,6 @@ pub fn get_all_accounts() -> Result<Vec<MinecraftAccount>, String> {
     Ok(manager.get_all_accounts())
 }
 
-
 #[tauri::command]
 pub fn ensure_account_exists(uuid: &str) -> Result<bool, String> {
     let accounts_manager = get_accounts_manager();

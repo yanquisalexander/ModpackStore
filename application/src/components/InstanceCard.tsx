@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { LucidePlay, LucideHardDrive, LucideMoreVertical, LucideSettings, LucideTrash2, LucideDownload, LucideRefreshCw, LucideGamepad2 } from "lucide-react"
+import { LucidePlay, LucideHardDrive, LucideMoreVertical, LucideSettings, LucideTrash2, LucideDownload, LucideRefreshCw, LucideGamepad2, LucideFolderSymlink } from "lucide-react"
 import { useState } from "react"
 import {
     ContextMenu,
@@ -53,11 +53,29 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
         setIsOpen(false)
     }
 
+    const handleCreateShortcut = () => {
+        invoke('create_shortcut', { instanceId: instance.instanceId })
+            .then(() => {
+                toast.success('Acceso directo creado correctamente')
+            })
+            .catch((error) => {
+                playSound("ERROR_NOTIFICATION")
+                console.error('Error al crear acceso directo:', error)
+                toast.error(`Error al crear acceso directo: ${(error as any)?.message || 'Error desconocido'}`)
+            })
+    }
+
     const handleContextAction = (action: string) => {
         if (action === "settings") {
             handleOpenSettings()
             return
         }
+
+        if (action === "create_shortcut") {
+            handleCreateShortcut()
+            return
+        }
+
         playSound("ERROR_NOTIFICATION")
         toast("Acción no implementada", {
             description: `La acción "${action}" no está implementada en este momento.`,
@@ -169,6 +187,14 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
                     >
                         <LucideSettings className="mr-2 h-4 w-4" />
                         <span>Configurar</span>
+                    </ContextMenuItem>
+
+                    <ContextMenuItem
+                        onClick={() => handleContextAction("create_shortcut")}
+                        className="hover:bg-neutral-800 focus:bg-neutral-800 cursor-pointer"
+                    >
+                        <LucideFolderSymlink className="mr-2 h-4 w-4" />
+                        <span>Crear acceso directo</span>
                     </ContextMenuItem>
 
                     <ContextMenuItem

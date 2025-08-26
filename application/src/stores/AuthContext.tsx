@@ -80,6 +80,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<AuthError | null>(null);
   const [authStep, setAuthStep] = useState<AuthStep>(null);
+  const [pendingInstance, setPendingInstance] = useState<string | null>(null);
 
   // --- Memoized Values ---
 
@@ -191,6 +192,30 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       unlistenFunctions.forEach(unlisten => unlisten());
     };
   }, [resetAuthState]);
+
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+    const setup = async () => {
+      unlisten = await listen<string>('open-instance', (event) => {
+        console.log("Shortcut recibido:", event.payload);
+        setPendingInstance(event.payload);
+      });
+    };
+    setup();
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, []);
+
+
+  useEffect(() => {
+    if (isAuthenticated && pendingInstance) {
+      window.dispatchEvent(
+        new CustomEvent("navigate-to-instance", { detail: pendingInstance })
+      );
+      setPendingInstance(null);
+    }
+  }, [isAuthenticated, pendingInstance]);
 
   // --- Public Actions ---
 

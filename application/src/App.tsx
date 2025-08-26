@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import { Routes, Route, useParams } from "react-router-dom";
+import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { HomeMainHeader } from "./components/home/MainHeader";
 import { toast } from "sonner";
 import { ExploreSection } from "./views/ExploreSection";
@@ -50,7 +50,7 @@ function App() {
   const { loading: authLoading, isAuthenticated, session } = useAuthentication();
   const { isConnected, isLoading: connectionLoading, hasInternetAccess } = useCheckConnection();
   const [hasShownConnectionToast, setHasShownConnectionToast] = useState(false);
-
+  const navigate = useNavigate();
 
   // Optimizado: Control de notificaciones de conexión con estado para evitar notificaciones duplicadas
   useEffect(() => {
@@ -93,9 +93,15 @@ function App() {
       console.error("Error tracking app launch event:", error);
     }
 
+    const handler = (e: Event) => {
+      const instanceId = (e as CustomEvent<string>).detail;
+      navigate(`/prelaunch/${instanceId}`);
+    };
+    window.addEventListener("navigate-to-instance", handler);
+
     // Función de limpieza (cleanup) para evitar efectos secundarios
     return () => {
-      // Aquí podrías añadir lógica de limpieza si fuera necesaria
+      window.removeEventListener("navigate-to-instance", handler);
     };
   }, []); // Array vacío para ejecutar solo una vez al montar
 

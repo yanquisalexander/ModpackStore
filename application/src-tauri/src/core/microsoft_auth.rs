@@ -1,7 +1,8 @@
 // src-tauri/src/auth/microsoft.rs
 
-use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
+use crate::core::accounts_manager::AccountsManager;
 use crate::core::minecraft_account::MinecraftAccount;
+use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::thread;
@@ -9,7 +10,6 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::async_runtime;
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_http::reqwest;
-use crate::core::accounts_manager::AccountsManager;
 
 // Estructuras para respuestas de API
 #[derive(Deserialize, Debug)]
@@ -73,7 +73,6 @@ struct MinecraftSkin {
     url: String,
     variant: String,
 }
-
 
 // Estructuras para eventos
 #[derive(Serialize, Clone)]
@@ -238,25 +237,20 @@ impl MicrosoftAuthenticator {
             None,
         );
 
-
-
         log::info!("Autenticación exitosa: {:?}", profile);
 
         // Emitir evento de éxito
         let _ = app_handle.emit("microsoft-auth-success", None::<String>);
-     
-       
-               // Usar el método add_microsoft_account para crear y guardar la cuenta
-let account = match AccountsManager::add_microsoft_account(
-    &profile.name,
-    &minecraft_token.access_token,
-    &profile.id,
-) {
-    Ok(account) => account,
-    Err(e) => return Err(e.into()),
-};
 
-        
+        // Usar el método add_microsoft_account para crear y guardar la cuenta
+        let account = match AccountsManager::add_microsoft_account(
+            &profile.name,
+            &minecraft_token.access_token,
+            &profile.id,
+        ) {
+            Ok(account) => account,
+            Err(e) => return Err(e.into()),
+        };
 
         log::info!("Cuenta guardada: {:?}", account);
         // Emitir evento de cuenta guardada

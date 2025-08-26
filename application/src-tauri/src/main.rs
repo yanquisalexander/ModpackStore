@@ -16,6 +16,7 @@ use serde_json::json;
 use std::process::Command;
 use std::str;
 use std::sync::Arc;
+use std::sync::Mutex;
 use tauri::Emitter;
 use tauri::Manager; // Necesario para get_window y emit
 use tauri::Wry;
@@ -26,6 +27,10 @@ static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::A
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
 
 static API_ENDPOINT: &str = "https://api-modpackstore.alexitoo.dev/v1";
+
+struct PendingInstance {
+    id: Mutex<Option<String>>,
+}
 
 #[tauri::command]
 async fn get_git_hash() -> String {
@@ -42,6 +47,15 @@ fn splash_done(app: tauri::AppHandle) {
     main_window.set_focus().unwrap();
     log::info!("Splash screen closed, main window focused.");
     main_window.show().unwrap();
+
+    let id = {
+        let state: tauri::State<Arc<PendingInstance>> = app.state();
+        let id = state.id.lock().unwrap().take();
+        id
+    };
+    if let Some(id) = id {
+        let _ = app.emit("open-instance", id);
+    };
 }
 
 pub fn main() {
@@ -56,6 +70,16 @@ pub fn main() {
     );
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            let _ = app
+                .get_webview_window("main")
+                .expect("no main window")
+                .set_focus();
+
+            if let Some(id) = get_instance_arg(&args) {
+                let _ = app.emit("open-instance", id);
+            }
+        }))
         .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
@@ -80,6 +104,9 @@ pub fn main() {
                 .build(),
         )
         .manage(Arc::new(AuthState::new()))
+        .manage(Arc::new(PendingInstance {
+            id: Mutex::new(None),
+        }))
         .setup(|app| {
             log::info!("Starting Modpack Store...");
             log::info!(
@@ -92,6 +119,12 @@ pub fn main() {
             let mut app_handle = GLOBAL_APP_HANDLE.lock().unwrap();
             *app_handle = Some(app.handle().clone());
             // Emit an event to the main window
+
+            let args: Vec<String> = std::env::args().collect();
+            if let Some(id) = get_instance_arg(&args) {
+                let state: tauri::State<Arc<PendingInstance>> = app.state();
+                *state.id.lock().unwrap() = Some(id);
+            }
 
             Ok(())
         })
@@ -124,9 +157,19 @@ pub fn main() {
             core::auth::init_session,
             core::microsoft_auth::start_microsoft_auth,
             core::prelaunch_appearance::get_prelaunch_appearance,
+            utils::desktop_integration::create_shortcut,
             get_git_hash,
             splash_done,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+fn get_instance_arg(args: &[String]) -> Option<String> {
+    for arg in args {
+        if let Some(rest) = arg.strip_prefix("--instance=") {
+            return Some(rest.to_string());
+        }
+    }
+    None
 }
