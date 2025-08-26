@@ -50,10 +50,16 @@ jobs:
         run: pnpm install
 
       # -----------------------
-      # Rust
+      # Rust + sccache
       # -----------------------
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Install sccache
+        run: cargo install sccache
+
+      - name: Set RUSTC_WRAPPER
+        run: echo "RUSTC_WRAPPER=$(which sccache)" >> $GITHUB_ENV
 
       - name: Cache Cargo registry & git
         uses: actions/cache@v3
@@ -69,6 +75,7 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './application/src-tauri -> ./application/target'
+          key: ${{ runner.os }}-cargo-target-${{ hashFiles('application/src-tauri/Cargo.lock') }}
 
       # -----------------------
       # Linux build dependencies
