@@ -634,24 +634,50 @@ async fn handle_callback(
 const SUCCESS_HTML: &str = r#"
 <!DOCTYPE html>
 <html>
+
 <head>
-    <title>Autenticación Exitosa</title>
+    <meta charset=\"UTF-8\" />
+    <title>Modpack Store</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; padding-top: 50px; background-color: #f0f0f0; color: #333;}
-        .success { color: #4CAF50; font-size: 24px; }
-        .container { max-width: 500px; margin: 40px auto; padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        p { font-size: 16px; line-height: 1.5; }
+        @import url(https://fonts.googleapis.com/css2?family=Montserrat&display=swap);
+
+        body {
+            margin: 3em;
+            max-width: 600px;
+            background-color: #f9f9f9;
+            color: #333;
+        }
+
+        h1,
+        p {
+            font-family: Montserrat, sans-serif;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #4CAF50;
+        }
+
+        .container {
+            padding: 20px;
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
+
 <body>
-    <div class="container">
-        <h1 class="success">¡Autenticación Exitosa!</h1>
-        <p>Has iniciado sesión correctamente. Puedes cerrar esta ventana y volver a la aplicación.</p>
-        <p><em>Esta ventana se cerrará automáticamente.</em></p>
+    <div class=\"container\">
+        <h1>Login Successful</h1>
+
+        <p>You can now close this window and go back to the Modpack Store Launcher.</p>
+        <p>Ahora puedes cerrar esta ventana y volver al Launcher de Modpack Store.</p>
+        <p>Pode agora fechar esta janela e voltar para o lançador Modpack Store.</p>
+        <p>Tu peux maintenant fermer cette fenêtre et retourner au lanceur de Modpack Store.</p>
+        <p>Sie können dieses Fenster nun schließen und zum Modpack Store Launcher zurückkehren.</p>
     </div>
-    <script>
-        setTimeout(() => window.close(), 2000);
-    </script>
 </body>
+
 </html>
 "#;
