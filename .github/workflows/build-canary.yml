@@ -38,9 +38,10 @@ jobs:
         with:
           node-version: lts/*
           cache: 'pnpm'
+          cache-dependency-path: |
+            ./application/pnpm-lock.yaml
 
       - name: Install frontend dependencies
-        working-directory: ./application/
         run: pnpm install --frozen-lockfile
 
       - name: Install Rust stable
