@@ -5,6 +5,7 @@ import { error, info } from "@tauri-apps/plugin-log";
 const h1 = document.getElementById('splash-status')!;
 const progressBar = document.getElementById('splash-progressbar')!;
 const progress = document.getElementById('splash-progress')!;
+const loader = document.querySelector('.loader')! as HTMLElement;
 
 let finished = false;
 const splashStart = Date.now();
@@ -48,7 +49,10 @@ async function splashDone() {
 
 async function handleDownload(update: Update) {
     h1.textContent = 'Descargando...';
-    showProgress();
+
+    // Por defecto, mostramos el cargador circular y ocultamos la barra
+    loader.style.display = 'block';
+    hideProgress();
 
     let downloaded = 0;
     let contentLength = 0;
@@ -58,20 +62,34 @@ async function handleDownload(update: Update) {
         info('Download event: ' + JSON.stringify(event));
         switch (event.event) {
             case 'Started':
-                contentLength = event.data.contentLength || 0;
+                contentLength = event.data.contentLength ?? 0;
+                // Si conocemos el tamaño, preparamos la barra de progreso
+                if (contentLength > 0) {
+                    loader.style.display = 'none'; // Ocultamos el cargador circular
+                    showProgress(); // Mostramos la barra de progreso
+                }
                 info('Update download started');
                 break;
+
             case 'Progress':
-                downloaded += event.data.chunkLength;
-                const percent = contentLength ? Math.round((downloaded / contentLength) * 100) : 0;
-                updateProgress(percent);
+                // Solo actualizamos la barra si su lógica está activa (contentLength > 0)
+                if (contentLength > 0) {
+                    downloaded += event.data.chunkLength;
+                    const percent = Math.round((downloaded / contentLength) * 100);
+                    updateProgress(percent);
+                }
+                // Si no, el cargador circular seguirá girando, lo cual es correcto.
                 break;
+
             case 'Finished':
+                // Al terminar, ocultamos ambos indicadores
+                loader.style.display = 'none';
                 hideProgress();
                 h1.textContent = 'Preparando actualización...';
                 break;
         }
     }).catch(async (err) => {
+        loader.style.display = 'none'; // Ocultamos también en caso de error
         hideProgress();
         h1.textContent = 'Error al descargar la actualización';
         error(`Error downloading update: ${err}`);
