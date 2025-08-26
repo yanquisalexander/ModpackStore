@@ -80,6 +80,7 @@ jobs:
           releaseName: Canary Build canary
           releaseBody: Automated canary build for testing
           releaseDraft: false
+          releaseCommitish: main
           prerelease: false
           includeUpdaterJson: true
           args: ${{ matrix.args }}
