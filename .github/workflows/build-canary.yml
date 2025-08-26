@@ -52,7 +52,7 @@ jobs:
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './application' # Ruta simplificada
+          workspaces: './application/src-tauri'  # Corregido: apunta al directorio con Cargo.toml
           cache-on-failure: true
           cache-all-crates: true
           # Condición inteligente: Solo se actualiza el caché en la rama 'main'
