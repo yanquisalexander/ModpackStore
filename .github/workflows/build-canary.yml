@@ -26,24 +26,53 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # -----------------------
+      # Node.js + PNPM
+      # -----------------------
       - name: Set up Node.js & install pnpm
         uses: actions/setup-node@v4
         with:
           node-version: lts/*
       - run: npm install -g pnpm
 
+      - name: Cache PNPM dependencies
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pnpm-store
+            application/node_modules
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('application/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
       - name: Install frontend dependencies
         working-directory: application/
         run: pnpm install
 
+      # -----------------------
+      # Rust
+      # -----------------------
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Rust cache
+      - name: Cache Cargo registry & git
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('application/src-tauri/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Cache Rust target
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './application/src-tauri -> ./application/target'
 
+      # -----------------------
+      # Linux build dependencies
+      # -----------------------
       - name: Install Linux build dependencies
         if: startsWith(matrix.platform, 'ubuntu')
         run: |
@@ -54,6 +83,9 @@ jobs:
             librsvg2-dev \
             patchelf
 
+      # -----------------------
+      # Build & Publish Tauri
+      # -----------------------
       - name: Build & Publish Canary Release
         uses: tauri-apps/tauri-action@v0
         env:
