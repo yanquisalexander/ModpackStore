@@ -36,7 +36,9 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     useEffect(() => {
         setTitleBarState({
             ...titleBarState,
-            canGoBack: true,
+            canGoBack: {
+                history: true
+            },
             opaque: true,
             title: pageState.modpackData?.name || "Modpack Overview",
             icon: pageState.modpackData?.iconUrl || "/images/modpack-fallback.webp",
@@ -105,7 +107,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                     loading: false,
                     error: false,
                     errorMessage: "",
-                    modpackData: modpack
+                    modpackData: modpack as unknown as ModpackDataOverview
                 })
             } catch (err: any) {
                 setPageState({

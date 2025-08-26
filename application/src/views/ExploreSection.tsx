@@ -203,7 +203,7 @@ export const ExploreSection = () => {
                             >
                                 <ModpackCard
                                     modpack={modpack}
-                                    href={`/modpack/${modpack.id}`}
+                                    to={`/modpack/${modpack.id}`}
                                 />
 
                             </motion.div>
@@ -236,7 +236,7 @@ export const ExploreSection = () => {
                                 title={category.name}
                                 shortDescription={category.shortDescription}
                                 modpacks={category.modpacks}
-                                href="/prelaunch/"
+                                href={`/category/${category.id}`}
                             />
                         </motion.div>
                     ))}

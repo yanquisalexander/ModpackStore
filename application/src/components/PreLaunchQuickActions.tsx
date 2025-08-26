@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { LucideFolderOpen, LucideLoaderCircle, LucideSettings, LucideShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { EditInstanceInfo } from "@/components/EditInstanceInfo";
@@ -56,7 +57,7 @@ const PreLaunchQuickActions = ({
     };
 
     const verifyIntegrity = async () => {
-        const invokeCommand = isForge ? null : "check_vanilla_integrity";
+        const invokeCommand = isForge ? null : "check_vanilla_integrity_async";
         if (!invokeCommand) {
             toast.error("Función no disponible para Forge", {
                 description: "Esta función no está disponible para instancias de Forge.",
@@ -66,17 +67,111 @@ const PreLaunchQuickActions = ({
         }
 
         try {
-            await invoke(invokeCommand, { instanceId });
-            toast.success("Verificando integridad de archivos...");
+            let currentToastId: string | null = null;
+
+            const unlisten = await listen("instance-verifying-status", (event) => {
+                const { status, message } = event.payload as any
+
+                if (status === "instance-verifying-complete") {
+                    if (currentToastId) {
+                        toast.dismiss(currentToastId);
+                    }
+                    toast.success("Verificación completada", {
+                        description: message,
+                        dismissible: true,
+                    });
+                    unlisten();
+                } else if (status === "instance-verifying-progress") {
+                    // Update existing toast or create new one
+                    if (currentToastId) {
+                        toast.dismiss(currentToastId);
+                    }
+
+                    currentToastId = String(toast.loading(message, {
+                        dismissible: false,
+                    }));
+                } else {
+                    if (currentToastId) {
+                        toast.dismiss(currentToastId);
+                    }
+
+                    currentToastId = String(toast(message, {
+                        dismissible: true,
+                    }));
+                }
+            });
+
+            // Listen for detailed task updates
+            const unlistenTask = await listen("task-updated", (event) => {
+                const { task } = event.payload as any;
+
+                if (task.message?.includes("Verificando") && task.data?.stats) {
+                    const { stats } = task.data;
+                    const progress = Math.round(task.progress || 0);
+
+                    let description = `Progreso: ${progress}%`;
+
+                    if (stats.checkedFiles > 0) {
+                        description += `\nArchivos verificados: ${stats.checkedFiles}/${stats.totalFiles}`;
+                    }
+
+                    if (stats.corruptedFiles > 0 || stats.missingFiles > 0) {
+                        const issues = [];
+                        if (stats.corruptedFiles > 0) {
+                            issues.push(`${stats.corruptedFiles} corruptos`);
+                        }
+                        if (stats.missingFiles > 0) {
+                            issues.push(`${stats.missingFiles} faltantes`);
+                        }
+                        description += `\nProblemas encontrados: ${issues.join(', ')}`;
+                    }
+
+                    if (stats.fixedFiles > 0) {
+                        description += `\nArchivos reparados: ${stats.fixedFiles}`;
+                    }
+
+                    if (currentToastId) {
+                        toast.dismiss(currentToastId);
+                    }
+
+                    currentToastId = String(toast.loading(task.message, {
+                        description: description,
+                        dismissible: false,
+                    }));
+                }
+            });
+
+            // Generate a unique task ID
+            const taskId = `integrity_check_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+            await invoke(invokeCommand, {
+                instanceId,
+                taskId: taskId
+            });
+
+            toast.success("Verificación iniciada", {
+                description: "Verificando integridad de archivos...",
+                dismissible: true,
+            });
+
             setQuickActionsOpen(false);
+
+            // Clean up listeners after some time if not already cleaned
+            setTimeout(() => {
+                unlisten();
+                unlistenTask();
+            }, 300000); // 5 minutes timeout
+
         } catch (error) {
             console.error("Error verifying integrity:", error);
-            toast.error("Error al verificar la integridad de archivos", {
-                description: "No se pudo verificar la integridad de archivos. Intenta nuevamente.",
+            toast.error("Error al verificar la integridad", {
+                description: (typeof error === "object" && error !== null && "message" in error)
+                    ? (error as { message: string }).message
+                    : String(error) || "No se pudo verificar la integridad de archivos. Intenta nuevamente.",
                 dismissible: true,
             });
         }
-    }
+    };
 
     return (
         <div className="absolute right-0 bottom-40 z-40 group" ref={quickActionsRef}>
