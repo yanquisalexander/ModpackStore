@@ -65,8 +65,8 @@ jobs:
           tagName: canary
           releaseName: Canary Build canary
           releaseBody: Automated canary build for testing
-          releaseDraft: true
-          prerelease: true
+          releaseDraft: false
+          prerelease: false
           includeUpdaterJson: true
           args: ${{ matrix.args }}
           owner: ModpackStore
