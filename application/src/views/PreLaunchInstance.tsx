@@ -10,6 +10,7 @@ import { InstanceCrashDialog } from "@/components/InstanceCrashDialog";
 
 // Memoized Background Component
 const Background = memo((props: PreLaunchAppearance['background'] | undefined) => {
+    console.log("Background props:", props);
     if (!props) return null;
     const { imageUrl, videoUrl } = props;
     if (imageUrl) {
@@ -25,11 +26,12 @@ const Background = memo((props: PreLaunchAppearance['background'] | undefined) =
                 alt="Background"
             />
         );
-    } else if (videoUrl && Array.isArray(videoUrl) && videoUrl.length > 0) {
+    } else if (videoUrl) {
+        const videoUrls = Array.isArray(videoUrl) ? videoUrl : [videoUrl];
         return (
             <BackgroundVideo
                 key={"background-video"}
-                videoUrls={videoUrl}
+                videoUrls={videoUrls}
             />
         );
     }
@@ -181,6 +183,8 @@ export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
         handleResourceError,
         navigate
     } = usePrelaunchInstance(instanceId);
+
+    console.log(appearance)
 
     if (prelaunchState.isLoading) {
         return (
