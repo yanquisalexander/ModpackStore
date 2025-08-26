@@ -10,18 +10,19 @@ on:
 
 jobs:
   publish-canary:
-    name: Build & Publish for ${{ matrix.platform }}
-    runs-on: ${{ matrix.platform }}
-    permissions:
-      contents: write
+    runs-on: ubuntu-latest   # runner disponible
+    container:
+      image: ubuntu:20.04    # contenedor que sí es Ubuntu 20.04
+      options: --user root
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: ubuntu-22.04
+          - platform: linux
             args: ""
           - platform: windows-latest
             args: ""
+
 
     steps:
       - name: Checkout repository
