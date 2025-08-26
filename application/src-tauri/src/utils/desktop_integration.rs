@@ -125,8 +125,9 @@ fn create_windows_shortcut(
     instance_id: &str,
     icon: Option<&Path>,
 ) -> Result<(), String> {
-    let mut builder =
-        mslnk::ShellLink::new(exe).map_err(|e| format!("Error creando el enlace: {}", e))?;
+    use mslnk::ShellLink;
+
+    let mut builder = ShellLink::new(exe).map_err(|e| format!("Error creando el enlace: {}", e))?;
     builder.set_arguments(Some(format!("--instance={}", instance_id)));
 
     if let Some(icon_path) = icon {
