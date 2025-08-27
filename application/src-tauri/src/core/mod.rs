@@ -8,7 +8,6 @@ pub mod microsoft_auth;
 pub mod minecraft;
 pub mod minecraft_account;
 pub mod minecraft_instance;
-pub mod minecraft_launcher;
 pub mod models;
 pub mod network_utilities;
 pub mod prelaunch_appearance;

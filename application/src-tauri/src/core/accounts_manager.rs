@@ -1,6 +1,6 @@
 use crate::core::minecraft_account::MinecraftAccount;
 use dirs::config_dir;
-use serde::{Deserialize, Serialize};
+use md5::{Digest, Md5};
 use serde_json::{self, json};
 use std::fs::{self, File};
 use std::io::{Read, Write};
@@ -142,15 +142,13 @@ impl AccountsManager {
 
     /// Calculates the UUID for an offline player
     pub fn get_offline_player_uuid(username: &str) -> Result<String, String> {
-        // Validation
+        // --- 1. Validación (Tu validación es correcta y se mantiene) ---
         if username.is_empty() {
             return Err("Username cannot be null or empty".to_string());
         }
-
         if username.len() < 3 || username.len() > 16 {
             return Err("Username must be between 3 and 16 characters".to_string());
         }
-
         if !username.chars().all(|c| c.is_alphanumeric() || c == '_') {
             return Err(
                 "Username can only contain letters (a-z, A-Z), numbers (0-9), and underscores (_)"
@@ -158,11 +156,24 @@ impl AccountsManager {
             );
         }
 
-        // Create the string to hash
+        // --- 2. Crear la cadena a hashear, como lo hace Minecraft ---
         let string_to_hash = format!("OfflinePlayer:{}", username);
 
-        // Generate the UUID (Version 3, name-based)
-        let offline_uuid = Uuid::new_v3(&Uuid::NAMESPACE_DNS, string_to_hash.as_bytes());
+        // --- 3. Calcular el hash MD5 ---
+        let mut hasher = Md5::new();
+        hasher.update(string_to_hash.as_bytes());
+        let hash_bytes = hasher.finalize();
+
+        // --- 4. Formatear el hash como un UUID v3 ---
+        // Minecraft toma los bytes del hash MD5 y los formatea,
+        // estableciendo los bits de la versión (3) y la variante.
+        let mut uuid_bytes = hash_bytes[..].try_into().expect("MD5 hash is 16 bytes");
+        let mut builder = uuid::Builder::from_bytes(uuid_bytes);
+        builder
+            .set_version(uuid::Version::Md5) // Establece la versión a 3
+            .set_variant(uuid::Variant::RFC4122); // Establece la variante estándar
+
+        let offline_uuid = builder.into_uuid();
 
         Ok(offline_uuid.to_string())
     }

@@ -964,6 +964,7 @@ dependencies = [
  "hyper 0.14.32",
  "lazy_static",
  "log",
+ "md-5",
  "mslnk",
  "once_cell",
  "rayon",
