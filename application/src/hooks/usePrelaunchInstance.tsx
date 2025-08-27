@@ -30,6 +30,7 @@ const RANDOM_MESSAGES = [
 ];
 
 export const usePrelaunchInstance = (instanceId: string) => {
+    console.log("usePrelaunchInstance called with instanceId:", instanceId);
     // Contextos
     const { setTitleBarState } = useGlobalContext();
     const { instances } = useInstances();

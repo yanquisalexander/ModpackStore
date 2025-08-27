@@ -24,8 +24,8 @@ const VersionListItem: React.FC<VersionListItemProps> = ({ version, onEdit, onPu
           <p className="text-sm text-gray-500">Minecraft: {version.mcVersion} {version.forgeVersion ? `(Forge: ${version.forgeVersion})` : ''}</p>
         </div>
         <span className={`px-3 py-1 text-xs font-medium rounded-full ${version.status === 'published' ? 'bg-green-100 text-green-800' :
-            version.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
-              'bg-gray-100 text-gray-700' // archived or other
+          version.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :
+            'bg-gray-100 text-gray-700' // archived or other
           }`}>{version.status}</span>
       </div>
       <div className="mb-3 pt-3 border-t border-gray-200">
@@ -102,7 +102,6 @@ export const ManageModpackVersionsView: React.FC = () => {
 
   const handleCreateOrEditSuccess = () => {
     fetchModpackDetailsAndVersions();
-    // Toast is handled by individual dialogs
   };
 
   const openEditVersionDialog = (version: ModpackVersion) => {

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import CreateModpackDialog from "@/components/creator/CreateModpackDialog";
 import EditModpackDialog from "../../components/creator/EditModpackDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { LucideEdit, LucideTrash2 } from "lucide-react";
+import { LucideEdit, LucideHistory, LucideTrash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useParams } from "react-router-dom";
 
@@ -30,14 +30,14 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
                 <Button variant="outline" size="sm" onClick={() => onEdit(modpack)} title="Editar Modpack">
                     <LucideEdit size={16} />
                 </Button>
-                <Button variant="outline" size="sm" className="w-full" title="Gestionar Versiones" />
+                <Button variant="outline" size="sm" className="w-full" title="Gestionar Versiones">
+                    <LucideHistory size={16} />
+                </Button>
                 <Button variant="destructive" size="sm" onClick={() => onDelete(modpack)} title="Eliminar Modpack">
                     <LucideTrash2 size={16} />
                 </Button>
             </div>
-            <Button variant="secondary" size="sm" className="mt-2 w-full" onClick={() => navigate(`/creators/modpacks/${modpack.id}/edit`)}>
-                Editar detalles
-            </Button>
+
         </div>
     );
 };
@@ -86,18 +86,13 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
 
     const handleCreateSuccess = (created?: Modpack) => {
         setIsCreateDialogOpen(false);
-        if (created) {
-            setModpacks((prev) => [created, ...prev]);
-        } else {
-            fetchModpacks();
-        }
-        toast.success("Modpack creado correctamente");
+        fetchModpacks();
     };
 
     const handleEditSuccess = () => {
         setIsEditDialogOpen(false);
         setEditingModpack(null);
-        toast.success("Modpack actualizado correctamente");
+        fetchModpacks();
     };
 
     const openEditDialog = (modpack: Modpack) => {
@@ -143,7 +138,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                 isOpen={isCreateDialogOpen}
                 onClose={() => setIsCreateDialogOpen(false)}
                 onSuccess={handleCreateSuccess}
-                organizationId={team?.id}
+                teamId={team?.id}
             />
             {editingModpack && (
                 <EditModpackDialog

@@ -39,7 +39,7 @@ export default function ModpackCommandPalette() {
     const [searchTimeout, setSearchTimeout] = useState(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const { showReloadDialog } = useReloadApp(); // Usar el hook para acceder a la funcionalidad de recarga
-
+    const navigate = useNavigate();
 
 
     // Static commands
@@ -221,7 +221,7 @@ export default function ModpackCommandPalette() {
     const executeCommand = (commandId: string) => {
         console.log(`Executing command: ${commandId}`);
         if (commandId.startsWith('launch-')) {
-            const instanceId = commandId.split('-')[1];
+            const instanceId = commandId.substring('launch-'.length); // Extraer todo después de 'launch-'
             navigate(`/prelaunch/${instanceId}`);
         }
 
@@ -233,7 +233,7 @@ export default function ModpackCommandPalette() {
                 navigate('/');
                 break;
             case 'restart-app':
-                showReloadDialog(); // Show the reload dialog
+                showReloadDialog({ fromOffline: false }); // Show the reload dialog
                 break;
         }
         setIsOpen(false);

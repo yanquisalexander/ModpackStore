@@ -6,6 +6,7 @@ import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance";
 import { BackgroundVideo } from "@/components/LauncherBackgroundVideo";
 import PreLaunchQuickActions from "@/components/PreLaunchQuickActions";
 import { InstanceCrashDialog } from "@/components/InstanceCrashDialog";
+import { useParams } from "react-router-dom";
 
 
 // Memoized Background Component
@@ -167,7 +168,9 @@ const Footer = memo(({ appearance, isLoading, isPlaying, isInstanceBootstraping,
     );
 });
 
-export const PreLaunchInstance = ({ instanceId }: { instanceId: string }) => {
+export const PreLaunchInstance = () => {
+    const { instanceId } = useParams<{ instanceId: string }>();
+    if (!instanceId) return null;
     const {
         prelaunchState,
         appearance,

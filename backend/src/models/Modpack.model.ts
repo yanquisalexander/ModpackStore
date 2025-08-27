@@ -24,21 +24,21 @@ export enum ModpackVisibility {
 }
 
 export enum ModpackStatus {
-	DRAFT = 'draft',
-	PUBLISHED = 'published',
-	ARCHIVED = 'archived',
-	DELETED = 'deleted',
+    DRAFT = 'draft',
+    PUBLISHED = 'published',
+    ARCHIVED = 'archived',
+    DELETED = 'deleted',
 }
 
-// Validation schemas
+
 export const newModpackSchema = z.object({
     name: z.string().min(1).max(100),
     shortDescription: z.string().max(200).optional(),
     description: z.string().optional(),
     slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
-    iconUrl: z.string().url(),
-    bannerUrl: z.string().url(),
-    trailerUrl: z.string().url().optional(),
+    iconUrl: z.string(),
+    bannerUrl: z.string(),
+    trailerUrl: z.string().optional(),
     password: z.string().optional(),
     visibility: z.nativeEnum(ModpackVisibility),
     status: z.nativeEnum(ModpackStatus).default(ModpackStatus.DRAFT).optional(),

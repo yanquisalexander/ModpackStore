@@ -297,7 +297,7 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
         <AnimatePresence>
             {isOpen && (
                 <motion.div
-                    className="fixed inset-0 z-999 flex items-center justify-center bg-black bg-opacity-75 overflow-hidden"
+                    className="fixed inset-0 z-[999] flex items-center justify-center bg-black bg-opacity-75 overflow-hidden"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
