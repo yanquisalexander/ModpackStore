@@ -25,7 +25,13 @@ jobs:
       # Paso específico de Linux
       - name: Install Linux build dependencies
         run: |
-          apt-get update && apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          apt-get update && apt-get install -y \
+            curl \
+            git \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
 
   publish-canary-windows:
     name: Build & Publish for Windows
