@@ -1,46 +1,53 @@
-# .github/workflows/publish-canary.yml (versión final)
-
 name: Publish Canary
 
 on:
   push:
     branches: [main]
-    paths: ['application/**', '.github/workflows/**']
+    paths:
+      - 'application/**'
+      - '.github/workflows/**'
+      - '.github/actions/**'
 
 jobs:
   publish-canary-linux:
-    name: Build & Publish for Linux
+    name: Build & Publish for Linux (Ubuntu 18.04)
     runs-on: ubuntu-latest
-    permissions: { contents: write }
-    container: { image: ubuntu:20.04 }
+    permissions:
+      contents: write
+    
+    # ✅ Contenedor actualizado a Ubuntu 18.04 para máxima compatibilidad
+    container:
+      image: ubuntu:18.04
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      # ✅ Usas tu acción compuesta para todos los pasos comunes
-      - name: Setup Environment & Build
-        uses: ./.github/actions/setup-and-build # <-- ¡Toda la lógica repetida está aquí!
-        with:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
-      # Paso específico de Linux
+
       - name: Install Linux build dependencies
         run: |
-          apt-get update && apt-get install -y \
+          apt-get update && apt-get install -y --no-install-recommends \
             curl \
             git \
-            libwebkit2gtk-4.1-dev \
+            libwebkit2gtk-4.0-dev \
             libappindicator3-dev \
             librsvg2-dev \
             patchelf
+      
+      - name: Setup Environment & Build
+        uses: ./.github/actions/setup-and-build
+        with:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
 
   publish-canary-windows:
     name: Build & Publish for Windows
     runs-on: windows-latest
-    permissions: { contents: write }
+    permissions:
+      contents: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      # ✅ Reutilizas la misma acción aquí
+      
       - name: Setup Environment & Build
         uses: ./.github/actions/setup-and-build
         with:
