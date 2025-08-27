@@ -59,6 +59,8 @@ fn splash_done(app: tauri::AppHandle) {
 }
 
 pub fn main() {
+    let _ = fix_path_env::fix();
+
     let logs_dir = dirs::config_dir()
         .expect("No se pudo obtener el directorio de configuración")
         .join("dev.alexitoo.modpackstore")

@@ -11,7 +11,9 @@
     "active": true,
     "targets": [
       "msi",
-      "appimage"
+      "appimage",
+      "rpm",
+      "deb"
     ],
     "icon": [
       "icons/32x32.png",
@@ -28,13 +30,13 @@
     },
     "linux": {
       "appimage": {
-        "bundleMediaFramework": false
+        "bundleMediaFramework": true
       }
     }
   },
   "productName": "Modpack Store",
   "mainBinaryName": "ModpackStore",
-  "version": "0.0.238",
+  "version": "0.0.239",
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {
     "updater": {
