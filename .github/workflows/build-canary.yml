@@ -15,7 +15,6 @@ jobs:
     permissions:
       contents: write
     
-    # ✅ Usamos Ubuntu 20.04: el balance perfecto entre compatibilidad y modernidad.
     container:
       image: ubuntu:20.04
 
@@ -23,12 +22,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      # ✅ This step is now corrected
       - name: Install Linux build dependencies
         run: |
           apt-get update && apt-get install -y --no-install-recommends \
             curl \
             git \
-            # El paquete de WebKit para Ubuntu 20.04 es la versión 4.1
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
@@ -39,7 +38,7 @@ jobs:
         with:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
-          
+
 
   publish-canary-windows:
     name: Build & Publish for Windows
