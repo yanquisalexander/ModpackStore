@@ -25,6 +25,7 @@ jobs:
       # ✅ This step is now corrected
       - name: Install Linux build dependencies
         run: |
+          export DEBIAN_FRONTEND=noninteractive
           apt-get update && apt-get install -y --no-install-recommends \
             curl \
             git \
