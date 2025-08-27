@@ -198,7 +198,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const setup = async () => {
       unlisten = await listen<string>('open-instance', (event) => {
         console.log("Shortcut recibido:", event.payload);
-        setPendingInstance(event.payload);
+        // Emitir navegación de inmediato para soportar shortcuts en modo offline
+        window.dispatchEvent(
+          new CustomEvent("navigate-to-instance", { detail: event.payload })
+        );
       });
     };
     setup();

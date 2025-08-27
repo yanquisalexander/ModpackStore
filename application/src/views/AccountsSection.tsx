@@ -6,10 +6,12 @@ import { AccountCard } from "@/components/AccountCard"
 import { AddAccountDialog } from "@/components/AddAccountDialog"
 import { toast } from "sonner"
 import { useGlobalContext } from "@/stores/GlobalContext"
+import { useCheckConnection } from "@/utils/checkConnection"
 
 export const AccountsSection = () => {
     const [accounts, setAccounts] = useState<TauriCommandReturns['get_all_accounts']>([])
     const [loading, setLoading] = useState(true)
+    const { hasInternetAccess } = useCheckConnection()
 
     const { setTitleBarState, titleBarState } = useGlobalContext()
     const fetchAccounts = () => {
@@ -46,7 +48,7 @@ export const AccountsSection = () => {
 
     const handleRemoveAccount = async (uuid: string) => {
         try {
-            await invoke<TauriCommandReturns['remove_account']>('remove_account', { uuid })
+            await invoke<TauriCommandReturns['any']>('remove_account', { uuid })
             fetchAccounts()
             toast.success("Cuenta eliminada", {
                 description: "La cuenta ha sido eliminada correctamente",
@@ -84,7 +86,9 @@ export const AccountsSection = () => {
                         ))}
 
                         {/* Add Account Card */}
-                        <AddAccountDialog onAccountAdded={fetchAccounts} />
+                        {
+                            hasInternetAccess && <AddAccountDialog onAccountAdded={fetchAccounts} />
+                        }
                     </>
                 )}
             </div>

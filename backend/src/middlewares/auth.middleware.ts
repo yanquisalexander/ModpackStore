@@ -108,3 +108,31 @@ export async function requireCreatorAccess(c: Context<{ Variables: AuthVariables
 
     await next();
 }
+
+export async function isOrganizationMember(c: Context<{ Variables: AuthVariables }>, next: Next) {
+    const user = c.get(USER_CONTEXT_KEY) as User
+    const { teamId } = c.req.param();
+    // Print params 
+    console.log(c.req.param())
+    console.log(teamId)
+
+    console.log(c.get(USER_CONTEXT_KEY));
+    console.log('Checking membership for user:', user?.id, 'in organization:', teamId);
+
+    if (!user) {
+        throw new APIError(500, 'Middleware Misconfiguration', 'USER_NOT_IN_CONTEXT');
+    }
+
+    if (!(user instanceof User)) {
+        throw new APIError(500, 'Middleware Misconfiguration', 'USER_TYPE_INVALID');
+    }
+    const userTeams = await user.getTeams();
+    console.log('User teams:', userTeams);
+    const isMember = userTeams.some(team => team.id === teamId);
+
+    if (!isMember) {
+        throw new APIError(403, 'Forbidden', 'USER_NOT_IN_ORGANIZATION');
+    }
+
+    await next();
+}

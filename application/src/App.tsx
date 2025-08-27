@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import "./App.css";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { HomeMainHeader } from "./components/home/MainHeader";
@@ -21,142 +21,129 @@ import { OfflineMode } from "./views/OfflineMode";
 import NoticeTestBuild from "./components/NoticeTestBuild";
 import CommandPalette from "./components/CommandPalette";
 import { CreatorsLayout } from "./components/layouts/CreatorsLayout";
-/* import { CreatorsLayout } from "./components/creators/CreatorsLayout";
-/*  import { AdminLayout } from "./components/admin/AdminLayout";
- */
-// Componente de carga para unificar la presentación
+import { ConfigurationDialog } from "./components/ConfigurationDialog";
+import { useConfigDialog } from "./stores/ConfigDialogContext";
+
+// --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
   <div className="absolute inset-0 flex items-center justify-center min-h-dvh h-full w-full">
     <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
   </div>
 );
 
-// Wrapper components for route parameters
-const PreLaunchInstanceWrapper = () => {
+// CAMBIO 3: Usar hooks directamente en el componente de la ruta
+const PreLaunchPage = () => {
   const { instanceId } = useParams<{ instanceId: string }>();
   return <PreLaunchInstance instanceId={instanceId!} />;
 };
 
-const ModpackOverviewWrapper = () => {
+const ModpackOverviewPage = () => {
   const { modpackId } = useParams<{ modpackId: string }>();
   return <ModpackOverview modpackId={modpackId!} />;
 };
 
-const MyInstancesSectionWrapper = () => {
-  return <MyInstancesSection offlineMode={false} />;
-};
-
+// --- Componente Principal ---
 function App() {
   const { loading: authLoading, isAuthenticated, session } = useAuthentication();
   const { isConnected, isLoading: connectionLoading, hasInternetAccess } = useCheckConnection();
-  const [hasShownConnectionToast, setHasShownConnectionToast] = useState(false);
+  const { isConfigOpen, closeConfigDialog } = useConfigDialog();
   const navigate = useNavigate();
 
-  // Optimizado: Control de notificaciones de conexión con estado para evitar notificaciones duplicadas
+  // CAMBIO 2: Lógica de toasts simplificada y reactiva
   useEffect(() => {
-    const connectionToastId = "connection-check";
+    const connectionToastId = "connection-status";
 
-    // Solo mostrar toast si no se ha mostrado antes o si el estado cambió
-    if (!hasShownConnectionToast) {
-      if (!isConnected) {
-        if (hasInternetAccess) {
-          toast.warning("Servidor no disponible", {
-            id: connectionToastId,
-            duration: 5000,
-            richColors: true,
-            description: "No hemos podido conectarnos al servidor.\n\nAlgunas funciones pueden no estar disponibles.",
-          });
-        } else {
-          toast.warning("Sin conexión a internet", {
-            id: connectionToastId,
-            duration: 5000,
-            richColors: true,
-            description: "No se detectó una conexión a internet activa.\n\nEstás en modo sin conexión.",
-          });
-        }
-      }
-      setHasShownConnectionToast(true);
+    if (!isConnected && !connectionLoading) {
+      const message = hasInternetAccess ? "Servidor no disponible" : "Sin conexión a internet";
+      const description = hasInternetAccess
+        ? "No se ha podido conectar al servidor. Algunas funciones no están disponibles."
+        : "No se detectó una conexión a internet activa. Estás en modo sin conexión.";
+
+      toast.warning(message, {
+        id: connectionToastId,
+        duration: Infinity,
+        richColors: true,
+        description: description,
+      });
+    } else {
+      toast.dismiss(connectionToastId);
     }
-  }, [isConnected, connectionLoading, hasInternetAccess, hasShownConnectionToast]);
+  }, [isConnected, hasInternetAccess, connectionLoading]);
 
-  // Optimizado: Inicialización única con array de dependencias vacío
+  // Efecto de inicialización (sin cambios, ya estaba bien)
   useEffect(() => {
     initAnalytics();
     preloadSounds();
-
-    try {
-      trackEvent("app_launch", {
-        name: "App Launch",
-        timestamp: new Date().toISOString(),
-      });
-    } catch (error) {
-      console.error("Error tracking app launch event:", error);
-    }
+    trackEvent("app_launch");
 
     const handler = (e: Event) => {
       const instanceId = (e as CustomEvent<string>).detail;
       navigate(`/prelaunch/${instanceId}`);
     };
     window.addEventListener("navigate-to-instance", handler);
+    return () => window.removeEventListener("navigate-to-instance", handler);
+  }, [navigate]);
 
-    // Función de limpieza (cleanup) para evitar efectos secundarios
-    return () => {
-      window.removeEventListener("navigate-to-instance", handler);
-    };
-  }, []); // Array vacío para ejecutar solo una vez al montar
-
-  // Mostrar loader en cualquier estado de carga para evitar flashes
   if (authLoading || connectionLoading) {
     return <LoadingScreen />;
   }
 
-  // Si no hay conexión, mostrar el modo sin conexión
-  if (!isConnected) {
-    /* 
-      Minimal router (Offline mode at /) and prelaunch instance
-    */
+  // CAMBIO 1: Lógica de renderizado unificada
+  const renderRoutes = () => {
+    // 1. Modo Sin Conexión
+    if (!isConnected) {
+      return (
+        <Routes>
+          <Route path="/" element={<OfflineMode />} />
+          <Route path="/mc-accounts" element={<AccountsSection />} />
+          <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      );
+    }
+
+    // 2. Usuario no autenticado
+    if (!isAuthenticated) {
+      return (
+        <Routes>
+          <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
+          <Route path="*" element={<Login />} />
+        </Routes>
+      );
+    }
+
+    // 3. Usuario autenticado y conectado
     return (
       <Routes>
-        <Route path="/" element={<OfflineMode />} />
-        <Route path="/prelaunch/:instanceId" element={<PreLaunchInstanceWrapper />} />
+        <Route path="/" element={<ExploreSection />} />
+        <Route path="/my-instances" element={<MyInstancesSection offlineMode={false} />} />
+        <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
+        <Route path="/modpack/:modpackId" element={<ModpackOverviewPage />} />
+        <Route path="/mc-accounts" element={<AccountsSection />} />
+
+        {session?.publisherMemberships && session.publisherMemberships.length > 0 && (
+          <Route path="/creators/*" element={<CreatorsLayout />} />
+        )}
+
         <Route path="*" element={<NotFound />} />
       </Routes>
     );
-  }
+  };
 
-  // Si no hay autenticación, mostrar el login
-  if (!isAuthenticated) {
-    return <Login />;
-  }
-
-  // Si hay conexión, mostrar la aplicación normal
   return (
     <main className="overflow-y-auto h-full">
-      <HomeMainHeader />
+      {/* El header solo se muestra si el usuario está autenticado y conectado */}
+      {isAuthenticated && isConnected && <HomeMainHeader />}
+
       <div className="">
-
-        <Routes>
-          <Route path="/" element={<ExploreSection />} />
-          <Route path="/my-instances" element={<MyInstancesSectionWrapper />} />
-          <Route path="/prelaunch/:instanceId" element={<PreLaunchInstanceWrapper />} />
-          <Route path="/modpack/:modpackId" element={<ModpackOverviewWrapper />} />
-          <Route path="/mc-accounts" element={<AccountsSection />} />
-
-          {/* Admin Layout para admins */}
-          {/* {isAuthenticated && session?.admin && (
-            <Route path="/admin/*" element={<AdminLayout />} />
-          )} */}
-
-          {(session?.publisherMemberships && session.publisherMemberships.length > 0) && (
-            <Route path="/creators/*" element={<CreatorsLayout />} />
-          )}
-
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-        <NoticeTestBuild />
-        <CommandPalette />
-        <KonamiCode />
+        {renderRoutes()}
       </div>
+
+      {/* Componentes globales que siempre están presentes */}
+      <NoticeTestBuild />
+      <CommandPalette />
+      <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />
+      <KonamiCode />
     </main>
   );
 }

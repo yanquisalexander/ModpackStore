@@ -2,6 +2,7 @@ import { AuthVariables, requireAuth, requireCreatorAccess, USER_CONTEXT_KEY } fr
 import { Publisher } from "@/models/Publisher.model";
 import { User } from "@/models/User.model";
 import { Context, Hono } from "hono";
+import { ModpackCreatorsRoute } from "./modpacks.route";
 
 export const CreatorsRoute = new Hono()
 
@@ -19,23 +20,5 @@ CreatorsRoute.get("/teams", async (c: Context<{ Variables: AuthVariables }>) => 
     })
 })
 
-CreatorsRoute.get("/teams/:orgId/modpacks", async (c: Context<{ Variables: AuthVariables }>) => {
-    const user = c.get(USER_CONTEXT_KEY) as User;
-    const { orgId } = c.req.param();
 
-    const userTeams = await user.getTeams();
-    const isMember = userTeams.some(team => team.id === orgId);
-
-    if (!isMember) {
-        return c.json({ message: "Forbidden" });
-    }
-
-    const publisher = await Publisher.findById(orgId);
-
-    if (!publisher) {
-        return c.json({ message: "Publisher not found" });
-    }
-
-    const modpacks = await publisher.getModpacks();
-    return c.json({ modpacks });
-})
+CreatorsRoute.route('/', ModpackCreatorsRoute)
