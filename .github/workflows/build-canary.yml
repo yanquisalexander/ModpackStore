@@ -10,14 +10,14 @@ on:
 
 jobs:
   publish-canary-linux:
-    name: Build & Publish for Linux (Ubuntu 18.04)
+    name: Build & Publish for Linux (Ubuntu 20.04)
     runs-on: ubuntu-latest
     permissions:
       contents: write
     
-    # ✅ Contenedor actualizado a Ubuntu 18.04 para máxima compatibilidad
+    # ✅ Usamos Ubuntu 20.04: el balance perfecto entre compatibilidad y modernidad.
     container:
-      image: ubuntu:18.04
+      image: ubuntu:20.04
 
     steps:
       - name: Checkout repository
@@ -28,7 +28,8 @@ jobs:
           apt-get update && apt-get install -y --no-install-recommends \
             curl \
             git \
-            libwebkit2gtk-4.0-dev \
+            # El paquete de WebKit para Ubuntu 20.04 es la versión 4.1
+            libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
             patchelf
@@ -38,6 +39,7 @@ jobs:
         with:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          
 
   publish-canary-windows:
     name: Build & Publish for Windows
