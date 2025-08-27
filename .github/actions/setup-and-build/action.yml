@@ -1,0 +1,64 @@
+# .github/actions/setup-and-build/action.yml
+
+name: 'Setup Environment and Build'
+description: 'Sets up Node, Rust, caches dependencies, and runs the Tauri build'
+
+# Define las entradas que tu acción necesita (los secrets)
+inputs:
+  TAURI_SIGNING_PRIVATE_KEY:
+    required: true
+    description: 'The private key used for signing Tauri applications'
+  GITHUB_TOKEN:
+    required: true
+    description: 'GitHub token for authentication'
+
+runs:
+  using: "composite" # <-- Le dices a GitHub que es una acción compuesta
+  steps:
+    # --- Todos tus pasos comunes van aquí ---
+    - name: Set up pnpm
+      uses: pnpm/action-setup@v4
+      with:
+        version: 9
+
+    - name: Set up Node.js with pnpm cache
+      uses: actions/setup-node@v4
+      with:
+        node-version: lts/*
+        cache: 'pnpm'
+        cache-dependency-path: './application/pnpm-lock.yaml'
+
+    - name: Install frontend dependencies
+      working-directory: ./application
+      run: pnpm install --frozen-lockfile
+      shell: bash # Especificar el shell es una buena práctica en acciones compuestas
+
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Rust cache
+      uses: swatinem/rust-cache@v2
+      with:
+        workspaces: './application/src-tauri'
+        cache-on-failure: true
+        cache-all-crates: true
+        save-if: ${{ github.ref == 'refs/heads/main' }}
+
+    - name: Build & Publish Canary Release
+      uses: tauri-apps/tauri-action@v0
+      env:
+        # Usa los inputs que definiste arriba
+        TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.TAURI_SIGNING_PRIVATE_KEY }}
+        GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
+        GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
+      with:
+        projectPath: ./application
+        tagName: canary
+        releaseName: Canary Build canary
+        releaseBody: Automated canary build for testing
+        releaseDraft: false
+        releaseCommitish: main
+        prerelease: false
+        includeUpdaterJson: true
+        owner: ModpackStore
+        repo: ModpackStore-Releases
