@@ -83,6 +83,16 @@ impl<'a> ArgumentProcessor<'a> {
             "natives_directory".to_string(),
             self.paths.natives_dir().to_string_lossy().to_string(),
         );
+
+        placeholders.insert(
+            "library_directory".to_string(),
+            self.paths.libraries_dir().to_string_lossy().to_string(),
+        );
+        placeholders.insert(
+            "classpath_separator".to_string(),
+            if cfg!(windows) { ";" } else { ":" }.to_string(),
+        );
+
         placeholders.insert("launcher_name".to_string(), "modpackstore".to_string());
         placeholders.insert("launcher_version".to_string(), "1.0.0".to_string());
 
