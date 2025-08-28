@@ -65,7 +65,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
         setIsLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_ENDPOINT}/creators/teams/${team?.id}/modpacks`, {
+            const res = await fetch(`${API_ENDPOINT}/creators/publishers/${team?.id}/modpacks`, {
                 headers: {
                     Authorization: sessionTokens?.accessToken ? `Bearer ${sessionTokens.accessToken}` : "",
                 },
@@ -106,9 +106,21 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
     };
 
     const confirmDelete = async () => {
+        if (!deletingModpack || !team) return;
+        const res = await fetch(`${API_ENDPOINT}/creators/publishers/${team.id}/modpacks/${deletingModpack.id}`, {
+            method: "DELETE",
+            headers: {
+                Authorization: sessionTokens?.accessToken ? `Bearer ${sessionTokens.accessToken}` : "",
+            },
+        });
+        if (!res.ok) {
+            toast.error("Error al eliminar el modpack");
+            return;
+        }
         setIsDeleteDialogOpen(false);
         setDeletingModpack(null);
-        toast.success("Modpack eliminado (mock)");
+        fetchModpacks();
+        toast.success("Modpack eliminado correctamente");
     };
 
     return (
@@ -154,7 +166,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                         <AlertDialogHeader>
                             <AlertDialogTitle>¿Seguro que quieres eliminar este modpack?</AlertDialogTitle>
                             <AlertDialogDescription>
-                                Esta acción eliminará el modpack de la organización (mock).
+                                Esta acción eliminará el modpack de la organización.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

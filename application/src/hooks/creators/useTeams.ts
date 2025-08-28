@@ -22,7 +22,7 @@ export const useTeams = (accessToken?: string): UseTeamsReturn => {
             }
 
             try {
-                const response = await fetch(`${API_ENDPOINT}/creators/teams`, {
+                const response = await fetch(`${API_ENDPOINT}/creators/publishers`, {
                     method: "GET",
                     headers: {
                         "Authorization": `Bearer ${accessToken}`,

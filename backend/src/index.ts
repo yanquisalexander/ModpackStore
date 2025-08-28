@@ -16,12 +16,14 @@ import swaggerSpec from './config/swaggerConfig'; // Import the generated spec
 // Global JSON:API Error Handling Utilities
 import { serializeError } from './utils/jsonapi';
 import { APIError } from "./lib/APIError";
+import { AppDataSource } from "./db/data-source";
 
 const app = new Hono();
 app.use(logger())
 const port = Number(process.env.PORT) || 3000;
 
 const initializeServices = async (): Promise<void> => {
+  await AppDataSource.initialize();
   // Initialize Passport strategies
   await Passport.setup();
   console.log('Passport setup initialized.');

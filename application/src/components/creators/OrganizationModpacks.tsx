@@ -18,7 +18,7 @@ export const OrganizationModpacksWrapper: React.FC<OrganizationWrapperProps> = (
         // Fetch modpacks for the current team
         const fetchModpacks = async () => {
             try {
-                const response = await fetch(`${API_ENDPOINT}/creators/teams/${orgId}/modpacks`, {
+                const response = await fetch(`${API_ENDPOINT}/creators/publishers/${orgId}/modpacks`, {
                     headers: {
                         "Content-Type": "application/json",
                         "Authorization": `Bearer ${sessionTokens?.accessToken}`,

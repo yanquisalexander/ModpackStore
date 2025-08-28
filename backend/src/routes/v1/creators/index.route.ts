@@ -1,8 +1,8 @@
 import { AuthVariables, requireAuth, requireCreatorAccess, USER_CONTEXT_KEY } from "@/middlewares/auth.middleware";
 import { Publisher } from "@/models/Publisher.model";
-import { User } from "@/models/User.model";
 import { Context, Hono } from "hono";
 import { ModpackCreatorsRoute } from "./modpacks.route";
+import { User } from "@/entities/User";
 
 export const CreatorsRoute = new Hono()
 
@@ -11,12 +11,12 @@ CreatorsRoute.use(requireAuth, requireCreatorAccess, async (c, next) => {
     return await next()
 })
 
-CreatorsRoute.get("/teams", async (c: Context<{ Variables: AuthVariables }>) => {
+CreatorsRoute.get("/publishers", async (c: Context<{ Variables: AuthVariables }>) => {
     const user = c.get(USER_CONTEXT_KEY) as User;
-    const userTeams = await user.getTeams();
+    const publishers = await user.getPublishers();
 
     return c.json({
-        teams: userTeams
+        teams: publishers
     })
 })
 

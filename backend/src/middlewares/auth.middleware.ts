@@ -1,7 +1,7 @@
 import { Context, Next } from 'hono';
 import { verify, JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
-import { User } from '@/models/User.model';
 import { APIError } from '../lib/APIError';
+import { User } from "@/entities/User";
 
 // --- Startup Configuration ---
 // This check runs ONCE when the server starts, not on every request.
@@ -42,9 +42,7 @@ export async function requireAuth(c: Context<{ Variables: AuthVariables }>, next
     try {
         const payload = verify(token, JWT_SECRET) as AuthVariables['jwt_payload'];
 
-        // Use .lean() for a significant performance boost if you only need a plain
-        // JavaScript object and not a full Mongoose document instance.
-        const user = await User.findById(payload.sub)
+        const user = await User.findOne({ where: { id: payload.sub }, relations: ['publisherMemberships'] });
 
         if (!user) {
             throw new APIError(401, 'Unauthorized', 'USER_NOT_FOUND');
@@ -100,9 +98,8 @@ export async function requireCreatorAccess(c: Context<{ Variables: AuthVariables
     if (!(user instanceof User)) {
         throw new APIError(500, 'Middleware Misconfiguration', 'USER_TYPE_INVALID');
     }
-    const completeUser = await User.getCompleteUser(user.id)
 
-    if (completeUser?.publisherMemberships.length === 0) {
+    if (user?.publisherMemberships?.length === 0) {
         throw new APIError(403, 'Forbidden', 'INSUFFICIENT_PERMISSIONS');
     }
 
@@ -111,7 +108,7 @@ export async function requireCreatorAccess(c: Context<{ Variables: AuthVariables
 
 export async function isOrganizationMember(c: Context<{ Variables: AuthVariables }>, next: Next) {
     const user = c.get(USER_CONTEXT_KEY) as User
-    const { teamId } = c.req.param();
+    const { publisherId } = c.req.param();
 
 
     if (!user) {
@@ -121,11 +118,11 @@ export async function isOrganizationMember(c: Context<{ Variables: AuthVariables
     if (!(user instanceof User)) {
         throw new APIError(500, 'Middleware Misconfiguration', 'USER_TYPE_INVALID');
     }
-    const userTeams = await user.getTeams();
-    const isMember = userTeams.some(team => team.id === teamId);
+    const userPublishers = await user.getPublishers();
+    const isMember = userPublishers.some(publisher => publisher.id === publisherId);
 
     if (!isMember) {
-        throw new APIError(403, 'Forbidden', 'USER_NOT_IN_ORGANIZATION');
+        throw new APIError(403, 'Forbidden', 'USER_NOT_IN_PUBLISHER');
     }
 
     await next();

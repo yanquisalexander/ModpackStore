@@ -1,6 +1,12 @@
-import { isOrganizationMember, requireAuth, requireCreatorAccess } from "@/middlewares/auth.middleware";
-import { Modpack, ModpackVisibility } from "@/models/Modpack.model";
+import { Modpack } from "@/entities/Modpack";
+import { User } from "@/entities/User";
+import { APIError } from "@/lib/APIError";
+import { isOrganizationMember, requireAuth, requireCreatorAccess, USER_CONTEXT_KEY } from "@/middlewares/auth.middleware";
+import { ModpackVisibility } from "@/models/Modpack.model";
+import { uploadToR2 } from "@/services/r2UploadService";
+import { PublisherMemberRole } from "@/types/enums";
 import { Hono } from "hono";
+import sharp from "sharp";
 
 export const ModpackCreatorsRoute = new Hono();
 
@@ -10,90 +16,135 @@ ModpackCreatorsRoute.use(requireAuth, requireCreatorAccess, async (c, next) => {
     return await next()
 })
 
-ModpackCreatorsRoute.get("/teams/:teamId/modpacks", isOrganizationMember, async (c) => {
-    const { teamId } = c.req.param();
+ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks", isOrganizationMember, async (c) => {
+    const { publisherId } = c.req.param();
 
-    const modpacks = await Modpack.findByPublisher(teamId);
+    const modpacks = await Modpack.findBy({
+        publisherId
+    });
     return c.json({ modpacks });
 });
 
 
-ModpackCreatorsRoute.patch("/teams/:teamId/modpacks/:modpackId", isOrganizationMember, async (c) => {
-    const { teamId, modpackId } = c.req.param();
+ModpackCreatorsRoute.patch(
+    "/publishers/:publisherId/modpacks/:modpackId",
+    isOrganizationMember,
+    async (c) => {
+        const { publisherId, modpackId } = c.req.param();
 
-    const modpack = await Modpack.findById(modpackId);
-    if (!modpack) return c.notFound();
+        const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
+        if (!modpack) return c.notFound();
 
-    if (!modpack.publisherId || modpack.publisherId !== teamId) {
-        return c.json({ error: "No tienes permiso para editar este modpack" }, 403);
+        if (modpack.publisherId !== publisherId) {
+            return c.json({ error: "No tienes permiso para editar este modpack" }, 403);
+        }
+
+        const body = await c.req.parseBody();
+
+        // --- Procesar banner si viene ---
+        if (body.banner && body.banner instanceof File && body.banner.size > 0) {
+            try {
+                const arrayBuffer = await body.banner.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                const webpBanner = await sharp(buffer).webp().toBuffer();
+
+                const { cdnUrl, url } = await uploadToR2(
+                    `modpacks/${modpackId}/banner`,
+                    webpBanner,
+                    "image/webp"
+                );
+
+                modpack.bannerUrl = `${cdnUrl || url}?t=${Date.now()}`;
+            } catch (error) {
+                console.error("Error processing banner:", error);
+                return c.json({ error: "Failed to process banner" }, 500);
+            }
+        }
+
+        // --- Campos permitidos para update ---
+        const allowedFields: (keyof Modpack)[] = [
+            "name",
+            "slug",
+            "iconUrl",
+            "visibility",
+            "showUserAsPublisher",
+            "status",
+            "description",
+            "versions",
+            "creatorUserId",
+        ];
+
+        for (const field of allowedFields) {
+            if (body[field] !== undefined) {
+                (modpack as any)[field] = body[field];
+            }
+        }
+
+        await modpack.save();
+
+        return c.json({ modpack });
     }
-
-    // Update modpack details
-    const body = await c.req.parseBody();
-
-    console.log("Updating modpack:", modpackId, "with data:", body);
-
-    const updatedModpack = await Modpack.update(modpackId, {
-        ...body,
-    });
-    return c.json({ modpack: updatedModpack });
-});
+);
 
 
-ModpackCreatorsRoute.post("/teams/:teamId/modpacks", isOrganizationMember, async (c) => {
-    const { teamId } = c.req.param();
+ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMember, async (c) => {
+    const { publisherId } = c.req.param();
 
     const body = await c.req.parseBody();
 
     console.log("Creating new modpack with data:", body);
 
-    const {
-        name,
-        slug,
-        iconUrl,
-        bannerUrl,
-        visibility,
-        showUserAsPublisher,
-        status,
-        description,
-        tags,
-        versions,
-        creatorUserId
-    } = body;
+    const allowedFields: (keyof Modpack)[] = [
+        "name",
+        "slug",
+        "iconUrl",
+        "bannerUrl",
+        "visibility",
+        "showUserAsPublisher",
+        "status",
+        "description",
+        "versions",
+        "creatorUserId",
+    ];
 
+    const newModpack = Modpack.create({ publisherId });
 
+    for (const field of allowedFields) {
+        if (body[field] !== undefined) {
+            (newModpack as any)[field] = body[field];
+        }
+    }
 
-    /* export const newModpackSchema = z.object({
-        name: z.string().min(1).max(100),
-        shortDescription: z.string().max(200).optional(),
-        description: z.string().optional(),
-        slug: z.string().min(1).max(50).regex(/^[a-z0-9-]+$/),
-        iconUrl: z.string().url(),
-        bannerUrl: z.string().url(),
-        trailerUrl: z.string().url().optional(),
-        password: z.string().optional(),
-        visibility: z.nativeEnum(ModpackVisibility),
-        status: z.nativeEnum(ModpackStatus).default(ModpackStatus.DRAFT).optional(),
-        publisherId: z.string().uuid(),
-        showUserAsPublisher: z.boolean().default(false),
-        creatorUserId: z.string().uuid().optional(),
-    }); */
+    newModpack.creatorUserId = (c.get(USER_CONTEXT_KEY) as User).id;
 
-    const newModpack = await Modpack.create({
-        name,
-        slug,
-        iconUrl: iconUrl ?? "/icon.png",
-        bannerUrl: bannerUrl ?? "/default-banner.png",
-        visibility,
-        showUserAsPublisher,
-        status,
-        description,
-        tags,
-        versions,
-        creatorUserId,
-        publisherId: teamId,
-    });
-
+    await newModpack.save();
 
     return c.json({ modpack: newModpack });
+});
+
+ModpackCreatorsRoute.delete("/publishers/:publisherId/modpacks/:modpackId", isOrganizationMember, async (c) => {
+    const { publisherId, modpackId } = c.req.param();
+
+    const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
+    if (!modpack) return c.notFound();
+
+    const user = c.get(USER_CONTEXT_KEY) as User;
+
+    console.log("User trying to delete modpack:", user, "Modpack:", modpack);
+    console.log(user.publisherMemberships)
+    const userRole = user?.publisherMemberships?.find(m => m.publisherId === publisherId)?.role;
+    console.log("User role:", userRole);
+
+    // Solo ADMIN, OWNER o el creador del modpack pueden eliminarlo
+    if (
+        userRole !== PublisherMemberRole.ADMIN &&
+        userRole !== PublisherMemberRole.OWNER &&
+        modpack.creatorUserId !== user.id
+    ) {
+        throw new APIError(403, "No tienes permiso para eliminar este modpack")
+    }
+
+    await modpack.remove();
+
+    return c.json({ success: true });
 });

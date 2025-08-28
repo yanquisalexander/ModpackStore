@@ -15,11 +15,12 @@ export class PublisherMember extends BaseEntity {
     @Column({ name: "user_id", type: "uuid" })
     userId: string;
 
-    @Column({ 
-        name: "role", 
-        type: "enum", 
+    @Column({
+        name: "role",
+        type: "enum",
         enum: PublisherMemberRole,
-        enumName: "publisher_member_role"
+        enumName: "publisher_member_role",
+        default: PublisherMemberRole.MEMBER
     })
     role: PublisherMemberRole;
 

@@ -124,7 +124,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                 formData.append('banner', bannerFile);
             }
 
-            const res = await fetch(`${API_ENDPOINT}/creators/teams/${modpack.publisherId}/modpacks/${modpack.id}`, {
+            const res = await fetch(`${API_ENDPOINT}/creators/publishers/${modpack.publisherId}/modpacks/${modpack.id}`, {
                 method: 'PATCH',
                 headers: {
                     // 'Content-Type' es establecido automáticamente por el navegador con FormData

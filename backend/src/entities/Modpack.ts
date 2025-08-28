@@ -37,11 +37,12 @@ export class Modpack extends BaseEntity {
     @Column({ name: "password", type: "text", nullable: true })
     password?: string;
 
-    @Column({ 
-        name: "visibility", 
-        type: "enum", 
+    @Column({
+        name: "visibility",
+        type: "enum",
         enum: ModpackVisibility,
-        enumName: "modpack_visibility"
+        enumName: "modpack_visibility",
+        default: ModpackVisibility.PRIVATE
     })
     visibility: ModpackVisibility;
 
@@ -54,9 +55,9 @@ export class Modpack extends BaseEntity {
     @Column({ name: "creator_user_id", type: "uuid", nullable: true })
     creatorUserId?: string;
 
-    @Column({ 
-        name: "status", 
-        type: "enum", 
+    @Column({
+        name: "status",
+        type: "enum",
         enum: ModpackStatus,
         enumName: "modpack_status",
         default: ModpackStatus.DRAFT

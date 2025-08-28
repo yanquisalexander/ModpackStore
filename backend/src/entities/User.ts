@@ -5,6 +5,7 @@ import { Modpack } from "./Modpack";
 import { ModpackVersion } from "./ModpackVersion";
 import { UserPurchase } from "./UserPurchase";
 import { WalletTransaction } from "./WalletTransaction";
+import { Publisher } from "./Publisher";
 
 @Entity({ name: "users" })
 export class User extends BaseEntity {
@@ -67,4 +68,9 @@ export class User extends BaseEntity {
 
     @OneToMany(() => WalletTransaction, transaction => transaction.relatedUser)
     relatedTransactions: WalletTransaction[];
+
+    async getPublishers(): Promise<Publisher[]> {
+        const memberships = await PublisherMember.find({ where: { user: { id: this.id } }, relations: ["publisher"] });
+        return memberships.map(membership => membership.publisher);
+    }
 }
