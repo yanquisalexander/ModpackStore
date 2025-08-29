@@ -22,13 +22,17 @@ export const NewModpackVersionPage = () => {
     const [forgeVersion, setForgeVersion] = useState("");
     const [changelog, setChangelog] = useState("");
     const [modsZip, setModsZip] = useState<File | null>(null);
-    const [configsZip, setConfigsZip] = useState<File | null>(null);
-    const [resourcesZip, setResourcesZip] = useState<File | null>(null);
+    const [configZip, setConfigZip] = useState<File | null>(null);
+    const [resourcepacksZip, setResourcepacksZip] = useState<File | null>(null);
+    const [shaderpacksZip, setShaderpacksZip] = useState<File | null>(null);
+    const [extrasZip, setExtrasZip] = useState<File | null>(null);
     
     // Refs for file inputs
     const modsInput = useRef<HTMLInputElement>(null);
-    const configsInput = useRef<HTMLInputElement>(null);
-    const resourcesInput = useRef<HTMLInputElement>(null);
+    const configInput = useRef<HTMLInputElement>(null);
+    const resourcepacksInput = useRef<HTMLInputElement>(null);
+    const shaderpacksInput = useRef<HTMLInputElement>(null);
+    const extrasInput = useRef<HTMLInputElement>(null);
     
     // Error states
     const [errors, setErrors] = useState<Record<string, string>>({});
@@ -100,12 +104,20 @@ export const NewModpackVersionPage = () => {
             }
             
             // Upload optional files if provided
-            if (configsZip) {
-                await uploadModpackVersionFile(createdVersion.id, configsZip, 'configs');
+            if (configZip) {
+                await uploadModpackVersionFile(createdVersion.id, configZip, 'config');
             }
             
-            if (resourcesZip) {
-                await uploadModpackVersionFile(createdVersion.id, resourcesZip, 'resources');
+            if (resourcepacksZip) {
+                await uploadModpackVersionFile(createdVersion.id, resourcepacksZip, 'resourcepacks');
+            }
+            
+            if (shaderpacksZip) {
+                await uploadModpackVersionFile(createdVersion.id, shaderpacksZip, 'shaderpacks');
+            }
+            
+            if (extrasZip) {
+                await uploadModpackVersionFile(createdVersion.id, extrasZip, 'extras');
             }
             
             toast.success("Versión creada", {
@@ -235,31 +247,62 @@ export const NewModpackVersionPage = () => {
                         </div>
                         
                         <div>
-                            <Label htmlFor="configsZip">Configs (.zip) - Opcional</Label>
+                            <Label htmlFor="configZip">Config (.zip) - Opcional</Label>
                             <div
                                 className="border-dashed border-2 rounded p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                                onClick={() => configsInput.current?.click()}
-                                onDrop={e => handleDrop(e, f => setConfigsZip(f))}
+                                onClick={() => configInput.current?.click()}
+                                onDrop={e => handleDrop(e, f => setConfigZip(f))}
                                 onDragOver={e => e.preventDefault()}
                             >
                                 <FileArchive size={32} className="mb-2" />
-                                {configsZip ? configsZip.name : "Arrastra aquí el ZIP de configs o haz click para seleccionar"}
-                                <input ref={configsInput} type="file" accept=".zip" className="hidden" onChange={e => setConfigsZip(e.target.files?.[0] || null)} />
+                                {configZip ? configZip.name : "Arrastra aquí el ZIP de config o haz click para seleccionar"}
+                                <input ref={configInput} type="file" accept=".zip" className="hidden" onChange={e => setConfigZip(e.target.files?.[0] || null)} />
                             </div>
                         </div>
                         
                         <div>
-                            <Label htmlFor="resourcesZip">Resources (.zip) - Opcional</Label>
+                            <Label htmlFor="resourcepacksZip">Resourcepacks (.zip) - Opcional</Label>
                             <div
                                 className="border-dashed border-2 rounded p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800"
-                                onClick={() => resourcesInput.current?.click()}
-                                onDrop={e => handleDrop(e, f => setResourcesZip(f))}
+                                onClick={() => resourcepacksInput.current?.click()}
+                                onDrop={e => handleDrop(e, f => setResourcepacksZip(f))}
                                 onDragOver={e => e.preventDefault()}
                             >
                                 <FileArchive size={32} className="mb-2" />
-                                {resourcesZip ? resourcesZip.name : "Arrastra aquí el ZIP de resources o haz click para seleccionar"}
-                                <input ref={resourcesInput} type="file" accept=".zip" className="hidden" onChange={e => setResourcesZip(e.target.files?.[0] || null)} />
+                                {resourcepacksZip ? resourcepacksZip.name : "Arrastra aquí el ZIP de resourcepacks o haz click para seleccionar"}
+                                <input ref={resourcepacksInput} type="file" accept=".zip" className="hidden" onChange={e => setResourcepacksZip(e.target.files?.[0] || null)} />
                             </div>
+                        </div>
+                        
+                        <div>
+                            <Label htmlFor="shaderpacksZip">Shaderpacks (.zip) - Opcional</Label>
+                            <div
+                                className="border-dashed border-2 rounded p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                onClick={() => shaderpacksInput.current?.click()}
+                                onDrop={e => handleDrop(e, f => setShaderpacksZip(f))}
+                                onDragOver={e => e.preventDefault()}
+                            >
+                                <FileArchive size={32} className="mb-2" />
+                                {shaderpacksZip ? shaderpacksZip.name : "Arrastra aquí el ZIP de shaderpacks o haz click para seleccionar"}
+                                <input ref={shaderpacksInput} type="file" accept=".zip" className="hidden" onChange={e => setShaderpacksZip(e.target.files?.[0] || null)} />
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <Label htmlFor="extrasZip">Extras (.zip) - Opcional</Label>
+                            <div
+                                className="border-dashed border-2 rounded p-4 flex flex-col items-center justify-center cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                                onClick={() => extrasInput.current?.click()}
+                                onDrop={e => handleDrop(e, f => setExtrasZip(f))}
+                                onDragOver={e => e.preventDefault()}
+                            >
+                                <FileArchive size={32} className="mb-2" />
+                                {extrasZip ? extrasZip.name : "Arrastra aquí el ZIP de extras o haz click para seleccionar"}
+                                <input ref={extrasInput} type="file" accept=".zip" className="hidden" onChange={e => setExtrasZip(e.target.files?.[0] || null)} />
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                                Los archivos extras se extraen exactamente como están, sin modificaciones.
+                            </p>
                         </div>
                         
                         <Button 

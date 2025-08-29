@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modpack Version Upload Demo</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 30px 0 15px 0;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+        }
+        .section-title:first-of-type {
+            border-top: none;
+            padding-top: 0;
+        }
+        .section-description {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        .form-group {
+            margin-bottom: 24px;
+        }
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        .required {
+            color: #dc2626;
+        }
+        .upload-area {
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            padding: 24px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: #fafafa;
+        }
+        .upload-area:hover {
+            border-color: #3b82f6;
+            background: #f8faff;
+        }
+        .upload-area.required {
+            border-color: #3b82f6;
+            background: #f0f9ff;
+        }
+        .upload-icon {
+            font-size: 32px;
+            color: #6b7280;
+            margin-bottom: 8px;
+        }
+        .upload-text {
+            color: #4b5563;
+            font-size: 14px;
+        }
+        .file-info {
+            color: #059669;
+            font-weight: 500;
+        }
+        .special-note {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 8px;
+            font-style: italic;
+        }
+        .submit-btn {
+            background: #3b82f6;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            margin-top: 30px;
+        }
+        .submit-btn:hover {
+            background: #2563eb;
+        }
+        .upload-grid {
+            display: grid;
+            gap: 20px;
+        }
+        .highlight {
+            background: #eff6ff;
+            border: 1px solid #3b82f6;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .highlight h3 {
+            margin: 0 0 8px 0;
+            color: #1e40af;
+        }
+        .highlight p {
+            margin: 0;
+            color: #374151;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="highlight">
+            <h3>✨ Nueva Funcionalidad: 5 Secciones de Archivos</h3>
+            <p>El sistema ahora soporta 5 tipos de archivos independientes: mods, config, resourcepacks, shaderpacks y extras (con extracción especial sin modificaciones).</p>
+        </div>
+        
+        <h1>Subir nueva versión para Example Modpack</h1>
+        <p class="subtitle">Completa el formulario para crear una nueva versión del modpack</p>
+        
+        <div class="section-title">Información de la versión</div>
+        <div class="form-group">
+            <label>Versión <span class="required">*</span></label>
+            <input type="text" placeholder="1.0.0" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 4px;">
+        </div>
+        
+        <div class="section-title">Archivos del modpack</div>
+        <div class="section-description">
+            Sube los archivos necesarios para esta versión del modpack. El archivo de mods es obligatorio.
+        </div>
+        
+        <div class="upload-grid">
+            <div class="form-group">
+                <label>Mods (.zip) <span class="required">*</span></label>
+                <div class="upload-area required">
+                    <div class="upload-icon">📦</div>
+                    <div class="upload-text">Arrastra aquí el ZIP de mods o haz click para seleccionar</div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Config (.zip) - Opcional</label>
+                <div class="upload-area">
+                    <div class="upload-icon">⚙️</div>
+                    <div class="upload-text">Arrastra aquí el ZIP de config o haz click para seleccionar</div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Resourcepacks (.zip) - Opcional</label>
+                <div class="upload-area">
+                    <div class="upload-icon">🎨</div>
+                    <div class="upload-text">Arrastra aquí el ZIP de resourcepacks o haz click para seleccionar</div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Shaderpacks (.zip) - Opcional</label>
+                <div class="upload-area">
+                    <div class="upload-icon">✨</div>
+                    <div class="upload-text">Arrastra aquí el ZIP de shaderpacks o haz click para seleccionar</div>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Extras (.zip) - Opcional</label>
+                <div class="upload-area">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">Arrastra aquí el ZIP de extras o haz click para seleccionar</div>
+                </div>
+                <div class="special-note">
+                    ⚠️ Los archivos extras se extraen exactamente como están, sin modificaciones.
+                </div>
+            </div>
+        </div>
+        
+        <button class="submit-btn">
+            📤 Subir versión
+        </button>
+    </div>
+</body>
+</html>

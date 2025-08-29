@@ -214,11 +214,11 @@ router.delete(
 
 /**
  * @openapi
- * /modpacks/{modpackId}/versions/{versionId}/configs:
+ * /modpacks/{modpackId}/versions/{versionId}/config:
  *   post:
- *     summary: Upload configs file for a modpack version
+ *     summary: Upload config file for a modpack version
  *     tags: [Versions]
- *     description: Uploads the configs archive (ZIP) for a specific version. User must have management permissions.
+ *     description: Uploads the config archive (ZIP) for a specific version. User must have management permissions.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -231,13 +231,13 @@ router.delete(
  *           schema:
  *             type: object
  *             properties:
- *               configsFile:
+ *               configFile:
  *                 type: string
  *                 format: binary
- *                 description: The configs ZIP archive file.
+ *                 description: The config ZIP archive file.
  *     responses:
  *       200:
- *         description: Configs file uploaded successfully. Returns updated version details.
+ *         description: Config file uploaded successfully. Returns updated version details.
  *         content:
  *           application/vnd.api+json:
  *             schema:
@@ -250,11 +250,11 @@ router.delete(
 
 /**
  * @openapi
- * /modpacks/{modpackId}/versions/{versionId}/resources:
+ * /modpacks/{modpackId}/versions/{versionId}/resourcepacks:
  *   post:
- *     summary: Upload resources file for a modpack version
+ *     summary: Upload resourcepacks file for a modpack version
  *     tags: [Versions]
- *     description: Uploads the resources archive (ZIP) for a specific version. User must have management permissions.
+ *     description: Uploads the resourcepacks archive (ZIP) for a specific version. User must have management permissions.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -267,13 +267,85 @@ router.delete(
  *           schema:
  *             type: object
  *             properties:
- *               resourcesFile:
+ *               resourcepacksFile:
  *                 type: string
  *                 format: binary
- *                 description: The resources ZIP archive file.
+ *                 description: The resourcepacks ZIP archive file.
  *     responses:
  *       200:
- *         description: Resources file uploaded successfully. Returns updated version details.
+ *         description: Resourcepacks file uploaded successfully. Returns updated version details.
+ *         content:
+ *           application/vnd.api+json:
+ *             schema:
+ *               $ref: '#/components/schemas/VersionFileUploadResponse'
+ *       400: { description: "Bad Request (no file, invalid type/size)" }
+ *       401: { description: "Unauthorized" }
+ *       403: { description: "Forbidden" }
+ *       404: { description: "Modpack or Version not found" }
+ */
+
+/**
+ * @openapi
+ * /modpacks/{modpackId}/versions/{versionId}/shaderpacks:
+ *   post:
+ *     summary: Upload shaderpacks file for a modpack version
+ *     tags: [Versions]
+ *     description: Uploads the shaderpacks archive (ZIP) for a specific version. User must have management permissions.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/ModpackIdPath'
+ *       - $ref: '#/components/parameters/VersionIdPath'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               shaderpacksFile:
+ *                 type: string
+ *                 format: binary
+ *                 description: The shaderpacks ZIP archive file.
+ *     responses:
+ *       200:
+ *         description: Shaderpacks file uploaded successfully. Returns updated version details.
+ *         content:
+ *           application/vnd.api+json:
+ *             schema:
+ *               $ref: '#/components/schemas/VersionFileUploadResponse'
+ *       400: { description: "Bad Request (no file, invalid type/size)" }
+ *       401: { description: "Unauthorized" }
+ *       403: { description: "Forbidden" }
+ *       404: { description: "Modpack or Version not found" }
+ */
+
+/**
+ * @openapi
+ * /modpacks/{modpackId}/versions/{versionId}/extras:
+ *   post:
+ *     summary: Upload extras file for a modpack version
+ *     tags: [Versions]
+ *     description: Uploads the extras archive (ZIP) for a specific version. Files are extracted as-is without modifications. User must have management permissions.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - $ref: '#/components/parameters/ModpackIdPath'
+ *       - $ref: '#/components/parameters/VersionIdPath'
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               extrasFile:
+ *                 type: string
+ *                 format: binary
+ *                 description: The extras ZIP archive file.
+ *     responses:
+ *       200:
+ *         description: Extras file uploaded successfully. Returns updated version details.
  *         content:
  *           application/vnd.api+json:
  *             schema:
@@ -292,18 +364,34 @@ router.post(
 );
 
 router.post(
-  '/:versionId/configs',
+  '/:versionId/config',
   requireAuth,
   validateCanManageModpack,
-  upload.single('configsFile'), // Field name for the configs file
+  upload.single('configFile'), // Field name for the config file
   UserModpacksController.uploadModpackVersionFile, // Reuse the same controller method
 );
 
 router.post(
-  '/:versionId/resources',
+  '/:versionId/resourcepacks',
   requireAuth,
   validateCanManageModpack,
-  upload.single('resourcesFile'), // Field name for the resources file
+  upload.single('resourcepacksFile'), // Field name for the resourcepacks file
+  UserModpacksController.uploadModpackVersionFile, // Reuse the same controller method
+);
+
+router.post(
+  '/:versionId/shaderpacks',
+  requireAuth,
+  validateCanManageModpack,
+  upload.single('shaderpacksFile'), // Field name for the shaderpacks file
+  UserModpacksController.uploadModpackVersionFile, // Reuse the same controller method
+);
+
+router.post(
+  '/:versionId/extras',
+  requireAuth,
+  validateCanManageModpack,
+  upload.single('extrasFile'), // Field name for the extras file
   UserModpacksController.uploadModpackVersionFile, // Reuse the same controller method
 );
 
