@@ -8,10 +8,17 @@ export const useTitleBar = (isOrgRoute: boolean, teams: any[], orgId?: string) =
 
     useEffect(() => {
         if (isOrgRoute) {
-
             const currentTeam = teams.find(team => team.id === orgId);
+
+            // Si no hay teams cargados o no se encuentra el team, mostrar un título genérico
+            const title = currentTeam?.publisherName
+                ? `Administrando ${currentTeam.publisherName}`
+                : teams.length === 0
+                    ? "Cargando organización..."
+                    : "Organización no encontrada";
+
             setTitleBarState({
-                title: `Administrando ${currentTeam?.publisherName}`,
+                title,
                 canGoBack: { history: true },
                 opaque: true,
                 icon: Users,
@@ -26,5 +33,5 @@ export const useTitleBar = (isOrgRoute: boolean, teams: any[], orgId?: string) =
                 customIconClassName: "text-blue-500",
             });
         }
-    }, [isOrgRoute, orgId, setTitleBarState]);
+    }, [isOrgRoute, orgId, teams, setTitleBarState]);
 };

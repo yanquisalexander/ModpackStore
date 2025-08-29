@@ -1,6 +1,6 @@
 // components/CreatorsRoutes.tsx
 import React from "react";
-import { Routes, Route, useParams } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 import {
     OrganizationWrapper,
 
@@ -9,6 +9,7 @@ import {
 } from "./OrganizationWrappers";
 import { OrganizationModpacksWrapper } from "./OrganizationModpacks";
 import { OrganizationModpacksView } from "@/views/creator/OrganizationModpacksView";
+import ModpackVersionDetailView from "@/views/creator/ModpackVersionDetailView";
 
 interface CreatorsRoutesProps {
     teams: any;
@@ -24,6 +25,7 @@ export const CreatorsRoutes: React.FC<CreatorsRoutesProps> = ({ teams }) => {
             <Route path="org/:orgId/modpacks" element={<OrganizationModpacksView teams={teams} />} />
             <Route path="org/:orgId/members" element={<OrganizationMembersWrapper teams={teams} />} />
             <Route path="org/:orgId/settings" element={<OrganizationSettingsWrapper teams={teams} />} />
+            <Route path="org/:orgId/modpacks/:modpackId/versions/:versionId" element={<ModpackVersionDetailView />} />
         </Routes>
     );
 };

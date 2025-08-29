@@ -1,6 +1,9 @@
 import { client } from "@/db/client";
+import { Modpack } from "@/entities/Modpack";
 import { ModpacksTable, CategoriesTable } from "@/db/schema"; // Added CategoriesTable for types
 import { and, asc, eq, ilike, not } from "drizzle-orm";
+import { getRepository } from "typeorm";
+import { ModpackStatus, ModpackVisibility } from "@/types/enums";
 
 // TODO: Replace console.log with a dedicated logger solution throughout the service.
 
@@ -30,52 +33,42 @@ export const getExploreModpacks = async (): Promise<GroupedModpackResult[]> => {
     try {
         const totalLimit = 100; // Limit for the initial fetch
 
-        const fetchedModpacks = await client.query.ModpacksTable.findMany({
-            where: not(eq(ModpacksTable.visibility, "private")),
-            columns: { // Explicitly list all needed columns, exclude sensitive ones
-                id: true, name: true, shortDescription: true, description: true, slug: true,
-                iconUrl: true, bannerUrl: true, trailerUrl: true, visibility: true, status: true,
-                createdAt: true, updatedAt: true, showUserAsPublisher: true
-                // Excluded: password, publisherId, creatorUserId (fetched via relations if needed for context)
-            },
-            with: {
-                creatorUser: { columns: { username: true, avatarUrl: true } },
-                publisher: { columns: { id: true, publisherName: true, verified: true, partnered: true, isHostingPartner: true } },
-                categories: {
-                    columns: { /* No columns needed from the join table itself */ },
-                    with: { category: { columns: { id: true, name: true, shortDescription: true } } }
-                }
-            },
-            orderBy: asc(ModpacksTable.name), // Initial sort, might be re-sorted after grouping
-            limit: totalLimit
+        const fetchedModpacks = await Modpack.find({
+            where: { visibility: ModpackVisibility.PUBLIC, status: ModpackStatus.PUBLISHED },
+            relations: ["creatorUser", "publisher", "categories.category"],
+            take: totalLimit,
+            order: { name: "ASC" },
         });
 
-        // Type assertion for the result of the query, if needed, or map explicitly
-        const modpacksWithTypedCategories = fetchedModpacks.map(mp => ({
-            ...mp,
-            categories: mp.categories.map(c => c.category) as CategoryInModpack[] // Ensure category is properly typed
-        }));
-
-        const groupedByCategory: Record<string, GroupedModpackResult> = modpacksWithTypedCategories.reduce(
+        const groupedByCategory: Record<string, GroupedModpackResult> = fetchedModpacks.reduce(
             (acc, modpack) => {
-                const { categories: modpackCategories, ...cleanModpack } = modpack; // `categories` here is the array of CategoryInModpack
-                const modpackDataToStore: ModpackForExplore = cleanModpack;
+                const { categories: modpackCategories, ...cleanModpack } = modpack;
+                const modpackDataToStore: ModpackForExplore = {
+                    ...cleanModpack,
+                    shortDescription: cleanModpack.shortDescription || null,
+                    description: cleanModpack.description || null,
+                };
 
                 if (!modpackCategories || modpackCategories.length === 0) {
                     const uncategorizedId = "uncategorized";
                     if (!acc[uncategorizedId]) {
                         acc[uncategorizedId] = {
-                            id: uncategorizedId, name: "Uncategorized", modpacks: [],
+                            id: uncategorizedId,
+                            name: "Uncategorized",
+                            modpacks: [],
                         };
                     }
                     if (acc[uncategorizedId].modpacks.length < 10) {
                         acc[uncategorizedId].modpacks.push(modpackDataToStore);
                     }
                 } else {
-                    modpackCategories.forEach((category) => {
+                    modpackCategories.forEach(({ category }) => {
                         if (!acc[category.id]) {
                             acc[category.id] = {
-                                id: category.id, name: category.name, shortDescription: category.shortDescription, modpacks: [],
+                                id: category.id,
+                                name: category.name,
+                                shortDescription: category.shortDescription || null,
+                                modpacks: [],
                             };
                         }
                         if (acc[category.id].modpacks.length < 10) {
@@ -84,7 +77,9 @@ export const getExploreModpacks = async (): Promise<GroupedModpackResult[]> => {
                     });
                 }
                 return acc;
-            }, {} as Record<string, GroupedModpackResult>);
+            },
+            {} as Record<string, GroupedModpackResult>
+        );
 
         const categoriesArray = Object.values(groupedByCategory);
         categoriesArray.sort((a, b) => a.name.localeCompare(b.name));
@@ -92,11 +87,12 @@ export const getExploreModpacks = async (): Promise<GroupedModpackResult[]> => {
             category.modpacks.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
         });
 
-        console.log(`[SERVICE_MODPACKS] Processed ${categoriesArray.length} categories for explore page.`);
+        console.log(
+            `[SERVICE_MODPACKS] Processed ${categoriesArray.length} categories for explore page.`
+        );
         return categoriesArray;
     } catch (error: any) {
         console.error("[SERVICE_MODPACKS] Error in getExploreModpacks:", error);
-        // It's often better to throw a custom service error or the original error for controller to handle
         throw new Error(`Failed to fetch explore modpacks: ${error.message}`);
     }
 };
@@ -104,27 +100,7 @@ export const getExploreModpacks = async (): Promise<GroupedModpackResult[]> => {
 export const searchModpacks = async (query: string, limit = 25): Promise<ModpackForExplore[]> => {
     console.log(`[SERVICE_MODPACKS] Searching modpacks with query: "${query}"`);
     try {
-        const modpacks = await client.query.ModpacksTable.findMany({
-            where: and(
-                not(eq(ModpacksTable.visibility, "private")),
-                ilike(ModpacksTable.name, `%${query}%`)
-            ),
-            columns: { // Asegúrate de incluir el id aquí
-                id: true, name: true, shortDescription: true, description: true, slug: true,
-                iconUrl: true, bannerUrl: true, trailerUrl: true, visibility: true, status: true,
-                createdAt: true, updatedAt: true, showUserAsPublisher: true
-            },
-            with: {
-                creatorUser: { columns: { username: true, avatarUrl: true } },
-                publisher: { columns: { id: true, publisherName: true, verified: true, partnered: true, isHostingPartner: true } },
-                categories: {
-                    columns: {},
-                    with: { category: { columns: { id: true, name: true } } }
-                }
-            },
-            orderBy: asc(ModpacksTable.name),
-            limit
-        });
+        const modpacks = await Modpack.search(query, limit);
 
         console.log(`[SERVICE_MODPACKS] Found ${modpacks.length} modpacks for query "${query}".`);
         // El id ya está incluido en cleanModpack

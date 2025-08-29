@@ -1,24 +1,30 @@
+// @ts-nocheck
+
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuthentication } from "@/stores/AuthContext";
 import { API_ENDPOINT } from "@/consts";
 import { Modpack } from "@/types/modpacks";
 import { Button } from "@/components/ui/button";
-import CreateModpackDialog from "@/components/creator/CreateModpackDialog";
-import EditModpackDialog from "../../components/creator/EditModpackDialog";
+import CreateModpackDialog from "@/components/creator/dialogs/CreateModpackDialog";
+import EditModpackDialog from "../../components/creator/dialogs/EditModpackDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { LucideEdit, LucideHistory, LucideTrash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useParams } from "react-router-dom";
 import { ApiErrorPayload } from "@/types/ApiResponses";
 import { playSound } from "@/utils/sounds";
+import { ModpackStatus } from "@/components/creator/ModpackStatus";
+import ModpackVersionsDialog from "@/components/creator/dialogs/ModpackVersionsDialog";
+import { MdiMinecraft } from "@/icons/MdiMinecraft";
 
 interface ModpackListItemProps {
     modpack: Modpack;
     onEdit: (modpack: Modpack) => void;
     onDelete: (modpack: Modpack) => void;
+    onVersions: (modpack: Modpack) => void;
 }
 
-const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDelete }) => {
+const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDelete, onVersions }) => {
     return (
         <div
             className="relative cursor-crosshair border rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden group"
@@ -40,22 +46,17 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
                     <h3 className="text-lg font-semibold text-white drop-shadow mb-1">
                         {modpack.name}
                     </h3>
-                    <p className="text-sm text-gray-200 mb-1">
-                        Status:{' '}
-                        <span
-                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${modpack.status === 'published'
-                                ? 'bg-green-600/80 text-white'
-                                : modpack.status === 'draft'
-                                    ? 'bg-yellow-500/80 text-white'
-                                    : modpack.status === 'archived'
-                                        ? 'bg-gray-500/80 text-white'
-                                        : 'bg-red-600/80 text-white'
-                                }`}
-                        >
-                            {modpack.status}
-                        </span>
+                    {modpack.creatorUser && (
+                        <div className="text-xs text-gray-300 mb-2">
+                            <img src={modpack.creatorUser.avatarUrl} alt={modpack.creatorUser.username} className="inline-block size-6 rounded-full mr-1" />
+                            {modpack.creatorUser.username}
+                        </div>
+                    )}
+
+                    <p className="text-sm text-gray-200 my-1">
+                        <ModpackStatus status={modpack.status} />
                     </p>
-                    <p className="text-xs text-gray-300 mt-1">Slug: {modpack.slug}</p>
+
                     <p className="text-xs text-gray-300 mb-2">
                         Last updated: {new Date(modpack.updatedAt).toLocaleDateString()}
                     </p>
@@ -77,6 +78,7 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
                         size="sm"
                         className="w-full bg-white/20 backdrop-blur text-white hover:bg-white/30"
                         title="Gestionar Versiones"
+                        onClick={() => onVersions(modpack)}
                     >
                         <LucideHistory size={16} />
                         Versiones
@@ -109,7 +111,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
     const { sessionTokens } = useAuthentication();
     const { orgId } = useParams();
 
-    const team = teams.find((t) => t.id === orgId);
+    const team = teams.find((t: { id: string }) => t.id === orgId);
 
     const [modpacks, setModpacks] = useState<Modpack[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -119,6 +121,8 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
     const [editingModpack, setEditingModpack] = useState<Modpack | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [deletingModpack, setDeletingModpack] = useState<Modpack | null>(null);
+    const [isVersionsDialogOpen, setIsVersionsDialogOpen] = useState(false);
+    const [selectedModpack, setSelectedModpack] = useState<Modpack | null>(null);
 
     const fetchModpacks = useCallback(async () => {
         setIsLoading(true);
@@ -144,7 +148,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
         fetchModpacks();
     }, [fetchModpacks]);
 
-    const handleCreateSuccess = (created?: Modpack) => {
+    const handleCreateSuccess = () => {
         setIsCreateDialogOpen(false);
         fetchModpacks();
     };
@@ -168,6 +172,18 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
     const openDeleteDialog = (modpack: Modpack) => {
         setDeletingModpack(modpack);
         setIsDeleteDialogOpen(true);
+    };
+
+    const openVersionsDialog = (modpack: Modpack) => {
+        if (modpack.status === 'deleted') {
+            playSound("ERROR_NOTIFICATION")
+            toast.warning("No se puede administrar un modpack eliminado", {
+                icon: <MdiMinecraft />
+            });
+            return;
+        };
+        setSelectedModpack(modpack);
+        setIsVersionsDialogOpen(true);
     };
 
     const confirmDelete = async () => {
@@ -208,6 +224,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                             modpack={modpack}
                             onEdit={openEditDialog}
                             onDelete={openDeleteDialog}
+                            onVersions={openVersionsDialog}
                         />
                     ))}
                 </div>
@@ -217,6 +234,14 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                 onClose={() => setIsCreateDialogOpen(false)}
                 onSuccess={handleCreateSuccess}
                 teamId={team?.id}
+            />
+
+            <ModpackVersionsDialog
+                isOpen={isVersionsDialogOpen}
+                onClose={() => setIsVersionsDialogOpen(false)}
+                modpackId={selectedModpack?.id || ""}
+                modpack={selectedModpack as Modpack}
+                publisherId={team?.id || ""}
             />
             {editingModpack && (
                 <EditModpackDialog

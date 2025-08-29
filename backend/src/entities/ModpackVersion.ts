@@ -21,12 +21,12 @@ export class ModpackVersion extends BaseEntity {
     @Column({ name: "forge_version", type: "text", nullable: true })
     forgeVersion?: string;
 
-    @Column({ name: "changelog", type: "text" })
+    @Column({ name: "changelog", type: "text", nullable: true })
     changelog: string;
 
-    @Column({ 
-        name: "status", 
-        type: "enum", 
+    @Column({
+        name: "status",
+        type: "enum",
         enum: ModpackVersionStatus,
         enumName: "modpack_version_status",
         default: ModpackVersionStatus.DRAFT

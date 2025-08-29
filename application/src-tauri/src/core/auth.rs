@@ -322,7 +322,9 @@ mod session {
             }
             Err(e) => {
                 eprintln!("Error al renovar tokens: {}", e);
-                storage::remove_tokens(app_handle).await?;
+                if !e.contains("530") {
+                    storage::remove_tokens(app_handle).await?;
+                }
                 events::emit_auth_status_changed(None);
                 Ok(None)
             }

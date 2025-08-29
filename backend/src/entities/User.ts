@@ -6,6 +6,7 @@ import { ModpackVersion } from "./ModpackVersion";
 import { UserPurchase } from "./UserPurchase";
 import { WalletTransaction } from "./WalletTransaction";
 import { Publisher } from "./Publisher";
+import { PublisherMemberRole } from "@/types/enums";
 
 @Entity({ name: "users" })
 export class User extends BaseEntity {
@@ -72,5 +73,10 @@ export class User extends BaseEntity {
     async getPublishers(): Promise<Publisher[]> {
         const memberships = await PublisherMember.find({ where: { user: { id: this.id } }, relations: ["publisher"] });
         return memberships.map(membership => membership.publisher);
+    }
+
+    async getRoleInPublisher(publisherId: string): Promise<PublisherMemberRole | null> {
+        const membership = await PublisherMember.findOne({ where: { user: { id: this.id }, publisher: { id: publisherId } } });
+        return membership ? membership.role : null;
     }
 }

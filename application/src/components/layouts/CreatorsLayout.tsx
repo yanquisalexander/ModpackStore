@@ -5,7 +5,6 @@ import { getBaseNavItems, getOrgNavItems } from "../creators/navigation";
 import { ErrorScreen } from "@/components/ErrorScreen";
 import { CreatorsRoutes } from "../creators/CreatorsRoutes";
 import { CreatorsSidebar } from "../creators/CreatorsSidebar";
-import { LoaderCircle } from "lucide-react";
 import { useTitleBar } from "@/hooks/creators/useTitleBar";
 import { useTeams } from "@/hooks/creators/useTeams";
 import { ArmadilloLoading } from "../ArmadilloLoading";
@@ -35,6 +34,8 @@ export const CreatorsLayout = () => {
 
     // Custom hooks
     const { teams, isLoading, error } = useTeams(sessionTokens?.accessToken);
+
+    // Hook para configurar la barra de título
     useTitleBar(isOrgRoute, teams, orgId);
 
     // Configurar elementos de navegación

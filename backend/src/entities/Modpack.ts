@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, BaseEntity } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, BaseEntity, Like } from "typeorm";
 import { Publisher } from "./Publisher";
 import { User } from "./User";
 import { ModpackCategory } from "./ModpackCategory";
@@ -100,5 +100,12 @@ export class Modpack extends BaseEntity {
     @OneToMany(() => WalletTransaction, transaction => transaction.relatedModpack, { cascade: true })
     relatedTransactions: WalletTransaction[];
 
-
+    static async search(query: string, limit: number = 25): Promise<Modpack[]> {
+        return this.createQueryBuilder("modpack")
+            .where("modpack.visibility = :visibility", { visibility: "public" })
+            .andWhere("modpack.status = :status", { status: "published" })
+            .andWhere("modpack.name LIKE :query", { query: `%${query}%` })
+            .limit(limit)
+            .getMany();
+    }
 }
