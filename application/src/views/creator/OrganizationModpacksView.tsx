@@ -38,7 +38,7 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
             />
 
             {/* Overlay degradado */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-black/95 via-black/80 to-transparent" />
 
             {/* Contenido */}
             <div className="relative z-10 flex flex-col justify-between h-full p-4">

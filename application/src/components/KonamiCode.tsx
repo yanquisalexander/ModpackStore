@@ -107,7 +107,7 @@ export const KonamiCode = () => {
                 id="konami"
                 ref={konamiRef}
                 aria-hidden="true"
-                className="pointer-events-none z-[1001] opacity-0 fixed transition-opacity inset-0 flex items-center justify-center bg-black/50 text-white font-bold text-lg"
+                className="pointer-events-none z-[9999] opacity-0 fixed transition-opacity inset-0 flex items-center justify-center bg-black/50 text-white font-bold text-lg"
             >
                 <div className="flex flex-col items-center justify-center">
                     <span className="fixed bottom-16 flex items-center gap-2">
