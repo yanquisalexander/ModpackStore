@@ -10,6 +10,7 @@ import { LucideEdit, LucideHistory, LucideTrash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useParams } from "react-router-dom";
 import { ApiErrorPayload } from "@/types/ApiResponses";
+import { playSound } from "@/utils/sounds";
 
 interface ModpackListItemProps {
     modpack: Modpack;
@@ -19,33 +20,86 @@ interface ModpackListItemProps {
 
 const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDelete }) => {
     return (
-        <div className="p-4 border rounded-lg shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
-            <div>
-                <img src={modpack.iconUrl || '/images/modpack-fallback.webp'} alt={modpack.name} className="w-full h-32 object-cover rounded-md mb-3" />
-                <h3 className="text-lg font-semibold mb-1">{modpack.name}</h3>
-                <p className="text-sm text-gray-600 mb-1">Status: <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${modpack.status === 'published' ? 'bg-green-100 text-green-800' : modpack.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : modpack.status === 'archived' ? 'bg-gray-100 text-gray-700' : 'bg-red-100 text-red-700'}`}>{modpack.status}</span></p>
-                <p className="text-xs text-gray-500 mt-1">Slug: {modpack.slug}</p>
-                <p className="text-xs text-gray-500 mb-2">Last updated: {new Date(modpack.updatedAt).toLocaleDateString()}</p>
-            </div>
-            <div className="grid grid-cols-3 gap-2 mt-3">
-                <Button variant="outline" size="sm" onClick={() => onEdit(modpack)} title="Editar Modpack">
-                    <LucideEdit size={16} />
-                </Button>
-                <Button variant="outline" size="sm" className="w-full" title="Gestionar Versiones">
-                    <LucideHistory size={16} />
-                </Button>
-                {
-                    modpack.status !== 'deleted' && (
-                        <Button variant="destructive" size="sm" onClick={() => onDelete(modpack)} title="Eliminar Modpack">
-                            <LucideTrash2 size={16} />
-                        </Button>
-                    )
-                }
-            </div>
+        <div
+            className="relative cursor-crosshair border rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden group"
+        >
+            {/* Imagen de fondo con efecto scale */}
+            <div
+                className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
+                style={{
+                    backgroundImage: `url(${modpack.bannerUrl || '/images/modpack-fallback.webp'})`,
+                }}
+            />
 
+            {/* Overlay degradado */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-transparent" />
+
+            {/* Contenido */}
+            <div className="relative z-10 flex flex-col justify-between h-full p-4">
+                <div>
+                    <h3 className="text-lg font-semibold text-white drop-shadow mb-1">
+                        {modpack.name}
+                    </h3>
+                    <p className="text-sm text-gray-200 mb-1">
+                        Status:{' '}
+                        <span
+                            className={`px-2 py-0.5 rounded-full text-xs font-medium ${modpack.status === 'published'
+                                ? 'bg-green-600/80 text-white'
+                                : modpack.status === 'draft'
+                                    ? 'bg-yellow-500/80 text-white'
+                                    : modpack.status === 'archived'
+                                        ? 'bg-gray-500/80 text-white'
+                                        : 'bg-red-600/80 text-white'
+                                }`}
+                        >
+                            {modpack.status}
+                        </span>
+                    </p>
+                    <p className="text-xs text-gray-300 mt-1">Slug: {modpack.slug}</p>
+                    <p className="text-xs text-gray-300 mb-2">
+                        Last updated: {new Date(modpack.updatedAt).toLocaleDateString()}
+                    </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 mt-3">
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => onEdit(modpack)}
+                        title="Editar Modpack"
+                        className="bg-white/20 backdrop-blur text-white hover:bg-white/30"
+                    >
+                        <LucideEdit size={16} />
+                        Editar
+                    </Button>
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        className="w-full bg-white/20 backdrop-blur text-white hover:bg-white/30"
+                        title="Gestionar Versiones"
+                    >
+                        <LucideHistory size={16} />
+                        Versiones
+                    </Button>
+                    {modpack.status !== 'deleted' && (
+                        <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => onDelete(modpack)}
+                            title="Eliminar Modpack"
+                            className="bg-red-600/80 hover:bg-red-700/90"
+                        >
+                            <LucideTrash2 size={16} />
+                            Eliminar
+                        </Button>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };
+
+
 
 interface OrganizationModpacksViewProps {
     teams: any;
@@ -102,6 +156,11 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
     };
 
     const openEditDialog = (modpack: Modpack) => {
+        if (modpack.status === 'deleted') {
+            playSound("ERROR_NOTIFICATION")
+            toast.warning("No se puede editar un modpack eliminado");
+            return;
+        };
         setEditingModpack(modpack);
         setIsEditDialogOpen(true);
     };
@@ -142,7 +201,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                 <p className="text-center py-8 text-gray-600">Esta organización no tiene modpacks aún.</p>
             )}
             {!isLoading && !error && modpacks.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2  gap-6">
                     {modpacks.map((modpack) => (
                         <ModpackListItem
                             key={modpack.id}
