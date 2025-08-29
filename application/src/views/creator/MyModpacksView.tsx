@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {Link as WouterLink, useNavigate } from "react-router-dom"; // Import Link for navigation and useLocation
+import { Link as WouterLink, useNavigate } from "react-router-dom"; // Import Link for navigation and useLocation
 import { Modpack } from '@/types/modpacks';
 import { getUserModpacks, deleteModpack, ApiError } from '@/services/userModpacks';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
   return (
     <div className="p-4 border rounded-lg shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
       <div>
-        <img src={modpack.iconUrl || '/placeholder-icon.png'} alt={modpack.name} className="w-full h-32 object-cover rounded-md mb-3" />
+        <img src={modpack.iconUrl || '/images/modpack-fallback.webp'} alt={modpack.name} className="w-full h-32 object-cover rounded-md mb-3" />
         <h3 className="text-lg font-semibold mb-1">{modpack.name}</h3>
         <p className="text-sm text-gray-600 mb-1">Status: <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${modpack.status === 'published' ? 'bg-green-100 text-green-800' :
           modpack.status === 'draft' ? 'bg-yellow-100 text-yellow-800' :

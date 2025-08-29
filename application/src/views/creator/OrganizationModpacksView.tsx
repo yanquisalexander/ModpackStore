@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { LucideEdit, LucideHistory, LucideTrash2 } from "lucide-react";
 import { toast } from "sonner";
 import { useParams } from "react-router-dom";
+import { ApiErrorPayload } from "@/types/ApiResponses";
 
 interface ModpackListItemProps {
     modpack: Modpack;
@@ -20,7 +21,7 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
     return (
         <div className="p-4 border rounded-lg shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
             <div>
-                <img src={modpack.iconUrl || '/placeholder-icon.png'} alt={modpack.name} className="w-full h-32 object-cover rounded-md mb-3" />
+                <img src={modpack.iconUrl || '/images/modpack-fallback.webp'} alt={modpack.name} className="w-full h-32 object-cover rounded-md mb-3" />
                 <h3 className="text-lg font-semibold mb-1">{modpack.name}</h3>
                 <p className="text-sm text-gray-600 mb-1">Status: <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${modpack.status === 'published' ? 'bg-green-100 text-green-800' : modpack.status === 'draft' ? 'bg-yellow-100 text-yellow-800' : modpack.status === 'archived' ? 'bg-gray-100 text-gray-700' : 'bg-red-100 text-red-700'}`}>{modpack.status}</span></p>
                 <p className="text-xs text-gray-500 mt-1">Slug: {modpack.slug}</p>
@@ -33,9 +34,13 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
                 <Button variant="outline" size="sm" className="w-full" title="Gestionar Versiones">
                     <LucideHistory size={16} />
                 </Button>
-                <Button variant="destructive" size="sm" onClick={() => onDelete(modpack)} title="Eliminar Modpack">
-                    <LucideTrash2 size={16} />
-                </Button>
+                {
+                    modpack.status !== 'deleted' && (
+                        <Button variant="destructive" size="sm" onClick={() => onDelete(modpack)} title="Eliminar Modpack">
+                            <LucideTrash2 size={16} />
+                        </Button>
+                    )
+                }
             </div>
 
         </div>
@@ -74,7 +79,8 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
             const data = await res.json();
             setModpacks(data.modpacks || []);
         } catch (err: any) {
-            setError(err.message || String(err));
+            const apiError = err as ApiErrorPayload;
+            setError(apiError.errors[0]?.detail || String(err));
         } finally {
             setIsLoading(false);
         }
@@ -114,7 +120,8 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
             },
         });
         if (!res.ok) {
-            toast.error("Error al eliminar el modpack");
+            const apiError = await res.json() as ApiErrorPayload;
+            toast.error(apiError.errors[0]?.detail || "Error al eliminar el modpack");
             return;
         }
         setIsDeleteDialogOpen(false);
@@ -167,6 +174,11 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                             <AlertDialogTitle>¿Seguro que quieres eliminar este modpack?</AlertDialogTitle>
                             <AlertDialogDescription>
                                 Esta acción eliminará el modpack de la organización.
+                                <br />
+                                <br />
+                                <span className="text-xs">
+                                    Por motivos de seguridad, el modpack no se eliminará permanentemente, sino que se marcará como "eliminado" y se ocultará de la vista pública. Si deseas eliminarlo permanentemente, contacta con el soporte.
+                                </span>
                             </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>

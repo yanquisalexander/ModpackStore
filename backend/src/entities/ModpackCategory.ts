@@ -14,7 +14,7 @@ export class ModpackCategory extends BaseEntity {
     categoryId: string;
 
     // Relations
-    @ManyToOne(() => Modpack, modpack => modpack.categories)
+    @ManyToOne(() => Modpack, modpack => modpack.categories, { onDelete: "CASCADE" })
     @JoinColumn({ name: "modpack_id" })
     modpack: Modpack;
 

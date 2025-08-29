@@ -25,10 +25,10 @@ export class Modpack extends BaseEntity {
     @Column({ name: "slug", type: "text", unique: true })
     slug: string;
 
-    @Column({ name: "icon_url", type: "text" })
+    @Column({ name: "icon_url", type: "text", nullable: true })
     iconUrl: string;
 
-    @Column({ name: "banner_url", type: "text" })
+    @Column({ name: "banner_url", type: "text", nullable: true })
     bannerUrl: string;
 
     @Column({ name: "trailer_url", type: "text", nullable: true })
@@ -85,18 +85,20 @@ export class Modpack extends BaseEntity {
     @JoinColumn({ name: "creator_user_id" })
     creatorUser?: User;
 
-    @OneToMany(() => ModpackCategory, modpackCategory => modpackCategory.modpack)
+    @OneToMany(() => ModpackCategory, modpackCategory => modpackCategory.modpack, { cascade: true })
     categories: ModpackCategory[];
 
-    @OneToMany(() => ModpackVersion, modpackVersion => modpackVersion.modpack)
+    @OneToMany(() => ModpackVersion, modpackVersion => modpackVersion.modpack, { cascade: true })
     versions: ModpackVersion[];
 
-    @OneToMany(() => Scope, scope => scope.modpack)
+    @OneToMany(() => Scope, scope => scope.modpack, { cascade: true })
     scopes: Scope[];
 
-    @OneToMany(() => UserPurchase, userPurchase => userPurchase.modpack)
+    @OneToMany(() => UserPurchase, userPurchase => userPurchase.modpack, { cascade: true })
     purchases: UserPurchase[];
 
-    @OneToMany(() => WalletTransaction, transaction => transaction.relatedModpack)
+    @OneToMany(() => WalletTransaction, transaction => transaction.relatedModpack, { cascade: true })
     relatedTransactions: WalletTransaction[];
+
+
 }

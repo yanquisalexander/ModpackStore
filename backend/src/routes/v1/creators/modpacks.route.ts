@@ -4,7 +4,7 @@ import { APIError } from "@/lib/APIError";
 import { isOrganizationMember, requireAuth, requireCreatorAccess, USER_CONTEXT_KEY } from "@/middlewares/auth.middleware";
 import { ModpackVisibility } from "@/models/Modpack.model";
 import { uploadToR2 } from "@/services/r2UploadService";
-import { PublisherMemberRole } from "@/types/enums";
+import { ModpackStatus, PublisherMemberRole } from "@/types/enums";
 import { Hono } from "hono";
 import sharp from "sharp";
 
@@ -107,7 +107,9 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMem
         "creatorUserId",
     ];
 
-    const newModpack = Modpack.create({ publisherId });
+    const newModpack = new Modpack()
+
+    newModpack.publisherId = publisherId;
 
     for (const field of allowedFields) {
         if (body[field] !== undefined) {
@@ -128,6 +130,10 @@ ModpackCreatorsRoute.delete("/publishers/:publisherId/modpacks/:modpackId", isOr
     const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
     if (!modpack) return c.notFound();
 
+    if (modpack.status === ModpackStatus.DELETED) {
+        throw new APIError(400, "Este modpack ya ha sido eliminado");
+    }
+
     const user = c.get(USER_CONTEXT_KEY) as User;
 
     console.log("User trying to delete modpack:", user, "Modpack:", modpack);
@@ -144,7 +150,9 @@ ModpackCreatorsRoute.delete("/publishers/:publisherId/modpacks/:modpackId", isOr
         throw new APIError(403, "No tienes permiso para eliminar este modpack")
     }
 
-    await modpack.remove();
+    modpack.status = ModpackStatus.DELETED;
+
+    await modpack.save();
 
     return c.json({ success: true });
 });

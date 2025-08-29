@@ -3,6 +3,7 @@ import { createContext, useContext, useEffect, useState, ReactNode, useCallback,
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from "@tauri-apps/api/core";
 import { load } from '@tauri-apps/plugin-store';
+import { ApiErrorPayload } from "@/types/ApiResponses";
 
 // --- Type Definitions ---
 
@@ -40,16 +41,7 @@ type AuthStep =
 // --- Error Type Definitions (Improved) ---
 
 // Represents the structured error from the backend
-interface ApiErrorDetail {
-  code: string;
-  detail: string;
-  status: string;
-  title: string;
-}
 
-interface ApiErrorPayload {
-  errors: ApiErrorDetail[];
-}
 
 // Standardized error object for the context state
 interface AuthError {

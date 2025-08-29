@@ -1,3 +1,14 @@
+export interface ApiErrorDetail {
+    code: string;
+    detail: string;
+    status: string;
+    title: string;
+}
+
+export interface ApiErrorPayload {
+    errors: ApiErrorDetail[];
+}
+
 export interface ModpackDataOverview {
     id?: string;
     name?: string;

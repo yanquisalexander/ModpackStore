@@ -252,7 +252,7 @@ export const ExploreSection = () => {
                             ¡Descubre nuevos mundos y aventuras!
                         </motion.p>
                         <motion.img
-                            src="https://pngimg.com/d/minecraft_PNG2.png"
+                            src="/images/minecraft_pj.webp"
                             draggable="false"
                             className="h-32 opacity-50 grayscale-100 w-auto object-scale-down mt-4"
                             variants={itemVariants}
