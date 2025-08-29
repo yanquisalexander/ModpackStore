@@ -15,8 +15,10 @@ import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3
 
 export enum FileType {
   MODS = 'mods',
-  CONFIGS = 'configs',
-  RESOURCES = 'resources'
+  CONFIG = 'config',
+  RESOURCEPACKS = 'resourcepacks',
+  SHADERPACKS = 'shaderpacks',
+  EXTRAS = 'extras'
 }
 
 interface FileInfo {
@@ -140,6 +142,14 @@ export class ModpackFileUploadService {
   }
 
   /**
+   * Determina si un tipo de archivo soporta procesamiento de delta
+   */
+  private isDeltaSupported(fileType: FileType): boolean {
+    // EXTRAS no soporta delta ya que debe extraerse exactamente como está
+    return fileType !== FileType.EXTRAS;
+  }
+
+  /**
    * Busca la última versión publicada del modpack para comparar
    */
   private async findPreviousVersionFile(modpackId: string, fileType: FileType): Promise<{ 
@@ -238,7 +248,7 @@ export class ModpackFileUploadService {
     }
 
     // Si se solicitó reutilizar archivos de otra versión y el tipo es compatible
-    if (reuseFromVersion && (fileType === FileType.CONFIGS || fileType === FileType.RESOURCES)) {
+    if (reuseFromVersion && (fileType === FileType.CONFIG || fileType === FileType.RESOURCEPACKS || fileType === FileType.SHADERPACKS)) {
       try {
         // Verificar que la versión a reutilizar existe
         const reusedVersion = await db
@@ -335,7 +345,7 @@ export class ModpackFileUploadService {
     let removedFiles = 0;
     let modifiedFiles = 0;
     
-    if (previousVersion) {
+    if (previousVersion && this.isDeltaSupported(fileType)) {
       isDelta = true;
       
       // Comprobamos archivos añadidos o modificados

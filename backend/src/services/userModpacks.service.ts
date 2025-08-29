@@ -353,10 +353,14 @@ export class UserModpacksService {
             let fileType = FileType.MODS; // Default to MODS
             
             // Check the fieldname from multer to determine the file type
-            if (file.fieldname === 'configsFile') {
-                fileType = FileType.CONFIGS;
-            } else if (file.fieldname === 'resourcesFile') {
-                fileType = FileType.RESOURCES;
+            if (file.fieldname === 'configFile') {
+                fileType = FileType.CONFIG;
+            } else if (file.fieldname === 'resourcepacksFile') {
+                fileType = FileType.RESOURCEPACKS;
+            } else if (file.fieldname === 'shaderpacksFile') {
+                fileType = FileType.SHADERPACKS;
+            } else if (file.fieldname === 'extrasFile') {
+                fileType = FileType.EXTRAS;
             }
 
             // Upload the file

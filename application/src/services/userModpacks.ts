@@ -210,12 +210,18 @@ export async function uploadModpackVersionFile(versionId: string, file: File, fi
   let endpoint = `/v1/versions/${versionId}/file`;
   let fieldName = 'versionFile';
   
-  if (fileType === 'configs') {
-    endpoint = `/v1/versions/${versionId}/configs`;
-    fieldName = 'configsFile';
-  } else if (fileType === 'resources') {
-    endpoint = `/v1/versions/${versionId}/resources`;
-    fieldName = 'resourcesFile';
+  if (fileType === 'config') {
+    endpoint = `/v1/versions/${versionId}/config`;
+    fieldName = 'configFile';
+  } else if (fileType === 'resourcepacks') {
+    endpoint = `/v1/versions/${versionId}/resourcepacks`;
+    fieldName = 'resourcepacksFile';
+  } else if (fileType === 'shaderpacks') {
+    endpoint = `/v1/versions/${versionId}/shaderpacks`;
+    fieldName = 'shaderpacksFile';
+  } else if (fileType === 'extras') {
+    endpoint = `/v1/versions/${versionId}/extras`;
+    fieldName = 'extrasFile';
   }
   
   formData.append(fieldName, file);

@@ -14,13 +14,13 @@ type NewModpackVersionFile = typeof ModpackVersionFilesTable.$inferInsert;
 
 export const newModpackVersionFileSchema = z.object({
     modpackVersionId: z.string().uuid(),
-    type: z.enum(['mods', 'configs', 'resources', 'full_pack']),
+    type: z.enum(['mods', 'config', 'resourcepacks', 'shaderpacks', 'extras', 'full_pack']),
     hash: z.string().min(1),
     size: z.number().int().min(0).optional(), // Made optional in schema, implies can be null in DB or not provided
 });
 
 export const modpackVersionFileUpdateSchema = z.object({
-    type: z.enum(['mods', 'configs', 'resources', 'full_pack']).optional(),
+    type: z.enum(['mods', 'config', 'resourcepacks', 'shaderpacks', 'extras', 'full_pack']).optional(),
     size: z.number().int().min(0).optional().nullable(), // Allowing size to be explicitly set to null or updated
 });
 type ModpackVersionFileUpdateInput = z.infer<typeof modpackVersionFileUpdateSchema>;
