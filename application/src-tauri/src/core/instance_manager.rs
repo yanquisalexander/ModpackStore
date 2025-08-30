@@ -660,39 +660,6 @@ pub async fn search_instances(query: String) -> Result<Vec<MinecraftInstance>, S
     Ok(results)
 }
 
-// Helper structures for modpack data
-#[derive(serde::Deserialize, Clone)]
-struct ModpackManifest {
-    modpack: ModpackInfo,
-    version: ModpackVersionInfo,
-    files: ModpackFiles,
-}
-
-#[derive(serde::Deserialize, Clone)]
-struct ModpackVersionInfo {
-    id: String,
-    version: String,
-    mc_version: String,
-    forge_version: Option<String>,
-}
-
-#[derive(serde::Deserialize, Clone)]
-struct ModpackFiles {
-    mods: Vec<ModpackFileInfo>,
-    resourcepacks: Vec<ModpackFileInfo>,
-    config: Vec<ModpackFileInfo>,
-    shaderpacks: Vec<ModpackFileInfo>,
-    extras: Vec<ModpackFileInfo>,
-}
-
-#[derive(serde::Deserialize, Clone)]
-struct ModpackFileInfo {
-    hash: String,
-    path: String,
-    size: u64,
-    download_url: String,
-}
-
 // Helper function to fetch latest version ID
 async fn fetch_latest_version(modpack_id: &str) -> Result<String, String> {
     let client = reqwest::Client::new();
@@ -720,7 +687,7 @@ async fn fetch_latest_version(modpack_id: &str) -> Result<String, String> {
 }
 
 // Helper function to fetch modpack manifest
-async fn fetch_modpack_manifest(modpack_id: &str, version_id: &str) -> Result<ModpackManifest, String> {
+pub async fn fetch_modpack_manifest(modpack_id: &str, version_id: &str) -> Result<crate::core::modpack_file_manager::ModpackManifest, String> {
     let client = reqwest::Client::new();
     let url = format!("http://localhost:3000/v1/api/modpacks/{}/versions/{}/manifest", modpack_id, version_id);
     
@@ -739,7 +706,7 @@ async fn fetch_modpack_manifest(modpack_id: &str, version_id: &str) -> Result<Mo
         .await
         .map_err(|e| format!("Failed to parse JSON: {}", e))?;
 
-    let manifest: ModpackManifest = serde_json::from_value(json["manifest"].clone())
+    let manifest: crate::core::modpack_file_manager::ModpackManifest = serde_json::from_value(json["manifest"].clone())
         .map_err(|e| format!("Failed to parse manifest: {}", e))?;
 
     Ok(manifest)

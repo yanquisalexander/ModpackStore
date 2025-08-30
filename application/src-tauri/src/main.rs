@@ -148,6 +148,7 @@ pub fn main() {
             core::instance_manager::create_modpack_instance,
             core::instance_manager::check_modpack_updates,
             core::instance_manager::update_modpack_instance,
+            core::modpack_file_manager::cleanup_instance_files,
             core::instance_manager::search_instances,
             core::instance_manager::remove_instance,
             core::instance_bootstrap::check_vanilla_integrity,

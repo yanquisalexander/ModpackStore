@@ -9,6 +9,7 @@ pub mod minecraft;
 pub mod minecraft_account;
 pub mod minecraft_instance;
 pub mod models;
+pub mod modpack_file_manager;
 pub mod network_utilities;
 pub mod prelaunch_appearance;
 pub mod tasks_manager;
