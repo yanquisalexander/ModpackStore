@@ -545,7 +545,7 @@ fn spawn_modpack_creation_task(
         // Instalar archivos del modpack
         let rt = tokio::runtime::Runtime::new().unwrap();
         let files_processed = rt.block_on(async {
-            crate::core::modpack_file_manager::download_and_install_files(&instance, &manifest)
+            crate::core::modpack_file_manager::download_and_install_files(&instance, &manifest, Some(task_id.clone()))
                 .await
         });
 
@@ -629,7 +629,7 @@ fn spawn_modpack_update_task(
 
         // Instalar archivos actualizados
         let files_processed = tokio::runtime::Runtime::new().unwrap().block_on(async {
-            crate::core::modpack_file_manager::download_and_install_files(&instance, &manifest)
+            crate::core::modpack_file_manager::download_and_install_files(&instance, &manifest, Some(task_id.clone()))
                 .await
         });
 

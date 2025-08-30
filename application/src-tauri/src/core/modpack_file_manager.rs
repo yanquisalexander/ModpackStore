@@ -1,4 +1,5 @@
 use crate::core::minecraft_instance::MinecraftInstance;
+use crate::core::tasks_manager::{update_task, TaskStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -12,7 +13,6 @@ pub struct ModpackManifest {
     pub mc_version: String,
     #[serde(rename = "forgeVersion")]
     pub forge_version: Option<String>,
-    pub modpack: ModpackInfo,
     pub files: Vec<ModpackFileEntry>,
 }
 
@@ -86,6 +86,7 @@ pub fn cleanup_obsolete_files(
 pub async fn download_and_install_files(
     instance: &MinecraftInstance,
     manifest: &ModpackManifest,
+    task_id: Option<String>,
 ) -> Result<usize, String> {
     let instance_dir = instance
         .instanceDirectory
@@ -96,9 +97,10 @@ pub async fn download_and_install_files(
     fs::create_dir_all(&minecraft_dir)
         .map_err(|e| format!("Failed to create minecraft directory: {}", e))?;
 
+    let total_files = manifest.files.len();
     let mut files_processed = 0;
 
-    for file_entry in &manifest.files {
+    for (index, file_entry) in manifest.files.iter().enumerate() {
         let target_path = minecraft_dir.join(&file_entry.path);
 
         // Create parent directory if needed
@@ -110,7 +112,40 @@ pub async fn download_and_install_files(
         // Check if file already exists and has correct hash
         if file_exists_with_correct_hash(&target_path, &file_entry.fileHash).await {
             files_processed += 1;
+            // Update progress for existing files too
+            if let Some(ref tid) = task_id {
+                let progress = (60.0 + (index as f64 / total_files as f64) * 30.0) as f32;
+                update_task(
+                    tid,
+                    TaskStatus::Running,
+                    progress,
+                    &format!(
+                        "Verificando archivo {} de {}: {}",
+                        index + 1,
+                        total_files,
+                        file_entry.path
+                    ),
+                    None,
+                );
+            }
             continue; // File already exists and is correct, skip download
+        }
+
+        // Update progress before downloading
+        if let Some(ref tid) = task_id {
+            let progress = (60.0 + (index as f64 / total_files as f64) * 30.0) as f32;
+            update_task(
+                tid,
+                TaskStatus::Running,
+                progress,
+                &format!(
+                    "Descargando archivo {} de {}: {}",
+                    index + 1,
+                    total_files,
+                    file_entry.path
+                ),
+                None,
+            );
         }
 
         // Download the file
