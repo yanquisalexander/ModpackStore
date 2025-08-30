@@ -1,6 +1,6 @@
 import { getModpackById } from "@/services/getModpacks"
 import { useGlobalContext } from "@/stores/GlobalContext"
-import { LucideLoader, LucideVerified, LucideVolume2, LucideVolumeX } from "lucide-react"
+import { LucideLoader, LucideVerified, LucideVolume2, LucideVolumeX, LucideChevronDown } from "lucide-react"
 import { useEffect, useState, useRef } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { motion, useScroll, useTransform } from "motion/react"
@@ -8,6 +8,8 @@ import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { invoke } from "@tauri-apps/api/core"
 import { InstallButton } from "../components/install-modpacks/ModpackInstallButton" // Importamos el componente de instalación
 import { ModpackDataOverview } from "@/types/ApiResponses"
+import { getModpackVersions, ModpackVersionPublic, getLatestVersion, getNonArchivedVersions } from "@/services/getModpackVersions"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
 
@@ -25,6 +27,11 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     const bannerContainerRef = useRef<HTMLDivElement>(null)
     const [localInstancesOfModpack, setLocalInstancesOfModpack] = useState<TauriCommandReturns["get_instances_by_modpack_id"]>([])
 
+    // Version management state
+    const [versions, setVersions] = useState<ModpackVersionPublic[]>([])
+    const [selectedVersionId, setSelectedVersionId] = useState<string>("latest")
+    const [versionsLoading, setVersionsLoading] = useState(true)
+
     const { titleBarState, setTitleBarState } = useGlobalContext()
     const { scrollY } = useScroll()
 
@@ -32,6 +39,45 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     const bannerY = useTransform(scrollY, [0, 500], [0, 150])
     const bannerScale = useTransform(scrollY, [0, 300], [1.05, 1.15])
     const bannerOpacity = useTransform(scrollY, [0, 300], [1, 0.3])
+
+    // Helper functions for version management
+    const getSelectedVersion = (): ModpackVersionPublic | null => {
+        if (selectedVersionId === "latest") {
+            return getLatestVersion(versions)
+        }
+        return versions.find(v => v.id === selectedVersionId) || null
+    }
+
+    const extractImportantFixes = (changelog: string): string[] => {
+        // Extract items that look like fixes from the changelog
+        const lines = changelog.split('\n')
+        const fixes: string[] = []
+        
+        for (const line of lines) {
+            const trimmed = line.trim()
+            // Look for lines that start with - or * and contain fix-related keywords
+            if ((trimmed.startsWith('-') || trimmed.startsWith('*')) && 
+                (trimmed.toLowerCase().includes('fix') || 
+                 trimmed.toLowerCase().includes('corregido') || 
+                 trimmed.toLowerCase().includes('solucionado') ||
+                 trimmed.toLowerCase().includes('arreglo'))) {
+                fixes.push(trimmed.replace(/^[-*]\s*/, ''))
+            }
+        }
+        
+        // If no specific fixes found, look for general improvement items
+        if (fixes.length === 0) {
+            for (const line of lines) {
+                const trimmed = line.trim()
+                if ((trimmed.startsWith('-') || trimmed.startsWith('*')) && trimmed.length > 10) {
+                    fixes.push(trimmed.replace(/^[-*]\s*/, ''))
+                    if (fixes.length >= 3) break // Limit to 3 items
+                }
+            }
+        }
+        
+        return fixes.slice(0, 5) // Limit to 5 most important fixes
+    }
 
     useEffect(() => {
         setTitleBarState({
@@ -119,7 +165,27 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
             }
         }
 
+        const fetchVersions = async () => {
+            try {
+                setVersionsLoading(true)
+                const fetchedVersions = await getModpackVersions(modpackId)
+                const nonArchivedVersions = getNonArchivedVersions(fetchedVersions)
+                setVersions(nonArchivedVersions)
+                
+                // Set default selection to latest if available
+                if (nonArchivedVersions.length > 0) {
+                    setSelectedVersionId("latest")
+                }
+            } catch (err) {
+                console.error("Failed to fetch versions:", err)
+                setVersions([])
+            } finally {
+                setVersionsLoading(false)
+            }
+        }
+
         fetchModpack()
+        fetchVersions()
     }, [modpackId])
 
     const toggleMute = () => {
@@ -349,11 +415,225 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 </TabsContent>
 
                                 <TabsContent value="changelog" className="mt-6">
-                                    <p className="text-white/80">No hay changelog disponible aún.</p>
+                                    <div className="space-y-4">
+                                        {/* Version selector */}
+                                        <div className="flex items-center gap-4">
+                                            <label className="text-white text-sm font-medium">Versión:</label>
+                                            <Select 
+                                                value={selectedVersionId} 
+                                                onValueChange={setSelectedVersionId}
+                                                disabled={versionsLoading || versions.length === 0}
+                                            >
+                                                <SelectTrigger className="w-48 bg-black/40 border-white/20 text-white">
+                                                    <SelectValue placeholder="Seleccionar versión" />
+                                                </SelectTrigger>
+                                                <SelectContent className="bg-zinc-900 border-zinc-700 text-white">
+                                                    <SelectItem value="latest" className="focus:bg-zinc-800">
+                                                        Última versión (latest)
+                                                    </SelectItem>
+                                                    {versions.map((version) => (
+                                                        <SelectItem 
+                                                            key={version.id} 
+                                                            value={version.id}
+                                                            className="focus:bg-zinc-800"
+                                                        >
+                                                            {version.version} - MC {version.mcVersion}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+
+                                        {versionsLoading ? (
+                                            <div className="flex items-center justify-center py-8">
+                                                <LucideLoader className="size-6 animate-spin text-white" />
+                                                <span className="ml-2 text-white/80">Cargando changelog...</span>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                {(() => {
+                                                    const selectedVersion = getSelectedVersion()
+                                                    if (!selectedVersion) {
+                                                        return (
+                                                            <p className="text-white/80">No hay changelog disponible para esta versión.</p>
+                                                        )
+                                                    }
+
+                                                    const importantFixes = extractImportantFixes(selectedVersion.changelog)
+
+                                                    return (
+                                                        <div className="space-y-6">
+                                                            {/* Selected version info */}
+                                                            <div className="bg-black/20 rounded-lg p-4 border border-white/10">
+                                                                <div className="flex items-center justify-between">
+                                                                    <div>
+                                                                        <h3 className="text-lg font-semibold text-white">
+                                                                            {selectedVersion.version}
+                                                                        </h3>
+                                                                        <p className="text-white/60 text-sm">
+                                                                            Minecraft {selectedVersion.mcVersion}
+                                                                            {selectedVersion.forgeVersion && ` • Forge ${selectedVersion.forgeVersion}`}
+                                                                        </p>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <p className="text-white/60 text-sm">
+                                                                            {selectedVersion.releaseDate 
+                                                                                ? new Date(selectedVersion.releaseDate).toLocaleDateString()
+                                                                                : 'Fecha no disponible'
+                                                                            }
+                                                                        </p>
+                                                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                                            {selectedVersion.status === 'published' ? 'Publicado' : selectedVersion.status}
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Important fixes section */}
+                                                            {importantFixes.length > 0 && (
+                                                                <div className="bg-blue-900/20 rounded-lg p-4 border border-blue-500/20">
+                                                                    <h4 className="text-white font-medium mb-3 flex items-center gap-2">
+                                                                        <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
+                                                                        Arreglos Importantes
+                                                                    </h4>
+                                                                    <ul className="space-y-2">
+                                                                        {importantFixes.map((fix, index) => (
+                                                                            <li key={index} className="text-white/80 text-sm flex items-start gap-2">
+                                                                                <span className="text-blue-400 mt-1">•</span>
+                                                                                <span>{fix}</span>
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Full changelog */}
+                                                            <div className="bg-black/20 rounded-lg p-4 border border-white/10">
+                                                                <h4 className="text-white font-medium mb-3">Changelog Completo</h4>
+                                                                <div className="prose prose-invert max-w-none">
+                                                                    <pre className="whitespace-pre-wrap text-sm text-white/80 bg-black/30 p-4 rounded border border-white/10 overflow-x-auto">
+                                                                        {selectedVersion.changelog}
+                                                                    </pre>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                })()}
+                                            </>
+                                        )}
+                                    </div>
                                 </TabsContent>
 
                                 <TabsContent value="versions" className="mt-6">
-                                    <p className="text-white/80">Versión inicial: 1.0.0 (placeholder)</p>
+                                    <div className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <h2 className="text-xl font-semibold text-white">Versiones Disponibles</h2>
+                                            <span className="text-white/60 text-sm">
+                                                {versions.length} versión{versions.length !== 1 ? 'es' : ''} disponible{versions.length !== 1 ? 's' : ''}
+                                            </span>
+                                        </div>
+
+                                        {versionsLoading ? (
+                                            <div className="flex items-center justify-center py-8">
+                                                <LucideLoader className="size-6 animate-spin text-white" />
+                                                <span className="ml-2 text-white/80">Cargando versiones...</span>
+                                            </div>
+                                        ) : versions.length === 0 ? (
+                                            <div className="text-center py-8">
+                                                <p className="text-white/80">No hay versiones disponibles para este modpack.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {versions
+                                                    .sort((a, b) => {
+                                                        // Sort by release date, most recent first
+                                                        const dateA = new Date(a.releaseDate || a.createdAt)
+                                                        const dateB = new Date(b.releaseDate || b.createdAt)
+                                                        return dateB.getTime() - dateA.getTime()
+                                                    })
+                                                    .map((version) => {
+                                                        const isLatest = getLatestVersion(versions)?.id === version.id
+                                                        const isSelected = selectedVersionId === version.id || 
+                                                                         (selectedVersionId === "latest" && isLatest)
+                                                        const importantFixes = extractImportantFixes(version.changelog)
+
+                                                        return (
+                                                            <div 
+                                                                key={version.id} 
+                                                                className={`bg-black/20 rounded-lg p-4 border transition-all cursor-pointer hover:bg-black/30 ${
+                                                                    isSelected 
+                                                                        ? 'border-blue-500/50 bg-blue-900/10' 
+                                                                        : 'border-white/10'
+                                                                }`}
+                                                                onClick={() => setSelectedVersionId(version.id)}
+                                                            >
+                                                                <div className="flex items-start justify-between">
+                                                                    <div className="flex-1">
+                                                                        <div className="flex items-center gap-3 mb-2">
+                                                                            <h3 className="text-lg font-semibold text-white">
+                                                                                {version.version}
+                                                                            </h3>
+                                                                            {isLatest && (
+                                                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                                                    Última
+                                                                                </span>
+                                                                            )}
+                                                                            {isSelected && (
+                                                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                                                                    Seleccionada
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        
+                                                                        <div className="grid grid-cols-2 gap-4 text-sm text-white/80 mb-3">
+                                                                            <div>
+                                                                                <span className="text-white/60">Minecraft:</span> {version.mcVersion}
+                                                                            </div>
+                                                                            <div>
+                                                                                <span className="text-white/60">Forge:</span> {version.forgeVersion || 'No especificado'}
+                                                                            </div>
+                                                                            <div>
+                                                                                <span className="text-white/60">Publicado:</span> {
+                                                                                    version.releaseDate 
+                                                                                        ? new Date(version.releaseDate).toLocaleDateString()
+                                                                                        : 'Fecha no disponible'
+                                                                                }
+                                                                            </div>
+                                                                            <div>
+                                                                                <span className="text-white/60">Estado:</span> {
+                                                                                    version.status === 'published' ? 'Publicado' : version.status
+                                                                                }
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Show important fixes if available */}
+                                                                        {importantFixes.length > 0 && (
+                                                                            <div className="mt-3">
+                                                                                <h4 className="text-white/80 text-sm font-medium mb-2">Arreglos principales:</h4>
+                                                                                <ul className="space-y-1">
+                                                                                    {importantFixes.slice(0, 3).map((fix, index) => (
+                                                                                        <li key={index} className="text-white/60 text-sm flex items-start gap-2">
+                                                                                            <span className="text-blue-400 mt-1 text-xs">•</span>
+                                                                                            <span className="line-clamp-1">{fix}</span>
+                                                                                        </li>
+                                                                                    ))}
+                                                                                    {importantFixes.length > 3 && (
+                                                                                        <li className="text-white/40 text-xs italic">
+                                                                                            +{importantFixes.length - 3} arreglos más...
+                                                                                        </li>
+                                                                                    )}
+                                                                                </ul>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    })
+                                                }
+                                            </div>
+                                        )}
+                                    </div>
                                 </TabsContent>
                             </Tabs>
                         </motion.div>
