@@ -175,5 +175,6 @@ app.get('/search', ExploreModpacksController.search);
  *         description: Internal Server Error.
  */
 app.get('/modpack/:modpackId', ExploreModpacksController.getModpack);
+app.get('/modpack/:modpackId/versions', ExploreModpacksController.getModpackVersions);
 
 export default app;

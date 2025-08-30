@@ -1,6 +1,8 @@
 import { type Context } from 'hono';
 import { getExploreModpacks, getModpackById, searchModpacks } from "@/services/modpacks";
 import { serializeCollection, serializeResource, serializeError } from "../utils/jsonapi";
+import { ModpackVersion } from "@/entities/ModpackVersion";
+import { ModpackVersionStatus } from "@/types/enums";
 
 export class ExploreModpacksController {
     static async getHomepage(c: Context): Promise<Response> {
@@ -73,6 +75,42 @@ export class ExploreModpacksController {
                 status: statusCode.toString(),
                 title: error.name || 'Modpack Error',
                 detail: error.message || "Failed to fetch modpack details."
+            }), statusCode);
+        }
+    }
+
+    static async getModpackVersions(c: Context): Promise<Response> {
+        const modpackId = c.req.param('modpackId');
+
+        try {
+            const versions = await ModpackVersion.find({
+                where: { modpackId, status: ModpackVersionStatus.PUBLISHED },
+                relations: ['files', 'files.file'],
+                select: {
+                    id: true,
+                    changelog: true,
+                    mcVersion: true,
+                    forgeVersion: true,
+                    releaseDate: true,
+                    status: true,
+
+                    version: true,
+                    files: {
+                        path: true,
+                        file: {
+                            type: true
+                        }
+                    }
+                }
+            });
+            return c.json(serializeCollection('modpackVersion', versions), 200);
+        } catch (error: any) {
+            console.error(`[CONTROLLER_EXPLORE] Error in getModpackVersions for ID ${modpackId}:`, error);
+            const statusCode = error.statusCode || 500;
+            return c.json(serializeError({
+                status: statusCode.toString(),
+                title: error.name || 'Modpack Versions Error',
+                detail: error.message || "Failed to fetch modpack versions."
             }), statusCode);
         }
     }

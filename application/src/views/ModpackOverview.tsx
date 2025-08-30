@@ -50,21 +50,21 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
 
     const extractImportantFixes = (changelog: string): string[] => {
         // Extract items that look like fixes from the changelog
-        const lines = changelog.split('\n')
+        const lines = changelog?.split('\n') || []
         const fixes: string[] = []
-        
+
         for (const line of lines) {
             const trimmed = line.trim()
             // Look for lines that start with - or * and contain fix-related keywords
-            if ((trimmed.startsWith('-') || trimmed.startsWith('*')) && 
-                (trimmed.toLowerCase().includes('fix') || 
-                 trimmed.toLowerCase().includes('corregido') || 
-                 trimmed.toLowerCase().includes('solucionado') ||
-                 trimmed.toLowerCase().includes('arreglo'))) {
+            if ((trimmed.startsWith('-') || trimmed.startsWith('*')) &&
+                (trimmed.toLowerCase().includes('fix') ||
+                    trimmed.toLowerCase().includes('corregido') ||
+                    trimmed.toLowerCase().includes('solucionado') ||
+                    trimmed.toLowerCase().includes('arreglo'))) {
                 fixes.push(trimmed.replace(/^[-*]\s*/, ''))
             }
         }
-        
+
         // If no specific fixes found, look for general improvement items
         if (fixes.length === 0) {
             for (const line of lines) {
@@ -75,7 +75,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                 }
             }
         }
-        
+
         return fixes.slice(0, 5) // Limit to 5 most important fixes
     }
 
@@ -171,7 +171,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                 const fetchedVersions = await getModpackVersions(modpackId)
                 const nonArchivedVersions = getNonArchivedVersions(fetchedVersions)
                 setVersions(nonArchivedVersions)
-                
+
                 // Set default selection to latest if available
                 if (nonArchivedVersions.length > 0) {
                     setSelectedVersionId("latest")
@@ -339,12 +339,12 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                         >
                             <div className="flex items-center gap-4 flex-1">
                                 <img
-                                    src={modpackData.iconUrl}
+                                    src={modpackData.iconUrl ?? "/images/modpack-fallback.webp"}
                                     onError={(e) => {
                                         e.currentTarget.onerror = null; // Prevent infinite loop
                                         e.currentTarget.src = "/images/modpack-fallback.webp"; // Fallback image
                                     }}
-                                    alt="Modpack Icon"
+                                    alt={`${modpackData.name} icon`}
                                     className="w-20 h-20 rounded-2xl shadow-md"
                                 />
                                 <div>
@@ -411,7 +411,40 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 </TabsContent>
 
                                 <TabsContent value="mods" className="mt-6">
-                                    <p className="text-white/80">Todavía no hay mods listados. (Coming soon)</p>
+                                    {(() => {
+                                        const selectedVersion = getSelectedVersion();
+                                        if (!selectedVersion || !selectedVersion.files || selectedVersion.files.length === 0) {
+                                            return <p className="text-white/80">No hay archivos disponibles para esta versión.</p>;
+                                        }
+
+                                        const groupedFiles = selectedVersion.files.reduce((acc, file) => {
+                                            const type = file.file.type;
+                                            if (!acc[type]) acc[type] = [];
+                                            acc[type].push(file);
+                                            return acc;
+                                        }, {} as Record<string, typeof selectedVersion.files>);
+
+                                        return (
+                                            <div className="space-y-6">
+                                                {Object.entries(groupedFiles).map(([type, files]) => (
+                                                    <div key={type} className="bg-black/20 rounded-lg p-4">
+                                                        <h3 className="text-lg font-semibold text-white capitalize mb-3">{type}</h3>
+                                                        <div className="space-y-2">
+                                                            {files.map((file, index) => {
+                                                                const fileName = file.path.split('/').pop() || file.path;
+                                                                return (
+                                                                    <div key={index} className="flex items-center justify-between bg-black/40 rounded p-2">
+                                                                        <span className="text-white/90 text-sm">{fileName}</span>
+                                                                        <span className="text-white/60 text-xs">{file.path}</span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        );
+                                    })()}
                                 </TabsContent>
 
                                 <TabsContent value="changelog" className="mt-6">
@@ -419,8 +452,8 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                         {/* Version selector */}
                                         <div className="flex items-center gap-4">
                                             <label className="text-white text-sm font-medium">Versión:</label>
-                                            <Select 
-                                                value={selectedVersionId} 
+                                            <Select
+                                                value={selectedVersionId}
                                                 onValueChange={setSelectedVersionId}
                                                 disabled={versionsLoading || versions.length === 0}
                                             >
@@ -432,8 +465,8 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                         Última versión (latest)
                                                     </SelectItem>
                                                     {versions.map((version) => (
-                                                        <SelectItem 
-                                                            key={version.id} 
+                                                        <SelectItem
+                                                            key={version.id}
                                                             value={version.id}
                                                             className="focus:bg-zinc-800"
                                                         >
@@ -477,7 +510,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                                     </div>
                                                                     <div className="text-right">
                                                                         <p className="text-white/60 text-sm">
-                                                                            {selectedVersion.releaseDate 
+                                                                            {selectedVersion.releaseDate
                                                                                 ? new Date(selectedVersion.releaseDate).toLocaleDateString()
                                                                                 : 'Fecha no disponible'
                                                                             }
@@ -553,18 +586,17 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                     })
                                                     .map((version) => {
                                                         const isLatest = getLatestVersion(versions)?.id === version.id
-                                                        const isSelected = selectedVersionId === version.id || 
-                                                                         (selectedVersionId === "latest" && isLatest)
+                                                        const isSelected = selectedVersionId === version.id ||
+                                                            (selectedVersionId === "latest" && isLatest)
                                                         const importantFixes = extractImportantFixes(version.changelog)
 
                                                         return (
-                                                            <div 
-                                                                key={version.id} 
-                                                                className={`bg-black/20 rounded-lg p-4 border transition-all cursor-pointer hover:bg-black/30 ${
-                                                                    isSelected 
-                                                                        ? 'border-blue-500/50 bg-blue-900/10' 
-                                                                        : 'border-white/10'
-                                                                }`}
+                                                            <div
+                                                                key={version.id}
+                                                                className={`bg-black/20 rounded-lg p-4 border transition-all cursor-pointer hover:bg-black/30 ${isSelected
+                                                                    ? 'border-blue-500/50 bg-blue-900/10'
+                                                                    : 'border-white/10'
+                                                                    }`}
                                                                 onClick={() => setSelectedVersionId(version.id)}
                                                             >
                                                                 <div className="flex items-start justify-between">
@@ -584,7 +616,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                                                 </span>
                                                                             )}
                                                                         </div>
-                                                                        
+
                                                                         <div className="grid grid-cols-2 gap-4 text-sm text-white/80 mb-3">
                                                                             <div>
                                                                                 <span className="text-white/60">Minecraft:</span> {version.mcVersion}
@@ -594,7 +626,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                                             </div>
                                                                             <div>
                                                                                 <span className="text-white/60">Publicado:</span> {
-                                                                                    version.releaseDate 
+                                                                                    version.releaseDate
                                                                                         ? new Date(version.releaseDate).toLocaleDateString()
                                                                                         : 'Fecha no disponible'
                                                                                 }
