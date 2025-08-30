@@ -76,8 +76,9 @@ export const processModpackFileUpload = async (
 
     // Procesar solo los que no existen
     const newFiles = fileEntries.filter(fe => !existingHashes.has(fe.hash));
+    const getHashKey = (hash: string) => path.posix.join("resources", "files", hash.slice(0, 2), hash.slice(2, 4), hash);
     const uploads = newFiles.map(fe => ({
-      key: path.posix.join("resources", "files", fe.hash.slice(0, 2), fe.hash.slice(2, 4), fe.hash),
+      key: getHashKey(fe.hash),
       body: fe.content,
       contentType: "application/octet-stream"
     }));

@@ -176,5 +176,6 @@ app.get('/search', ExploreModpacksController.search);
  */
 app.get('/modpack/:modpackId', ExploreModpacksController.getModpack);
 app.get('/modpack/:modpackId/versions', ExploreModpacksController.getModpackVersions);
+app.get('/modpack/:modpackId/versions/:versionId', ExploreModpacksController.getModpackVersionManifest);
 
 export default app;

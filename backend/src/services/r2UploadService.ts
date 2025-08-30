@@ -16,6 +16,8 @@ if (!R2_BUCKET_NAME || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_ENDPOIN
     throw new Error("Missing R2 configuration in environment variables");
 }
 
+export const DOWNLOAD_PREFIX_URL = R2_CDN_URL ? new URL('resources/files/', R2_CDN_URL).toString() : new URL('resources/files/', R2_ENDPOINT).toString();
+
 const s3Client = new S3Client({
     region: "auto",
     endpoint: R2_ENDPOINT,
@@ -41,8 +43,8 @@ export async function uploadToR2(
         await s3Client.send(command);
 
         return {
-            cdnUrl: R2_CDN_URL ? `${R2_CDN_URL}/${key}` : "",
-            url: `${R2_ENDPOINT}/${key}`,
+            cdnUrl: R2_CDN_URL ? new URL(key, R2_CDN_URL).toString() : "",
+            url: new URL(key, R2_ENDPOINT).toString(),
         };
     } catch (error) {
         console.error("Error uploading to R2:", error);

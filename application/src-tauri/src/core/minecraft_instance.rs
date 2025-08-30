@@ -10,14 +10,6 @@ use std::process::Command;
 use std::thread;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ModpackInfo {
-    pub name: Option<String>,
-    pub version: Option<String>,
-    pub author: Option<String>,
-    // Otros campos según necesites
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MinecraftInstance {
     pub instanceId: String,
     pub usesDefaultIcon: bool,
@@ -27,7 +19,7 @@ pub struct MinecraftInstance {
     pub accountUuid: Option<String>,
     pub minecraftPath: String,
     pub modpackId: Option<String>,
-    pub modpackInfo: Option<ModpackInfo>,
+    pub modpackVersionId: Option<String>,
     pub minecraftVersion: String,
     pub instanceDirectory: Option<String>,
     pub forgeVersion: Option<String>,
@@ -49,7 +41,7 @@ impl MinecraftInstance {
             accountUuid: None,
             minecraftPath: String::new(),
             modpackId: None,
-            modpackInfo: None,
+            modpackVersionId: None,
             minecraftVersion: String::new(),
             instanceDirectory: None,
             forgeVersion: None,

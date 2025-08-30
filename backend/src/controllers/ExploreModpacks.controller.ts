@@ -3,6 +3,7 @@ import { getExploreModpacks, getModpackById, searchModpacks } from "@/services/m
 import { serializeCollection, serializeResource, serializeError } from "../utils/jsonapi";
 import { ModpackVersion } from "@/entities/ModpackVersion";
 import { ModpackVersionStatus } from "@/types/enums";
+import { DOWNLOAD_PREFIX_URL } from "@/services/r2UploadService";
 
 export class ExploreModpacksController {
     static async getHomepage(c: Context): Promise<Response> {
@@ -111,6 +112,62 @@ export class ExploreModpacksController {
                 status: statusCode.toString(),
                 title: error.name || 'Modpack Versions Error',
                 detail: error.message || "Failed to fetch modpack versions."
+            }), statusCode);
+        }
+    }
+
+    static async getModpackVersionManifest(c: Context): Promise<Response> {
+        const modpackId = c.req.param('modpackId');
+        const versionId = c.req.param('versionId');
+
+        try {
+            const mpVersion = await ModpackVersion.findOne({
+                where: { id: versionId, modpackId },
+                relations: ['files', 'files.file'],
+                select: {
+                    id: true,
+                    changelog: true,
+                    mcVersion: true,
+                    forgeVersion: true,
+                    releaseDate: true,
+                    status: true,
+                    version: true,
+                    files: {
+                        path: true,
+                        fileHash: true,
+                        file: {
+                            type: true,
+                            size: true,
+                        }
+                    }
+                }
+            });
+            if (!mpVersion) {
+                return c.json(serializeError({
+                    status: '404',
+                    title: 'Not Found',
+                    detail: "Modpack version not found.",
+                }), 404);
+            }
+
+            // Generar manifiesto con URLs de descarga
+            const getDownloadUrl = (hash: string) => new URL(`${hash.slice(0, 2)}/${hash.slice(2, 4)}/${hash}`, DOWNLOAD_PREFIX_URL).toString();
+            const manifest = {
+                ...mpVersion,
+                files: mpVersion.files.map(file => ({
+                    ...file,
+                    downloadUrl: getDownloadUrl(file.fileHash)
+                }))
+            };
+
+            return c.json(manifest, 200);
+        } catch (error: any) {
+            console.error(`[CONTROLLER_EXPLORE] Error in getModpackVersionManifest for ID ${modpackId} and Version ${versionId}:`, error);
+            const statusCode = error.statusCode || 500;
+            return c.json(serializeError({
+                status: statusCode.toString(),
+                title: error.name || 'Modpack Version Error',
+                detail: error.message || "Failed to fetch modpack version."
             }), statusCode);
         }
     }
