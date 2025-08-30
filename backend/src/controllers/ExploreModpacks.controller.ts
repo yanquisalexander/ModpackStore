@@ -4,6 +4,7 @@ import { serializeCollection, serializeResource, serializeError } from "../utils
 import { ModpackVersion } from "@/entities/ModpackVersion";
 import { ModpackVersionStatus } from "@/types/enums";
 import { DOWNLOAD_PREFIX_URL } from "@/services/r2UploadService";
+import { Modpack } from "@/entities/Modpack";
 
 export class ExploreModpacksController {
     static async getHomepage(c: Context): Promise<Response> {
@@ -120,9 +121,16 @@ export class ExploreModpacksController {
         const modpackId = c.req.param('modpackId');
         const versionId = c.req.param('versionId');
 
+        const IS_LATEST_REQUESTED = versionId.toLowerCase() === 'latest';
+
+
         try {
+            const whereCondition = IS_LATEST_REQUESTED
+                ? { modpackId, status: ModpackVersionStatus.PUBLISHED }
+                : { id: versionId, modpackId };
+
             const mpVersion = await ModpackVersion.findOne({
-                where: { id: versionId, modpackId },
+                where: whereCondition,
                 relations: ['files', 'files.file'],
                 select: {
                     id: true,
@@ -140,7 +148,8 @@ export class ExploreModpacksController {
                             size: true,
                         }
                     }
-                }
+                },
+                order: IS_LATEST_REQUESTED ? { releaseDate: 'DESC' } : undefined,
             });
             if (!mpVersion) {
                 return c.json(serializeError({
