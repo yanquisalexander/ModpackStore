@@ -136,7 +136,7 @@ app.get('/search', ExploreModpacksController.search);
 
 /**
  * @openapi
- * /explore/modpack/{modpackId}:
+ * /explore/modpacks/{modpackId}:
  *   get:
  *     summary: Get a specific modpack details for exploration
  *     tags: [Explore]
@@ -174,8 +174,69 @@ app.get('/search', ExploreModpacksController.search);
  *       500:
  *         description: Internal Server Error.
  */
-app.get('/modpack/:modpackId', ExploreModpacksController.getModpack);
-app.get('/modpack/:modpackId/versions', ExploreModpacksController.getModpackVersions);
-app.get('/modpack/:modpackId/versions/:versionId', ExploreModpacksController.getModpackVersionManifest);
+app.get('/modpacks/:modpackId', ExploreModpacksController.getModpack);
+app.get('/modpacks/:modpackId/versions', ExploreModpacksController.getModpackVersions);
+app.get('/modpacks/:modpackId/versions/:versionId', ExploreModpacksController.getModpackVersionManifest);
+app.get('/modpacks/:modpackId/latest', ExploreModpacksController.getLatestVersion);
+
+/**
+ * @openapi
+ * /explore/modpacks/{modpackId}/check-update:
+ *   get:
+ *     summary: Check for modpack updates
+ *     tags: [Explore]
+ *     description: Checks if there's a newer version available for a specific modpack.
+ *     parameters:
+ *       - in: path
+ *         name: modpackId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The ID of the modpack to check for updates.
+ *       - in: query
+ *         name: currentVersion
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: The current version of the modpack installed.
+ *     responses:
+ *       200:
+ *         description: Update check result.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 hasUpdate:
+ *                   type: boolean
+ *                   description: Whether an update is available.
+ *                 currentVersion:
+ *                   type: string
+ *                   description: The current version provided.
+ *                 latestVersion:
+ *                   type: object
+ *                   properties:
+ *                     id: { type: 'string' }
+ *                     version: { type: 'string' }
+ *                     mcVersion: { type: 'string' }
+ *                     forgeVersion: { type: 'string' }
+ *                     releaseDate: { type: 'string', format: 'date-time' }
+ *                     changelog: { type: 'string' }
+ *                 modpack:
+ *                   type: object
+ *                   properties:
+ *                     id: { type: 'string' }
+ *                     name: { type: 'string' }
+ *       400:
+ *         description: Bad Request (missing currentVersion).
+ *       404:
+ *         description: Modpack or version not found.
+ *       500:
+ *         description: Internal Server Error.
+ */
+app.get('/modpacks/:modpackId/check-update', ExploreModpacksController.checkForUpdates);
+
+
 
 export default app;

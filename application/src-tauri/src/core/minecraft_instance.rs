@@ -1,6 +1,6 @@
 // src-tauri/src/minecraft_instance.rs
 use crate::core::instance_launcher::InstanceLauncher;
-use crate::core::tasks_manager::{TaskInfo, TaskStatus, TasksManager};
+use crate::core::tasks_manager::{TaskInfo, TaskStatus};
 use crate::utils::config_manager::ConfigManager;
 use serde::{Deserialize, Serialize};
 use std::fs;

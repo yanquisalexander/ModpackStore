@@ -1,5 +1,6 @@
 import { Modpack } from "@/entities/Modpack";
 import { ModpackVersion } from "@/entities/ModpackVersion";
+import { ModpackVersionFile } from "@/entities/ModpackVersionFile";
 import { User } from "@/entities/User";
 import { APIError } from "@/lib/APIError";
 import { isOrganizationMember, requireAuth, requireCreatorAccess, USER_CONTEXT_KEY } from "@/middlewares/auth.middleware";
@@ -10,6 +11,7 @@ import { uploadToR2 } from "@/services/r2UploadService";
 import { ModpackStatus, ModpackVersionStatus, PublisherMemberRole } from "@/types/enums";
 import { Hono } from "hono";
 import sharp from "sharp";
+import { In } from "typeorm";
 
 export const ModpackCreatorsRoute = new Hono();
 
@@ -335,7 +337,7 @@ ModpackCreatorsRoute.patch("/publishers/:publisherId/modpacks/:modpackId/version
 // Get previous version files for reuse
 ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId/previous-files/:type", isOrganizationMember, async (c) => {
     const { publisherId, modpackId, versionId, type } = c.req.param();
-    
+
     if (!ALLOWED_FILE_TYPES.includes(type)) {
         throw new APIError(400, "Tipo de archivo no permitido");
     }
@@ -415,13 +417,13 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
     }
 
     // Remove existing files of this type for this version first
-    await ModpackVersionFile.delete({ 
+    await ModpackVersionFile.delete({
         modpackVersionId: versionId
     });
 
     // Get the actual files and their paths from a previous version
     const filesToReuse = await ModpackVersionFile.find({
-        where: { 
+        where: {
             fileHash: In(fileHashes)
         },
         relations: ["file"],
@@ -440,7 +442,7 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
         }
     }
 
-    return c.json({ 
+    return c.json({
         message: `${fileHashes.length} archivos reutilizados para ${type}`,
         reusedFiles: fileHashes.length
     });
@@ -482,122 +484,6 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
     return c.json({ version });
 });
 
-// Public endpoints for client (outside creator namespace)
-export const ModpackPublicRoute = new Hono();
+// Public endpoints moved to explore routes
 
-// Get latest version of a modpack
-ModpackPublicRoute.get("/modpacks/:modpackId/latest", async (c) => {
-    const { modpackId } = c.req.param();
 
-    const latestVersion = await ModpackVersion.findOne({
-        where: { 
-            modpackId,
-            status: ModpackVersionStatus.PUBLISHED 
-        },
-        relations: ["modpack"],
-        order: { releaseDate: "DESC" }
-    });
-
-    if (!latestVersion) {
-        return c.notFound();
-    }
-
-    return c.json({ 
-        version: {
-            id: latestVersion.id,
-            version: latestVersion.version,
-            mcVersion: latestVersion.mcVersion,
-            forgeVersion: latestVersion.forgeVersion,
-            releaseDate: latestVersion.releaseDate,
-            modpack: {
-                id: latestVersion.modpack.id,
-                name: latestVersion.modpack.name
-            }
-        }
-    });
-});
-
-// Get version manifest for downloads
-ModpackPublicRoute.get("/modpacks/:modpackId/versions/:versionId/manifest", async (c) => {
-    const { modpackId, versionId } = c.req.param();
-
-    const version = await ModpackVersion.findOne({
-        where: { 
-            id: versionId,
-            modpackId,
-            status: ModpackVersionStatus.PUBLISHED 
-        },
-        relations: ["files", "files.file", "modpack"]
-    });
-
-    if (!version) {
-        return c.notFound();
-    }
-
-    // Generate manifest with file information
-    const manifest = {
-        modpack: {
-            id: version.modpack.id,
-            name: version.modpack.name
-        },
-        version: {
-            id: version.id,
-            version: version.version,
-            mcVersion: version.mcVersion,
-            forgeVersion: version.forgeVersion
-        },
-        files: {
-            mods: [],
-            resourcepacks: [],
-            config: [],
-            shaderpacks: [],
-            extras: []
-        }
-    };
-
-    // Group files by type
-    version.files.forEach(vf => {
-        const fileInfo = {
-            hash: vf.fileHash,
-            path: vf.path,
-            size: vf.file.size,
-            downloadUrl: `https://r2.modpackstore.net/resources/files/${vf.fileHash.slice(0, 2)}/${vf.fileHash.slice(2, 4)}/${vf.fileHash}`
-        };
-        
-        manifest.files[vf.file.type].push(fileInfo);
-    });
-
-    return c.json({ manifest });
-});
-
-// Check for updates
-ModpackPublicRoute.get("/modpacks/:modpackId/check-update", async (c) => {
-    const { modpackId } = c.req.param();
-    const { currentVersion } = c.req.query();
-
-    const latestVersion = await ModpackVersion.findOne({
-        where: { 
-            modpackId,
-            status: ModpackVersionStatus.PUBLISHED 
-        },
-        order: { releaseDate: "DESC" }
-    });
-
-    if (!latestVersion) {
-        return c.json({ hasUpdate: false });
-    }
-
-    // Simple version comparison - in production you might want semver
-    const hasUpdate = latestVersion.version !== currentVersion;
-
-    return c.json({ 
-        hasUpdate,
-        latestVersion: hasUpdate ? {
-            id: latestVersion.id,
-            version: latestVersion.version,
-            mcVersion: latestVersion.mcVersion,
-            forgeVersion: latestVersion.forgeVersion,
-            releaseDate: latestVersion.releaseDate
-        } : null
-    });
-});

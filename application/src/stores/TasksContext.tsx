@@ -18,6 +18,7 @@ type TaskContextType = {
     hasRunningTasks: boolean;
     taskCount: number;
     instancesBootstraping: string[]; // Array de instanceId de tareas en "Running"
+    isModpackInstalling: (modpackId: string) => boolean;
 };
 
 const TasksContext = createContext<TaskContextType | undefined>(undefined);
@@ -30,6 +31,16 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     const instancesBootstraping = tasks.filter(
         (task) => task.status === "Running" && task.data?.instanceId
     ).map((task) => task.data.instanceId);
+
+    // Función para verificar si un modpack está siendo instalado
+    const isModpackInstalling = (modpackId: string) => {
+        return tasks.some(
+            (task) =>
+                task.status === "Running" &&
+                (task.data?.type === "modpack_instance_creation" || task.data?.type === "modpack_update") &&
+                task.data?.modpackId === modpackId
+        );
+    };
 
     useEffect(() => {
         const unlisten1 = listen<string>("task-created", (event) => {
@@ -61,7 +72,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     }, []);
 
     return (
-        <TasksContext.Provider value={{ tasks, setTasks, hasRunningTasks, taskCount, instancesBootstraping }}>
+        <TasksContext.Provider value={{ tasks, setTasks, hasRunningTasks, taskCount, instancesBootstraping, isModpackInstalling }}>
             {children}
         </TasksContext.Provider>
     );

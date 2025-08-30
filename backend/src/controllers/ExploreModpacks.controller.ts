@@ -169,7 +169,7 @@ export class ExploreModpacksController {
                 }))
             };
 
-            return c.json(manifest, 200);
+            return c.json({ manifest }, 200);
         } catch (error: any) {
             console.error(`[CONTROLLER_EXPLORE] Error in getModpackVersionManifest for ID ${modpackId} and Version ${versionId}:`, error);
             const statusCode = error.statusCode || 500;
@@ -177,6 +177,110 @@ export class ExploreModpacksController {
                 status: statusCode.toString(),
                 title: error.name || 'Modpack Version Error',
                 detail: error.message || "Failed to fetch modpack version."
+            }), statusCode);
+        }
+    }
+
+    static async getLatestVersion(c: Context): Promise<Response> {
+        const modpackId = c.req.param('modpackId');
+
+        try {
+            const latestVersion = await ModpackVersion.findOne({
+                where: {
+                    modpackId,
+                    status: ModpackVersionStatus.PUBLISHED
+                },
+                relations: ["modpack"],
+                order: { releaseDate: "DESC" }
+            });
+
+            if (!latestVersion) {
+                return c.json(serializeError({
+                    status: '404',
+                    title: 'Not Found',
+                    detail: "No published version found for this modpack.",
+                }), 404);
+            }
+
+            return c.json({
+                version: {
+                    id: latestVersion.id,
+                    version: latestVersion.version,
+                    mcVersion: latestVersion.mcVersion,
+                    forgeVersion: latestVersion.forgeVersion,
+                    releaseDate: latestVersion.releaseDate,
+                    modpack: {
+                        id: latestVersion.modpack.id,
+                        name: latestVersion.modpack.name
+                    }
+                }
+            }, 200);
+        } catch (error: any) {
+            console.error(`[CONTROLLER_EXPLORE] Error in getLatestVersion for ID ${modpackId}:`, error);
+            const statusCode = error.statusCode || 500;
+            return c.json(serializeError({
+                status: statusCode.toString(),
+                title: error.name || 'Latest Version Error',
+                detail: error.message || "Failed to fetch latest version."
+            }), statusCode);
+        }
+    }
+
+    static async checkForUpdates(c: Context): Promise<Response> {
+        const modpackId = c.req.param('modpackId');
+        const currentVersion = c.req.query('currentVersion');
+
+        if (!currentVersion) {
+            return c.json(serializeError({
+                status: '400',
+                title: 'Bad Request',
+                detail: 'Missing currentVersion query parameter.',
+            }), 400);
+        }
+
+        try {
+            const latestVersion = await ModpackVersion.findOne({
+                where: {
+                    modpackId,
+                    status: ModpackVersionStatus.PUBLISHED
+                },
+                relations: ["modpack"],
+                order: { releaseDate: "DESC" }
+            });
+
+            if (!latestVersion) {
+                return c.json(serializeError({
+                    status: '404',
+                    title: 'Not Found',
+                    detail: "No published version found for this modpack.",
+                }), 404);
+            }
+
+            const hasUpdate = latestVersion.version !== currentVersion;
+
+            return c.json({
+                hasUpdate,
+                currentVersion,
+                latestVersion: {
+                    id: latestVersion.id,
+                    version: latestVersion.version,
+                    mcVersion: latestVersion.mcVersion,
+                    forgeVersion: latestVersion.forgeVersion,
+                    releaseDate: latestVersion.releaseDate,
+                    changelog: latestVersion.changelog
+                },
+                modpack: {
+                    id: latestVersion.modpack.id,
+                    name: latestVersion.modpack.name
+                }
+            }, 200);
+        } catch (error: any) {
+            console.error(`[CONTROLLER_EXPLORE] Error in checkForUpdates for ID ${modpackId}:`, error);
+            const statusCode = error.statusCode || 500;
+            return c.json(serializeError({
+                status: statusCode.toString(),
+                title: error.name || 'Check Update Error',
+                detail: error.message || "Failed to check for updates."
             }), statusCode);
         }
     }

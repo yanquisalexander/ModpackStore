@@ -956,6 +956,7 @@ name = "dev-alexitoo-modpackstore"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64 0.21.7",
  "chrono",
  "dirs",
  "fix-path-env",

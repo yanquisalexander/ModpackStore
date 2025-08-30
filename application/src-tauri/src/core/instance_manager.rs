@@ -2,75 +2,61 @@
 
 use crate::config::get_config_manager;
 use crate::core::instance_bootstrap::InstanceBootstrap;
-use crate::core::minecraft_instance;
-use crate::core::minecraft_instance::MinecraftInstance;
-use crate::core::models::ModpackInfo;
-use crate::core::tasks_manager::{TaskStatus, TasksManager};
-use crate::GLOBAL_APP_HANDLE;
+use crate::core::minecraft_instance::{self, MinecraftInstance};
+use crate::core::modpack_file_manager::ModpackManifest;
+use crate::core::tasks_manager::{add_task, remove_task, update_task, TaskStatus};
+use crate::API_ENDPOINT;
 use dirs::config_dir;
 use serde_json::from_str;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::Mutex;
 use tauri::Emitter;
+use tokio::task;
+
+// Constants
+const DEFAULT_VANILLA_ICON: &str = "/images/default_instances/default_vanilla.webp";
+const DEFAULT_FORGE_ICON: &str = "/images/default_instances/default_forge.webp";
+const MAX_SEARCH_RESULTS: usize = 20;
+const TASK_CLEANUP_DELAY: u64 = 60;
 
 // Función auxiliar para normalizar rutas
 fn normalize_path(path: &Path) -> String {
-    // Convertir la ruta a una cadena de texto normalizada utilizando separadores nativos del sistema
     path.to_string_lossy().to_string()
+}
+
+// Función auxiliar para obtener el directorio de instancias
+fn get_instances_dir() -> Result<PathBuf, String> {
+    let config_manager = get_config_manager()
+        .lock()
+        .map_err(|_| "Failed to lock config manager mutex")?;
+
+    let config = config_manager.as_ref().map_err(|e| e.clone())?;
+    Ok(config.get_instances_dir())
 }
 
 #[tauri::command]
 pub fn get_all_instances() -> Result<Vec<MinecraftInstance>, String> {
-    let config_manager = get_config_manager()
-        .lock()
-        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-
-    let config = config_manager.as_ref().map_err(|e| e.clone())?;
-
-    let instances_dir = config.get_instances_dir();
+    let instances_dir = get_instances_dir()?;
     get_instances(instances_dir.to_str().unwrap_or_default())
 }
 
 #[tauri::command]
-pub fn get_instance_by_name(instance_name: String) -> Result<Option<MinecraftInstance>, String> {
-    let config_manager = get_config_manager()
-        .lock()
-        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-
-    let config = config_manager.as_ref().map_err(|e| e.clone())?;
-
-    let instances_dir = config.get_instances_dir();
-
-    let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
-    Ok(instances
-        .into_iter()
-        .find(|i| i.instanceName == instance_name))
-}
-
-#[tauri::command]
 pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
-    let config_manager = get_config_manager()
-        .lock()
-        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-
-    let config = config_manager.as_ref().map_err(|e| e.clone())?;
-
-    let instances_dir = config.get_instances_dir();
-
+    let instances_dir = get_instances_dir()?;
     let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
+
     let original_instance = instances
         .into_iter()
         .find(|i| i.instanceId == instance.instanceId)
         .ok_or_else(|| format!("Instance with ID {} not found", instance.instanceId))?;
 
-    let instance_path = match &original_instance.instanceDirectory {
-        Some(dir) => Path::new(dir),
-        None => return Err("Instance directory is missing".to_string()),
-    };
+    let instance_path = original_instance
+        .instanceDirectory
+        .as_ref()
+        .ok_or("Instance directory is missing")?;
 
-    let config_file = instance_path.join("instance.json");
+    let config_file = Path::new(instance_path).join("instance.json");
 
     if config_file.exists() {
         let contents =
@@ -82,7 +68,6 @@ pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
         existing_instance.instanceName = instance.instanceName;
         existing_instance.accountUuid = instance.accountUuid;
 
-        // Guardar la instancia actualizada
         existing_instance
             .save()
             .map_err(|e| format!("Error saving instance: {}", e))?;
@@ -93,16 +78,8 @@ pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
 
 #[tauri::command]
 pub fn get_instance_by_id(instance_id: String) -> Result<Option<MinecraftInstance>, String> {
-    let config_manager = get_config_manager()
-        .lock()
-        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-
-    let config = config_manager.as_ref().map_err(|e| e.clone())?;
-
-    let instances_dir = config.get_instances_dir();
-
-    let instances: Vec<MinecraftInstance> =
-        get_instances(instances_dir.to_str().unwrap_or_default())?;
+    let instances_dir = get_instances_dir()?;
+    let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
     Ok(instances.into_iter().find(|i| i.instanceId == instance_id))
 }
 
@@ -117,14 +94,7 @@ pub fn delete_instance(instance_path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn launch_mc_instance(instance_id: String) -> Result<(), String> {
-    let config_manager = get_config_manager()
-        .lock()
-        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-
-    let config = config_manager.as_ref().map_err(|e| e.clone())?;
-
-    let instances_dir = config.get_instances_dir();
-
+    let instances_dir = get_instances_dir()?;
     let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
 
     let instance = instances
@@ -146,37 +116,40 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
         return Ok(Vec::new());
     }
 
+    let entries = fs::read_dir(path).map_err(|e| format!("Error reading directory: {}", e))?;
+
     let mut instances = Vec::new();
 
-    for entry in fs::read_dir(path).map_err(|e| format!("Error reading directory: {}", e))? {
+    for entry in entries {
         let entry = entry.map_err(|e| format!("Error reading entry: {}", e))?;
         let instance_path = entry.path();
 
-        if instance_path.is_dir() {
-            let config_file = instance_path.join("instance.json");
-
-            if config_file.exists() {
-                let contents = fs::read_to_string(&config_file)
-                    .map_err(|e| format!("Error reading JSON: {}", e))?;
-
-                let mut instance: MinecraftInstance =
-                    from_str(&contents).map_err(|e| format!("Error parsing JSON: {}", e))?;
-
-                // Normalizar la ruta del directorio de la instancia
-                instance.instanceDirectory = Some(normalize_path(&instance_path));
-
-                // Normalizar la ruta de Minecraft
-                let minecraft_path = instance_path.join("minecraft");
-                instance.minecraftPath = normalize_path(&minecraft_path);
-
-                // Manejamos los errores al guardar
-                if let Err(e) = instance.save() {
-                    println!("Warning: Failed to save instance config: {}", e);
-                }
-
-                instances.push(instance);
-            }
+        if !instance_path.is_dir() {
+            continue;
         }
+
+        let config_file = instance_path.join("instance.json");
+
+        if !config_file.exists() {
+            continue;
+        }
+
+        let contents =
+            fs::read_to_string(&config_file).map_err(|e| format!("Error reading JSON: {}", e))?;
+
+        let mut instance: MinecraftInstance =
+            from_str(&contents).map_err(|e| format!("Error parsing JSON: {}", e))?;
+
+        // Normalizar rutas
+        instance.instanceDirectory = Some(normalize_path(&instance_path));
+        instance.minecraftPath = normalize_path(&instance_path.join("minecraft"));
+
+        // Intentar guardar, pero continuar si falla
+        if let Err(e) = instance.save() {
+            eprintln!("Warning: Failed to save instance config: {}", e);
+        }
+
+        instances.push(instance);
     }
 
     Ok(instances)
@@ -188,421 +161,147 @@ pub async fn create_local_instance(
     mc_version: String,
     forge_version: Option<String>,
 ) -> Result<String, String> {
-    // Obtener el directorio de instancias
-    let instances_dir = {
-        let config_manager = get_config_manager()
-            .lock()
-            .map_err(|_| "Failed to lock config manager mutex".to_string())?;
+    let instances_dir = get_instances_dir()?;
+    let instance_id = uuid::Uuid::new_v4().to_string();
 
-        let config = config_manager.as_ref().map_err(|e| e.clone())?;
-
-        config.get_instances_dir()
-    };
-
-    // Creamos una instancia de Minecraft
+    // Crear instancia
     let mut instance = MinecraftInstance::new();
     instance.instanceName = instance_name.clone();
     instance.minecraftVersion = mc_version;
     instance.forgeVersion = forge_version.clone();
-    instance.instanceId = uuid::Uuid::new_v4().to_string();
+    instance.instanceId = instance_id.clone();
 
-    let is_forge = instance.forgeVersion.is_some();
-
-    let DEFAULT_VANILLA_ICON = "/images/default_instances/default_vanilla.webp";
-    let DEFAULT_FORGE_ICON = "/images/default_instances/default_forge.webp";
-
-    // If is vanilla, set the icon to the default vanilla icon
-    if is_forge {
-        instance.bannerUrl = Some(DEFAULT_FORGE_ICON.to_string());
-    } else {
-        instance.bannerUrl = Some(DEFAULT_VANILLA_ICON.to_string());
-    }
+    // Configurar ícono por defecto
+    instance.bannerUrl = Some(
+        if forge_version.is_some() {
+            DEFAULT_FORGE_ICON
+        } else {
+            DEFAULT_VANILLA_ICON
+        }
+        .to_string(),
+    );
 
     let instance_dir = instances_dir.join(&instance.instanceName);
-
-    // Normalizar la ruta del directorio de Minecraft
     let minecraft_path = instance_dir.join("minecraft");
+
     instance.minecraftPath = normalize_path(&minecraft_path);
-
-    // If the instance directory doesn't exist, create it
-    if !instance_dir.exists() {
-        fs::create_dir_all(&instance_dir)
-            .map_err(|e| format!("Failed to create instance directory: {}", e))?;
-    }
-
-    // Set the instance directory (normalizado)
     instance.instanceDirectory = Some(normalize_path(&instance_dir));
 
-    // Guardamos la instancia inicialmente
+    // Crear directorio y guardar
+    fs::create_dir_all(&instance_dir)
+        .map_err(|e| format!("Failed to create instance directory: {}", e))?;
+
     instance
         .save()
         .map_err(|e| format!("Failed to save instance: {}", e))?;
 
-    // Creamos el task manager y lo envolvemos en Arc<Mutex<>> para compartirlo entre hilos
-    let task_manager = Arc::new(Mutex::new(TasksManager::new()));
-    let task_id = {
-        let mut tm = task_manager.lock().unwrap();
-        tm.add_task(
-            &format!("Creando instancia {}", instance.instanceName),
-            Some(serde_json::json!({
-                "instanceName": instance.instanceName.clone(),
-                "instanceId": instance.instanceId.clone()
-            })),
-        )
-    };
+    // Crear tarea
+    let task_id = add_task(
+        &format!("Creando instancia {}", instance.instanceName),
+        Some(serde_json::json!({
+            "instanceName": instance.instanceName,
+            "instanceId": instance.instanceId
+        })),
+    );
 
-    // Actualizamos el estado a "Creando metadatos"
-    {
-        let mut tm = task_manager.lock().unwrap();
-        tm.update_task(
-            &task_id,
-            TaskStatus::Running,
-            10.0,
-            "Creando metadatos",
-            Some(serde_json::json!({
-                "instanceName": instance.instanceName.clone(),
-                "instanceId": instance.instanceId.clone()
-            })),
-        );
-    }
+    // Procesar en segundo plano
+    spawn_instance_creation_task(instance, task_id);
 
-    // Crear la carpeta de la instancia y su respectivo instance.json
-    let instance_path = PathBuf::from(instance.instanceDirectory.as_ref().unwrap());
-    if !instance_path.exists() {
-        fs::create_dir_all(&instance_path)
-            .map_err(|e| format!("Failed to create instance directory: {}", e))?;
-    }
-    let instance_json_path = instance_path.join("instance.json");
-    fs::write(
-        &instance_json_path,
-        serde_json::to_string(&instance).unwrap(),
-    )
-    .map_err(|e| format!("Failed to write instance.json: {}", e))?;
-
-    // Clone los datos necesarios para el hilo
-    let instance_clone = instance.clone();
-    let task_id_clone = task_id.clone();
-    let task_manager_clone = Arc::clone(&task_manager);
-
-    // Lanzar el proceso en segundo plano
-    std::thread::spawn(move || {
-        // Iniciar el bootstrap de la instancia
-        let mut bootstrap = InstanceBootstrap::new();
-
-        // Determinar si es una instancia vanilla o forge
-        let result = if instance_clone.forgeVersion.is_some() {
-            // Si tiene forge version, usar el método para instancias forge
-            bootstrap.bootstrap_forge_instance(
-                &instance_clone,
-                Some(task_id_clone.clone()),
-                Some(Arc::clone(&task_manager_clone)),
-            )
-        } else {
-            // Si no tiene forge version, usar el método para instancias vanilla
-            bootstrap.bootstrap_vanilla_instance(
-                &instance_clone,
-                Some(task_id_clone.clone()),
-                Some(Arc::clone(&task_manager_clone)),
-            )
-        };
-
-        match result {
-            Ok(_) => {
-                // Emit task completion event
-                if let Ok(mut tm) = task_manager_clone.lock() {
-                    tm.update_task(
-                        &task_id_clone,
-                        TaskStatus::Completed,
-                        100.0,
-                        &format!("Instancia {} creada", instance_clone.instanceName),
-                        Some(serde_json::json!({
-                            "instanceName": instance_clone.instanceName.clone(),
-                            "instanceId": instance_clone.instanceId.clone()
-                        })),
-                    );
-                }
-
-                println!("Instance creation completed: {:?}", instance_clone);
-            }
-            Err(e) => {
-                eprintln!("Error during bootstrap: {}", e);
-                // Actualizar el estado de la tarea a fallido
-                if let Ok(mut tm) = task_manager_clone.lock() {
-                    tm.update_task(
-                        &task_id_clone,
-                        TaskStatus::Failed,
-                        0.0,
-                        &format!("Error en bootstrap: {}", e),
-                        Some(serde_json::json!({
-                            "instanceName": instance_clone.instanceName.clone(),
-                            "instanceId": instance_clone.instanceId.clone(),
-                            "error": e
-                        })),
-                    );
-                }
-            }
-        }
-
-        std::thread::sleep(std::time::Duration::from_secs(60));
-        if let Ok(mut tm) = task_manager_clone.lock() {
-            tm.remove_task(&task_id_clone);
-        }
-    });
-
-    // Devolvemos inmediatamente una respuesta con el ID de la instancia
-    Ok(instance.instanceId)
+    Ok(instance_id)
 }
 
 #[tauri::command]
 pub async fn create_modpack_instance(
     instance_name: String,
     modpack_id: String,
-    version_id: Option<String>, // If None, will use "latest"
+    version_id: Option<String>,
 ) -> Result<String, String> {
-    // Get task manager singleton
-    let task_manager = crate::core::tasks_manager::get_task_manager();
-    
-    // Add a new task for creating the modpack instance
-    let task_id = {
-        let tm = task_manager.lock().unwrap();
-        tm.add_task(
-            &format!("Creando instancia de modpack: {}", instance_name),
-            Some(serde_json::json!({
-                "type": "modpack_instance_creation",
-                "instanceName": instance_name.clone(),
-                "modpackId": modpack_id.clone(),
-                "versionId": version_id.clone()
-            })),
-        )
-    };
+    let task_id = add_task(
+        &format!("Creando instancia de modpack: {}", instance_name),
+        Some(serde_json::json!({
+            "type": "modpack_instance_creation",
+            "instanceName": instance_name,
+            "modpackId": modpack_id,
+            "versionId": version_id
+        })),
+    );
 
-    // Determine which version to use
-    let final_version_id = if let Some(vid) = version_id {
-        vid
-    } else {
-        // Fetch latest version from API
-        match fetch_latest_version(&modpack_id).await {
-            Ok(latest_vid) => latest_vid,
-            Err(e) => {
-                if let Ok(mut tm) = task_manager.lock() {
-                    tm.update_task(
-                        &task_id,
-                        TaskStatus::Failed,
-                        0.0,
-                        &format!("Error obteniendo versión latest: {}", e),
-                        None,
-                    );
-                }
-                return Err(format!("Error obteniendo versión latest: {}", e));
-            }
-        }
-    };
+    // Obtener información del modpack
+    let modpack_info = fetch_modpack_info(&modpack_id).await?;
 
-    // Update task progress
-    if let Ok(mut tm) = task_manager.lock() {
-        tm.update_task(
-            &task_id,
-            TaskStatus::Running,
-            10.0,
-            "Descargando información del modpack...",
-            Some(serde_json::json!({
-                "instanceName": instance_name.clone(),
-                "modpackId": modpack_id.clone(),
-                "versionId": final_version_id.clone()
-            })),
-        );
-    }
-
-    // Fetch modpack manifest
-    let manifest = match fetch_modpack_manifest(&modpack_id, &final_version_id).await {
-        Ok(manifest) => manifest,
-        Err(e) => {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    &task_id,
-                    TaskStatus::Failed,
-                    0.0,
-                    &format!("Error descargando manifiesto: {}", e),
-                    None,
-                );
-            }
-            return Err(format!("Error descargando manifiesto: {}", e));
-        }
-    };
-
-    // Get instances directory
-    let instances_dir = {
-        let config_manager = get_config_manager()
-            .lock()
-            .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-        let config = config_manager.as_ref().map_err(|e| e.clone())?;
-        config.get_instances_dir()
-    };
-
-    // Create instance structure
-    let mut instance = MinecraftInstance::new();
-    instance.instanceName = instance_name.clone();
-    instance.instanceId = uuid::Uuid::new_v4().to_string();
-    instance.modpackId = Some(modpack_id.clone());
-    instance.modpackVersionId = Some(final_version_id.clone());
-    instance.minecraftVersion = manifest.version.mc_version.clone();
-    instance.forgeVersion = manifest.version.forge_version.clone();
-
-    // Set instance directory
-    let instance_dir = instances_dir.join(&instance.instanceId);
-    instance.instanceDirectory = Some(instance_dir.to_string_lossy().to_string());
-
-    // Create instance directory
-    if let Err(e) = fs::create_dir_all(&instance_dir) {
-        if let Ok(mut tm) = task_manager.lock() {
-            tm.update_task(
+    // Determinar versión
+    let final_version_id = match version_id {
+        Some(vid) => vid,
+        None => fetch_latest_version(&modpack_id).await.map_err(|e| {
+            update_task(
                 &task_id,
                 TaskStatus::Failed,
                 0.0,
-                &format!("Error creando directorio: {}", e),
+                &format!("Error obteniendo versión latest: {}", e),
                 None,
             );
-        }
-        return Err(format!("Error creando directorio: {}", e));
-    }
+            e
+        })?,
+    };
 
-    // Set minecraft path within instance
-    instance.minecraftPath = instance_dir.join("minecraft").to_string_lossy().to_string();
+    update_task(
+        &task_id,
+        TaskStatus::Running,
+        10.0,
+        "Descargando información del modpack...",
+        None,
+    );
 
-    // Save instance.json
-    if let Err(e) = instance.save() {
-        if let Ok(mut tm) = task_manager.lock() {
-            tm.update_task(
+    // Obtener manifiesto
+    let manifest = fetch_modpack_manifest(&modpack_id, &final_version_id)
+        .await
+        .map_err(|e| {
+            update_task(
                 &task_id,
                 TaskStatus::Failed,
                 0.0,
-                &format!("Error guardando configuración: {}", e),
+                &format!("Error descargando manifiesto: {}", e),
                 None,
             );
-        }
-        return Err(format!("Error guardando configuración: {}", e));
-    }
+            e
+        })?;
 
-    // Clone data for background thread
-    let instance_clone = instance.clone();
-    let task_id_clone = task_id.clone();
-    let task_manager_clone = Arc::clone(&task_manager);
     let manifest_clone = manifest.clone();
 
-    // Start background process
-    std::thread::spawn(move || {
-        // Bootstrap vanilla/forge instance first
-        let mut bootstrap = InstanceBootstrap::new();
-        
-        if let Ok(mut tm) = task_manager_clone.lock() {
-            tm.update_task(
-                &task_id_clone,
-                TaskStatus::Running,
-                20.0,
-                "Configurando base de Minecraft...",
-                Some(serde_json::json!({
-                    "instanceName": instance_clone.instanceName.clone(),
-                    "instanceId": instance_clone.instanceId.clone()
-                })),
-            );
-        }
+    // Crear instancia
+    let instance = create_modpack_instance_struct(
+        instance_name,
+        modpack_id.clone(),
+        final_version_id.clone(),
+        manifest,
+        modpack_info,
+    )
+    .await?;
 
-        let bootstrap_result = if instance_clone.forgeVersion.is_some() {
-            bootstrap.bootstrap_forge_instance(
-                &instance_clone,
-                Some(task_id_clone.clone()),
-                Some(Arc::clone(&task_manager_clone)),
-            )
-        } else {
-            bootstrap.bootstrap_vanilla_instance(
-                &instance_clone,
-                Some(task_id_clone.clone()),
-                Some(Arc::clone(&task_manager_clone)),
-            )
-        };
+    // Obtener instanceId antes de mover instance
+    let instance_id = instance.instanceId.clone();
 
-        if let Err(e) = bootstrap_result {
-            if let Ok(mut tm) = task_manager_clone.lock() {
-                tm.update_task(
-                    &task_id_clone,
-                    TaskStatus::Failed,
-                    0.0,
-                    &format!("Error en bootstrap: {}", e),
-                    None,
-                );
-            }
-            return;
-        }
+    // Procesar en segundo plano
+    spawn_modpack_creation_task(instance, manifest_clone, task_id);
 
-        // Download and install modpack files
-        if let Ok(mut tm) = task_manager_clone.lock() {
-            tm.update_task(
-                &task_id_clone,
-                TaskStatus::Running,
-                60.0,
-                "Descargando archivos del modpack...",
-                Some(serde_json::json!({
-                    "instanceName": instance_clone.instanceName.clone(),
-                    "instanceId": instance_clone.instanceId.clone()
-                })),
-            );
-        }
-
-        // TODO: Implement modpack file installation logic
-        // This would download files, check for existing files by hash, etc.
-
-        // For now, mark as completed
-        if let Ok(mut tm) = task_manager_clone.lock() {
-            tm.update_task(
-                &task_id_clone,
-                TaskStatus::Completed,
-                100.0,
-                &format!("Instancia de modpack {} creada exitosamente", instance_clone.instanceName),
-                Some(serde_json::json!({
-                    "instanceName": instance_clone.instanceName.clone(),
-                    "instanceId": instance_clone.instanceId.clone()
-                })),
-            );
-        }
-
-        // Auto-remove task after delay
-        std::thread::sleep(std::time::Duration::from_secs(60));
-        if let Ok(mut tm) = task_manager_clone.lock() {
-            tm.remove_task(&task_id_clone);
-        }
-    });
-
-    Ok(instance.instanceId)
+    Ok(instance_id)
 }
 
 #[tauri::command]
-// Returns bool
 pub async fn remove_instance(instance_id: String) -> Result<bool, String> {
-    // Obtener la información necesaria antes de las operaciones asíncronas
     let instance_directory = {
-        let config_manager = get_config_manager()
-            .lock()
-            .map_err(|_| "Failed to lock config manager mutex".to_string())?;
-
-        let config = config_manager.as_ref().map_err(|e| e.clone())?;
-
-        let instances_dir = config.get_instances_dir();
-
+        let instances_dir = get_instances_dir()?;
         let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
 
-        let instance = instances
+        instances
             .into_iter()
             .find(|i| i.instanceId == instance_id)
-            .ok_or_else(|| format!("Instance with ID {} not found", instance_id))?;
-
-        // Obtener el directorio y clonarlo para uso posterior
-        instance.instanceDirectory.clone()
+            .ok_or_else(|| format!("Instance with ID {} not found", instance_id))?
+            .instanceDirectory
     };
 
-    // Delete the instance directory asynchronously
     if let Some(directory) = instance_directory {
-        // Usar spawn_blocking para operaciones de I/O intensivas
-        let result = tokio::task::spawn_blocking(move || std::fs::remove_dir_all(&directory))
+        task::spawn_blocking(move || fs::remove_dir_all(&directory))
             .await
             .map_err(|e| format!("Task join error: {}", e))?
             .map_err(|e| format!("Failed to delete instance directory: {}", e))?;
@@ -613,58 +312,407 @@ pub async fn remove_instance(instance_id: String) -> Result<bool, String> {
 
 #[tauri::command]
 pub async fn search_instances(query: String) -> Result<Vec<MinecraftInstance>, String> {
-    let config_manager = get_config_manager()
-        .lock()
-        .map_err(|_| "Failed to lock config manager mutex".to_string())?;
+    let instances_dir = get_instances_dir()?;
+    let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
 
-    let config = config_manager.as_ref().map_err(|e| e.clone())?;
+    if query.is_empty() {
+        return Ok(instances);
+    }
 
-    let instances_dir = config.get_instances_dir();
-
-    // Obtener la ruta segura como str
-    let dir_path = instances_dir
-        .to_str()
-        .ok_or_else(|| "Invalid instances directory path".to_string())?;
-
-    // Convertir la consulta a minúsculas para hacer la búsqueda case-insensitive
     let query_lowercase = query.to_lowercase();
+    let filtered_instances: Vec<_> = instances
+        .into_iter()
+        .filter(|instance| {
+            instance
+                .instanceName
+                .to_lowercase()
+                .contains(&query_lowercase)
+                || instance
+                    .minecraftVersion
+                    .to_lowercase()
+                    .contains(&query_lowercase)
+        })
+        .take(MAX_SEARCH_RESULTS)
+        .collect();
 
-    // Buscar instancias
-    let instances = get_instances(dir_path)?;
-
-    // Filtrar instancias de manera más flexible
-    let filtered_instances: Vec<MinecraftInstance> = if query.is_empty() {
-        // Si la consulta está vacía, devolver todas las instancias
-        instances
-    } else {
-        instances
-            .into_iter()
-            .filter(|instance| {
-                // Buscar en nombre (case-insensitive)
-                instance.instanceName.to_lowercase().contains(&query_lowercase) ||
-                // Buscar en version
-                instance.minecraftVersion.to_lowercase().contains(&query_lowercase)
-            })
-            .collect()
-    };
-
-    // Devuelve resultados con un límite para evitar sobrecarga
-    // pero solo si hay muchas instancias
-    let max_results = 20;
-    let results = if filtered_instances.len() > max_results {
-        filtered_instances.into_iter().take(max_results).collect()
-    } else {
-        filtered_instances
-    };
-
-    Ok(results)
+    Ok(filtered_instances)
 }
 
-// Helper function to fetch latest version ID
+#[tauri::command]
+pub async fn check_modpack_updates(
+    modpack_id: String,
+    current_version: String,
+) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{}/explore/modpacks/{}/check-update?currentVersion={}",
+        API_ENDPOINT, modpack_id, current_version
+    );
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to check for updates: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("API error: {}", response.status()));
+    }
+
+    response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))
+}
+
+#[tauri::command]
+pub async fn update_modpack_instance(
+    instance_id: String,
+    target_version_id: Option<String>,
+) -> Result<String, String> {
+    let mut instance =
+        MinecraftInstance::from_instance_id(&instance_id).ok_or("Instance not found")?;
+
+    let modpack_id = instance
+        .modpackId
+        .as_ref()
+        .ok_or("Instance is not a modpack instance")?
+        .clone();
+
+    let task_id = add_task(
+        &format!("Actualizando modpack: {}", instance.instanceName),
+        Some(serde_json::json!({
+            "type": "modpack_update",
+            "instanceId": instance_id,
+            "instanceName": instance.instanceName,
+            "modpackId": modpack_id
+        })),
+    );
+
+    // Determinar versión objetivo
+    let final_version_id = match target_version_id {
+        Some(vid) => vid,
+        None => fetch_latest_version(&modpack_id).await.map_err(|e| {
+            update_task(
+                &task_id,
+                TaskStatus::Failed,
+                0.0,
+                &format!("Error obteniendo versión latest: {}", e),
+                None,
+            );
+            e
+        })?,
+    };
+
+    // Verificar si ya está en la versión objetivo
+    if instance.modpackVersionId.as_ref() == Some(&final_version_id) {
+        update_task(
+            &task_id,
+            TaskStatus::Completed,
+            100.0,
+            "Ya estás en la versión más reciente",
+            None,
+        );
+        return Ok("No update needed".to_string());
+    }
+
+    // Actualizar versión e información
+    instance.modpackVersionId = Some(final_version_id.clone());
+
+    let manifest = fetch_modpack_manifest(&modpack_id, &final_version_id)
+        .await
+        .map_err(|e| {
+            update_task(
+                &task_id,
+                TaskStatus::Failed,
+                0.0,
+                &format!("Error descargando manifiesto: {}", e),
+                None,
+            );
+            e
+        })?;
+
+    instance.minecraftVersion = manifest.mc_version.clone();
+    instance.forgeVersion = manifest.forge_version.clone();
+
+    instance.save().map_err(|e| {
+        update_task(
+            &task_id,
+            TaskStatus::Failed,
+            0.0,
+            &format!("Error guardando configuración: {}", e),
+            None,
+        );
+        format!("Error guardando configuración: {}", e)
+    })?;
+
+    // Procesar actualización en segundo plano
+    let task_id_clone = task_id.clone();
+    spawn_modpack_update_task(instance, manifest, task_id);
+
+    Ok(task_id_clone)
+}
+
+// Funciones auxiliares para tareas en segundo plano
+fn spawn_instance_creation_task(instance: MinecraftInstance, task_id: String) {
+    std::thread::spawn(move || {
+        let mut bootstrap = InstanceBootstrap::new();
+
+        update_task(
+            &task_id,
+            TaskStatus::Running,
+            10.0,
+            "Creando metadatos",
+            None,
+        );
+
+        let result = if instance.forgeVersion.is_some() {
+            bootstrap.bootstrap_forge_instance(&instance, Some(task_id.clone()))
+        } else {
+            bootstrap.bootstrap_vanilla_instance(&instance, Some(task_id.clone()))
+        };
+
+        match result {
+            Ok(_) => {
+                update_task(
+                    &task_id,
+                    TaskStatus::Completed,
+                    100.0,
+                    &format!("Instancia {} creada", instance.instanceName),
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName,
+                        "instanceId": instance.instanceId
+                    })),
+                );
+            }
+            Err(e) => {
+                update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error en bootstrap: {}", e),
+                    None,
+                );
+            }
+        }
+
+        std::thread::sleep(std::time::Duration::from_secs(TASK_CLEANUP_DELAY));
+        remove_task(&task_id);
+    });
+}
+
+fn spawn_modpack_creation_task(
+    instance: MinecraftInstance,
+    manifest: ModpackManifest,
+    task_id: String,
+) {
+    std::thread::spawn(move || {
+        let mut bootstrap = InstanceBootstrap::new();
+
+        update_task(
+            &task_id,
+            TaskStatus::Running,
+            20.0,
+            "Configurando base de Minecraft...",
+            None,
+        );
+
+        let bootstrap_result = if instance.forgeVersion.is_some() {
+            bootstrap.bootstrap_forge_instance(&instance, Some(task_id.clone()))
+        } else {
+            bootstrap.bootstrap_vanilla_instance(&instance, Some(task_id.clone()))
+        };
+
+        if let Err(e) = bootstrap_result {
+            update_task(
+                &task_id,
+                TaskStatus::Failed,
+                0.0,
+                &format!("Error en bootstrap: {}", e),
+                None,
+            );
+            return;
+        }
+
+        update_task(
+            &task_id,
+            TaskStatus::Running,
+            60.0,
+            "Descargando archivos del modpack...",
+            None,
+        );
+
+        // Instalar archivos del modpack
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let files_processed = rt.block_on(async {
+            crate::core::modpack_file_manager::download_and_install_files(&instance, &manifest)
+                .await
+        });
+
+        let files_processed = match files_processed {
+            Ok(count) => count,
+            Err(e) => {
+                update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error descargando archivos: {}", e),
+                    None,
+                );
+                return;
+            }
+        };
+
+        update_task(
+            &task_id,
+            TaskStatus::Running,
+            90.0,
+            &format!("Descargados {} archivos", files_processed),
+            None,
+        );
+
+        update_task(
+            &task_id,
+            TaskStatus::Completed,
+            100.0,
+            &format!(
+                "Instancia de modpack {} creada exitosamente",
+                instance.instanceName
+            ),
+            None,
+        );
+
+        std::thread::sleep(std::time::Duration::from_secs(TASK_CLEANUP_DELAY));
+        remove_task(&task_id);
+    });
+}
+
+fn spawn_modpack_update_task(
+    instance: MinecraftInstance,
+    manifest: ModpackManifest,
+    task_id: String,
+) {
+    std::thread::spawn(move || {
+        update_task(
+            &task_id,
+            TaskStatus::Running,
+            25.0,
+            "Descargando archivos actualizados...",
+            None,
+        );
+
+        // Limpiar archivos obsoletos
+        let removed_files =
+            crate::core::modpack_file_manager::cleanup_obsolete_files(&instance, &manifest);
+
+        let removed_files = match removed_files {
+            Ok(files) => files,
+            Err(e) => {
+                update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error limpiando archivos: {}", e),
+                    None,
+                );
+                return;
+            }
+        };
+
+        update_task(
+            &task_id,
+            TaskStatus::Running,
+            50.0,
+            &format!("Eliminados {} archivos obsoletos", removed_files.len()),
+            None,
+        );
+
+        // Instalar archivos actualizados
+        let files_processed = tokio::runtime::Runtime::new().unwrap().block_on(async {
+            crate::core::modpack_file_manager::download_and_install_files(&instance, &manifest)
+                .await
+        });
+
+        let files_processed = match files_processed {
+            Ok(count) => count,
+            Err(e) => {
+                update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error descargando archivos: {}", e),
+                    None,
+                );
+                return;
+            }
+        };
+
+        update_task(
+            &task_id,
+            TaskStatus::Running,
+            90.0,
+            &format!("Descargados {} archivos", files_processed),
+            None,
+        );
+
+        update_task(
+            &task_id,
+            TaskStatus::Completed,
+            100.0,
+            &format!("Modpack {} actualizado exitosamente", instance.instanceName),
+            None,
+        );
+
+        std::thread::sleep(std::time::Duration::from_secs(TASK_CLEANUP_DELAY));
+        remove_task(&task_id);
+    });
+}
+
+// Funciones auxiliares para crear instancia de modpack
+async fn create_modpack_instance_struct(
+    instance_name: String,
+    modpack_id: String,
+    final_version_id: String,
+    manifest: crate::core::modpack_file_manager::ModpackManifest,
+    modpack_info: serde_json::Value,
+) -> Result<MinecraftInstance, String> {
+    let instances_dir = get_instances_dir()?;
+    let instance_id = uuid::Uuid::new_v4().to_string();
+
+    let mut instance = MinecraftInstance::new();
+    instance.instanceName = instance_name;
+    instance.instanceId = instance_id.clone();
+    instance.modpackId = Some(modpack_id);
+    instance.modpackVersionId = Some(final_version_id);
+    instance.minecraftVersion = manifest.mc_version;
+    instance.forgeVersion = manifest.forge_version;
+
+    // Configurar banner
+    if let Some(banner_url) = modpack_info["bannerUrl"].as_str() {
+        let base64_banner = download_image_as_base64(banner_url).await?;
+        instance.bannerUrl = Some(format!("data:image/png;base64,{}", base64_banner));
+    }
+
+    // Configurar directorios
+    let instance_dir = instances_dir.join(&instance_id);
+    instance.instanceDirectory = Some(normalize_path(&instance_dir));
+    instance.minecraftPath = normalize_path(&instance_dir.join("minecraft"));
+
+    // Crear directorio y guardar
+    fs::create_dir_all(&instance_dir).map_err(|e| format!("Error creando directorio: {}", e))?;
+
+    instance
+        .save()
+        .map_err(|e| format!("Error guardando configuración: {}", e))?;
+
+    Ok(instance)
+}
+
+// Funciones auxiliares para API
 async fn fetch_latest_version(modpack_id: &str) -> Result<String, String> {
     let client = reqwest::Client::new();
-    let url = format!("http://localhost:3000/v1/api/modpacks/{}/latest", modpack_id);
-    
+    let url = format!("{}/explore/modpacks/{}/latest", API_ENDPOINT, modpack_id);
+
     let response = client
         .get(&url)
         .send()
@@ -686,11 +734,36 @@ async fn fetch_latest_version(modpack_id: &str) -> Result<String, String> {
         .ok_or_else(|| "Invalid response format".to_string())
 }
 
-// Helper function to fetch modpack manifest
-pub async fn fetch_modpack_manifest(modpack_id: &str, version_id: &str) -> Result<crate::core::modpack_file_manager::ModpackManifest, String> {
+async fn fetch_modpack_info(modpack_id: &str) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::new();
-    let url = format!("http://localhost:3000/v1/api/modpacks/{}/versions/{}/manifest", modpack_id, version_id);
-    
+    let url = format!("{}/explore/modpacks/{}", API_ENDPOINT, modpack_id);
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch modpack info: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("API error: {}", response.status()));
+    }
+
+    response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))
+}
+
+pub async fn fetch_modpack_manifest(
+    modpack_id: &str,
+    version_id: &str,
+) -> Result<crate::core::modpack_file_manager::ModpackManifest, String> {
+    let client = reqwest::Client::new();
+    let url = format!(
+        "{}/explore/modpacks/{}/versions/{}",
+        API_ENDPOINT, modpack_id, version_id
+    );
+
     let response = client
         .get(&url)
         .send()
@@ -706,188 +779,46 @@ pub async fn fetch_modpack_manifest(modpack_id: &str, version_id: &str) -> Resul
         .await
         .map_err(|e| format!("Failed to parse JSON: {}", e))?;
 
-    let manifest: crate::core::modpack_file_manager::ModpackManifest = serde_json::from_value(json["manifest"].clone())
-        .map_err(|e| format!("Failed to parse manifest: {}", e))?;
-
-    Ok(manifest)
+    serde_json::from_value(json["manifest"].clone())
+        .map_err(|e| format!("Failed to parse manifest: {}", e))
 }
 
-#[tauri::command]
-pub async fn check_modpack_updates(modpack_id: String, current_version: String) -> Result<serde_json::Value, String> {
+async fn download_image_as_base64(url: &str) -> Result<String, String> {
     let client = reqwest::Client::new();
-    let url = format!("http://localhost:3000/v1/api/modpacks/{}/check-update?currentVersion={}", modpack_id, current_version);
-    
     let response = client
-        .get(&url)
+        .get(url)
         .send()
         .await
-        .map_err(|e| format!("Failed to check for updates: {}", e))?;
+        .map_err(|e| format!("Failed to download image: {}", e))?;
 
     if !response.status().is_success() {
-        return Err(format!("API error: {}", response.status()));
+        return Err(format!(
+            "Failed to download image: HTTP {}",
+            response.status()
+        ));
     }
 
-    let json: serde_json::Value = response
-        .json()
+    let bytes = response
+        .bytes()
         .await
-        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+        .map_err(|e| format!("Failed to read image bytes: {}", e))?;
 
-    Ok(json)
+    let mime_type = detect_image_mime_type(&bytes);
+    let base64_data = base64::encode(&bytes);
+
+    Ok(format!("data:{};base64,{}", mime_type, base64_data))
 }
 
-#[tauri::command]
-pub async fn update_modpack_instance(
-    instance_id: String,
-    target_version_id: Option<String>,
-) -> Result<String, String> {
-    // Get the instance
-    let mut instance = MinecraftInstance::from_instance_id(&instance_id)
-        .ok_or_else(|| "Instance not found".to_string())?;
-
-    // Ensure it's a modpack instance
-    let modpack_id = instance.modpackId
-        .as_ref()
-        .ok_or_else(|| "Instance is not a modpack instance".to_string())?
-        .clone();
-
-    // Get task manager
-    let task_manager = crate::core::tasks_manager::get_task_manager();
-    
-    // Add update task
-    let task_id = {
-        let tm = task_manager.lock().unwrap();
-        tm.add_task(
-            &format!("Actualizando modpack: {}", instance.instanceName),
-            Some(serde_json::json!({
-                "type": "modpack_update",
-                "instanceId": instance_id.clone(),
-                "instanceName": instance.instanceName.clone(),
-                "modpackId": modpack_id.clone()
-            })),
-        )
-    };
-
-    // Determine target version
-    let final_version_id = if let Some(vid) = target_version_id {
-        vid
+fn detect_image_mime_type(bytes: &[u8]) -> &'static str {
+    if bytes.len() >= 4 {
+        match &bytes[0..4] {
+            &[0x89, 0x50, 0x4E, 0x47] => "image/png",
+            &[0x47, 0x49, 0x46, 0x38] => "image/gif",
+            _ if &bytes[0..2] == &[0xFF, 0xD8] => "image/jpeg",
+            _ if &bytes[0..2] == &[0x42, 0x4D] => "image/bmp",
+            _ => "image/png", // fallback
+        }
     } else {
-        // Fetch latest version
-        match fetch_latest_version(&modpack_id).await {
-            Ok(latest_vid) => latest_vid,
-            Err(e) => {
-                if let Ok(mut tm) = task_manager.lock() {
-                    tm.update_task(
-                        &task_id,
-                        TaskStatus::Failed,
-                        0.0,
-                        &format!("Error obteniendo versión latest: {}", e),
-                        None,
-                    );
-                }
-                return Err(format!("Error obteniendo versión latest: {}", e));
-            }
-        }
-    };
-
-    // Check if already on target version
-    if instance.modpackVersionId.as_ref() == Some(&final_version_id) {
-        if let Ok(mut tm) = task_manager.lock() {
-            tm.update_task(
-                &task_id,
-                TaskStatus::Completed,
-                100.0,
-                "Ya estás en la versión más reciente",
-                None,
-            );
-        }
-        return Ok("No update needed".to_string());
+        "image/png" // fallback
     }
-
-    // Update instance version ID
-    instance.modpackVersionId = Some(final_version_id.clone());
-    
-    // Fetch new manifest
-    let manifest = match fetch_modpack_manifest(&modpack_id, &final_version_id).await {
-        Ok(manifest) => manifest,
-        Err(e) => {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    &task_id,
-                    TaskStatus::Failed,
-                    0.0,
-                    &format!("Error descargando manifiesto: {}", e),
-                    None,
-                );
-            }
-            return Err(format!("Error descargando manifiesto: {}", e));
-        }
-    };
-
-    // Update Minecraft version if changed
-    instance.minecraftVersion = manifest.version.mc_version.clone();
-    instance.forgeVersion = manifest.version.forge_version.clone();
-
-    // Save updated instance
-    if let Err(e) = instance.save() {
-        if let Ok(mut tm) = task_manager.lock() {
-            tm.update_task(
-                &task_id,
-                TaskStatus::Failed,
-                0.0,
-                &format!("Error guardando configuración: {}", e),
-                None,
-            );
-        }
-        return Err(format!("Error guardando configuración: {}", e));
-    }
-
-    // Clone for background thread
-    let instance_clone = instance.clone();
-    let task_id_clone = task_id.clone();
-    let task_manager_clone = Arc::clone(&task_manager);
-    let manifest_clone = manifest.clone();
-
-    // Start background update process
-    std::thread::spawn(move || {
-        if let Ok(mut tm) = task_manager_clone.lock() {
-            tm.update_task(
-                &task_id_clone,
-                TaskStatus::Running,
-                25.0,
-                "Descargando archivos actualizados...",
-                Some(serde_json::json!({
-                    "instanceId": instance_clone.instanceId.clone(),
-                    "instanceName": instance_clone.instanceName.clone()
-                })),
-            );
-        }
-
-        // TODO: Implement file download and cleanup logic
-        // This would:
-        // 1. Download new/changed files
-        // 2. Remove obsolete files not in new manifest
-        // 3. Update existing files
-
-        // For now, mark as completed
-        if let Ok(mut tm) = task_manager_clone.lock() {
-            tm.update_task(
-                &task_id_clone,
-                TaskStatus::Completed,
-                100.0,
-                &format!("Modpack {} actualizado exitosamente", instance_clone.instanceName),
-                Some(serde_json::json!({
-                    "instanceId": instance_clone.instanceId.clone(),
-                    "instanceName": instance_clone.instanceName.clone()
-                })),
-            );
-        }
-
-        // Auto-remove task after delay
-        std::thread::sleep(std::time::Duration::from_secs(60));
-        if let Ok(mut tm) = task_manager_clone.lock() {
-            tm.remove_task(&task_id_clone);
-        }
-    });
-
-    Ok(task_id)
 }

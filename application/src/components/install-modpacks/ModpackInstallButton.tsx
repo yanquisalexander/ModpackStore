@@ -7,6 +7,7 @@ import { UpdateInstanceDialog } from "./UpdateInstanceDialog"
 import { CreateInstanceDialog } from "./CreateInstanceDialog"
 import { PasswordDialog } from "./ModpackPasswordDialog"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
+import { useTasksContext } from "@/stores/TasksContext"
 
 interface InstallButtonProps {
     modpackId: string;
@@ -34,6 +35,9 @@ export const InstallButton = ({
         instanceId?: string;
         instanceName?: string;
     } | null>(null)
+
+    const { isModpackInstalling } = useTasksContext()
+    const isCurrentlyInstalling = isModpackInstalling(modpackId) || isInstalling
 
     const hasLocalInstances = localInstances.length > 0
 
@@ -139,10 +143,9 @@ export const InstallButton = ({
     const executeCreate = async (instanceName: string, password?: string) => {
         setIsInstalling(true);
         try {
-            await invoke("create_instance", {
+            await invoke("create_modpack_instance", {
                 instanceName,
-                modpackId,
-                password
+                modpackId
             });
             console.log(`Nueva instancia creada: ${instanceName}`);
         } catch (err) {
@@ -178,9 +181,9 @@ export const InstallButton = ({
                 variant="default"
                 className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
                 onClick={handleInstallClick}
-                disabled={isInstalling}
+                disabled={isCurrentlyInstalling}
             >
-                {isInstalling ? (
+                {isCurrentlyInstalling ? (
                     <>
                         <LucideRefreshCw className="w-4 h-4 animate-spin" />
                         Instalando...
@@ -229,7 +232,7 @@ export const InstallButton = ({
                 }}
                 modpackName={modpackName}
                 onConfirm={handleConfirmPassword}
-                isLoading={isInstalling}
+                isLoading={isCurrentlyInstalling}
                 error={passwordError}
             />
         </>

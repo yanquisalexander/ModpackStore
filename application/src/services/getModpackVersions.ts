@@ -23,7 +23,7 @@ export const getModpackVersions = async (modpackId: string): Promise<ModpackVers
     try {
         // For now, let's try to use the explore endpoint to get version information
         // If this doesn't work, we might need to create a new endpoint
-        const response = await fetch(`${API_ENDPOINT}/explore/modpack/${modpackId}/versions`, {
+        const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpackId}/versions`, {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",

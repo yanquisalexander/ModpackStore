@@ -151,7 +151,6 @@ pub fn main() {
             core::modpack_file_manager::cleanup_instance_files,
             core::instance_manager::search_instances,
             core::instance_manager::remove_instance,
-            core::instance_bootstrap::check_vanilla_integrity,
             core::accounts_manager::get_all_accounts,
             core::accounts_manager::add_offline_account,
             core::accounts_manager::ensure_account_exists,

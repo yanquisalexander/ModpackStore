@@ -39,7 +39,7 @@ export const searchModpacks = async (query: string): Promise<Modpack[]> => {
 }
 
 export const getModpackById = async (modpackId: string): Promise<Modpack> => {
-    const response = await fetch(`${API_ENDPOINT}/explore/modpack/${modpackId}`, {
+    const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpackId}`, {
         method: "GET",
         headers: {
             "Content-Type": "application/json",

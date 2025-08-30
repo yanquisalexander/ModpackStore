@@ -3,7 +3,7 @@ use crate::config::get_config_manager;
 use crate::core::instance_manager::get_instance_by_id;
 use crate::core::java_manager::JavaManager;
 use crate::core::minecraft_instance::MinecraftInstance;
-use crate::core::tasks_manager::{TaskStatus, TasksManager};
+use crate::core::tasks_manager::{add_task, remove_task, update_task, TaskStatus};
 use crate::GLOBAL_APP_HANDLE;
 use serde_json::{json, Value};
 use std::fs;
@@ -507,7 +507,6 @@ impl InstanceBootstrap {
         &mut self,
         instance: &MinecraftInstance,
         task_id: Option<String>,
-        task_manager: Option<Arc<Mutex<TasksManager>>>,
     ) -> Result<(), String> {
         // Emit start event
         Self::emit_status(
@@ -517,19 +516,17 @@ impl InstanceBootstrap {
         );
 
         // Update task status if task_id exists
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    5.0,
-                    "Iniciando bootstrap de instancia Vanilla",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                5.0,
+                "Iniciando bootstrap de instancia Vanilla",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         // Create minecraft directory if it doesn't exist
@@ -564,19 +561,17 @@ impl InstanceBootstrap {
         }
 
         // Update task status - 15%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    15.0,
-                    "Descargando manifiesto de versión",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                15.0,
+                "Descargando manifiesto de versión",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         // Get version details
@@ -615,19 +610,17 @@ impl InstanceBootstrap {
                 .ok_or_else(|| "Invalid version info format".to_string())?;
 
             // Update task status - 25%
-            if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-                if let Ok(mut tm) = task_manager.lock() {
-                    tm.update_task(
-                        task_id,
-                        TaskStatus::Running,
-                        25.0,
-                        &format!("Descargando JSON de versión: {}", instance.minecraftVersion),
-                        Some(serde_json::json!({
-                            "instanceName": instance.instanceName.clone(),
-                            "instanceId": instance.instanceId.clone()
-                        })),
-                    );
-                }
+            if let Some(task_id) = &task_id {
+                update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    25.0,
+                    &format!("Descargando JSON de versión: {}", instance.minecraftVersion),
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    })),
+                );
             }
 
             Self::emit_status(
@@ -648,19 +641,17 @@ impl InstanceBootstrap {
                 .ok_or_else(|| "Client download URL not found".to_string())?;
 
             // Update task status - 35%
-            if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-                if let Ok(mut tm) = task_manager.lock() {
-                    tm.update_task(
-                        task_id,
-                        TaskStatus::Running,
-                        35.0,
-                        &format!("Descargando cliente: {}", instance.minecraftVersion),
-                        Some(serde_json::json!({
-                            "instanceName": instance.instanceName.clone(),
-                            "instanceId": instance.instanceId.clone()
-                        })),
-                    );
-                }
+            if let Some(task_id) = &task_id {
+                update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    35.0,
+                    &format!("Descargando cliente: {}", instance.minecraftVersion),
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    })),
+                );
             }
 
             Self::emit_status(
@@ -674,19 +665,17 @@ impl InstanceBootstrap {
         }
 
         // Update task status - 45%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    45.0,
-                    "Descargando librerías",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                45.0,
+                "Descargando librerías",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         /*
@@ -733,19 +722,17 @@ impl InstanceBootstrap {
                 })?;
 
             // Update task to indicate Java installation
-            if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-                if let Ok(mut tm) = task_manager.lock() {
-                    tm.update_task(
-                        task_id,
-                        TaskStatus::Running,
-                        50.0,
-                        "Instalando Java",
-                        Some(serde_json::json!({
-                            "instanceName": instance.instanceName.clone(),
-                            "instanceId": instance.instanceId.clone()
-                        })),
-                    );
-                }
+            if let Some(task_id) = &task_id {
+                update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    50.0,
+                    "Instalando Java",
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName.clone(),
+                        "instanceId": instance.instanceId.clone()
+                    })),
+                );
             }
 
             let mut instance_to_modify = instance.clone();
@@ -762,19 +749,17 @@ impl InstanceBootstrap {
             .map_err(|e| format!("Error downloading libraries: {}", e))?;
 
         // Update task status - 60%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    60.0,
-                    "Validando assets",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                60.0,
+                "Validando assets",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         // Validate assets
@@ -803,19 +788,17 @@ impl InstanceBootstrap {
                 .map_err(|e| format!("Error creating natives directory: {}", e))?;
         }
 
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    75.0,
-                    "Extrayendo bibliotecas nativas",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                75.0,
+                "Extrayendo bibliotecas nativas",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         Self::emit_status(
@@ -833,19 +816,17 @@ impl InstanceBootstrap {
         }
 
         // Update task status - 90%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    90.0,
-                    "Finalizando configuración",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                90.0,
+                "Finalizando configuración",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         // No emitimos el 100% aquí porque también usamos este método para
@@ -1074,7 +1055,6 @@ impl InstanceBootstrap {
 
         let total_libraries = libraries.len();
         let mut downloaded_libraries = 0;
-
         for library in libraries {
             // Check if we should skip this library based on rules
             if let Some(rules) = library.get("rules") {
@@ -1194,7 +1174,6 @@ impl InstanceBootstrap {
         &mut self,
         instance: &MinecraftInstance,
         task_id: Option<String>,
-        task_manager: Option<Arc<Mutex<TasksManager>>>,
     ) -> Result<(), String> {
         // Verificar que tengamos información de Forge
         if instance.forgeVersion.is_none() || instance.forgeVersion.as_ref().unwrap().is_empty() {
@@ -1209,19 +1188,17 @@ impl InstanceBootstrap {
         );
 
         // Update task status if task_id exists
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    5.0,
-                    "Iniciando bootstrap de instancia Forge",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                5.0,
+                "Iniciando bootstrap de instancia Forge",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         // Primero, realizar bootstrap de la instancia Vanilla
@@ -1232,39 +1209,35 @@ impl InstanceBootstrap {
         );
 
         // Update task status - 10%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    10.0,
-                    "Configurando base Vanilla",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                10.0,
+                "Configurando base Vanilla",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         // Bootstrap Vanilla primero
-        self.bootstrap_vanilla_instance(instance, None, None)
+        self.bootstrap_vanilla_instance(instance, None)
             .map_err(|e| format!("Error en bootstrap Vanilla: {}", e))?;
 
         // Update task status - 60%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    60.0,
-                    "Configurando Forge",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                60.0,
+                "Configurando Forge",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         // Obtener rutas de directorios
@@ -1311,19 +1284,17 @@ impl InstanceBootstrap {
             .map_err(|e| format!("Error al descargar instalador Forge: {}", e))?;
 
         // Update task status - 70%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    70.0,
-                    "Ejecutando instalador de Forge",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                70.0,
+                "Ejecutando instalador de Forge",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         // Ejecutar instalador en modo silencioso
@@ -1343,19 +1314,17 @@ impl InstanceBootstrap {
         )?;
 
         // Update task status - 85%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    85.0,
-                    "Configurando perfil de Forge",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                85.0,
+                "Configurando perfil de Forge",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         // Crear/actualizar perfil de Forge en launcher_profiles.json
@@ -1373,19 +1342,17 @@ impl InstanceBootstrap {
             "Descargando librerías de Forge",
         );
 
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    90.0,
-                    "Descargando librerías de Forge",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                90.0,
+                "Descargando librerías de Forge",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         // Descargar librerías de Forge
@@ -1410,19 +1377,17 @@ impl InstanceBootstrap {
         }
 
         // Update task status - 95%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    95.0,
-                    "Configurando Forge",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                95.0,
+                "Configurando Forge",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         // Limpiar instalador Forge para ahorrar espacio
@@ -1436,22 +1401,20 @@ impl InstanceBootstrap {
         }
 
         // Update task status - 100%
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Completed,
-                    100.0,
-                    &format!(
-                        "Instalación completada: Forge {} para Minecraft {}",
-                        forge_version, instance.minecraftVersion
-                    ),
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Completed,
+                100.0,
+                &format!(
+                    "Instalación completada: Forge {} para Minecraft {}",
+                    forge_version, instance.minecraftVersion
+                ),
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         Self::emit_status(
@@ -1726,7 +1689,6 @@ impl InstanceBootstrap {
         &self,
         instance: Option<&MinecraftInstance>,
         task_id: Option<String>,
-        task_manager: Option<Arc<Mutex<TasksManager>>>,
     ) -> Result<(), String> {
         // Verificar integridad de la instancia Vanilla
         let instance = instance.ok_or_else(|| "Instance is not provided".to_string())?;
@@ -1738,19 +1700,17 @@ impl InstanceBootstrap {
         );
 
         // Update task status if task_id exists
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    5.0,
-                    "Verificando integridad de la instancia Vanilla",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
-                );
-            }
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                5.0,
+                "Verificando integridad de la instancia Vanilla",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
         }
 
         // Get manifest for the minecraft version, and check each dependency
@@ -1863,6 +1823,40 @@ impl InstanceBootstrap {
                 }
             }
 
+            // Handle native libraries (classifiers)
+            if let Some(classifiers) = downloads.get("classifiers") {
+                let current_os = if cfg!(target_os = "windows") {
+                    "natives-windows"
+                } else if cfg!(target_os = "macos") {
+                    "natives-osx"
+                } else {
+                    "natives-linux"
+                };
+
+                if let Some(native) = classifiers.get(current_os) {
+                    let url = native["url"]
+                        .as_str()
+                        .ok_or_else(|| "Native library URL not found".to_string())?;
+                    let path = native["path"]
+                        .as_str()
+                        .ok_or_else(|| "Native library path not found".to_string())?;
+
+                    let target_path = libraries_dir.join(path);
+
+                    // Create parent directories if needed
+                    if let Some(parent) = target_path.parent() {
+                        fs::create_dir_all(parent)
+                            .map_err(|e| format!("Error creating directory: {}", e))?;
+                    }
+
+                    // Download if file doesn't exist
+                    if !target_path.exists() {
+                        self.download_file(url, &target_path)
+                            .map_err(|e| format!("Error downloading native library: {}", e))?;
+                    }
+                }
+            }
+
             downloaded_libraries += 1;
 
             // Update progress every 5 libraries or on last library
@@ -1870,81 +1864,15 @@ impl InstanceBootstrap {
                 let progress = (downloaded_libraries as f32 / total_libraries as f32) * 100.0;
                 Self::emit_status(
                     instance,
-                    "instance-verifying-libraries",
+                    "instance-downloading-libraries",
                     &format!(
-                        "Verificando librerías: {}/{} ({:.1}%)",
+                        "Descargando librerías: {}/{} ({:.1}%)",
                         downloaded_libraries, total_libraries, progress
                     ),
-                );
-                // Update task status if task_id exists
-                if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-                    if let Ok(mut tm) = task_manager.lock() {
-                        tm.update_task(
-                            task_id,
-                            TaskStatus::Running,
-                            progress,
-                            "Verificando librerías",
-                            Some(serde_json::json!({
-                                "instanceName": instance.instanceName.clone(),
-                                "instanceId": instance.instanceId.clone()
-                            })),
-                        );
-                    }
-                }
-            }
-        }
-
-        // Extraer bibliotecas nativas
-        if let Err(e) =
-            self.extract_natives(&version_details, &libraries_dir, &natives_dir, instance)
-        {
-            log::error!("Error extrayendo bibliotecas nativas: {}", e);
-            // No devolver error aquí, ya que es opcional
-        }
-
-        // Emit end event
-        Self::emit_status(
-            instance,
-            "instance-verifying-complete",
-            "Verificación de la instancia Vanilla completada",
-        );
-        // Update task status if task_id exists
-        if let (Some(task_id), Some(task_manager)) = (&task_id, &task_manager) {
-            if let Ok(mut tm) = task_manager.lock() {
-                tm.update_task(
-                    task_id,
-                    TaskStatus::Completed,
-                    100.0,
-                    "Verificación de la instancia Vanilla completada",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone()
-                    })),
                 );
             }
         }
 
         Ok(())
     }
-}
-
-#[tauri::command]
-pub fn check_vanilla_integrity(instance_id: String) -> Result<(), String> {
-    // Obtener la instancia de Minecraft
-    let instance = get_instance_by_id(instance_id)
-        .map_err(|e| format!("Error al obtener la instancia: {}", e))?;
-
-    if instance.is_none() {
-        return Err("No se encontró la instancia".to_string());
-    }
-
-    let bootstrapper = InstanceBootstrap::new();
-    // Verificar que la instancia sea válida
-
-    // Verificar la integridad de la instancia
-    bootstrapper
-        .verify_integrity_vanilla(instance.as_ref(), None, None)
-        .map_err(|e| format!("Error al verificar la integridad de la instancia: {}", e))?;
-
-    Ok(())
 }
