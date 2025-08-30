@@ -7,7 +7,7 @@ import { useGlobalContext } from "@/stores/GlobalContext";
 import { useInstances } from "@/stores/InstancesContext";
 import { useTasksContext } from "@/stores/TasksContext";
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
-import { useCheckConnection } from "@/utils/checkConnection";
+import { useConnection } from "@/utils/ConnectionContext";
 import { invoke } from "@tauri-apps/api/core";
 import { LucidePackageOpen } from "lucide-react";
 import { useEffect, useState } from "react"
@@ -15,7 +15,7 @@ import { useEffect, useState } from "react"
 
 export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
-    const { hasInternetAccess } = useCheckConnection()
+    const { hasInternetAccess } = useConnection()
     const { instances: instancesOnContext } = useInstances()
     const { instancesBootstraping } = useTasksContext()
     console.log({ instancesBootstraping })

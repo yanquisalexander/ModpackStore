@@ -5,6 +5,7 @@ import { TasksProvider } from "../stores/TasksContext";
 import { InstancesProvider } from "../stores/InstancesContext";
 import { ReloadProvider } from "../stores/ReloadContext";
 import { ConfigDialogProvider } from "../stores/ConfigDialogContext";
+import { ConnectionProvider } from "../utils/ConnectionContext";
 
 // Este componente recibe 'children', que será el resto de tu aplicación.
 export const AppProviders = ({ children }: { children: React.ReactNode }) => {
@@ -15,7 +16,9 @@ export const AppProviders = ({ children }: { children: React.ReactNode }) => {
                     <InstancesProvider>
                         <ReloadProvider>
                             <ConfigDialogProvider>
-                                {children}
+                                <ConnectionProvider>
+                                    {children}
+                                </ConnectionProvider>
                             </ConfigDialogProvider>
                         </ReloadProvider>
                     </InstancesProvider>

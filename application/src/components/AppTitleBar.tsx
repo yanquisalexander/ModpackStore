@@ -18,7 +18,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle
 } from '@/components/ui/alert-dialog';
-import { useCheckConnection } from "@/utils/checkConnection";
+import { useConnection } from "@/utils/ConnectionContext";
 import { useReloadApp } from "@/stores/ReloadContext";
 import { WindowControls } from "./appbar/WindowControls";
 import { UpdateButton } from "./appbar/UpdateButton";
@@ -30,7 +30,7 @@ export const AppTitleBar = () => {
     const [isMaximized, setIsMaximized] = useState<boolean | undefined>(undefined);
     const [isExitDialogOpen, setIsExitDialogOpen] = useState(false);
     const { titleBarState, updateState, applyUpdate } = useGlobalContext();
-    const { isLoading: isLoadingConnectionCheck, isConnected } = useCheckConnection();
+    const { isLoading: isLoadingConnectionCheck, isConnected } = useConnection();
     const { showReloadDialog } = useReloadApp();
     const contextMenuTriggerRef = useRef<HTMLDivElement>(null);
     const navigateRouter = useNavigate();

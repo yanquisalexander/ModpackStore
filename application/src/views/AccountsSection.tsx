@@ -6,12 +6,12 @@ import { AccountCard } from "@/components/AccountCard"
 import { AddAccountDialog } from "@/components/AddAccountDialog"
 import { toast } from "sonner"
 import { useGlobalContext } from "@/stores/GlobalContext"
-import { useCheckConnection } from "@/utils/checkConnection"
+import { useConnection } from "@/utils/ConnectionContext"
 
 export const AccountsSection = () => {
     const [accounts, setAccounts] = useState<TauriCommandReturns['get_all_accounts']>([])
     const [loading, setLoading] = useState(true)
-    const { hasInternetAccess } = useCheckConnection()
+    const { hasInternetAccess } = useConnection()
 
     const { setTitleBarState, titleBarState } = useGlobalContext()
     const fetchAccounts = () => {

@@ -5,7 +5,7 @@ import { HomeMainHeader } from "./components/home/MainHeader";
 import { toast } from "sonner";
 import { ExploreSection } from "./views/ExploreSection";
 import { PreLaunchInstance } from "./views/PreLaunchInstance";
-import { useCheckConnection } from "./utils/checkConnection";
+import { useConnection } from "./utils/ConnectionContext";
 import { LucideLoader } from "lucide-react";
 import { MyInstancesSection } from "./views/MyInstancesSection";
 import { useAuthentication } from "./stores/AuthContext";
@@ -44,7 +44,7 @@ const ModpackOverviewPage = () => {
 // --- Componente Principal ---
 function App() {
   const { loading: authLoading, isAuthenticated, session } = useAuthentication();
-  const { isConnected, isLoading: connectionLoading, hasInternetAccess } = useCheckConnection();
+  const { isConnected, isLoading: connectionLoading, hasInternetAccess } = useConnection();
   const { isConfigOpen, closeConfigDialog } = useConfigDialog();
   const navigate = useNavigate();
 

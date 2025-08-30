@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useConfigDialog } from "@/stores/ConfigDialogContext";
 import { useReloadApp } from "@/stores/ReloadContext"; // Importar el nuevo hook
-import { useCheckConnection } from "@/utils/checkConnection";
+import { useConnection } from "@/utils/ConnectionContext";
 
 export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) => {
     const { session, logout, isAuthenticated } = useAuthentication();
-    const { isConnected } = useCheckConnection();
+    const { isConnected } = useConnection();
     const { openConfigDialog } = useConfigDialog();
     const { showReloadDialog } = useReloadApp(); // Usar el hook para acceder a la funcionalidad de recarga
     const [openMenu, setOpenMenu] = useState(false);

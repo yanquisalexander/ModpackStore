@@ -29,11 +29,15 @@ import { useNavigate } from "react-router-dom";
 export const InstanceCard = ({ instance, className = "", running, onInstanceRemoved, isBootstrapping }: { instance: any, className?: string, running?: boolean, onInstanceRemoved: () => void, isBootstrapping: boolean }) => {
     const [isOpen, setIsOpen] = useState(false)
     const [showDeleteAlert, setShowDeleteAlert] = useState(false)
+    const [isDeleting, setIsDeleting] = useState(false)
 
     const navigate = useNavigate()
 
 
     const handleDeleteInstance = async () => {
+        if (isDeleting) return; // Prevenir múltiples clics
+
+        setIsDeleting(true);
         try {
             await invoke('remove_instance', { instanceId: instance.instanceId })
             //playSound("SUCCESS_NOTIFICATION")
@@ -44,6 +48,7 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
             console.error('Error al eliminar instancia:', error)
             toast.error(`Error al eliminar instancia: ${(error as any)?.message || 'Error desconocido'}`)
         } finally {
+            setIsDeleting(false)
             setShowDeleteAlert(false)
         }
     }
@@ -221,12 +226,19 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
                                 return
                             }
 
+                            if (isDeleting) {
+                                playSound("ERROR_NOTIFICATION")
+                                toast.warning("Ya se está eliminando esta instancia")
+                                return
+                            }
+
                             setShowDeleteAlert(true)
                         }}
-                        className="hover:bg-red-700 focus:bg-red-700 text-red-400 hover:text-white focus:text-white cursor-pointer"
+                        className="hover:bg-red-700 focus:bg-red-700 text-red-400 hover:text-white focus:text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={isDeleting}
                     >
                         <LucideTrash2 className="mr-2 h-4 w-4 text-inherit" />
-                        <span>Eliminar instancia</span>
+                        <span>{isDeleting ? 'Eliminando...' : 'Eliminar instancia'}</span>
                     </ContextMenuItem>
                 </ContextMenuContent>
             </ContextMenu>
@@ -240,17 +252,28 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700">
+                        <AlertDialogCancel
+                            className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            disabled={isDeleting}
+                        >
                             Cancelar
                         </AlertDialogCancel>
                         <AlertDialogAction
-                            className="bg-red-700 text-white hover:bg-red-600"
+                            className="bg-red-700 text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
                             onClick={(e) => {
                                 e.preventDefault();
                                 handleDeleteInstance();
                             }}
+                            disabled={isDeleting}
                         >
-                            Eliminar
+                            {isDeleting ? (
+                                <div className="flex items-center gap-2">
+                                    <LucideRefreshCw className="h-4 w-4 animate-spin" />
+                                    Eliminando...
+                                </div>
+                            ) : (
+                                'Eliminar'
+                            )}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
