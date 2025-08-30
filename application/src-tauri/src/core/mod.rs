@@ -1,5 +1,6 @@
 pub mod accounts_manager;
 pub mod auth;
+pub mod bootstrap;
 pub mod instance_bootstrap;
 pub mod instance_launcher;
 pub mod instance_manager;
