@@ -1,6 +1,7 @@
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { invoke } from '@tauri-apps/api/core';
 import { error, info } from "@tauri-apps/plugin-log";
+import { getVersion } from "@tauri-apps/api/app";
 
 const h1 = document.getElementById('splash-status')!;
 const progressBar = document.getElementById('splash-progressbar')!;
@@ -72,6 +73,7 @@ async function handleDownload(update: Update) {
                 break;
 
             case 'Progress':
+                info(`[Updater] Downloading ${event.data.chunkLength} / ${contentLength}`)
                 // Solo actualizamos la barra si su lógica está activa (contentLength > 0)
                 if (contentLength > 0) {
                     downloaded += event.data.chunkLength;
@@ -105,6 +107,13 @@ async function runUpdateFlow() {
         if (update !== null) {
             info(`Update available: ${update.version}`);
             await handleDownload(update);
+            const currentVersion = await getVersion();
+            try {
+                await invoke("set_config", { key: "lastUpdatedAt", value: new Date().toISOString() });
+                await invoke("set_config", { key: "updatedFrom", value: currentVersion });
+            } catch (error) {
+
+            }
             await update.install().catch((err) => {
                 hideProgress();
                 h1.textContent = "Ocurrió un error... Iniciando"

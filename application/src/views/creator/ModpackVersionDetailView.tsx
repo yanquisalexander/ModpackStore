@@ -1,15 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { LucideArrowLeft, LucideEdit2, LucideSave, LucideUpload, LucideFile, LucideTrash2, LucideSend } from 'lucide-react';
+import { LucideEdit2, LucideSave, LucideUpload, LucideFile, LucideTrash2, LucideSend, LucidePackage, LucideImage, LucideSettings, LucidePalette, LucideFolder } from 'lucide-react';
 import { toast } from 'sonner';
 import { API_ENDPOINT } from '@/consts';
 import { useAuthentication } from '@/stores/AuthContext';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
+import { handleApiError } from '@/lib/utils';
 
 interface ModpackVersion {
     id: string;
@@ -30,9 +33,11 @@ interface ModpackVersion {
 }
 
 interface ModpackVersionFile {
-    id: string;
-    path: string;
     fileHash: string;
+    path: string;
+    file: {
+        type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras';
+    };
 }
 
 const ModpackVersionDetailView: React.FC = () => {
@@ -43,8 +48,6 @@ const ModpackVersionDetailView: React.FC = () => {
         versionId: string;
     }>();
 
-    console.log('Params:', { publisherId, modpackId, versionId });
-    const navigate = useNavigate();
     const { sessionTokens } = useAuthentication();
 
     const [version, setVersion] = useState<ModpackVersion | null>(null);
@@ -53,6 +56,17 @@ const ModpackVersionDetailView: React.FC = () => {
     const [changelog, setChangelog] = useState('');
     const [uploadingFile, setUploadingFile] = useState(false);
     const [publishing, setPublishing] = useState(false);
+    const [uploadDialog, setUploadDialog] = useState<{
+        open: boolean;
+        type: string;
+        file: File | null;
+        progress: number;
+    }>({
+        open: false,
+        type: '',
+        file: null,
+        progress: 0
+    });
 
     useEffect(() => {
         if (publisherId && modpackId && versionId) {
@@ -70,7 +84,7 @@ const ModpackVersionDetailView: React.FC = () => {
             });
 
             if (!res.ok) {
-                throw new Error('Error al obtener detalles de la versión');
+                await handleApiError(res);
             }
 
             const data = await res.json();
@@ -79,7 +93,7 @@ const ModpackVersionDetailView: React.FC = () => {
             setChangelog(data.version.changelog || '');
         } catch (error) {
             console.error('Error fetching version details:', error);
-            toast.error('Error al cargar los detalles de la versión');
+            toast.error(error instanceof Error ? error.message : 'Error al cargar los detalles de la versión');
         } finally {
             setLoading(false);
         }
@@ -102,7 +116,7 @@ const ModpackVersionDetailView: React.FC = () => {
             );
 
             if (!res.ok) {
-                throw new Error('Error al actualizar el changelog');
+                await handleApiError(res);
             }
 
             setVersion({ ...version, changelog });
@@ -110,7 +124,7 @@ const ModpackVersionDetailView: React.FC = () => {
             toast.success('Changelog actualizado correctamente');
         } catch (error) {
             console.error('Error updating changelog:', error);
-            toast.error('Error al actualizar el changelog');
+            toast.error(error instanceof Error ? error.message : 'Error al actualizar el changelog');
         }
     };
 
@@ -144,44 +158,129 @@ const ModpackVersionDetailView: React.FC = () => {
         }
     };
 
-    const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
+    const handleFileUpload = async (file: File, type: string) => {
         if (!file) return;
 
+        // Validar que sea un archivo ZIP
+        if (!file.name.toLowerCase().endsWith('.zip')) {
+            toast.error('Solo se permiten archivos ZIP');
+            return;
+        }
+
         setUploadingFile(true);
-        try {
+        setUploadDialog(prev => ({ ...prev, progress: 0 }));
+
+        return new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+
+            xhr.upload.addEventListener('progress', (event) => {
+                if (event.lengthComputable) {
+                    const percentComplete = Math.round((event.loaded / event.total) * 100);
+                    setUploadDialog(prev => ({ ...prev, progress: percentComplete }));
+                }
+            });
+
+            xhr.addEventListener('load', () => {
+                // Try to parse a JSON error body from the API so we can show useful messages
+                const isSuccess = xhr.status >= 200 && xhr.status < 300;
+                let parsed: any = null;
+                try {
+                    if (xhr.responseText) {
+                        parsed = JSON.parse(xhr.responseText);
+                    }
+                } catch (e) {
+                    // ignore parse errors, we'll fallback to statusText
+                }
+
+                if (isSuccess) {
+                    setUploadDialog(prev => ({ ...prev, progress: 100 }));
+                    toast.success('Archivo subido correctamente');
+                    fetchVersionDetails();
+                    resolve();
+                } else {
+                    // Build a helpful message from the API error structure if present
+                    let message = `Error ${xhr.status}`;
+                    if (parsed && parsed.errors && Array.isArray(parsed.errors) && parsed.errors.length > 0) {
+                        // Prefer the 'detail' field, fall back to title/code
+                        message = parsed.errors.map((err: any) => err.detail || err.title || err.code || JSON.stringify(err)).join('; ');
+                    } else if (xhr.statusText) {
+                        message = `${message}: ${xhr.statusText}`;
+                    }
+
+                    reject(new Error(message));
+                }
+            });
+
+            xhr.addEventListener('error', () => {
+                reject(new Error('Error de red al subir el archivo'));
+            });
+
+            xhr.addEventListener('abort', () => {
+                reject(new Error('Subida cancelada'));
+            });
+
             const formData = new FormData();
             formData.append('file', file);
 
-            const res = await fetch(
-                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files`,
-                {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${sessionTokens?.accessToken}`,
-                    },
-                    body: formData,
-                }
-            );
-
-            if (!res.ok) {
-                throw new Error('Error al subir el archivo');
-            }
-
-            toast.success('Archivo subido correctamente');
-            fetchVersionDetails(); // Recargar los detalles para mostrar el nuevo archivo
-        } catch (error) {
+            xhr.open('POST', `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}`);
+            xhr.setRequestHeader('Authorization', `Bearer ${sessionTokens?.accessToken}`);
+            xhr.send(formData);
+        }).catch((error) => {
             console.error('Error uploading file:', error);
-            toast.error('Error al subir el archivo');
-        } finally {
+            toast.error(error.message || 'Error al subir el archivo');
+        }).finally(() => {
             setUploadingFile(false);
+            setUploadDialog(prev => ({ ...prev, open: false, file: null, progress: 0 }));
+        });
+    };
+
+    const openUploadDialog = (type: string) => {
+        setUploadDialog({
+            open: true,
+            type,
+            file: null,
+            progress: 0
+        });
+    };
+
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            setUploadDialog(prev => ({ ...prev, file }));
         }
     };
 
-    const deleteFile = async (fileId: string) => {
+    const confirmUpload = async () => {
+        if (uploadDialog.file) {
+            await handleFileUpload(uploadDialog.file, uploadDialog.type);
+        }
+    };
+
+    const formatFileSize = (bytes: number) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+    };
+
+    const handleDrop = async (e: React.DragEvent, type: string) => {
+        e.preventDefault();
+
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            await handleFileUpload(files[0], type);
+        }
+    };
+
+    const deleteFile = async (fileHash: string, fileType: string) => {
         try {
             const res = await fetch(
-                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileId}`,
+                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileType}/${fileHash}`,
                 {
                     method: 'DELETE',
                     headers: {
@@ -200,6 +299,96 @@ const ModpackVersionDetailView: React.FC = () => {
             console.error('Error deleting file:', error);
             toast.error('Error al eliminar el archivo');
         }
+    };
+
+    const FileSection: React.FC<{
+        title: string;
+        description: string;
+        type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras';
+        files: ModpackVersionFile[];
+        icon: React.ReactNode;
+    }> = ({ title, description, type, files, icon }) => {
+        const filteredFiles = files.filter(file => file.file.type === type);
+
+        return (
+            <Card
+                className="transition-all duration-200 hover:shadow-md"
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, type)}
+            >
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                        {icon}
+                        {title}
+                        {version && version.status !== 'published' && (
+                            <span className="text-xs text-gray-400 ml-auto">
+                                Arrastra ZIP aquí
+                            </span>
+                        )}
+                    </CardTitle>
+                    <CardDescription>{description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-4">
+
+                        {version && version.status !== 'published' && (
+                            <div className="flex flex-col items-center">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => openUploadDialog(type)}
+                                    disabled={uploadingFile}
+                                >
+                                    <LucideUpload className="h-4 w-4 mr-2" />
+                                    {uploadingFile ? 'Subiendo...' : 'Seleccionar ZIP'}
+                                </Button>
+                                {filteredFiles.length > 0 && (
+                                    <span className="text-xs text-red-500 mt-1">
+                                        Al subir un nuevo archivo, se eliminarán los archivos subidos anteriormente.
+                                    </span>
+                                )}
+                            </div>
+                        )}
+
+                        {filteredFiles.length > 0 && (
+                            <div className="space-y-2 max-h-40 overflow-y-scroll overflow-x-hidden">
+                                <h4 className="text-sm font-medium text-gray-700">Archivos:</h4>
+                                {filteredFiles.map((file) => (
+                                    <div
+                                        key={file.fileHash}
+                                        className="flex items-center justify-between p-2 bg-gray-50 rounded-md"
+                                    >
+                                        <div className="flex items-center space-x-2">
+                                            <LucideFile className="h-4 w-4 text-gray-500" />
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900">
+                                                    {file.path.split('/').pop()}
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    Hash: {file.fileHash.substring(0, 8)}...
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex space-x-2">
+                                            {version && version.status !== 'published' && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() => deleteFile(file.fileHash, file.file.type)}
+                                                    className="text-red-600 hover:text-red-700"
+                                                >
+                                                    <LucideTrash2 className="h-4 w-4" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </CardContent>
+            </Card>
+        );
     };
 
     if (loading) {
@@ -222,220 +411,271 @@ const ModpackVersionDetailView: React.FC = () => {
     }
 
     return (
-        <div className="min-h-screen">
-            <div className="max-w-6xl mx-auto px-4 py-8">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center space-x-4">
+        <>
+            {/* Upload Dialog */}
+            <Dialog open={uploadDialog.open} onOpenChange={(open) => setUploadDialog(prev => ({ ...prev, open }))}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Subir archivo ZIP</DialogTitle>
+                        <DialogDescription>
+                            Selecciona un archivo ZIP para subir a la sección de {uploadDialog.type}
+                        </DialogDescription>
+                    </DialogHeader>
 
-                        <div>
-                            <h1 className="text-3xl font-bold text-zinc-50">{version.modpack.name}</h1>
-                            <p className="text-zinc-300">Versión {version.version}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center space-x-4">
-                        {version.status !== 'published' && (
-                            <Button
-                                onClick={publishVersion}
-                                disabled={publishing}
-                                className="bg-green-600 hover:bg-green-700 text-white"
-                            >
-                                <LucideSend className="h-4 w-4 mr-2" />
-                                {publishing ? 'Publicando...' : 'Publicar'}
-                            </Button>
-                        )}
-                        <Badge
-                            variant={version.status === 'published' ? 'default' : 'secondary'}
-                            className={version.status === 'published' ? 'bg-green-100 text-green-800' : ''}
-                        >
-                            {version.status}
-                        </Badge>
-                    </div>
-                </div>
+                    <div className="space-y-4">
+                        {!uploadDialog.file ? (
+                            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                                <Input
+                                    type="file"
+                                    accept=".zip"
+                                    onChange={handleFileSelect}
+                                    className="hidden"
+                                    id="dialog-file-upload"
+                                />
+                                <label htmlFor="dialog-file-upload" className="cursor-pointer">
+                                    <LucideUpload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                    <p className="text-sm text-gray-600">
+                                        Haz clic para seleccionar un archivo ZIP
+                                    </p>
+                                </label>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
+                                    <LucideFile className="h-8 w-8 text-gray-500" />
+                                    <div className="flex-1">
+                                        <p className="text-sm font-medium text-gray-900">
+                                            {uploadDialog.file.name}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                            {formatFileSize(uploadDialog.file.size)}
+                                        </p>
+                                    </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => setUploadDialog(prev => ({ ...prev, file: null }))}
+                                        className="text-red-600 hover:text-red-700"
+                                    >
+                                        <LucideTrash2 className="h-4 w-4" />
+                                    </Button>
+                                </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Main Content */}
-                    <div className="lg:col-span-2 space-y-6">
-                        {/* Version Info */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Información de la Versión</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-500">Versión</label>
-                                        <p className="text-lg font-semibold">{version.version}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-500">Minecraft</label>
-                                        <p className="text-lg">{version.mcVersion}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-500">Forge</label>
-                                        <p className="text-lg">{version.forgeVersion || 'No especificado'}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-500">Estado</label>
-                                        <p className="text-lg capitalize">{version.status}</p>
-                                    </div>
-                                </div>
-                                <Separator />
-                                <div>
-                                    <label className="text-sm font-medium text-gray-500">Creado</label>
-                                    <p>{new Date(version.createdAt).toLocaleDateString()}</p>
-                                </div>
-                                {version.releaseDate && (
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-500">Publicado</label>
-                                        <p>{new Date(version.releaseDate).toLocaleDateString()}</p>
+                                {uploadingFile && (
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between text-sm">
+                                            <span>Subiendo...</span>
+                                            <span>{uploadDialog.progress}%</span>
+                                        </div>
+                                        <Progress value={uploadDialog.progress} className="w-full" />
                                     </div>
                                 )}
-                            </CardContent>
-                        </Card>
+                            </div>
+                        )}
+                    </div>
 
-                        {/* Changelog */}
-                        <Card>
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <CardTitle>Changelog</CardTitle>
-                                        <CardDescription>
-                                            Describe los cambios en esta versión
-                                        </CardDescription>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setUploadDialog(prev => ({ ...prev, open: false, file: null }))}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={confirmUpload}
+                            disabled={!uploadDialog.file || uploadingFile}
+                        >
+                            {uploadingFile ? 'Subiendo...' : 'Subir archivo'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <div className="min-h-screen">
+                <div className="max-w-6xl mx-auto px-4 py-8">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex items-center space-x-4">
+
+                            <div>
+                                <h1 className="text-3xl font-bold text-zinc-50">{version.modpack.name}</h1>
+                                <p className="text-zinc-300">Versión {version.version}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center space-x-4">
+                            {version && version.status !== 'published' && (
+                                <Button
+                                    onClick={publishVersion}
+                                    disabled={publishing}
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                >
+                                    <LucideSend className="h-4 w-4 mr-2" />
+                                    {publishing ? 'Publicando...' : 'Publicar'}
+                                </Button>
+                            )}
+                            <Badge
+                                variant={version.status === 'published' ? 'default' : 'secondary'}
+                                className={version.status === 'published' ? 'bg-green-100 text-green-800' : ''}
+                            >
+                                {version.status}
+                            </Badge>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Main Content */}
+                        <div className="lg:col-span-2 space-y-6">
+                            {/* Version Info */}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Información de la Versión</CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-500">Versión</label>
+                                            <p className="text-lg font-semibold">{version.version}</p>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-500">Minecraft</label>
+                                            <p className="text-lg">{version.mcVersion}</p>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-500">Forge</label>
+                                            <p className="text-lg">{version.forgeVersion || 'No especificado'}</p>
+                                        </div>
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-500">Estado</label>
+                                            <p className="text-lg capitalize">{version?.status || 'Desconocido'}</p>
+                                        </div>
                                     </div>
-                                    {!editingChangelog && version.status !== 'published' ? (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setEditingChangelog(true)}
-                                        >
-                                            <LucideEdit2 className="h-4 w-4 mr-2" />
-                                            Editar
-                                        </Button>
-                                    ) : editingChangelog ? (
-                                        <div className="flex space-x-2">
+                                    <Separator />
+                                    <div>
+                                        <label className="text-sm font-medium text-gray-500">Creado</label>
+                                        <p>{new Date(version.createdAt).toLocaleDateString()}</p>
+                                    </div>
+                                    {version.releaseDate && (
+                                        <div>
+                                            <label className="text-sm font-medium text-gray-500">Publicado</label>
+                                            <p>{new Date(version.releaseDate).toLocaleDateString()}</p>
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+
+                            {/* Changelog */}
+                            <Card>
+                                <CardHeader>
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <CardTitle>Changelog</CardTitle>
+                                            <CardDescription>
+                                                Describe los cambios en esta versión
+                                            </CardDescription>
+                                        </div>
+                                        {!editingChangelog && version?.status !== 'published' ? (
                                             <Button
                                                 variant="outline"
                                                 size="sm"
-                                                onClick={() => {
-                                                    setEditingChangelog(false);
-                                                    setChangelog(version.changelog || '');
-                                                }}
+                                                onClick={() => setEditingChangelog(true)}
                                             >
-                                                Cancelar
+                                                <LucideEdit2 className="h-4 w-4 mr-2" />
+                                                Editar
                                             </Button>
-                                            <Button
-                                                size="sm"
-                                                onClick={updateChangelog}
-                                            >
-                                                <LucideSave className="h-4 w-4 mr-2" />
-                                                Guardar
-                                            </Button>
-                                        </div>
-                                    ) : null}
-                                </div>
-                            </CardHeader>
-                            <CardContent>
-                                {editingChangelog ? (
-                                    <Textarea
-                                        value={changelog}
-                                        onChange={(e) => setChangelog(e.target.value)}
-                                        placeholder="Describe los cambios en esta versión..."
-                                        rows={6}
-                                        className="w-full"
-                                    />
-                                ) : (
-                                    <div className="prose max-w-none">
-                                        <pre className="whitespace-pre-wrap text-sm text-zinc-200 bg-zinc-800 p-4 rounded-md">
-                                            {version.changelog || 'No hay changelog disponible.'}
-                                        </pre>
-                                    </div>
-                                )}
-                            </CardContent>
-                        </Card>
-                    </div>
-
-                    {/* Sidebar */}
-                    <div className="space-y-6">
-                        {/* File Upload */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Archivos</CardTitle>
-                                <CardDescription>
-                                    Sube archivos relacionados con esta versión
-                                </CardDescription>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-4">
-                                    {version.status !== 'published' && (
-                                        <div>
-                                            <Input
-                                                type="file"
-                                                onChange={handleFileUpload}
-                                                disabled={uploadingFile}
-                                                className="hidden"
-                                                id="file-upload"
-                                            />
-                                            <label htmlFor="file-upload">
+                                        ) : editingChangelog ? (
+                                            <div className="flex space-x-2">
                                                 <Button
                                                     variant="outline"
-                                                    className="w-full"
-                                                    disabled={uploadingFile}
-                                                    asChild
+                                                    size="sm"
+                                                    onClick={() => {
+                                                        setEditingChangelog(false);
+                                                        setChangelog(version.changelog || '');
+                                                    }}
                                                 >
-                                                    <span>
-                                                        <LucideUpload className="h-4 w-4 mr-2" />
-                                                        {uploadingFile ? 'Subiendo...' : 'Subir Archivo'}
-                                                    </span>
+                                                    Cancelar
                                                 </Button>
-                                            </label>
-                                        </div>
-                                    )}
-
-                                    {/* File List */}
-                                    {version.files && version.files.length > 0 && (
-                                        <div className="space-y-2">
-                                            <h4 className="text-sm font-medium text-gray-700">Archivos subidos:</h4>
-                                            {version.files.map((file) => (
-                                                <div
-                                                    key={file.id}
-                                                    className="flex items-center justify-between p-2 bg-gray-50 rounded-md"
+                                                <Button
+                                                    size="sm"
+                                                    onClick={updateChangelog}
                                                 >
-                                                    <div className="flex items-center space-x-2">
-                                                        <LucideFile className="h-4 w-4 text-gray-500" />
-                                                        <div>
-                                                            <p className="text-sm font-medium text-gray-900">
-                                                                {file.path}
-                                                            </p>
-                                                            <p className="text-xs text-gray-500">
-                                                                Hash: {file.fileHash.substring(0, 8)}...
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex space-x-2">
-                                                        {version.status !== 'published' && (
-                                                            <Button
-                                                                variant="ghost"
-                                                                size="sm"
-                                                                onClick={() => deleteFile(file.id)}
-                                                                className="text-red-600 hover:text-red-700"
-                                                            >
-                                                                <LucideTrash2 className="h-4 w-4" />
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                    <LucideSave className="h-4 w-4 mr-2" />
+                                                    Guardar
+                                                </Button>
+                                            </div>
+                                        ) : null}
+                                    </div>
+                                </CardHeader>
+                                <CardContent>
+                                    {editingChangelog ? (
+                                        <Textarea
+                                            value={changelog}
+                                            onChange={(e) => setChangelog(e.target.value)}
+                                            placeholder="Describe los cambios en esta versión..."
+                                            rows={6}
+                                            className="w-full"
+                                        />
+                                    ) : (
+                                        <div className="prose max-w-none">
+                                            <pre className="whitespace-pre-wrap text-sm text-zinc-200 bg-zinc-800 p-4 rounded-md">
+                                                {version.changelog || 'No hay changelog disponible.'}
+                                            </pre>
                                         </div>
                                     )}
-                                </div>
-                            </CardContent>
-                        </Card>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {/* Sidebar */}
+                        <div className="space-y-6">
+                            {/* Mods Section */}
+                            <FileSection
+                                title="Mods"
+                                description="Archivos .jar de mods que se instalarán en la carpeta mods"
+                                type="mods"
+                                files={version.files || []}
+                                icon={<LucidePackage className="h-5 w-5" />}
+                            />
+
+                            {/* Resource Packs Section */}
+                            <FileSection
+                                title="Resource Packs"
+                                description="Packs de recursos que se instalarán en la carpeta resourcepacks"
+                                type="resourcepacks"
+                                files={version.files || []}
+                                icon={<LucideImage className="h-5 w-5" />}
+                            />
+
+                            {/* Config Section */}
+                            <FileSection
+                                title="Config"
+                                description="Archivos de configuración que se instalarán en la carpeta config"
+                                type="config"
+                                files={version.files || []}
+                                icon={<LucideSettings className="h-5 w-5" />}
+                            />
+
+                            {/* Shader Packs Section */}
+                            <FileSection
+                                title="Shader Packs"
+                                description="Packs de shaders que se instalarán en la carpeta shaderpacks"
+                                type="shaderpacks"
+                                files={version.files || []}
+                                icon={<LucidePalette className="h-5 w-5" />}
+                            />
+
+                            {/* Extras Section */}
+                            <FileSection
+                                title="Extras"
+                                description="Archivos adicionales que se descomprimirán en .minecraft"
+                                type="extras"
+                                files={version.files || []}
+                                icon={<LucideFolder className="h-5 w-5" />}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 };
 

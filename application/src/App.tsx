@@ -33,8 +33,7 @@ const LoadingScreen = () => (
 
 // CAMBIO 3: Usar hooks directamente en el componente de la ruta
 const PreLaunchPage = () => {
-  const { instanceId } = useParams<{ instanceId: string }>();
-  return <PreLaunchInstance instanceId={instanceId!} />;
+  return <PreLaunchInstance />;
 };
 
 const ModpackOverviewPage = () => {

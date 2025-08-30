@@ -4,6 +4,8 @@ import { User } from "@/entities/User";
 import { APIError } from "@/lib/APIError";
 import { isOrganizationMember, requireAuth, requireCreatorAccess, USER_CONTEXT_KEY } from "@/middlewares/auth.middleware";
 import { ModpackVisibility } from "@/models/Modpack.model";
+import { ALLOWED_FILE_TYPES, processModpackFileUpload } from "@/services/modpackFileUpload";
+import { queue } from "@/services/Queue";
 import { uploadToR2 } from "@/services/r2UploadService";
 import { ModpackStatus, ModpackVersionStatus, PublisherMemberRole } from "@/types/enums";
 import { Hono } from "hono";
@@ -265,7 +267,7 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions/
 
     const version = await ModpackVersion.findOne({
         where: { id: versionId, modpackId: modpack.id },
-        relations: ["modpack", "files", "createdByUser"],
+        relations: ["modpack", "files", "files.file", "createdByUser"],
         select: {
             id: true,
             version: true,
@@ -282,9 +284,11 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions/
                 publisherId: true,
             },
             files: {
-                id: true,
                 path: true,
                 fileHash: true,
+                file: {
+                    type: true
+                }
             },
             createdByUser: {
                 id: true,
@@ -324,5 +328,45 @@ ModpackCreatorsRoute.patch("/publishers/:publisherId/modpacks/:modpackId/version
 
     return c.json({ version });
 });
+
+
+
+
+ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId/files/:type", isOrganizationMember, async (c) => {
+    const user = c.get(USER_CONTEXT_KEY) as User;
+    const { publisherId, modpackId, versionId, type } = c.req.param();
+
+
+    if (!ALLOWED_FILE_TYPES.includes(type)) {
+        throw new APIError(400, "Tipo de archivo no permitido");
+    }
+
+    const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
+    if (!modpack) return c.notFound();
+
+    const version = await ModpackVersion.findOneBy({ id: versionId, modpackId: modpack.id });
+    if (!version) return c.notFound();
+
+    const userRole = await user.getRoleInPublisher(publisherId);
+
+    if (userRole === PublisherMemberRole.MEMBER && version.createdBy !== user.id) {
+        throw new APIError(403, "No tienes permiso para editar esta versión");
+    }
+
+    const body = await c.req.parseBody();
+
+    console.log({ body });
+
+    // For testing, throw an api error
+
+    if (body.file instanceof File) {
+        processModpackFileUpload(body.file, body.file.name, modpack.id, version.id, type);
+    } else {
+        throw new APIError(400, "Archivo no válido o no proporcionado");
+    }
+
+    return c.json({ version });
+});
+
 
 

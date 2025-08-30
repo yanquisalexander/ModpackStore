@@ -1,672 +1,137 @@
-import { createHash } from 'crypto';
-// import { readFile } from 'fs/promises'; // readFile seems unused
-// import { basename, join } from 'path'; // basename, join seem unused
-import JSZip from 'jszip';
-import {
-  ModpacksTable,
-  ModpackVersionsTable,
-  ModpackVersionFilesTable,
-  ModpackVersionIndividualFilesTable
-} from '../db/schema';
-import { client as db } from '../db/client';
-import { eq, and, desc, lt } from 'drizzle-orm';
-import { v4 as uuidv4 } from 'uuid';
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import fs from "fs";
+import path from "path";
+import crypto from "crypto";
+import JSZip from "jszip";
+import { queue } from "./Queue";
+import { uploadToR2, batchUploadToR2 } from "./r2UploadService";
+import { ModpackFile, ModpackFileType } from "@/entities/ModpackFile";
+import { ModpackVersionFile } from "@/entities/ModpackVersionFile";
+import { In } from "typeorm";
 
-export enum FileType {
-  MODS = 'mods',
-  CONFIG = 'config',
-  RESOURCEPACKS = 'resourcepacks',
-  SHADERPACKS = 'shaderpacks',
-  EXTRAS = 'extras'
-}
+export const ALLOWED_FILE_TYPES = ['mods', 'resourcepacks', 'config', 'shaderpacks', 'extras'];
 
-interface FileInfo {
-  path: string;
-  hash: string;
-  size: number;
-}
+const TEMP_UPLOAD_DIR = path.join(__dirname, "../../tmp/uploads");
+if (!fs.existsSync(TEMP_UPLOAD_DIR)) fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true });
 
-interface UploadResult {
-  versionFileId: number;
-  isDelta: boolean;
-  fileCount: number;
-  totalSize: number;
-  addedFiles: number;
-  removedFiles: number;
-  modifiedFiles: number;
-}
+type UploadSource = Buffer | File;
 
-interface ModpackManifest {
-  name: string;
-  version: string;
-  mcVersion: string;
-  forgeVersion?: string;
-  files: {
-    mods?: string;
-    configs?: string; 
-    resources?: string;
-  };
-  reusedFrom?: {
-    mods?: string;
-    configs?: string;
-    resources?: string;
-  };
-}
+export const processModpackFileUpload = async (
+  source: UploadSource,
+  filename: string,
+  modpackId: string,
+  versionId: string,
+  fileType: (typeof ALLOWED_FILE_TYPES)[number]
+) => {
+  if (!ALLOWED_FILE_TYPES.includes(fileType)) {
+    throw new Error(`Tipo de archivo no permitido: ${fileType}`);
+  }
 
-export class ModpackFileUploadService {
-  private s3Client: S3Client;
-  private bucketName: string;
+  // Convertir File a Buffer si es necesario
+  const buffer: Buffer =
+    source instanceof Buffer
+      ? source
+      : (typeof File !== "undefined" && source instanceof File)
+        ? Buffer.from(await source.arrayBuffer())
+        : (() => { throw new Error("El tipo de 'source' no es soportado."); })();
 
-  constructor(region: string, bucketName: string, endpoint?: string) {
-    this.bucketName = bucketName;
-    
-    this.s3Client = new S3Client({
-      region,
-      endpoint,
-      forcePathStyle: true, // Necesario para algunos servicios compatibles con S3 como MinIO
-      credentials: {
-        accessKeyId: process.env.R2_ACCESS_KEY_ID || '',
-        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || ''
+  // Guardar temporalmente el archivo
+  const tempPath = path.join(TEMP_UPLOAD_DIR, `${Date.now()}-${filename}`);
+  fs.writeFileSync(tempPath, buffer);
+  console.log(`Archivo guardado temporalmente: ${tempPath}`);
+
+  // Función que se delega a la queue
+  const task = async () => {
+    console.log(`Procesando ${fileType} para modpack ${modpackId}...`);
+
+    // Eliminar todos los ModpackVersionFile existentes para esta versión
+    await ModpackVersionFile.delete({ modpackVersionId: versionId });
+
+    const fileEntries: { path: string; hash: string; content: Buffer }[] = [];
+
+    const zip = await JSZip.loadAsync(buffer);
+    const extractDir = path.join(TEMP_UPLOAD_DIR, `${modpackId}-${fileType}-${Date.now()}`);
+    fs.mkdirSync(extractDir, { recursive: true });
+
+    for (const entryName of Object.keys(zip.files)) {
+      const zipFile = zip.files[entryName];
+      if (!zipFile.dir) {
+        const content = await zipFile.async("nodebuffer");
+        const hash = crypto.createHash("md5").update(content).digest("hex");
+        // Adjust path based on fileType
+        const adjustedPath = fileType === 'extras' ? entryName : `${fileType}/${entryName}`;
+        fileEntries.push({ path: adjustedPath, hash, content });
+
+        // Guardar temporalmente para compatibilidad
+        const filePath = path.join(extractDir, entryName);
+        fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        fs.writeFileSync(filePath, content);
+      }
+    }
+
+
+    // Batch query: obtener todos los archivos existentes por hash
+    const allHashes = fileEntries.map(fe => fe.hash);
+    const existingFiles = await ModpackFile.find({ where: { hash: In(allHashes) } });
+    const existingHashes = new Set(existingFiles.map(ef => ef.hash));
+
+    // Procesar solo los que no existen
+    const newFiles = fileEntries.filter(fe => !existingHashes.has(fe.hash));
+    const uploads = newFiles.map(fe => ({
+      key: path.posix.join("resources", "files", fe.hash.slice(0, 2), fe.hash.slice(2, 4), fe.hash),
+      body: fe.content,
+      contentType: "application/octet-stream"
+    }));
+
+    // Batch upload to R2 with concurrency control
+    const uploadResults = await batchUploadToR2(uploads, 5); // concurrency 5
+
+    console.log(`Subidos ${uploadResults.length} archivos nuevos a R2 para ${fileType}`);
+
+    // Save to DB after uploads
+    const savePromises = fileEntries.map(async (fe) => {
+      try {
+        // Find or create ModpackFile
+        let modpackFile = await ModpackFile.findOne({ where: { hash: fe.hash } });
+        if (!modpackFile) {
+          modpackFile = new ModpackFile();
+          modpackFile.hash = fe.hash;
+          modpackFile.size = fe.content.length;
+          modpackFile.type = fileType as ModpackFileType;
+          await modpackFile.save();
+        }
+
+        // Create ModpackVersionFile entry for all files, even if they already exist
+        const modpackVersionFile = new ModpackVersionFile();
+        modpackVersionFile.modpackVersionId = versionId;
+        modpackVersionFile.fileHash = fe.hash;
+        modpackVersionFile.path = fe.path;
+        modpackVersionFile.file = modpackFile; // Associate with the ModpackFile
+        await modpackVersionFile.save();
+      } catch (error) {
+        // Ignore duplicate key errors for both ModpackFile and ModpackVersionFile
+        if (error instanceof Error && !error.message.includes('duplicate key') && !error.message.includes('llave duplicada')) {
+          throw error;
+        }
       }
     });
-  }
 
-  /**
-   * Calcula el hash SHA-256 de un buffer de datos
-   */
-  private calculateHash(data: Buffer): string {
-    return createHash('sha256').update(data).digest('hex');
-  }
+    await Promise.all(savePromises);
 
-  /**
-   * Guarda un archivo en R2 Storage
-   */
-  private async saveFile(modpackId: string, versionId: string, fileType: FileType, fileBuffer: Buffer): Promise<string> {
-    const hash = this.calculateHash(fileBuffer);
-    const key = `${modpackId}/${versionId}/${fileType}/${hash}.zip`;
-    
-    // Guardamos el archivo en R2
-    await this.s3Client.send(new PutObjectCommand({
-      Bucket: this.bucketName,
-      Key: key,
-      Body: fileBuffer,
-      ContentType: 'application/zip',
-      Metadata: {
-        'file-hash': hash,
-        'file-type': fileType
-      }
-    }));
-    
-    return hash;
-  }
-  
-  /**
-   * Obtiene un archivo desde R2 Storage
-   */
-  private async getFile(key: string): Promise<Buffer> {
-    const response = await this.s3Client.send(new GetObjectCommand({
-      Bucket: this.bucketName,
-      Key: key
-    }));
-    
-    // Convertir el stream de respuesta a Buffer
-    const chunks: Buffer[] = [];
-    for await (const chunk of response.Body as any) {
-      chunks.push(Buffer.from(chunk));
-    }
-    
-    return Buffer.concat(chunks);
-  }
+    // Mostrar tabla con path y hash (todos, incluyendo existentes)
+    console.log(`Hashes generados para ${fileType}:`);
+    console.table(fileEntries.map(fe => ({ path: fe.path, hash: fe.hash })));
 
-  /**
-   * Extrae información de los archivos individuales dentro del ZIP
-   */
-  private async extractFileInfo(zipBuffer: Buffer): Promise<FileInfo[]> {
-    const zip = await JSZip.loadAsync(zipBuffer);
-    const fileInfos: FileInfo[] = [];
+    console.log(`Procesamiento completo para ${fileType}`);
 
-    // Recorremos todos los archivos en el ZIP
-    for (const [path, file] of Object.entries(zip.files)) {
-      if (!file.dir) {  // Ignoramos directorios
-        const content = await file.async('nodebuffer');
-        fileInfos.push({
-          path: path,
-          hash: this.calculateHash(content),
-          size: content.length
-        });
-      }
-    }
+    // Limpiar directorio temporal
+    fs.rmSync(extractDir, { recursive: true, force: true });
+  };
 
-    return fileInfos;
-  }
+  // Delegar a la queue
+  queue.add(task, `${modpackId}-${fileType}`);
 
-  /**
-   * Determina si un tipo de archivo soporta procesamiento de delta
-   */
-  private isDeltaSupported(fileType: FileType): boolean {
-    // EXTRAS no soporta delta ya que debe extraerse exactamente como está
-    return fileType !== FileType.EXTRAS;
-  }
-
-  /**
-   * Busca la última versión publicada del modpack para comparar
-   */
-  private async findPreviousVersionFile(modpackId: string, fileType: FileType): Promise<{ 
-    versionFileId: number, 
-    individualFiles: Record<string, { hash: string, size: number, id: number }> 
-  } | null> {
-    // Buscamos la última versión del modpack
-    const latestVersions = await db
-      .select()
-      .from(ModpackVersionsTable)
-      .where(eq(ModpackVersionsTable.modpackId, modpackId))
-      .orderBy(desc(ModpackVersionsTable.releaseDate))
-      .limit(1);
-
-    if (latestVersions.length === 0) {
-      return null; // No hay versiones previas
-    }
-
-    const latestVersionId = latestVersions[0].id;
-
-    // Buscamos el archivo de tipo específico de esta versión
-    const versionFiles = await db
-      .select()
-      .from(ModpackVersionFilesTable)
-      .where(
-        and(
-          eq(ModpackVersionFilesTable.modpackVersionId, latestVersionId),
-          eq(ModpackVersionFilesTable.type, fileType)
-        )
-      );
-
-    if (versionFiles.length === 0) {
-      return null; // No hay archivos de este tipo en la versión anterior
-    }
-
-    const versionFileId = versionFiles[0].id;
-
-    // Obtenemos todos los archivos individuales
-    const individualFiles = await db
-      .select()
-      .from(ModpackVersionIndividualFilesTable)
-      .where(eq(ModpackVersionIndividualFilesTable.modpackVersionFileId, versionFileId));
-
-    // Creamos un mapa para acceso rápido
-    const fileMap: Record<string, { hash: string, size: number, id: number }> = {};
-    for (const file of individualFiles) {
-      fileMap[file.path] = {
-        hash: file.hash,
-        size: file.size || 0,
-        id: file.id
-      };
-    }
-
-    return {
-      versionFileId,
-      individualFiles: fileMap
-    };
-  }
-
-  /**
-   * Sube un archivo ZIP al modpack y procesa sus contenidos
-   */
-  public async uploadFile(
-    userId: string,
-    modpackId: string,
-    modpackVersionId: string,
-    fileType: FileType,
-    fileBuffer: Buffer,
-    reuseFromVersion?: string
-  ): Promise<UploadResult> {
-    // Verificar que el modpack existe
-    const modpack = await db
-      .select()
-      .from(ModpacksTable)
-      .where(eq(ModpacksTable.id, modpackId))
-      .limit(1);
-
-    if (modpack.length === 0) {
-      throw new Error(`Modpack con ID ${modpackId} no encontrado`);
-    }
-
-    // Verificar que la versión existe y pertenece al modpack
-    const modpackVersion = await db
-      .select()
-      .from(ModpackVersionsTable)
-      .where(
-        and(
-          eq(ModpackVersionsTable.id, modpackVersionId),
-          eq(ModpackVersionsTable.modpackId, modpackId)
-        )
-      )
-      .limit(1);
-
-    if (modpackVersion.length === 0) {
-      throw new Error(`Versión con ID ${modpackVersionId} no encontrada para el modpack ${modpackId}`);
-    }
-
-    // Si se solicitó reutilizar archivos de otra versión y el tipo es compatible
-    if (reuseFromVersion && (fileType === FileType.CONFIG || fileType === FileType.RESOURCEPACKS || fileType === FileType.SHADERPACKS)) {
-      try {
-        // Verificar que la versión a reutilizar existe
-        const reusedVersion = await db
-          .select()
-          .from(ModpackVersionsTable)
-          .where(
-            and(
-              eq(ModpackVersionsTable.id, reuseFromVersion),
-              eq(ModpackVersionsTable.modpackId, modpackId)
-            )
-          )
-          .limit(1);
-          
-        if (reusedVersion.length > 0) {
-          // Buscar archivo del mismo tipo en la versión a reutilizar
-          const reusedFiles = await db
-            .select()
-            .from(ModpackVersionFilesTable)
-            .where(
-              and(
-                eq(ModpackVersionFilesTable.modpackVersionId, reuseFromVersion),
-                eq(ModpackVersionFilesTable.type, fileType)
-              )
-            )
-            .limit(1);
-            
-          if (reusedFiles.length > 0) {
-            const reusedFileId = reusedFiles[0].id;
-            
-            // Copiar referencia del archivo en vez de subir uno nuevo
-            const [versionFile] = await db
-              .insert(ModpackVersionFilesTable)
-              .values({
-                modpackVersionId: modpackVersionId,
-                type: fileType,
-                hash: reusedFiles[0].hash,
-                isDelta: reusedFiles[0].isDelta,
-              })
-              .returning({ id: ModpackVersionFilesTable.id });
-              
-            // Copiar referencias de archivos individuales
-            const individualFiles = await db
-              .select()
-              .from(ModpackVersionIndividualFilesTable)
-              .where(eq(ModpackVersionIndividualFilesTable.modpackVersionFileId, reusedFileId));
-              
-            // Copiar cada archivo individual
-            for (const file of individualFiles) {
-              await db
-                .insert(ModpackVersionIndividualFilesTable)
-                .values({
-                  modpackVersionFileId: versionFile.id,
-                  path: file.path,
-                  hash: file.hash,
-                  size: file.size,
-                });
-            }
-            
-            // Actualizar el manifest para indicar la reutilización
-            await this.updateVersionManifest(modpackId, modpackVersionId, fileType, reusedFiles[0].hash, true, reuseFromVersion);
-            
-            const totalSize = individualFiles.reduce((sum, file) => sum + (file.size || 0), 0);
-            
-            return {
-              versionFileId: versionFile.id,
-              isDelta: reusedFiles[0].isDelta,
-              fileCount: individualFiles.length,
-              totalSize,
-              addedFiles: 0,
-              removedFiles: 0,
-              modifiedFiles: 0,
-              
-            };
-          }
-        }
-      } catch (error) {
-        console.error('Error al reutilizar archivos:', error);
-        // Continuamos con la subida normal si hubo un error
-      }
-    }
-
-    // Guardar el archivo ZIP en R2
-    const fileHash = await this.saveFile(modpackId, modpackVersionId, fileType, fileBuffer);
-    
-    // Extraer información de los archivos dentro del ZIP
-    const newFiles = await this.extractFileInfo(fileBuffer);
-    
-    // Buscar versión anterior para comparación
-    const previousVersion = await this.findPreviousVersionFile(modpackId, fileType);
-    
-    // Determinar si es un delta y qué archivos cambiaron
-    let isDelta = false;
-    let addedFiles = 0;
-    let removedFiles = 0;
-    let modifiedFiles = 0;
-    
-    if (previousVersion && this.isDeltaSupported(fileType)) {
-      isDelta = true;
-      
-      // Comprobamos archivos añadidos o modificados
-      for (const file of newFiles) {
-        const prevFile = previousVersion.individualFiles[file.path];
-        if (!prevFile) {
-          addedFiles++;
-        } else if (prevFile.hash !== file.hash) {
-          modifiedFiles++;
-        }
-      }
-      
-      // Comprobamos archivos eliminados
-      const newFilePaths = new Set(newFiles.map(f => f.path));
-      for (const path in previousVersion.individualFiles) {
-        if (!newFilePaths.has(path)) {
-          removedFiles++;
-        }
-      }
-    }
-    
-    // Insertar registro en la tabla de archivos de versión
-    const [versionFile] = await db
-      .insert(ModpackVersionFilesTable)
-      .values({
-        modpackVersionId: modpackVersionId,
-        type: fileType,
-        hash: fileHash,
-        isDelta,
-      })
-      .returning({ id: ModpackVersionFilesTable.id });
-    
-    const versionFileId = versionFile.id;
-    
-    // Guardar archivos individuales en R2 y en la base de datos
-    for (const file of newFiles) {
-      // Extraer el archivo del ZIP
-      const zip = await JSZip.loadAsync(fileBuffer);
-      const fileContent = await zip.file(file.path)?.async('nodebuffer');
-      
-      if (fileContent) {
-        // Guardar el archivo individual en R2
-        const individualKey = `${modpackId}/${modpackVersionId}/${fileType}/individual/${file.hash}`;
-        await this.s3Client.send(new PutObjectCommand({
-          Bucket: this.bucketName,
-          Key: individualKey,
-          Body: fileContent,
-          ContentType: 'application/octet-stream',
-          Metadata: {
-            'file-hash': file.hash,
-            'original-path': file.path
-          }
-        }));
-      }
-      
-      // Registrar en la base de datos
-      await db
-        .insert(ModpackVersionIndividualFilesTable)
-        .values({
-          modpackVersionFileId: versionFileId,
-          path: file.path,
-          hash: file.hash,
-          size: file.size,
-        });
-    }
-    
-    // Actualizar el manifiesto de la versión
-    await this.updateVersionManifest(modpackId, modpackVersionId, fileType, fileHash);
-    
-    // Calcular el tamaño total
-    const totalSize = newFiles.reduce((sum, file) => sum + file.size, 0);
-    
-    return {
-      versionFileId,
-      isDelta,
-      fileCount: newFiles.length,
-      totalSize,
-      addedFiles,
-      removedFiles,
-      modifiedFiles,
-    };
-  }
-  
-  /**
-   * Actualiza o crea el manifiesto de una versión de modpack
-   */
-  private async updateVersionManifest(
-    modpackId: string, 
-    versionId: string, 
-    fileType: FileType, 
-    fileHash: string,
-    isReused = false,
-    reusedFromVersionId?: string
-  ): Promise<void> {
-    // Obtener información de la versión
-    const version = await db
-      .select()
-      .from(ModpackVersionsTable)
-      .where(eq(ModpackVersionsTable.id, versionId))
-      .limit(1);
-      
-    if (version.length === 0) {
-      throw new Error(`Versión no encontrada: ${versionId}`);
-    }
-    
-    // Obtener información del modpack
-    const modpack = await db
-      .select()
-      .from(ModpacksTable)
-      .where(eq(ModpacksTable.id, modpackId))
-      .limit(1);
-      
-    if (modpack.length === 0) {
-      throw new Error(`Modpack no encontrado: ${modpackId}`);
-    }
-    
-    // Intentar obtener el manifiesto existente
-    let manifest: ModpackManifest;
-    const manifestKey = `${modpackId}/${versionId}/manifest.json`;
-    
-    try {
-      const existingManifest = await this.getFile(manifestKey);
-      manifest = JSON.parse(existingManifest.toString('utf-8'));
-    } catch (error) {
-      // Si no existe, crear uno nuevo
-      manifest = {
-        name: modpack[0].name,
-        version: version[0].version,
-        mcVersion: version[0].mcVersion,
-        forgeVersion: version[0].forgeVersion,
-        files: {},
-        reusedFrom: {}
-      };
-    }
-    
-    // Actualizar la parte correspondiente al tipo de archivo
-    manifest.files[fileType] = fileHash;
-    
-    // Si se reutilizó de otra versión, guardar esa información
-    if (isReused && reusedFromVersionId) {
-      if (!manifest.reusedFrom) {
-        manifest.reusedFrom = {};
-      }
-      manifest.reusedFrom[fileType] = reusedFromVersionId;
-    }
-    
-    // Guardar el manifiesto actualizado
-    await this.s3Client.send(new PutObjectCommand({
-      Bucket: this.bucketName,
-      Key: manifestKey,
-      Body: JSON.stringify(manifest, null, 2),
-      ContentType: 'application/json'
-    }));
-  }
-  
-  /**
-   * Obtiene el manifiesto de una versión
-   */
-  public async getVersionManifest(modpackId: string, versionId: string): Promise<ModpackManifest | null> {
-    // TODO: Implement getVersionManifest method
-    return null;
-  }
-
-  /**
-   * Reconstruye un archivo delta combinando con la versión anterior
-   */
-  public async reconstructDelta(modpackId: string, versionFileId: number): Promise<Buffer> {
-    // Obtener información del archivo de versión
-    const versionFile = await db
-      .select()
-      .from(ModpackVersionFilesTable)
-      .where(eq(ModpackVersionFilesTable.id, versionFileId))
-      .limit(1);
-
-    if (versionFile.length === 0 || !versionFile[0].isDelta) {
-      throw new Error(`Archivo de versión ${versionFileId} no encontrado o no es un delta`);
-    }
-
-    const currentVersionFile = versionFile[0];
-    
-    // Obtener la versión del modpack
-    const modpackVersion = await db
-      .select()
-      .from(ModpackVersionsTable)
-      .where(eq(ModpackVersionsTable.id, currentVersionFile.modpackVersionId))
-      .limit(1);
-
-    if (modpackVersion.length === 0) {
-      throw new Error(`Versión del modpack no encontrada`);
-    }
-    
-    // Buscar versiones anteriores para reconstruir el delta
-    const previousVersions = await db
-      .select()
-      .from(ModpackVersionsTable)
-      .where(
-        and(
-          eq(ModpackVersionsTable.modpackId, modpackId),
-            lt(ModpackVersionsTable.releaseDate, modpackVersion[0].releaseDate),
-        )
-      )
-      .orderBy(desc(ModpackVersionsTable.releaseDate))
-
-    // Si no hay versiones anteriores, no podemos reconstruir
-    if (previousVersions.length === 0) {
-      throw new Error(`No hay versiones anteriores para reconstruir el delta`);
-    }
-
-    // Buscar el archivo de la misma categoría en la versión anterior
-    const previousVersionFiles = await db
-      .select()
-      .from(ModpackVersionFilesTable)
-      .where(
-        and(
-          eq(ModpackVersionFilesTable.modpackVersionId, previousVersions[0].id),
-          eq(ModpackVersionFilesTable.type, currentVersionFile.type)
-        )
-      );
-
-    if (previousVersionFiles.length === 0) {
-      throw new Error(`No se encontró un archivo del mismo tipo en la versión anterior`);
-    }
-    
-    const previousVersionFileId = previousVersionFiles[0].id;
-
-    // Obtener archivos individuales de la versión actual
-    const currentFiles = await db
-      .select()
-      .from(ModpackVersionIndividualFilesTable)
-      .where(eq(ModpackVersionIndividualFilesTable.modpackVersionFileId, versionFileId));
-    
-    // Obtener archivos individuales de la versión anterior
-    const previousFiles = await db
-      .select()
-      .from(ModpackVersionIndividualFilesTable)
-      .where(eq(ModpackVersionIndividualFilesTable.modpackVersionFileId, previousVersionFileId));
-    
-    // Crear un mapa de los archivos previos para acceso rápido
-    const prevFilesMap = new Map(previousFiles.map(f => [f.path, f]));
-    
-    // Crear un nuevo ZIP con los archivos combinados
-    const zip = new JSZip();
-    
-    // Descargar y añadir archivos actuales desde R2
-    for (const file of currentFiles) {
-      try {
-        // Construir la clave para R2 donde estaría el archivo individual
-        const key = `${modpackId}/${modpackVersion[0].id}/${currentVersionFile.type}/individual/${file.hash}`;
-        const content = await this.getFile(key);
-        zip.file(file.path, content);
-      } catch (err) {
-        console.error(`Error al obtener el archivo individual:`, err);
-        
-        // Intentamos extraerlo del ZIP completo (opcional)
-        try {
-          const zipKey = `${modpackId}/${modpackVersion[0].id}/${currentVersionFile.type}/${currentVersionFile.hash}.zip`;
-          const zipContent = await this.getFile(zipKey);
-          const originalZip = await JSZip.loadAsync(zipContent);
-          
-          // Buscar el archivo por su ruta relativa
-          const fileContent = await originalZip.file(file.path)?.async('nodebuffer');
-          if (fileContent) {
-            zip.file(file.path, fileContent);
-          }
-        } catch (zipErr) {
-          console.error(`Error al extraer del ZIP original:`, zipErr);
-        }
-      }
-    }
-    
-    // Añadir archivos de la versión anterior que no están en la actual
-    for (const prevFile of previousFiles) {
-      // Si el archivo no existe en la versión actual, lo añadimos
-      if (!currentFiles.some(f => f.path === prevFile.path)) {
-        try {
-          const key = `${modpackId}/${previousVersions[0].id}/${currentVersionFile.type}/individual/${prevFile.hash}`;
-          const content = await this.getFile(key);
-          zip.file(prevFile.path, content);
-        } catch (err) {
-          console.error(`Error al obtener archivo anterior:`, err);
-          
-          // Intentamos extraerlo del ZIP completo de la versión anterior
-          try {
-            const zipKey = `${modpackId}/${previousVersions[0].id}/${currentVersionFile.type}/${previousVersionFiles[0].hash}.zip`;
-            const zipContent = await this.getFile(zipKey);
-            const originalZip = await JSZip.loadAsync(zipContent);
-            
-            const fileContent = await originalZip.file(prevFile.path)?.async('nodebuffer');
-            if (fileContent) {
-              zip.file(prevFile.path, fileContent);
-            }
-          } catch (zipErr) {
-            console.error(`Error al extraer del ZIP anterior:`, zipErr);
-          }
-        }
-      }
-    }
-    
-    // Generar el ZIP final
-    return await zip.generateAsync({ type: 'nodebuffer' });
-  }
-
-  /**
-   * Verifica si un usuario tiene permiso para subir archivos al modpack
-   */
-  public async checkUploadPermission(userId: string, modpackId: string): Promise<boolean> {
-    // Esta función verificaría los permisos en las tablas PublisherMembersTable y ModpackPermissionsTable
-    // Por simplicidad, retornamos true en este ejemplo
-    return true;
-  }
-}
-
-// TODO: Replace console.log with a dedicated logger solution throughout the service.
-// TODO: Implement robust authorization checks for all operations (e.g., checkUploadPermission).
-// TODO: Consider using custom error classes for better error handling and propagation.
-
-// Exportamos una instancia configurada del servicio
-export const modpackFileService = new ModpackFileUploadService(
-    process.env.R2_REGION || 'auto', // Default R2 region
-    process.env.R2_BUCKET_NAME || '',
-    process.env.R2_ENDPOINT // Optional endpoint for S3 compatible services
-    // Credentials should be picked up from environment by S3Client if R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY are set
-);
-
+  return {
+    message: "Archivo recibido, se procesará en background",
+    tempPath,
+  };
+};

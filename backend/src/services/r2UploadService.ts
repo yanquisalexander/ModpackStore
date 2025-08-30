@@ -49,3 +49,53 @@ export async function uploadToR2(
         throw new Error("Failed to upload file to R2");
     }
 }
+
+export async function batchUploadToR2(
+    uploads: { key: string; body: Buffer | Readable; contentType: string }[],
+    concurrency = 5
+): Promise<UploadReturn[]> {
+    const results: UploadReturn[] = [];
+    const semaphore = new Semaphore(concurrency);
+
+    const promises = uploads.map(async (upload) => {
+        await semaphore.acquire();
+        try {
+            const result = await uploadToR2(upload.key, upload.body, upload.contentType);
+            results.push(result);
+        } finally {
+            semaphore.release();
+        }
+    });
+
+    await Promise.all(promises);
+    return results;
+}
+
+// Simple semaphore for concurrency control
+class Semaphore {
+    private permits: number;
+    private waitQueue: (() => void)[] = [];
+
+    constructor(permits: number) {
+        this.permits = permits;
+    }
+
+    async acquire() {
+        if (this.permits > 0) {
+            this.permits--;
+            return;
+        }
+        return new Promise<void>((resolve) => {
+            this.waitQueue.push(resolve);
+        });
+    }
+
+    release() {
+        this.permits++;
+        if (this.waitQueue.length > 0) {
+            const resolve = this.waitQueue.shift()!;
+            this.permits--;
+            resolve();
+        }
+    }
+}
