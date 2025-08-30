@@ -1,8 +1,8 @@
 // src/core/bootstrap/filesystem.rs
 // Filesystem operations extracted from instance_bootstrap.rs
 
-use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::bootstrap::tasks::emit_status;
+use crate::core::minecraft_instance::MinecraftInstance;
 use serde_json::Value;
 use std::fs;
 use std::io;
@@ -30,13 +30,18 @@ pub fn create_minecraft_directories(
 
     for (dir_name, dir_path) in &directories {
         if !dir_path.exists() {
-            fs::create_dir_all(dir_path).map_err(|e| {
-                format!("Error creating directory {}: {}", dir_path.display(), e)
-            })?;
+            fs::create_dir_all(dir_path)
+                .map_err(|e| format!("Error creating directory {}: {}", dir_path.display(), e))?;
         }
     }
 
-    Ok((versions_dir, libraries_dir, assets_dir, version_dir, natives_dir))
+    Ok((
+        versions_dir,
+        libraries_dir,
+        assets_dir,
+        version_dir,
+        natives_dir,
+    ))
 }
 
 /// Creates a launcher_profiles.json file if it doesn't exist
@@ -100,10 +105,20 @@ pub fn extract_natives(
         ),
     );
 
+    println!(
+        "DEBUG: Iniciando extracción de {} bibliotecas nativas",
+        total_native_libraries
+    );
+
     for library in libraries {
         // Verificar si la biblioteca tiene nativos
         if let Some(natives) = library.get("natives") {
             processed_libraries += 1;
+
+            println!(
+                "DEBUG: Procesando biblioteca nativa {}/{}",
+                processed_libraries, total_native_libraries
+            );
 
             // Update progress for each native library
             let progress_percentage = if total_native_libraries > 0 {
@@ -125,6 +140,8 @@ pub fn extract_natives(
 
             // Si hay nativos para este sistema operativo
             if let Some(os_natives_value) = os_natives {
+                println!("DEBUG: Encontrados nativos para OS: {}", os_name);
+
                 // Obtener información sobre la biblioteca
                 let library_info = library["downloads"]["classifiers"]
                     .get(
@@ -147,27 +164,42 @@ pub fn extract_natives(
 
                 let library_path = libraries_dir.join(path);
 
+                println!(
+                    "DEBUG: Ruta de biblioteca nativa: {}",
+                    library_path.display()
+                );
+
                 // Si el archivo no existe, ya debería haber sido descargado por download_libraries
                 if !library_path.exists() {
+                    println!(
+                        "DEBUG: Archivo de biblioteca nativa no existe: {}",
+                        library_path.display()
+                    );
+                    emit_status(
+                        instance,
+                        "instance-native-library-missing",
+                        &format!("Biblioteca nativa no encontrada: {}", path),
+                    );
                     continue; // Skip this library if not downloaded
                 }
 
+                println!("DEBUG: Archivo de biblioteca nativa existe, procediendo con extracción");
+
                 // Verificar si hay reglas de extracción (exclude)
-                let exclude_patterns: Vec<String> =
-                    if let Some(extract) = library.get("extract") {
-                        if let Some(exclude) = extract.get("exclude") {
-                            exclude
-                                .as_array()
-                                .unwrap_or(&Vec::new())
-                                .iter()
-                                .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                                .collect()
-                        } else {
-                            Vec::new()
-                        }
+                let exclude_patterns: Vec<String> = if let Some(extract) = library.get("extract") {
+                    if let Some(exclude) = extract.get("exclude") {
+                        exclude
+                            .as_array()
+                            .unwrap_or(&Vec::new())
+                            .iter()
+                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                            .collect()
                     } else {
                         Vec::new()
-                    };
+                    }
+                } else {
+                    Vec::new()
+                };
 
                 // Extraer el archivo JAR al directorio de nativos
                 emit_status(
@@ -177,10 +209,14 @@ pub fn extract_natives(
                 );
 
                 extract_jar_file(&library_path, natives_dir, &exclude_patterns)?;
+                println!("DEBUG: Extracción completada para: {}", path);
+            } else {
+                println!("DEBUG: No se encontraron nativos para OS: {}", os_name);
             }
         }
     }
 
+    println!("DEBUG: Extracción de bibliotecas nativas completada");
     Ok(())
 }
 
@@ -190,13 +226,24 @@ fn extract_jar_file(
     target_dir: &Path,
     exclude_patterns: &[String],
 ) -> Result<(), String> {
+    println!(
+        "DEBUG: Iniciando extracción de JAR: {} -> {}",
+        jar_path.display(),
+        target_dir.display()
+    );
+
     // Abrir el archivo JAR
-    let file = fs::File::open(jar_path)
-        .map_err(|e| format!("Error abriendo archivo JAR: {}", e))?;
+    let file =
+        fs::File::open(jar_path).map_err(|e| format!("Error abriendo archivo JAR: {}", e))?;
 
     let reader = std::io::BufReader::new(file);
-    let mut archive = zip::ZipArchive::new(reader)
-        .map_err(|e| format!("Error leyendo archivo ZIP: {}", e))?;
+    let mut archive =
+        zip::ZipArchive::new(reader).map_err(|e| format!("Error leyendo archivo ZIP: {}", e))?;
+
+    println!(
+        "DEBUG: Archivo JAR abierto correctamente, {} entradas",
+        archive.len()
+    );
 
     // Extraer cada entrada que no esté excluida
     for i in 0..archive.len() {
@@ -218,13 +265,12 @@ fn extract_jar_file(
 
         if should_extract && !file.is_dir() {
             // Crear la ruta de destino
-            let output_path = target_dir.join(file_name);
+            let output_path = target_dir.join(&file_name);
 
             // Crear directorios padres si no existen
             if let Some(parent) = output_path.parent() {
-                fs::create_dir_all(parent).map_err(|e| {
-                    format!("Error creando directorio para archivo nativo: {}", e)
-                })?;
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("Error creando directorio para archivo nativo: {}", e))?;
             }
 
             // Extraer el archivo
@@ -233,9 +279,12 @@ fn extract_jar_file(
 
             std::io::copy(&mut file, &mut output_file)
                 .map_err(|e| format!("Error escribiendo archivo nativo: {}", e))?;
+
+            println!("DEBUG: Extraído: {}", file_name);
         }
     }
 
+    println!("DEBUG: Extracción de JAR completada");
     Ok(())
 }
 

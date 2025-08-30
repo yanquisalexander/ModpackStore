@@ -1,10 +1,13 @@
 // src-tauri/src/instance_bootstrap.rs
 use crate::config::get_config_manager;
 use crate::core::bootstrap::{
-    download::{download_file, download_libraries, download_forge_libraries},
-    filesystem::{create_minecraft_directories, create_launcher_profiles, extract_natives},
-    manifest::{get_version_manifest, get_version_details, get_java_version_requirement, build_forge_installer_url},
-    tasks::{emit_status, emit_bootstrap_start, emit_bootstrap_complete},
+    download::{download_file, download_forge_libraries, download_libraries},
+    filesystem::{create_launcher_profiles, create_minecraft_directories, extract_natives},
+    manifest::{
+        build_forge_installer_url, get_java_version_requirement, get_version_details,
+        get_version_manifest,
+    },
+    tasks::{emit_bootstrap_complete, emit_bootstrap_start, emit_status},
     validate::revalidate_assets,
 };
 use crate::core::instance_manager::get_instance_by_id;
@@ -117,7 +120,7 @@ impl InstanceBootstrap {
         }
 
         // Create required subdirectories using modular function
-        let (versions_dir, libraries_dir, _assets_dir, version_dir, natives_dir) = 
+        let (versions_dir, libraries_dir, _assets_dir, version_dir, natives_dir) =
             create_minecraft_directories(&minecraft_dir, &instance.minecraftVersion)?;
 
         // Update task status - 15%
@@ -448,9 +451,7 @@ impl InstanceBootstrap {
         );
 
         // Extraer bibliotecas nativas
-        if let Err(e) =
-            extract_natives(&version_details, &libraries_dir, &natives_dir, instance)
-        {
+        if let Err(e) = extract_natives(&version_details, &libraries_dir, &natives_dir, instance) {
             log::error!("Error extrayendo bibliotecas nativas: {}", e);
             // No devolver error aquí, ya que es opcional
         }
@@ -478,8 +479,6 @@ impl InstanceBootstrap {
 
         Ok(())
     }
-
-
 
     fn run_forge_installer(
         &self,
@@ -623,7 +622,7 @@ impl InstanceBootstrap {
                 task_id,
                 TaskStatus::Running,
                 5.0,
-                "Iniciando bootstrap de instancia Forge",
+                "Iniciando configuración base de Vanilla",
                 Some(serde_json::json!({
                     "instanceName": instance.instanceName.clone(),
                     "instanceId": instance.instanceId.clone()
@@ -631,332 +630,28 @@ impl InstanceBootstrap {
             );
         }
 
-        // Create minecraft directory if it doesn't exist
+        // First, bootstrap the vanilla base
+        self.bootstrap_vanilla_instance(instance, task_id.clone())
+            .map_err(|e| format!("Error configurando base Vanilla: {}", e))?;
+
+        // Update task status - 70%
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                70.0,
+                "Configuración base Vanilla completada, configurando Forge",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
+        }
+
+        // Get minecraft directory (reuse from vanilla bootstrap)
         let instance_dir = Path::new(instance.instanceDirectory.as_deref().unwrap_or(""));
         let minecraft_dir = instance_dir.join("minecraft");
-
-        // Update task status - 8%
-        if let Some(task_id) = &task_id {
-            update_task(
-                task_id,
-                TaskStatus::Running,
-                8.0,
-                "Creando directorios base",
-                Some(serde_json::json!({
-                    "instanceName": instance.instanceName.clone(),
-                    "instanceId": instance.instanceId.clone()
-                })),
-            );
-        }
-
-        if !minecraft_dir.exists() {
-            fs::create_dir_all(&minecraft_dir)
-                .map_err(|e| format!("Error creating minecraft directory: {}", e))?;
-        }
-
-        // Create required subdirectories using modular function
-        let (versions_dir, libraries_dir, _assets_dir, version_dir, natives_dir) = 
-            create_minecraft_directories(&minecraft_dir, &instance.minecraftVersion)?;
-
-        // Update task status - 15%
-        if let Some(task_id) = &task_id {
-            update_task(
-                task_id,
-                TaskStatus::Running,
-                15.0,
-                "Descargando manifiesto de versión",
-                Some(serde_json::json!({
-                    "instanceName": instance.instanceName.clone(),
-                    "instanceId": instance.instanceId.clone()
-                })),
-            );
-        }
-
-        // Get version details
-        emit_status(
-            instance,
-            "instance-downloading-manifest",
-            "Descargando manifiesto de versión",
-        );
-
-        // Update task status - 18%
-        if let Some(task_id) = &task_id {
-            update_task(
-                task_id,
-                TaskStatus::Running,
-                18.0,
-                "Descargando manifiesto de versiones de Minecraft",
-                Some(serde_json::json!({
-                    "instanceName": instance.instanceName.clone(),
-                    "instanceId": instance.instanceId.clone(),
-                    "fileName": "version_manifest.json",
-                    "fileType": "version_manifest"
-                })),
-            );
-        }
-
-        let version_details = self
-            .get_version_details(&instance.minecraftVersion)
-            .map_err(|e| format!("Error fetching version details: {}", e))?;
-
-        // Update task status after manifest download - 20%
-        if let Some(task_id) = &task_id {
-            update_task(
-                task_id,
-                TaskStatus::Running,
-                20.0,
-                "Manifiesto de versiones descargado correctamente",
-                Some(serde_json::json!({
-                    "instanceName": instance.instanceName.clone(),
-                    "instanceId": instance.instanceId.clone(),
-                    "status": "manifest_downloaded"
-                })),
-            );
-        }
-
-        // Download version JSON
-        let version_json_path = version_dir.join(format!("{}.json", instance.minecraftVersion));
-        if !version_json_path.exists() {
-            let version_manifest = self
-                .get_version_manifest()
-                .map_err(|e| format!("Error fetching version manifest: {}", e))?;
-
-            let versions = version_manifest["versions"]
-                .as_array()
-                .ok_or_else(|| "Invalid version manifest format".to_string())?;
-
-            let version_info = versions
-                .iter()
-                .find(|v| v["id"].as_str() == Some(&instance.minecraftVersion))
-                .ok_or_else(|| {
-                    format!(
-                        "Version {} not found in manifest",
-                        instance.minecraftVersion
-                    )
-                })?;
-
-            let version_url = version_info["url"]
-                .as_str()
-                .ok_or_else(|| "Invalid version info format".to_string())?;
-
-            // Update task status - 25%
-            if let Some(task_id) = &task_id {
-                update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    25.0,
-                    &format!(
-                        "Descargando archivo de configuración: {}.json",
-                        instance.minecraftVersion
-                    ),
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone(),
-                        "fileName": format!("{}.json", instance.minecraftVersion),
-                        "fileType": "version_json"
-                    })),
-                );
-            }
-
-            emit_status(
-                instance,
-                "instance-downloading-json",
-                &format!(
-                    "Descargando archivo de configuración: {}.json",
-                    instance.minecraftVersion
-                ),
-            );
-
-            self.download_file(version_url, &version_json_path)
-                .map_err(|e| format!("Error downloading version JSON: {}", e))?;
-        } else {
-            // Update task status if file already exists
-            if let Some(task_id) = &task_id {
-                update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    25.0,
-                    &format!(
-                        "Archivo de configuración ya existe: {}.json",
-                        instance.minecraftVersion
-                    ),
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone(),
-                        "fileName": format!("{}.json", instance.minecraftVersion),
-                        "status": "already_exists"
-                    })),
-                );
-            }
-        }
-
-        // Download client jar
-        let client_jar_path = version_dir.join(format!("{}.jar", instance.minecraftVersion));
-        if !client_jar_path.exists() {
-            let client_url = version_details["downloads"]["client"]["url"]
-                .as_str()
-                .ok_or_else(|| "Client download URL not found".to_string())?;
-
-            // Update task status - 30%
-            if let Some(task_id) = &task_id {
-                update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    30.0,
-                    &format!(
-                        "Descargando cliente Minecraft: {}.jar",
-                        instance.minecraftVersion
-                    ),
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone(),
-                        "fileName": format!("{}.jar", instance.minecraftVersion),
-                        "fileType": "client_jar",
-                        "fileSize": version_details["downloads"]["client"]["size"]
-                    })),
-                );
-            }
-
-            emit_status(
-                instance,
-                "instance-downloading-client",
-                &format!(
-                    "Descargando cliente Minecraft: {}.jar",
-                    instance.minecraftVersion
-                ),
-            );
-
-            self.download_file(client_url, &client_jar_path)
-                .map_err(|e| format!("Error downloading client jar: {}", e))?;
-        } else {
-            // Update task status if file already exists
-            if let Some(task_id) = &task_id {
-                update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    30.0,
-                    &format!(
-                        "Cliente Minecraft ya existe: {}.jar",
-                        instance.minecraftVersion
-                    ),
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone(),
-                        "fileName": format!("{}.jar", instance.minecraftVersion),
-                        "status": "already_exists"
-                    })),
-                );
-            }
-        }
-
-        // Update task status - 45%
-        if let Some(task_id) = &task_id {
-            update_task(
-                task_id,
-                TaskStatus::Running,
-                45.0,
-                "Descargando librerías",
-                Some(serde_json::json!({
-                    "instanceName": instance.instanceName.clone(),
-                    "instanceId": instance.instanceId.clone()
-                })),
-            );
-        }
-
-        /*
-        "javaVersion": {"majorVersion": 21},
-        */
-        // Check if correct Java version is installed for this instance
-        let java_major_version = get_java_version_requirement(&version_details)?;
-
-        println!("Java Major Version: {}", java_major_version);
-
-        let java_manager =
-            JavaManager::new().map_err(|e| format!("Failed to create JavaManager: {}", e))?; // Convert error to String
-
-        let is_version_installed = java_manager.is_version_installed(&java_major_version);
-
-        if !is_version_installed {
-            // Update task status - 40%
-            if let Some(task_id) = &task_id {
-                update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    40.0,
-                    &format!(
-                        "Instalando Java {} (requerido por Minecraft {})",
-                        java_major_version, instance.minecraftVersion
-                    ),
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone(),
-                        "javaVersion": java_major_version,
-                        "reason": "required_by_minecraft"
-                    })),
-                );
-            }
-
-            // Create Tokio runtime for async task execution
-            let java_path = tokio::runtime::Runtime::new()
-                .expect("Failed to create Tokio runtime")
-                .block_on(java_manager.get_java_path(&java_major_version))
-                .map_err(|e| {
-                    format!(
-                        "Error obtaining Java path for version {}: {}",
-                        java_major_version, e
-                    )
-                })?;
-
-            let mut instance_to_modify = instance.clone();
-            instance_to_modify.set_java_path(java_path);
-        } else {
-            // Update task status if Java is already installed
-            if let Some(task_id) = &task_id {
-                update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    40.0,
-                    &format!("Java {} ya está instalado", java_major_version),
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone(),
-                        "javaVersion": java_major_version,
-                        "status": "already_installed"
-                    })),
-                );
-            }
-        }
-
-        // Download and validate libraries
-        emit_status(
-            instance,
-            "instance-downloading-libraries",
-            "Descargando librerías",
-        );
-        download_libraries(&self.client, &version_details, &libraries_dir, instance)
-            .map_err(|e| format!("Error downloading libraries: {}", e))?;
-
-        // Update task status - 60%
-        if let Some(task_id) = &task_id {
-            update_task(
-                task_id,
-                TaskStatus::Running,
-                60.0,
-                "Validando assets",
-                Some(serde_json::json!({
-                    "instanceName": instance.instanceName.clone(),
-                    "instanceId": instance.instanceId.clone()
-                })),
-            );
-        }
-
-        // Validate assets
-        emit_status(instance, "instance-downloading-assets", "Validando assets");
-        self.revalidate_assets(instance)
-            .map_err(|e| format!("Error validating assets: {}", e))?;
-
-        // Create launcher profiles.json if it doesn't exist
-        create_launcher_profiles(&minecraft_dir)?;
+        let versions_dir = minecraft_dir.join("versions");
 
         // Setup Forge-specific files
         let forge_version = instance.forgeVersion.as_ref().unwrap();
@@ -964,12 +659,12 @@ impl InstanceBootstrap {
         let forge_version_dir = versions_dir.join(&forge_version_name);
 
         if !forge_version_dir.exists() {
-            // Update task status - 65%
+            // Update task status - 75%
             if let Some(task_id) = &task_id {
                 update_task(
                     task_id,
                     TaskStatus::Running,
-                    65.0,
+                    75.0,
                     &format!("Creando directorio para Forge {}", forge_version),
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
@@ -984,16 +679,17 @@ impl InstanceBootstrap {
         }
 
         // Download Forge installer
-        let forge_installer_url = build_forge_installer_url(&instance.minecraftVersion, forge_version);
+        let forge_installer_url =
+            build_forge_installer_url(&instance.minecraftVersion, forge_version);
 
         let forge_installer_path = minecraft_dir.join("forge-installer.jar");
 
-        // Update task status - 70%
+        // Update task status - 80%
         if let Some(task_id) = &task_id {
             update_task(
                 task_id,
                 TaskStatus::Running,
-                70.0,
+                80.0,
                 "Descargando instalador de Forge",
                 Some(serde_json::json!({
                     "instanceName": instance.instanceName.clone(),
@@ -1013,12 +709,12 @@ impl InstanceBootstrap {
         self.download_file(&forge_installer_url, &forge_installer_path)
             .map_err(|e| format!("Error downloading Forge installer: {}", e))?;
 
-        // Update task status - 75%
+        // Update task status - 85%
         if let Some(task_id) = &task_id {
             update_task(
                 task_id,
                 TaskStatus::Running,
-                75.0,
+                85.0,
                 "Instalando Forge",
                 Some(serde_json::json!({
                     "instanceName": instance.instanceName.clone(),
@@ -1028,7 +724,7 @@ impl InstanceBootstrap {
             );
         }
 
-        // Run Forge installer (simplified - would need actual implementation)
+        // Run Forge installer
         emit_status(instance, "instance-installing-forge", "Instalando Forge");
 
         // Ejecutar el instalador de Forge
@@ -1041,31 +737,17 @@ impl InstanceBootstrap {
         )
         .map_err(|e| format!("Error ejecutando instalador de Forge: {}", e))?;
 
-        // Update task status - 85%
+        // Update task status - 95%
         if let Some(task_id) = &task_id {
             update_task(
                 task_id,
                 TaskStatus::Running,
-                85.0,
+                95.0,
                 "Forge instalado correctamente",
                 Some(serde_json::json!({
                     "instanceName": instance.instanceName.clone(),
                     "instanceId": instance.instanceId.clone(),
                     "forgeVersion": forge_version
-                })),
-            );
-        }
-
-        // Update task status - 90%
-        if let Some(task_id) = &task_id {
-            update_task(
-                task_id,
-                TaskStatus::Running,
-                90.0,
-                "Finalizando configuración",
-                Some(serde_json::json!({
-                    "instanceName": instance.instanceName.clone(),
-                    "instanceId": instance.instanceId.clone()
                 })),
             );
         }

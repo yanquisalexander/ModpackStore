@@ -1,8 +1,8 @@
 // src/core/bootstrap/download.rs
 // Download-related functionality extracted from instance_bootstrap.rs
 
-use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::bootstrap::tasks::emit_status;
+use crate::core::minecraft_instance::MinecraftInstance;
 use serde_json::Value;
 use std::fs;
 use std::path::Path;
@@ -138,6 +138,75 @@ pub fn download_libraries(
                     );
                 }
             }
+
+            // Handle native libraries with classifiers
+            if let Some(classifiers) = downloads.get("classifiers") {
+                // Get current OS and architecture
+                let current_os = if cfg!(target_os = "windows") {
+                    "windows"
+                } else if cfg!(target_os = "macos") {
+                    "osx"
+                } else {
+                    "linux"
+                };
+
+                let current_arch = if cfg!(target_arch = "x86_64") {
+                    "64"
+                } else if cfg!(target_arch = "x86") {
+                    "32"
+                } else if cfg!(target_arch = "aarch64") {
+                    "arm64"
+                } else {
+                    "64" // default
+                };
+
+                // Try different classifier combinations
+                let possible_classifiers = [
+                    format!("{}-{}", current_os, current_arch),
+                    format!("natives-{}", current_os),
+                    "natives".to_string(),
+                ];
+
+                for classifier in &possible_classifiers {
+                    if let Some(classifier_info) = classifiers.get(classifier) {
+                        let classifier_path =
+                            classifier_info["path"].as_str().ok_or_else(|| {
+                                format!("Classifier path not found for {}", classifier)
+                            })?;
+                        let classifier_url = classifier_info["url"].as_str().ok_or_else(|| {
+                            format!("Classifier URL not found for {}", classifier)
+                        })?;
+
+                        let target_path = libraries_dir.join(classifier_path);
+
+                        // Create parent directories if necessary
+                        if let Some(parent) = target_path.parent() {
+                            fs::create_dir_all(parent).map_err(|e| {
+                                format!("Error creating directory for native library: {}", e)
+                            })?;
+                        }
+
+                        // Download the classifier if it doesn't exist
+                        if !target_path.exists() {
+                            emit_status(
+                                instance,
+                                "instance-downloading-native-library",
+                                &format!("Descargando biblioteca nativa: {}", classifier_path),
+                            );
+
+                            download_file(client, classifier_url, &target_path)
+                                .map_err(|e| format!("Error downloading native library: {}", e))?;
+                        } else {
+                            emit_status(
+                                instance,
+                                "instance-native-library-already-exists",
+                                &format!("Biblioteca nativa ya existe: {}", classifier_path),
+                            );
+                        }
+                        break; // Found and processed one classifier, no need to try others
+                    }
+                }
+            }
         }
         // For libraries without direct download information, use Maven format
         else if !name.is_empty() {
@@ -190,8 +259,7 @@ pub fn download_libraries(
 
                     if let Err(e) = download_file(client, &download_url, &target_path) {
                         // If it fails with the Forge repository, try the Maven Central one
-                        let maven_url =
-                            format!("https://repo1.maven.org/maven2/{}", relative_path);
+                        let maven_url = format!("https://repo1.maven.org/maven2/{}", relative_path);
                         download_file(client, &maven_url, &target_path).map_err(|e| {
                             format!(
                                 "Error al descargar librería desde múltiples repositorios: {}",
@@ -358,9 +426,8 @@ pub fn download_forge_libraries(
 
                     // Descargar si el archivo no existe
                     if !target_path.exists() {
-                        download_file(client, url, &target_path).map_err(|e| {
-                            format!("Error al descargar librería nativa: {}", e)
-                        })?;
+                        download_file(client, url, &target_path)
+                            .map_err(|e| format!("Error al descargar librería nativa: {}", e))?;
                     }
                 }
             }
@@ -410,8 +477,7 @@ pub fn download_forge_libraries(
                 if !target_path.exists() {
                     if let Err(e) = download_file(client, &download_url, &target_path) {
                         // Si falla con el repositorio de Forge, intentar con el de Maven Central
-                        let maven_url =
-                            format!("https://repo1.maven.org/maven2/{}", relative_path);
+                        let maven_url = format!("https://repo1.maven.org/maven2/{}", relative_path);
                         download_file(client, &maven_url, &target_path).map_err(|e| {
                             format!(
                                 "Error al descargar librería desde múltiples repositorios: {}",
