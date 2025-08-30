@@ -332,6 +332,120 @@ ModpackCreatorsRoute.patch("/publishers/:publisherId/modpacks/:modpackId/version
 
 
 
+// Get previous version files for reuse
+ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId/previous-files/:type", isOrganizationMember, async (c) => {
+    const { publisherId, modpackId, versionId, type } = c.req.param();
+    
+    if (!ALLOWED_FILE_TYPES.includes(type)) {
+        throw new APIError(400, "Tipo de archivo no permitido");
+    }
+
+    const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
+    if (!modpack) return c.notFound();
+
+    const currentVersion = await ModpackVersion.findOneBy({ id: versionId, modpackId: modpack.id });
+    if (!currentVersion) return c.notFound();
+
+    // Get all previous versions for this modpack
+    const previousVersions = await ModpackVersion.find({
+        where: { modpackId: modpack.id },
+        relations: ["files", "files.file"],
+        order: { createdAt: "DESC" }
+    });
+
+    // Filter files by type from previous versions
+    const previousFiles: Array<{
+        version: string,
+        versionId: string,
+        files: Array<{
+            fileHash: string,
+            path: string,
+            size: number
+        }>
+    }> = [];
+
+    for (const version of previousVersions) {
+        if (version.id === versionId) continue; // Skip current version
+
+        const filesOfType = version.files
+            .filter(vf => vf.file.type === type)
+            .map(vf => ({
+                fileHash: vf.fileHash,
+                path: vf.path,
+                size: vf.file.size
+            }));
+
+        if (filesOfType.length > 0) {
+            previousFiles.push({
+                version: version.version,
+                versionId: version.id,
+                files: filesOfType
+            });
+        }
+    }
+
+    return c.json({ previousFiles });
+});
+
+// Reuse files from previous version
+ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId/reuse-files/:type", isOrganizationMember, async (c) => {
+    const user = c.get(USER_CONTEXT_KEY) as User;
+    const { publisherId, modpackId, versionId, type } = c.req.param();
+
+    if (!ALLOWED_FILE_TYPES.includes(type)) {
+        throw new APIError(400, "Tipo de archivo no permitido");
+    }
+
+    const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
+    if (!modpack) return c.notFound();
+
+    const version = await ModpackVersion.findOneBy({ id: versionId, modpackId: modpack.id });
+    if (!version) return c.notFound();
+
+    const userRole = await user.getRoleInPublisher(publisherId);
+
+    if (userRole === PublisherMemberRole.MEMBER && version.createdBy !== user.id) {
+        throw new APIError(403, "No tienes permiso para editar esta versión");
+    }
+
+    const { fileHashes } = await c.req.json();
+
+    if (!Array.isArray(fileHashes) || fileHashes.length === 0) {
+        throw new APIError(400, "Se requiere un array de hashes de archivos");
+    }
+
+    // Remove existing files of this type for this version first
+    await ModpackVersionFile.delete({ 
+        modpackVersionId: versionId
+    });
+
+    // Get the actual files and their paths from a previous version
+    const filesToReuse = await ModpackVersionFile.find({
+        where: { 
+            fileHash: In(fileHashes)
+        },
+        relations: ["file"],
+        take: 1 // Just get one instance to copy the path structure
+    });
+
+    // Create new ModpackVersionFile entries for this version
+    for (const fileHash of fileHashes) {
+        const originalFile = filesToReuse.find(f => f.fileHash === fileHash);
+        if (originalFile) {
+            const newVersionFile = new ModpackVersionFile();
+            newVersionFile.modpackVersionId = versionId;
+            newVersionFile.fileHash = fileHash;
+            newVersionFile.path = originalFile.path;
+            await newVersionFile.save();
+        }
+    }
+
+    return c.json({ 
+        message: `${fileHashes.length} archivos reutilizados para ${type}`,
+        reusedFiles: fileHashes.length
+    });
+});
+
 ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId/files/:type", isOrganizationMember, async (c) => {
     const user = c.get(USER_CONTEXT_KEY) as User;
     const { publisherId, modpackId, versionId, type } = c.req.param();
@@ -368,5 +482,122 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
     return c.json({ version });
 });
 
+// Public endpoints for client (outside creator namespace)
+export const ModpackPublicRoute = new Hono();
 
+// Get latest version of a modpack
+ModpackPublicRoute.get("/modpacks/:modpackId/latest", async (c) => {
+    const { modpackId } = c.req.param();
 
+    const latestVersion = await ModpackVersion.findOne({
+        where: { 
+            modpackId,
+            status: ModpackVersionStatus.PUBLISHED 
+        },
+        relations: ["modpack"],
+        order: { releaseDate: "DESC" }
+    });
+
+    if (!latestVersion) {
+        return c.notFound();
+    }
+
+    return c.json({ 
+        version: {
+            id: latestVersion.id,
+            version: latestVersion.version,
+            mcVersion: latestVersion.mcVersion,
+            forgeVersion: latestVersion.forgeVersion,
+            releaseDate: latestVersion.releaseDate,
+            modpack: {
+                id: latestVersion.modpack.id,
+                name: latestVersion.modpack.name
+            }
+        }
+    });
+});
+
+// Get version manifest for downloads
+ModpackPublicRoute.get("/modpacks/:modpackId/versions/:versionId/manifest", async (c) => {
+    const { modpackId, versionId } = c.req.param();
+
+    const version = await ModpackVersion.findOne({
+        where: { 
+            id: versionId,
+            modpackId,
+            status: ModpackVersionStatus.PUBLISHED 
+        },
+        relations: ["files", "files.file", "modpack"]
+    });
+
+    if (!version) {
+        return c.notFound();
+    }
+
+    // Generate manifest with file information
+    const manifest = {
+        modpack: {
+            id: version.modpack.id,
+            name: version.modpack.name
+        },
+        version: {
+            id: version.id,
+            version: version.version,
+            mcVersion: version.mcVersion,
+            forgeVersion: version.forgeVersion
+        },
+        files: {
+            mods: [],
+            resourcepacks: [],
+            config: [],
+            shaderpacks: [],
+            extras: []
+        }
+    };
+
+    // Group files by type
+    version.files.forEach(vf => {
+        const fileInfo = {
+            hash: vf.fileHash,
+            path: vf.path,
+            size: vf.file.size,
+            downloadUrl: `https://r2.modpackstore.net/resources/files/${vf.fileHash.slice(0, 2)}/${vf.fileHash.slice(2, 4)}/${vf.fileHash}`
+        };
+        
+        manifest.files[vf.file.type].push(fileInfo);
+    });
+
+    return c.json({ manifest });
+});
+
+// Check for updates
+ModpackPublicRoute.get("/modpacks/:modpackId/check-update", async (c) => {
+    const { modpackId } = c.req.param();
+    const { currentVersion } = c.req.query();
+
+    const latestVersion = await ModpackVersion.findOne({
+        where: { 
+            modpackId,
+            status: ModpackVersionStatus.PUBLISHED 
+        },
+        order: { releaseDate: "DESC" }
+    });
+
+    if (!latestVersion) {
+        return c.json({ hasUpdate: false });
+    }
+
+    // Simple version comparison - in production you might want semver
+    const hasUpdate = latestVersion.version !== currentVersion;
+
+    return c.json({ 
+        hasUpdate,
+        latestVersion: hasUpdate ? {
+            id: latestVersion.id,
+            version: latestVersion.version,
+            mcVersion: latestVersion.mcVersion,
+            forgeVersion: latestVersion.forgeVersion,
+            releaseDate: latestVersion.releaseDate
+        } : null
+    });
+});

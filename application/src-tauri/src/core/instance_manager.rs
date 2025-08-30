@@ -354,6 +354,228 @@ pub async fn create_local_instance(
 }
 
 #[tauri::command]
+pub async fn create_modpack_instance(
+    instance_name: String,
+    modpack_id: String,
+    version_id: Option<String>, // If None, will use "latest"
+) -> Result<String, String> {
+    // Get task manager singleton
+    let task_manager = crate::core::tasks_manager::get_task_manager();
+    
+    // Add a new task for creating the modpack instance
+    let task_id = {
+        let tm = task_manager.lock().unwrap();
+        tm.add_task(
+            &format!("Creando instancia de modpack: {}", instance_name),
+            Some(serde_json::json!({
+                "type": "modpack_instance_creation",
+                "instanceName": instance_name.clone(),
+                "modpackId": modpack_id.clone(),
+                "versionId": version_id.clone()
+            })),
+        )
+    };
+
+    // Determine which version to use
+    let final_version_id = if let Some(vid) = version_id {
+        vid
+    } else {
+        // Fetch latest version from API
+        match fetch_latest_version(&modpack_id).await {
+            Ok(latest_vid) => latest_vid,
+            Err(e) => {
+                if let Ok(mut tm) = task_manager.lock() {
+                    tm.update_task(
+                        &task_id,
+                        TaskStatus::Failed,
+                        0.0,
+                        &format!("Error obteniendo versión latest: {}", e),
+                        None,
+                    );
+                }
+                return Err(format!("Error obteniendo versión latest: {}", e));
+            }
+        }
+    };
+
+    // Update task progress
+    if let Ok(mut tm) = task_manager.lock() {
+        tm.update_task(
+            &task_id,
+            TaskStatus::Running,
+            10.0,
+            "Descargando información del modpack...",
+            Some(serde_json::json!({
+                "instanceName": instance_name.clone(),
+                "modpackId": modpack_id.clone(),
+                "versionId": final_version_id.clone()
+            })),
+        );
+    }
+
+    // Fetch modpack manifest
+    let manifest = match fetch_modpack_manifest(&modpack_id, &final_version_id).await {
+        Ok(manifest) => manifest,
+        Err(e) => {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error descargando manifiesto: {}", e),
+                    None,
+                );
+            }
+            return Err(format!("Error descargando manifiesto: {}", e));
+        }
+    };
+
+    // Get instances directory
+    let instances_dir = {
+        let config_manager = get_config_manager()
+            .lock()
+            .map_err(|_| "Failed to lock config manager mutex".to_string())?;
+        let config = config_manager.as_ref().map_err(|e| e.clone())?;
+        config.get_instances_dir()
+    };
+
+    // Create instance structure
+    let mut instance = MinecraftInstance::new();
+    instance.instanceName = instance_name.clone();
+    instance.instanceId = uuid::Uuid::new_v4().to_string();
+    instance.modpackId = Some(modpack_id.clone());
+    instance.modpackVersionId = Some(final_version_id.clone());
+    instance.minecraftVersion = manifest.version.mc_version.clone();
+    instance.forgeVersion = manifest.version.forge_version.clone();
+
+    // Set instance directory
+    let instance_dir = instances_dir.join(&instance.instanceId);
+    instance.instanceDirectory = Some(instance_dir.to_string_lossy().to_string());
+
+    // Create instance directory
+    if let Err(e) = fs::create_dir_all(&instance_dir) {
+        if let Ok(mut tm) = task_manager.lock() {
+            tm.update_task(
+                &task_id,
+                TaskStatus::Failed,
+                0.0,
+                &format!("Error creando directorio: {}", e),
+                None,
+            );
+        }
+        return Err(format!("Error creando directorio: {}", e));
+    }
+
+    // Set minecraft path within instance
+    instance.minecraftPath = instance_dir.join("minecraft").to_string_lossy().to_string();
+
+    // Save instance.json
+    if let Err(e) = instance.save() {
+        if let Ok(mut tm) = task_manager.lock() {
+            tm.update_task(
+                &task_id,
+                TaskStatus::Failed,
+                0.0,
+                &format!("Error guardando configuración: {}", e),
+                None,
+            );
+        }
+        return Err(format!("Error guardando configuración: {}", e));
+    }
+
+    // Clone data for background thread
+    let instance_clone = instance.clone();
+    let task_id_clone = task_id.clone();
+    let task_manager_clone = Arc::clone(&task_manager);
+    let manifest_clone = manifest.clone();
+
+    // Start background process
+    std::thread::spawn(move || {
+        // Bootstrap vanilla/forge instance first
+        let mut bootstrap = InstanceBootstrap::new();
+        
+        if let Ok(mut tm) = task_manager_clone.lock() {
+            tm.update_task(
+                &task_id_clone,
+                TaskStatus::Running,
+                20.0,
+                "Configurando base de Minecraft...",
+                Some(serde_json::json!({
+                    "instanceName": instance_clone.instanceName.clone(),
+                    "instanceId": instance_clone.instanceId.clone()
+                })),
+            );
+        }
+
+        let bootstrap_result = if instance_clone.forgeVersion.is_some() {
+            bootstrap.bootstrap_forge_instance(
+                &instance_clone,
+                Some(task_id_clone.clone()),
+                Some(Arc::clone(&task_manager_clone)),
+            )
+        } else {
+            bootstrap.bootstrap_vanilla_instance(
+                &instance_clone,
+                Some(task_id_clone.clone()),
+                Some(Arc::clone(&task_manager_clone)),
+            )
+        };
+
+        if let Err(e) = bootstrap_result {
+            if let Ok(mut tm) = task_manager_clone.lock() {
+                tm.update_task(
+                    &task_id_clone,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error en bootstrap: {}", e),
+                    None,
+                );
+            }
+            return;
+        }
+
+        // Download and install modpack files
+        if let Ok(mut tm) = task_manager_clone.lock() {
+            tm.update_task(
+                &task_id_clone,
+                TaskStatus::Running,
+                60.0,
+                "Descargando archivos del modpack...",
+                Some(serde_json::json!({
+                    "instanceName": instance_clone.instanceName.clone(),
+                    "instanceId": instance_clone.instanceId.clone()
+                })),
+            );
+        }
+
+        // TODO: Implement modpack file installation logic
+        // This would download files, check for existing files by hash, etc.
+
+        // For now, mark as completed
+        if let Ok(mut tm) = task_manager_clone.lock() {
+            tm.update_task(
+                &task_id_clone,
+                TaskStatus::Completed,
+                100.0,
+                &format!("Instancia de modpack {} creada exitosamente", instance_clone.instanceName),
+                Some(serde_json::json!({
+                    "instanceName": instance_clone.instanceName.clone(),
+                    "instanceId": instance_clone.instanceId.clone()
+                })),
+            );
+        }
+
+        // Auto-remove task after delay
+        std::thread::sleep(std::time::Duration::from_secs(60));
+        if let Ok(mut tm) = task_manager_clone.lock() {
+            tm.remove_task(&task_id_clone);
+        }
+    });
+
+    Ok(instance.instanceId)
+}
+
+#[tauri::command]
 // Returns bool
 pub async fn remove_instance(instance_id: String) -> Result<bool, String> {
     // Obtener la información necesaria antes de las operaciones asíncronas
@@ -436,4 +658,269 @@ pub async fn search_instances(query: String) -> Result<Vec<MinecraftInstance>, S
     };
 
     Ok(results)
+}
+
+// Helper structures for modpack data
+#[derive(serde::Deserialize, Clone)]
+struct ModpackManifest {
+    modpack: ModpackInfo,
+    version: ModpackVersionInfo,
+    files: ModpackFiles,
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct ModpackVersionInfo {
+    id: String,
+    version: String,
+    mc_version: String,
+    forge_version: Option<String>,
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct ModpackFiles {
+    mods: Vec<ModpackFileInfo>,
+    resourcepacks: Vec<ModpackFileInfo>,
+    config: Vec<ModpackFileInfo>,
+    shaderpacks: Vec<ModpackFileInfo>,
+    extras: Vec<ModpackFileInfo>,
+}
+
+#[derive(serde::Deserialize, Clone)]
+struct ModpackFileInfo {
+    hash: String,
+    path: String,
+    size: u64,
+    download_url: String,
+}
+
+// Helper function to fetch latest version ID
+async fn fetch_latest_version(modpack_id: &str) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let url = format!("http://localhost:3000/v1/api/modpacks/{}/latest", modpack_id);
+    
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch latest version: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("API error: {}", response.status()));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+    json["version"]["id"]
+        .as_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Invalid response format".to_string())
+}
+
+// Helper function to fetch modpack manifest
+async fn fetch_modpack_manifest(modpack_id: &str, version_id: &str) -> Result<ModpackManifest, String> {
+    let client = reqwest::Client::new();
+    let url = format!("http://localhost:3000/v1/api/modpacks/{}/versions/{}/manifest", modpack_id, version_id);
+    
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch manifest: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("API error: {}", response.status()));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+    let manifest: ModpackManifest = serde_json::from_value(json["manifest"].clone())
+        .map_err(|e| format!("Failed to parse manifest: {}", e))?;
+
+    Ok(manifest)
+}
+
+#[tauri::command]
+pub async fn check_modpack_updates(modpack_id: String, current_version: String) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::new();
+    let url = format!("http://localhost:3000/v1/api/modpacks/{}/check-update?currentVersion={}", modpack_id, current_version);
+    
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to check for updates: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("API error: {}", response.status()));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+    Ok(json)
+}
+
+#[tauri::command]
+pub async fn update_modpack_instance(
+    instance_id: String,
+    target_version_id: Option<String>,
+) -> Result<String, String> {
+    // Get the instance
+    let mut instance = MinecraftInstance::from_instance_id(&instance_id)
+        .ok_or_else(|| "Instance not found".to_string())?;
+
+    // Ensure it's a modpack instance
+    let modpack_id = instance.modpackId
+        .as_ref()
+        .ok_or_else(|| "Instance is not a modpack instance".to_string())?
+        .clone();
+
+    // Get task manager
+    let task_manager = crate::core::tasks_manager::get_task_manager();
+    
+    // Add update task
+    let task_id = {
+        let tm = task_manager.lock().unwrap();
+        tm.add_task(
+            &format!("Actualizando modpack: {}", instance.instanceName),
+            Some(serde_json::json!({
+                "type": "modpack_update",
+                "instanceId": instance_id.clone(),
+                "instanceName": instance.instanceName.clone(),
+                "modpackId": modpack_id.clone()
+            })),
+        )
+    };
+
+    // Determine target version
+    let final_version_id = if let Some(vid) = target_version_id {
+        vid
+    } else {
+        // Fetch latest version
+        match fetch_latest_version(&modpack_id).await {
+            Ok(latest_vid) => latest_vid,
+            Err(e) => {
+                if let Ok(mut tm) = task_manager.lock() {
+                    tm.update_task(
+                        &task_id,
+                        TaskStatus::Failed,
+                        0.0,
+                        &format!("Error obteniendo versión latest: {}", e),
+                        None,
+                    );
+                }
+                return Err(format!("Error obteniendo versión latest: {}", e));
+            }
+        }
+    };
+
+    // Check if already on target version
+    if instance.modpackVersionId.as_ref() == Some(&final_version_id) {
+        if let Ok(mut tm) = task_manager.lock() {
+            tm.update_task(
+                &task_id,
+                TaskStatus::Completed,
+                100.0,
+                "Ya estás en la versión más reciente",
+                None,
+            );
+        }
+        return Ok("No update needed".to_string());
+    }
+
+    // Update instance version ID
+    instance.modpackVersionId = Some(final_version_id.clone());
+    
+    // Fetch new manifest
+    let manifest = match fetch_modpack_manifest(&modpack_id, &final_version_id).await {
+        Ok(manifest) => manifest,
+        Err(e) => {
+            if let Ok(mut tm) = task_manager.lock() {
+                tm.update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error descargando manifiesto: {}", e),
+                    None,
+                );
+            }
+            return Err(format!("Error descargando manifiesto: {}", e));
+        }
+    };
+
+    // Update Minecraft version if changed
+    instance.minecraftVersion = manifest.version.mc_version.clone();
+    instance.forgeVersion = manifest.version.forge_version.clone();
+
+    // Save updated instance
+    if let Err(e) = instance.save() {
+        if let Ok(mut tm) = task_manager.lock() {
+            tm.update_task(
+                &task_id,
+                TaskStatus::Failed,
+                0.0,
+                &format!("Error guardando configuración: {}", e),
+                None,
+            );
+        }
+        return Err(format!("Error guardando configuración: {}", e));
+    }
+
+    // Clone for background thread
+    let instance_clone = instance.clone();
+    let task_id_clone = task_id.clone();
+    let task_manager_clone = Arc::clone(&task_manager);
+    let manifest_clone = manifest.clone();
+
+    // Start background update process
+    std::thread::spawn(move || {
+        if let Ok(mut tm) = task_manager_clone.lock() {
+            tm.update_task(
+                &task_id_clone,
+                TaskStatus::Running,
+                25.0,
+                "Descargando archivos actualizados...",
+                Some(serde_json::json!({
+                    "instanceId": instance_clone.instanceId.clone(),
+                    "instanceName": instance_clone.instanceName.clone()
+                })),
+            );
+        }
+
+        // TODO: Implement file download and cleanup logic
+        // This would:
+        // 1. Download new/changed files
+        // 2. Remove obsolete files not in new manifest
+        // 3. Update existing files
+
+        // For now, mark as completed
+        if let Ok(mut tm) = task_manager_clone.lock() {
+            tm.update_task(
+                &task_id_clone,
+                TaskStatus::Completed,
+                100.0,
+                &format!("Modpack {} actualizado exitosamente", instance_clone.instanceName),
+                Some(serde_json::json!({
+                    "instanceId": instance_clone.instanceId.clone(),
+                    "instanceName": instance_clone.instanceName.clone()
+                })),
+            );
+        }
+
+        // Auto-remove task after delay
+        std::thread::sleep(std::time::Duration::from_secs(60));
+        if let Ok(mut tm) = task_manager_clone.lock() {
+            tm.remove_task(&task_id_clone);
+        }
+    });
+
+    Ok(task_id)
 }

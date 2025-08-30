@@ -68,6 +68,29 @@ const ModpackVersionDetailView: React.FC = () => {
         progress: 0
     });
 
+    // New state for file reuse functionality
+    const [reuseDialog, setReuseDialog] = useState<{
+        open: boolean;
+        type: string;
+        previousFiles: Array<{
+            version: string;
+            versionId: string;
+            files: Array<{
+                fileHash: string;
+                path: string;
+                size: number;
+            }>;
+        }>;
+        selectedFiles: string[];
+        loading: boolean;
+    }>({
+        open: false,
+        type: '',
+        previousFiles: [],
+        selectedFiles: [],
+        loading: false
+    });
+
     useEffect(() => {
         if (publisherId && modpackId && versionId) {
             fetchVersionDetails();
@@ -256,6 +279,96 @@ const ModpackVersionDetailView: React.FC = () => {
         }
     };
 
+    // New functions for file reuse
+    const fetchPreviousFiles = async (type: string) => {
+        setReuseDialog(prev => ({ ...prev, loading: true }));
+        try {
+            const res = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/previous-files/${type}`, {
+                headers: {
+                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                },
+            });
+
+            if (!res.ok) {
+                await handleApiError(res);
+                return;
+            }
+
+            const data = await res.json();
+            setReuseDialog(prev => ({
+                ...prev,
+                previousFiles: data.previousFiles || [],
+                selectedFiles: [],
+                loading: false
+            }));
+        } catch (error) {
+            console.error('Error fetching previous files:', error);
+            toast.error('Error al cargar archivos anteriores');
+            setReuseDialog(prev => ({ ...prev, loading: false }));
+        }
+    };
+
+    const openReuseDialog = async (type: string) => {
+        setReuseDialog({
+            open: true,
+            type,
+            previousFiles: [],
+            selectedFiles: [],
+            loading: false
+        });
+        await fetchPreviousFiles(type);
+    };
+
+    const toggleFileSelection = (fileHash: string) => {
+        setReuseDialog(prev => ({
+            ...prev,
+            selectedFiles: prev.selectedFiles.includes(fileHash)
+                ? prev.selectedFiles.filter(h => h !== fileHash)
+                : [...prev.selectedFiles, fileHash]
+        }));
+    };
+
+    const confirmFileReuse = async () => {
+        if (reuseDialog.selectedFiles.length === 0) {
+            toast.error('Selecciona al menos un archivo para reutilizar');
+            return;
+        }
+
+        try {
+            const res = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/reuse-files/${reuseDialog.type}`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    fileHashes: reuseDialog.selectedFiles
+                })
+            });
+
+            if (!res.ok) {
+                await handleApiError(res);
+                return;
+            }
+
+            const data = await res.json();
+            toast.success(data.message || 'Archivos reutilizados correctamente');
+            fetchVersionDetails();
+            setReuseDialog(prev => ({ ...prev, open: false }));
+        } catch (error) {
+            console.error('Error reusing files:', error);
+            toast.error(error instanceof Error ? error.message : 'Error al reutilizar archivos');
+        }
+    };
+
+    const formatFileSize = (bytes: number) => {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+
     const formatFileSize = (bytes: number) => {
         if (bytes === 0) return '0 Bytes';
         const k = 1024;
@@ -332,19 +445,35 @@ const ModpackVersionDetailView: React.FC = () => {
                     <div className="space-y-4">
 
                         {version && version.status !== 'published' && (
-                            <div className="flex flex-col items-center">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => openUploadDialog(type)}
-                                    disabled={uploadingFile}
-                                >
-                                    <LucideUpload className="h-4 w-4 mr-2" />
-                                    {uploadingFile ? 'Subiendo...' : 'Seleccionar ZIP'}
-                                </Button>
+                            <div className="flex flex-col items-center space-y-2">
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => openUploadDialog(type)}
+                                        disabled={uploadingFile}
+                                    >
+                                        <LucideUpload className="h-4 w-4 mr-2" />
+                                        {uploadingFile ? 'Subiendo...' : 'Subir ZIP'}
+                                    </Button>
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        onClick={() => openReuseDialog(type)}
+                                        disabled={uploadingFile}
+                                    >
+                                        <LucidePackage className="h-4 w-4 mr-2" />
+                                        Reutilizar
+                                    </Button>
+                                </div>
                                 {filteredFiles.length > 0 && (
-                                    <span className="text-xs text-red-500 mt-1">
-                                        Al subir un nuevo archivo, se eliminarán los archivos subidos anteriormente.
+                                    <span className="text-xs text-green-600 mt-1">
+                                        ✓ Archivos cargados desde versiones anteriores o subidos
+                                    </span>
+                                )}
+                                {filteredFiles.length === 0 && (
+                                    <span className="text-xs text-gray-500 mt-1">
+                                        Sube nuevos archivos o reutiliza de versiones anteriores
                                     </span>
                                 )}
                             </div>
@@ -487,6 +616,93 @@ const ModpackVersionDetailView: React.FC = () => {
                         >
                             {uploadingFile ? 'Subiendo...' : 'Subir archivo'}
                         </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* File Reuse Dialog */}
+            <Dialog open={reuseDialog.open} onOpenChange={(open) => setReuseDialog(prev => ({ ...prev, open }))}>
+                <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>Reutilizar archivos de versiones anteriores</DialogTitle>
+                        <DialogDescription>
+                            Selecciona archivos de tipo "{reuseDialog.type}" de versiones anteriores para reutilizar
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto">
+                        {reuseDialog.loading ? (
+                            <div className="flex items-center justify-center py-8">
+                                <div className="text-center">
+                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                                    <p className="mt-2 text-sm text-gray-600">Cargando archivos anteriores...</p>
+                                </div>
+                            </div>
+                        ) : reuseDialog.previousFiles.length === 0 ? (
+                            <div className="text-center py-8">
+                                <LucidePackage className="h-12 w-12 text-gray-400 mx-auto mb-2" />
+                                <p className="text-gray-600">No hay archivos de tipo "{reuseDialog.type}" en versiones anteriores</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                {reuseDialog.previousFiles.map((version) => (
+                                    <div key={version.versionId} className="border rounded-lg p-4">
+                                        <h3 className="font-medium text-gray-900 mb-3">
+                                            Versión {version.version} ({version.files.length} archivos)
+                                        </h3>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                                            {version.files.map((file) => (
+                                                <div
+                                                    key={file.fileHash}
+                                                    className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
+                                                        reuseDialog.selectedFiles.includes(file.fileHash)
+                                                            ? 'bg-blue-50 border border-blue-200'
+                                                            : 'bg-gray-50 hover:bg-gray-100'
+                                                    }`}
+                                                    onClick={() => toggleFileSelection(file.fileHash)}
+                                                >
+                                                    <div className="flex items-center space-x-3">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={reuseDialog.selectedFiles.includes(file.fileHash)}
+                                                            onChange={() => toggleFileSelection(file.fileHash)}
+                                                            className="rounded border-gray-300"
+                                                        />
+                                                        <LucideFile className="h-4 w-4 text-gray-500" />
+                                                        <div>
+                                                            <p className="text-sm font-medium text-gray-900">{file.path}</p>
+                                                            <p className="text-xs text-gray-500">
+                                                                {formatFileSize(file.size)} • {file.fileHash.substring(0, 8)}...
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    <DialogFooter className="flex justify-between">
+                        <div className="text-sm text-gray-600">
+                            {reuseDialog.selectedFiles.length} archivo(s) seleccionado(s)
+                        </div>
+                        <div className="space-x-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setReuseDialog(prev => ({ ...prev, open: false }))}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={confirmFileReuse}
+                                disabled={reuseDialog.selectedFiles.length === 0}
+                            >
+                                Reutilizar {reuseDialog.selectedFiles.length} archivo(s)
+                            </Button>
+                        </div>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
