@@ -418,48 +418,7 @@ impl InstanceBootstrap {
             .map_err(|e| format!("Error validating assets: {}", e))?;
 
         // Create launcher profiles.json if it doesn't exist
-        let launcher_profiles_path = minecraft_dir.join("launcher_profiles.json");
-        if !launcher_profiles_path.exists() {
-            // Update task status - 55%
-            if let Some(task_id) = &task_id {
-                update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    55.0,
-                    "Creando configuración del launcher",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone(),
-                        "fileName": "launcher_profiles.json"
-                    })),
-                );
-            }
-
-            let default_profiles = json!({
-                "profiles": {},
-                "settings": {},
-                "version": 3
-            });
-
-            fs::write(&launcher_profiles_path, default_profiles.to_string())
-                .map_err(|e| format!("Error creating launcher_profiles.json: {}", e))?;
-        } else {
-            // Update task status if file already exists
-            if let Some(task_id) = &task_id {
-                update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    55.0,
-                    "Configuración del launcher ya existe",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone(),
-                        "fileName": "launcher_profiles.json",
-                        "status": "already_exists"
-                    })),
-                );
-            }
-        }
+        create_launcher_profiles(&minecraft_dir)?;
 
         // Extraemos las librerías nativas en el directorio de nativos con el nombre de la versión
         // por ejemplo /natives/1.20.2
@@ -655,12 +614,8 @@ impl InstanceBootstrap {
             return Err("No se especificó versión de Forge".to_string());
         }
 
-        // Emit start event
-        emit_status(
-            instance,
-            "instance-bootstrap-start",
-            "Iniciando bootstrap de instancia Forge",
-        );
+        // Emit start event using modular function
+        emit_bootstrap_start(instance, "Forge");
 
         // Update task status if task_id exists
         if let Some(task_id) = &task_id {
@@ -699,44 +654,9 @@ impl InstanceBootstrap {
                 .map_err(|e| format!("Error creating minecraft directory: {}", e))?;
         }
 
-        // Create required subdirectories
-        let versions_dir = minecraft_dir.join("versions");
-        let libraries_dir = minecraft_dir.join("libraries");
-        let assets_dir = minecraft_dir.join("assets");
-        let version_dir = versions_dir.join(&instance.minecraftVersion);
-        let natives_dir = minecraft_dir
-            .join("natives")
-            .join(&instance.minecraftVersion);
-
-        let directories = [
-            ("versions", &versions_dir),
-            ("libraries", &libraries_dir),
-            ("assets", &assets_dir),
-            ("version", &version_dir),
-            ("natives", &natives_dir),
-        ];
-
-        for (dir_name, dir_path) in &directories {
-            if !dir_path.exists() {
-                // Update task status for each directory creation
-                if let Some(task_id) = &task_id {
-                    update_task(
-                        task_id,
-                        TaskStatus::Running,
-                        10.0,
-                        &format!("Creando directorio: {}", dir_name),
-                        Some(serde_json::json!({
-                            "instanceName": instance.instanceName.clone(),
-                            "instanceId": instance.instanceId.clone()
-                        })),
-                    );
-                }
-
-                fs::create_dir_all(dir_path).map_err(|e| {
-                    format!("Error creating directory {}: {}", dir_path.display(), e)
-                })?;
-            }
-        }
+        // Create required subdirectories using modular function
+        let (versions_dir, libraries_dir, _assets_dir, version_dir, natives_dir) = 
+            create_minecraft_directories(&minecraft_dir, &instance.minecraftVersion)?;
 
         // Update task status - 15%
         if let Some(task_id) = &task_id {
@@ -1036,48 +956,7 @@ impl InstanceBootstrap {
             .map_err(|e| format!("Error validating assets: {}", e))?;
 
         // Create launcher profiles.json if it doesn't exist
-        let launcher_profiles_path = minecraft_dir.join("launcher_profiles.json");
-        if !launcher_profiles_path.exists() {
-            // Update task status - 55%
-            if let Some(task_id) = &task_id {
-                update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    55.0,
-                    "Creando configuración del launcher",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone(),
-                        "fileName": "launcher_profiles.json"
-                    })),
-                );
-            }
-
-            let default_profiles = json!({
-                "profiles": {},
-                "settings": {},
-                "version": 3
-            });
-
-            fs::write(&launcher_profiles_path, default_profiles.to_string())
-                .map_err(|e| format!("Error creating launcher_profiles.json: {}", e))?;
-        } else {
-            // Update task status if file already exists
-            if let Some(task_id) = &task_id {
-                update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    55.0,
-                    "Configuración del launcher ya existe",
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone(),
-                        "fileName": "launcher_profiles.json",
-                        "status": "already_exists"
-                    })),
-                );
-            }
-        }
+        create_launcher_profiles(&minecraft_dir)?;
 
         // Setup Forge-specific files
         let forge_version = instance.forgeVersion.as_ref().unwrap();
@@ -1105,10 +984,7 @@ impl InstanceBootstrap {
         }
 
         // Download Forge installer
-        let forge_installer_url = format!(
-            "https://maven.minecraftforge.net/net/minecraftforge/forge/{}-{}/forge-{}-{}-installer.jar",
-            instance.minecraftVersion, forge_version, instance.minecraftVersion, forge_version
-        );
+        let forge_installer_url = build_forge_installer_url(&instance.minecraftVersion, forge_version);
 
         let forge_installer_path = minecraft_dir.join("forge-installer.jar");
 
@@ -1194,14 +1070,7 @@ impl InstanceBootstrap {
             );
         }
 
-        emit_status(
-            instance,
-            "forge-instance-bootstrapped",
-            &format!(
-                "Bootstrap de instancia Forge {} para Minecraft {} completado",
-                forge_version, instance.minecraftVersion
-            ),
-        );
+        emit_bootstrap_complete(instance, "Forge");
 
         Ok(())
     }
