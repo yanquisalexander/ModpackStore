@@ -166,7 +166,8 @@ export const CreateModpackInstanceDialog: React.FC<Props> = ({ isOpen, onClose, 
     };
 
     return (
-        <Dialog open={isOpen} onOpenChange={handleClose}>
+        <>
+            <Dialog open={isOpen} onOpenChange={handleClose}>
             <DialogContent className="max-w-md">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
@@ -286,5 +287,6 @@ export const CreateModpackInstanceDialog: React.FC<Props> = ({ isOpen, onClose, 
             modpackId={modpack.id}
             modpackName={modpack.name}
         />
+        </>
     );
 };
