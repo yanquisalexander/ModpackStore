@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { LucidePlay, LucideHardDrive, LucideMoreVertical, LucideSettings, LucideTrash2, LucideDownload, LucideRefreshCw, LucideGamepad2, LucideFolderSymlink } from "lucide-react"
+import { LucidePlay, LucideHardDrive, LucideMoreVertical, LucideSettings, LucideTrash2, LucideDownload, LucideRefreshCw, LucideGamepad2, LucideFolderSymlink, LucidePackageOpen } from "lucide-react"
 import { useState } from "react"
 import {
     ContextMenu,
@@ -92,6 +92,14 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
         })
     }
 
+    const installationType = instance.modpackId ? "modpack" : "local";
+
+    const badgeIcon = installationType === "modpack" ? (
+        <LucidePackageOpen className="h-4 w-4" />
+    ) : (
+        <LucideHardDrive className="h-4 w-auto" />
+    );
+
     return (
         <>
             <ContextMenu onOpenChange={setIsOpen} modal={false}>
@@ -135,12 +143,14 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
 
 
 
-                            {/* Badge for installed status */}
                             <div className="opacity-100 flex transition flex-col gap-2 flex-1">
                                 <div className="flex justify-end items-center flex-wrap gap-2 transition group-hover:opacity-100 -translate-y-1 group-hover:translate-y-0 opacity-0 duration-300">
-                                    <span className="backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium bg-emerald-700 text-white border-white/10">
-                                        <LucideHardDrive className="h-4 w-auto" />
-                                        Instalada
+                                    <span className={`backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium border-white/10 ${installationType === "modpack"
+                                        ? "bg-orange-100 text-orange-600"
+                                        : "bg-blue-100 text-blue-600"
+                                        }`}>
+                                        {badgeIcon}
+                                        {installationType === "modpack" ? "Modpack" : "Local"}
                                     </span>
                                 </div>
                             </div>
