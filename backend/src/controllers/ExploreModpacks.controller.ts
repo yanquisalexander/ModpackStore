@@ -284,4 +284,56 @@ export class ExploreModpacksController {
             }), statusCode);
         }
     }
+
+    static async validateModpackPassword(c: Context): Promise<Response> {
+        const modpackId = c.req.param('modpackId');
+        const { password } = await c.req.json();
+
+        if (!password) {
+            return c.json(serializeError({
+                status: '400',
+                title: 'Bad Request',
+                detail: 'Password is required.',
+            }), 400);
+        }
+
+        try {
+            const modpack = await Modpack.findOne({
+                where: { id: modpackId }
+            });
+
+            if (!modpack) {
+                return c.json(serializeError({
+                    status: '404',
+                    title: 'Not Found',
+                    detail: "Modpack not found.",
+                }), 404);
+            }
+
+            // Check if modpack requires password
+            if (!modpack.password) {
+                return c.json({
+                    valid: true,
+                    message: "Modpack does not require password."
+                }, 200);
+            }
+
+            // Validate password
+            const isValid = modpack.password === password;
+
+            return c.json({
+                valid: isValid,
+                message: isValid ? "Password is correct." : "Invalid password."
+            }, 200);
+
+        } catch (error: any) {
+            console.error(`[CONTROLLER_EXPLORE] Error in validateModpackPassword for ID ${modpackId}:`, error);
+            const statusCode = error.statusCode || 500;
+            return c.json(serializeError({
+                status: statusCode.toString(),
+                title: error.name || 'Password Validation Error',
+                detail: error.message || "Failed to validate password."
+            }), statusCode);
+        }
+    }
 }

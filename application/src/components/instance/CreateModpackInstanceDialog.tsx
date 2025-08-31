@@ -9,6 +9,7 @@ import { LucidePackage, LucideDownload, LucideCheck, LucideX } from 'lucide-reac
 import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
+import { ModpackPasswordDialog } from '@/components/modpack/ModpackPasswordDialog';
 
 interface ModpackVersion {
     id: string;
@@ -23,6 +24,7 @@ interface Modpack {
     name: string;
     iconUrl?: string;
     versions?: ModpackVersion[];
+    isPasswordProtected?: boolean;
 }
 
 interface Props {
@@ -44,6 +46,8 @@ export const CreateModpackInstanceDialog: React.FC<Props> = ({ isOpen, onClose, 
     const [instanceName, setInstanceName] = useState('');
     const [selectedVersionId, setSelectedVersionId] = useState<string>('latest');
     const [loading, setLoading] = useState(false);
+    const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
+    const [passwordValidated, setPasswordValidated] = useState(false);
     const [taskProgress, setTaskProgress] = useState<{
         active: boolean;
         progress: number;
@@ -95,6 +99,8 @@ export const CreateModpackInstanceDialog: React.FC<Props> = ({ isOpen, onClose, 
         setInstanceName('');
         setSelectedVersionId('latest');
         setLoading(false);
+        setPasswordDialogOpen(false);
+        setPasswordValidated(false);
         setTaskProgress({
             active: false,
             progress: 0,
@@ -107,6 +113,12 @@ export const CreateModpackInstanceDialog: React.FC<Props> = ({ isOpen, onClose, 
     const handleCreateInstance = async () => {
         if (!instanceName.trim()) {
             toast.error('El nombre de la instancia es requerido');
+            return;
+        }
+
+        // Check if modpack requires password and if it's not validated yet
+        if (modpack.isPasswordProtected && !passwordValidated) {
+            setPasswordDialogOpen(true);
             return;
         }
 
@@ -134,6 +146,15 @@ export const CreateModpackInstanceDialog: React.FC<Props> = ({ isOpen, onClose, 
             setLoading(false);
             setTaskProgress(prev => ({ ...prev, active: false }));
         }
+    };
+
+    const handlePasswordValidated = () => {
+        setPasswordValidated(true);
+        setPasswordDialogOpen(false);
+        // Automatically proceed with instance creation after password validation
+        setTimeout(() => {
+            handleCreateInstance();
+        }, 100);
     };
 
     const getVersionDisplay = (version: ModpackVersion) => {
@@ -257,5 +278,13 @@ export const CreateModpackInstanceDialog: React.FC<Props> = ({ isOpen, onClose, 
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+        
+        <ModpackPasswordDialog
+            isOpen={passwordDialogOpen}
+            onClose={() => setPasswordDialogOpen(false)}
+            onSuccess={handlePasswordValidated}
+            modpackId={modpack.id}
+            modpackName={modpack.name}
+        />
     );
 };

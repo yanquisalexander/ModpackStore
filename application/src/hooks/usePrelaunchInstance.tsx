@@ -181,7 +181,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
     // Efecto para manejar los intervalos de mensajes y el estado de carga
     useEffect(() => {
         if (currentInstanceRunning) {
-            const isLoading = ["preparing", "downloading-assets"].includes(currentInstanceRunning.status);
+            const isLoading = ["preparing", "downloading-assets", "downloading-modpack-assets"].includes(currentInstanceRunning.status);
 
             setLoadingStatus(prev => ({
                 ...prev,

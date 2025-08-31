@@ -1,5 +1,5 @@
 use crate::core::minecraft_instance::MinecraftInstance;
-use crate::core::tasks_manager::{update_task, TaskStatus};
+use crate::core::tasks_manager::{add_task, update_task, TaskStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -248,6 +248,85 @@ async fn file_exists_with_correct_hash(file_path: &Path, expected_hash: &str) ->
     }
 }
 
+/// Validates modpack assets against the manifest
+/// Returns a list of files that need to be downloaded (missing, corrupt, or wrong size/hash)
+pub async fn validate_modpack_assets(
+    instance: &MinecraftInstance,
+    manifest: &ModpackManifest,
+    task_id: Option<String>,
+) -> Result<Vec<ModpackFileEntry>, String> {
+    let instance_dir = PathBuf::from(
+        instance.instanceDirectory.as_ref()
+            .ok_or("Instance directory not set")?
+    );
+    let mut files_to_download = Vec::new();
+
+    if let Some(task_id) = &task_id {
+        update_task(
+            task_id,
+            TaskStatus::Running,
+            0.0,
+            "Validando archivos del modpack...",
+            None,
+        );
+    }
+
+    let total_files = manifest.files.len();
+    
+    for (index, file_entry) in manifest.files.iter().enumerate() {
+        let file_path = instance_dir.join(&file_entry.path);
+        
+        // Update progress
+        if let Some(task_id) = &task_id {
+            let progress = (index as f32 / total_files as f32) * 100.0;
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                progress,
+                &format!("Validando {} ({}/{})", file_entry.path, index + 1, total_files),
+                None,
+            );
+        }
+
+        let mut needs_download = false;
+
+        // Check if file exists
+        if !file_path.exists() {
+            needs_download = true;
+        } else {
+            // Check file size
+            if let Ok(metadata) = fs::metadata(&file_path) {
+                if metadata.len() != file_entry.file.size {
+                    needs_download = true;
+                }
+            } else {
+                needs_download = true;
+            }
+
+            // Check file hash if size is correct
+            if !needs_download && !file_exists_with_correct_hash(&file_path, &file_entry.fileHash).await {
+                needs_download = true;
+            }
+        }
+
+        if needs_download {
+            files_to_download.push(file_entry.clone());
+        }
+    }
+
+    if let Some(task_id) = &task_id {
+        update_task(
+            task_id,
+            TaskStatus::Running,
+            100.0,
+            &format!("Validación completa. {} archivos necesitan descarga", files_to_download.len()),
+            None,
+        );
+    }
+
+    Ok(files_to_download)
+}
+
 fn compute_file_hash(contents: &[u8]) -> String {
     use sha1::{Digest, Sha1};
     let mut hasher = Sha1::new();
@@ -299,6 +378,151 @@ pub async fn cleanup_instance_files(instance_id: String) -> Result<Vec<String>, 
 
     // Cleanup obsolete files
     cleanup_obsolete_files(&instance, &manifest)
+}
+
+#[tauri::command]
+pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result<usize, String> {
+    let instance =
+        crate::core::minecraft_instance::MinecraftInstance::from_instance_id(&instance_id)
+            .ok_or("Instance not found")?;
+
+    // Only process modpack instances
+    let modpack_id = instance
+        .modpackId
+        .as_ref()
+        .ok_or("Instance is not a modpack instance")?;
+
+    let version_id = instance
+        .modpackVersionId
+        .as_ref()
+        .ok_or("Instance does not have a version ID")?;
+
+    // Create a task for this operation
+    let task_id = format!("validate_modpack_assets_{}", instance_id);
+    add_task(
+        task_id.clone(),
+        "Validando assets del modpack".to_string(),
+        TaskStatus::Running,
+        0.0,
+        "Iniciando validación...".to_string(),
+    );
+
+    // Fetch current manifest
+    let manifest = match fetch_modpack_manifest(modpack_id, version_id).await {
+        Ok(manifest) => manifest,
+        Err(e) => {
+            update_task(
+                &task_id,
+                TaskStatus::Failed,
+                0.0,
+                &format!("Error obteniendo manifest: {}", e),
+                None,
+            );
+            return Err(e);
+        }
+    };
+
+    // Emit event to indicate we're downloading modpack assets
+    if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
+        if let Some(app_handle) = guard.as_ref() {
+            let _ = app_handle.emit(&format!("instance-{}", instance_id), serde_json::json!({
+                "id": instance_id,
+                "status": "downloading-modpack-assets",
+                "message": "Validando assets del modpack..."
+            }));
+        }
+    }
+
+    // Validate assets and get files that need downloading
+    let files_to_download = match validate_modpack_assets(&instance, &manifest, Some(task_id.clone())).await {
+        Ok(files) => files,
+        Err(e) => {
+            update_task(
+                &task_id,
+                TaskStatus::Failed,
+                0.0,
+                &format!("Error validando assets: {}", e),
+                None,
+            );
+            return Err(e);
+        }
+    };
+
+    if files_to_download.is_empty() {
+        update_task(
+            &task_id,
+            TaskStatus::Completed,
+            100.0,
+            "Todos los assets están actualizados",
+            None,
+        );
+        return Ok(0);
+    }
+
+    // Download missing/corrupt files
+    update_task(
+        &task_id,
+        TaskStatus::Running,
+        0.0,
+        &format!("Descargando {} archivos...", files_to_download.len()),
+        None,
+    );
+
+    let downloaded_count = download_modpack_files(&instance, &files_to_download, Some(task_id.clone())).await?;
+
+    update_task(
+        &task_id,
+        TaskStatus::Completed,
+        100.0,
+        &format!("Descargados {} archivos", downloaded_count),
+        None,
+    );
+
+    Ok(downloaded_count)
+}
+
+async fn download_modpack_files(
+    instance: &MinecraftInstance,
+    files: &[ModpackFileEntry],
+    task_id: Option<String>,
+) -> Result<usize, String> {
+    let instance_dir = PathBuf::from(
+        instance.instanceDirectory.as_ref()
+            .ok_or("Instance directory not set")?
+    );
+    let mut downloaded_count = 0;
+
+    for (index, file_entry) in files.iter().enumerate() {
+        let file_path = instance_dir.join(&file_entry.path);
+        
+        // Update progress
+        if let Some(task_id) = &task_id {
+            let progress = (index as f32 / files.len() as f32) * 100.0;
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                progress,
+                &format!("Descargando {} ({}/{})", file_entry.path, index + 1, files.len()),
+                None,
+            );
+        }
+
+        // Create parent directories if they don't exist
+        if let Some(parent) = file_path.parent() {
+            if let Err(e) = fs::create_dir_all(parent) {
+                return Err(format!("Failed to create directory {}: {}", parent.display(), e));
+            }
+        }
+
+        // Download the file
+        if let Err(e) = download_file(&file_entry.downloadUrl, &file_path).await {
+            return Err(format!("Failed to download {}: {}", file_entry.path, e));
+        }
+
+        downloaded_count += 1;
+    }
+
+    Ok(downloaded_count)
 }
 
 // Helper function to fetch manifest (re-exported from instance_manager)
