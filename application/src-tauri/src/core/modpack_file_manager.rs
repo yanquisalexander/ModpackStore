@@ -132,6 +132,14 @@ pub async fn download_and_install_files(
                     None,
                 );
             }
+            emit_status_with_stage(
+                instance,
+                "instance-downloading-modpack-files",
+                &Stage::DownloadingModpackFiles {
+                    current: index + 1,
+                    total: total_files,
+                },
+            );
             continue; // File already exists and is correct, skip download
         }
 
@@ -151,6 +159,14 @@ pub async fn download_and_install_files(
                 None,
             );
         }
+        emit_status_with_stage(
+            instance,
+            "instance-downloading-modpack-files",
+            &Stage::DownloadingModpackFiles {
+                current: index + 1,
+                total: total_files,
+            },
+        );
 
         // Download the file
         match download_file(&file_entry.downloadUrl, &target_path).await {
@@ -519,7 +535,11 @@ async fn download_modpack_files(
         current: 0,
         total: files.len(),
     };
-    emit_status_with_stage(instance, "instance-downloading-modpack-files", &initial_stage);
+    emit_status_with_stage(
+        instance,
+        "instance-downloading-modpack-files",
+        &initial_stage,
+    );
 
     for (index, file_entry) in files.iter().enumerate() {
         let file_path = instance_dir.join(&file_entry.path);
@@ -559,14 +579,11 @@ async fn download_modpack_files(
 
         downloaded_count += 1;
 
-        // Emit stage progress every few files or on the last one
-        if downloaded_count % 3 == 0 || downloaded_count == files.len() {
-            let stage = Stage::DownloadingModpackFiles {
-                current: downloaded_count,
-                total: files.len(),
-            };
-            emit_status_with_stage(instance, "instance-downloading-modpack-files", &stage);
-        }
+        let stage = Stage::DownloadingModpackFiles {
+            current: downloaded_count,
+            total: files.len(),
+        };
+        emit_status_with_stage(instance, "instance-downloading-modpack-files", &stage);
     }
 
     Ok(downloaded_count)

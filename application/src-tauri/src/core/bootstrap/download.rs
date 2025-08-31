@@ -279,16 +279,11 @@ pub fn download_libraries(
 
         downloaded_libraries += 1;
 
-        // Update progress every 3 libraries or on the last one
-        if downloaded_libraries % 3 == 0
-            || downloaded_libraries == total_libraries - skipped_libraries
-        {
-            let stage = Stage::DownloadingFiles {
-                current: downloaded_libraries,
-                total: total_libraries - skipped_libraries,
-            };
-            emit_status_with_stage(instance, "instance-downloading-libraries", &stage);
-        }
+        let stage = Stage::DownloadingFiles {
+            current: downloaded_libraries,
+            total: total_libraries - skipped_libraries,
+        };
+        emit_status_with_stage(instance, "instance-downloading-libraries", &stage);
     }
 
     // Emit final status
@@ -481,14 +476,11 @@ pub fn download_forge_libraries(
 
         downloaded_libraries += 1;
 
-        // Actualizar progreso cada 5 librerías o en la última
-        if downloaded_libraries % 5 == 0 || downloaded_libraries == total_libraries {
-            let stage = Stage::DownloadingForgeLibraries {
-                current: downloaded_libraries,
-                total: total_libraries,
-            };
-            emit_status_with_stage(instance, "instance-downloading-forge", &stage);
-        }
+        let stage = Stage::DownloadingForgeLibraries {
+            current: downloaded_libraries,
+            total: total_libraries,
+        };
+        emit_status_with_stage(instance, "instance-downloading-forge", &stage);
     }
 
     Ok(())

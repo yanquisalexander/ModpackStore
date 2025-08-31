@@ -60,6 +60,8 @@ export class Modpack extends BaseEntity {
     @Column({ name: "featured", type: "boolean", default: false })
     featured: boolean;
 
+
+
     @Column({
         name: "status",
         type: "enum",
