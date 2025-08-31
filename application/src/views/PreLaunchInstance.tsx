@@ -187,7 +187,6 @@ export const PreLaunchInstance = () => {
         navigate
     } = usePrelaunchInstance(instanceId);
 
-    console.log(appearance)
 
     if (prelaunchState.isLoading) {
         return (

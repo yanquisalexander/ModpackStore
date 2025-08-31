@@ -33,7 +33,6 @@ const RANDOM_MESSAGES = [
 ];
 
 export const usePrelaunchInstance = (instanceId: string) => {
-    console.log("usePrelaunchInstance called with instanceId:", instanceId);
     // Contextos
     const { setTitleBarState } = useGlobalContext();
     const { instances } = useInstances();
@@ -185,9 +184,8 @@ export const usePrelaunchInstance = (instanceId: string) => {
     useEffect(() => {
         if (currentInstanceRunning) {
             const isLoading = ["preparing", "downloading-assets", "downloading-modpack-assets"].includes(currentInstanceRunning.status);
-            
             // Use stage information if available, otherwise fall back to existing message
-            const formattedMessage = currentInstanceRunning.stage 
+            const formattedMessage = currentInstanceRunning.stage
                 ? formatStageMessage(currentInstanceRunning.stage, currentInstanceRunning.message || "Procesando...")
                 : currentInstanceRunning.message || (isLoading ? getRandomMessage() : DEFAULT_LOADING_STATE.message);
 

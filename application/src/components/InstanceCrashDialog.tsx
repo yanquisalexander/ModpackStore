@@ -23,8 +23,6 @@ export const InstanceCrashDialog = ({
     onSendCrashReport,
 }: CrashDialogProps) => {
     const [copied, setCopied] = useState(false);
-
-    console.log(data)
     useEffect(() => {
         if (copied) {
             const timeout = setTimeout(() => setCopied(false), 2000);

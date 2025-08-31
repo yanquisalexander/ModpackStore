@@ -128,7 +128,6 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
                 (task.data?.type === "modpack_instance_creation" || task.data?.type === "modpack_update") &&
                 task.data?.modpackId === modpackId
         );
-        console.log("isModpackInstalling check for", modpackId, "result:", result, "tasks:", tasks.filter(t => t.status === "Running"));
         return result;
     }, [tasks]);
 
