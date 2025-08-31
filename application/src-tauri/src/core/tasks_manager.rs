@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -6,11 +7,10 @@ use std::thread;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Wry};
 use uuid::Uuid;
-use log::{debug, error, info, warn};
 
 // --- TaskStatus y TaskInfo permanecen iguales ---
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub enum TaskStatus {
     Pending,
     Running,
@@ -38,36 +38,62 @@ lazy_static! {
 }
 
 // Helper function for reliable event emission with retry mechanism
-fn emit_event_with_retry(event_name: &str, payload: impl Clone + Serialize + std::fmt::Debug, max_retries: u32) -> bool {
+fn emit_event_with_retry(
+    event_name: &str,
+    payload: impl Clone + Serialize + std::fmt::Debug,
+    max_retries: u32,
+) -> bool {
     for attempt in 0..=max_retries {
         match GLOBAL_APP_HANDLE.lock() {
             Ok(guard) => {
                 if let Some(app_handle) = guard.as_ref() {
                     match app_handle.emit(event_name, payload.clone()) {
                         Ok(_) => {
-                            debug!("Successfully emitted {} event on attempt {}", event_name, attempt + 1);
+                            debug!(
+                                "Successfully emitted {} event on attempt {}",
+                                event_name,
+                                attempt + 1
+                            );
                             return true;
                         }
                         Err(e) => {
-                            warn!("Failed to emit {} event on attempt {}: {}", event_name, attempt + 1, e);
+                            warn!(
+                                "Failed to emit {} event on attempt {}: {}",
+                                event_name,
+                                attempt + 1,
+                                e
+                            );
                         }
                     }
                 } else {
-                    warn!("GLOBAL_APP_HANDLE is None when trying to emit {} on attempt {}", event_name, attempt + 1);
+                    warn!(
+                        "GLOBAL_APP_HANDLE is None when trying to emit {} on attempt {}",
+                        event_name,
+                        attempt + 1
+                    );
                 }
             }
             Err(e) => {
-                warn!("Could not lock GLOBAL_APP_HANDLE mutex for {} on attempt {}: {}", event_name, attempt + 1, e);
+                warn!(
+                    "Could not lock GLOBAL_APP_HANDLE mutex for {} on attempt {}: {}",
+                    event_name,
+                    attempt + 1,
+                    e
+                );
             }
         }
-        
+
         // Wait before retrying, except on the last attempt
         if attempt < max_retries {
             thread::sleep(Duration::from_millis(50 * (attempt + 1) as u64));
         }
     }
-    
-    error!("Failed to emit {} event after {} attempts", event_name, max_retries + 1);
+
+    error!(
+        "Failed to emit {} event after {} attempts",
+        event_name,
+        max_retries + 1
+    );
     false
 }
 
@@ -78,20 +104,20 @@ fn is_valid_transition(current: &TaskStatus, new: &TaskStatus) -> bool {
         (TaskStatus::Pending, TaskStatus::Running) => true,
         (TaskStatus::Pending, TaskStatus::Cancelled) => true,
         (TaskStatus::Pending, TaskStatus::Failed) => true,
-        
+
         // From Running
         (TaskStatus::Running, TaskStatus::Completed) => true,
         (TaskStatus::Running, TaskStatus::Failed) => true,
         (TaskStatus::Running, TaskStatus::Cancelled) => true,
-        
+
         // From final states (no transitions allowed)
         (TaskStatus::Completed, _) => false,
         (TaskStatus::Failed, _) => false,
         (TaskStatus::Cancelled, _) => false,
-        
+
         // Same state is always valid (for progress updates)
         (a, b) if a == b => true,
-        
+
         // Any other transition is invalid
         _ => false,
     }
@@ -145,28 +171,31 @@ pub fn update_task(
                     // Validate state transition
                     if !is_valid_transition(&task.status, &status) {
                         warn!(
-                            "Invalid state transition for task {}: {:?} -> {:?}", 
+                            "Invalid state transition for task {}: {:?} -> {:?}",
                             id, task.status, status
                         );
                         return;
                     }
-                    
+
                     // Validate progress bounds
                     let bounded_progress = progress.clamp(0.0, 100.0);
                     if bounded_progress != progress {
-                        warn!("Progress value {} clamped to {} for task {}", progress, bounded_progress, id);
+                        warn!(
+                            "Progress value {} clamped to {} for task {}",
+                            progress, bounded_progress, id
+                        );
                     }
-                    
+
                     task.status = status;
                     task.progress = bounded_progress;
                     task.message = message.to_string();
                     task.data = data;
-                    
+
                     debug!(
-                        "Updated task {}: status={:?}, progress={:.1}%, message='{}'", 
+                        "Updated task {}: status={:?}, progress={:.1}%, message='{}'",
                         id, task.status, task.progress, task.message
                     );
-                    
+
                     Some(task.clone())
                 }
                 None => {
@@ -176,7 +205,10 @@ pub fn update_task(
             }
         }
         Err(e) => {
-            error!("Failed to lock TASKS mutex when updating task {}: {}", id, e);
+            error!(
+                "Failed to lock TASKS mutex when updating task {}: {}",
+                id, e
+            );
             None
         }
     };
@@ -184,7 +216,10 @@ pub fn update_task(
     // Emit event if task was successfully updated
     if let Some(task_to_emit) = updated_task {
         if !emit_event_with_retry("task-updated", &task_to_emit, 2) {
-            warn!("Failed to emit task-updated event for task: {}", task_to_emit.id);
+            warn!(
+                "Failed to emit task-updated event for task: {}",
+                task_to_emit.id
+            );
         }
     }
 }
@@ -205,20 +240,21 @@ pub fn get_all_tasks() -> Vec<TaskInfo> {
 
 pub fn remove_task(id: &str) -> bool {
     let removed = match TASKS.lock() {
-        Ok(mut tasks) => {
-            match tasks.remove(id) {
-                Some(_) => {
-                    info!("Removed task: {}", id);
-                    true
-                }
-                None => {
-                    warn!("Attempted to remove non-existent task: {}", id);
-                    false
-                }
+        Ok(mut tasks) => match tasks.remove(id) {
+            Some(_) => {
+                info!("Removed task: {}", id);
+                true
             }
-        }
+            None => {
+                warn!("Attempted to remove non-existent task: {}", id);
+                false
+            }
+        },
         Err(e) => {
-            error!("Failed to lock TASKS mutex when removing task {}: {}", id, e);
+            error!(
+                "Failed to lock TASKS mutex when removing task {}: {}",
+                id, e
+            );
             false
         }
     };
@@ -228,7 +264,7 @@ pub fn remove_task(id: &str) -> bool {
             warn!("Failed to emit task-removed event for task: {}", id);
         }
     }
-    
+
     removed
 }
 
@@ -248,7 +284,10 @@ pub fn task_exists(id: &str) -> bool {
     match TASKS.lock() {
         Ok(tasks) => tasks.contains_key(id),
         Err(e) => {
-            error!("Failed to lock TASKS mutex when checking task existence {}: {}", id, e);
+            error!(
+                "Failed to lock TASKS mutex when checking task existence {}: {}",
+                id, e
+            );
             false
         }
     }
@@ -263,7 +302,7 @@ pub fn get_all_tasks_command() -> Vec<TaskInfo> {
 // Function to clean up completed/failed tasks older than specified duration
 pub fn cleanup_old_tasks(max_age_seconds: u64) -> usize {
     let cutoff_time = chrono::Utc::now() - chrono::Duration::seconds(max_age_seconds as i64);
-    
+
     match TASKS.lock() {
         Ok(mut tasks) => {
             let initial_count = tasks.len();
@@ -272,20 +311,21 @@ pub fn cleanup_old_tasks(max_age_seconds: u64) -> usize {
                 if matches!(task.status, TaskStatus::Running | TaskStatus::Pending) {
                     return true;
                 }
-                
+
                 // Parse created_at and check age for completed/failed tasks
                 match chrono::DateTime::parse_from_rfc3339(&task.created_at) {
-                    Ok(created_time) => {
-                        created_time.with_timezone(&chrono::Utc) > cutoff_time
-                    }
+                    Ok(created_time) => created_time.with_timezone(&chrono::Utc) > cutoff_time,
                     Err(_) => {
                         // If we can't parse the time, keep the task to be safe
-                        warn!("Could not parse created_at for task {}: {}", task.id, task.created_at);
+                        warn!(
+                            "Could not parse created_at for task {}: {}",
+                            task.id, task.created_at
+                        );
                         true
                     }
                 }
             });
-            
+
             let removed_count = initial_count - tasks.len();
             if removed_count > 0 {
                 info!("Cleaned up {} old completed/failed tasks", removed_count);
@@ -305,13 +345,13 @@ pub fn emit_all_tasks() -> bool {
         Ok(tasks) => {
             let mut success_count = 0;
             let total_count = tasks.len();
-            
+
             for task in tasks.values() {
                 if emit_event_with_retry("task-updated", task, 1) {
                     success_count += 1;
                 }
             }
-            
+
             info!("Re-emitted {}/{} tasks", success_count, total_count);
             success_count == total_count
         }
