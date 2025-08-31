@@ -358,7 +358,6 @@ fn extract_jar_file(
         target_dir.display()
     );
 
-    // Ensure target directory exists
     fs::create_dir_all(target_dir)
         .map_err(|e| format!("Error creando directorio de destino: {}", e))?;
 
@@ -377,32 +376,50 @@ fn extract_jar_file(
             .by_index(i)
             .map_err(|e| format!("Error obteniendo entrada ZIP: {}", e))?;
 
-        let file_name = file.name().to_string(); // Store the name as a separate variable
+        // El nombre completo dentro del zip (ej: "org/lwjgl/lwjgl.dll")
+        let full_path_in_zip = match file.enclosed_name() {
+            Some(path) => path.to_owned(),
+            None => continue,
+        };
 
-        // Skip directories and excluded patterns
-        if file.is_dir() || should_exclude_file(&file_name, exclude_patterns) {
+        // Skip directories y archivos excluidos
+        if file.is_dir()
+            || should_exclude_file(full_path_in_zip.to_str().unwrap_or(""), exclude_patterns)
+        {
             skipped_count += 1;
-            log::debug!("Saltado: {} (directorio o excluido)", file_name);
+            log::debug!(
+                "Saltado: {} (directorio o excluido)",
+                full_path_in_zip.display()
+            );
             continue;
         }
 
-        let output_path = target_dir.join(&file_name);
+        // --- INICIO DE LA CORRECCIÓN ---
+        // Obtenemos solo el nombre del archivo final (ej: "lwjgl.dll")
+        if let Some(file_name_only) = full_path_in_zip.file_name() {
+            // Construimos la ruta de salida directamente en el directorio de destino
+            let output_path = target_dir.join(file_name_only);
 
-        // Create parent directories
-        if let Some(parent) = output_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Error creando directorio padre: {}", e))?;
+            // Ya no es necesario crear directorios padres, porque estamos aplanando la estructura
+            // if let Some(parent) = output_path.parent() { ... } // <- Esta parte se elimina o se vuelve innecesaria.
+
+            let mut output_file = fs::File::create(&output_path)
+                .map_err(|e| format!("Error creando archivo: {}", e))?;
+
+            io::copy(&mut file, &mut output_file)
+                .map_err(|e| format!("Error escribiendo archivo: {}", e))?;
+
+            extracted_count += 1;
+            log::debug!("Extraído: {}", output_path.display());
+        } else {
+            // Si no tiene nombre de archivo (raro para un archivo), lo saltamos.
+            skipped_count += 1;
+            log::debug!(
+                "Saltado: {} (sin nombre de archivo)",
+                full_path_in_zip.display()
+            );
         }
-
-        // Extract file with error handling
-        let mut output_file =
-            fs::File::create(&output_path).map_err(|e| format!("Error creando archivo: {}", e))?;
-
-        io::copy(&mut file, &mut output_file)
-            .map_err(|e| format!("Error escribiendo archivo: {}", e))?;
-
-        extracted_count += 1;
-        log::debug!("Extraído: {}", file_name);
+        // --- FIN DE LA CORRECCIÓN ---
     }
 
     log::info!(

@@ -31,10 +31,10 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     const [tasks, setTasks] = useState<TaskInfo[]>([]);
     const [lastSyncTime, setLastSyncTime] = useState<number>(0);
     const unlistenRef = useRef<UnlistenFn[]>([]);
-    
+
     const hasRunningTasks = tasks.some((task) => task.status === "Running");
     const taskCount = tasks.length;
-    
+
     // Filtrar tareas en "Running" y que tengan un instanceId en su data, y solo devolver un array de id de instancia
     const instancesBootstraping = tasks.filter(
         (task) => task.status === "Running" && task.data?.instanceId
@@ -64,7 +64,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
         setTasks((prev) => {
             const newTasks = [...prev];
             const idx = newTasks.findIndex((t) => t.id === taskUpdate.id);
-            
+
             if (idx !== -1) {
                 // Update existing task - merge only defined fields
                 const existingTask = newTasks[idx];
@@ -83,7 +83,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
                 });
                 console.log(`Added new task: ${taskUpdate.id}`, taskUpdate);
             }
-            
+
             return newTasks;
         });
     }, []);
@@ -91,18 +91,16 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     // Function to sync tasks from backend
     const syncTasks = useCallback(async (): Promise<void> => {
         try {
-            console.log("Syncing tasks from backend...");
             const backendTasks: TaskInfo[] = await invoke("get_all_tasks_command");
-            
+
             if (Array.isArray(backendTasks)) {
                 const validTasks = backendTasks.filter(validateTaskInfo);
                 if (validTasks.length !== backendTasks.length) {
                     console.warn(`Filtered out ${backendTasks.length - validTasks.length} invalid tasks`);
                 }
-                
+
                 setTasks(validTasks);
                 setLastSyncTime(Date.now());
-                console.log(`Synced ${validTasks.length} tasks from backend`);
             } else {
                 console.error("Invalid tasks data received from backend:", backendTasks);
             }
@@ -136,10 +134,10 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
 
     useEffect(() => {
         let mounted = true;
-        
+
         // Initial sync when component mounts
         syncTasks();
-        
+
         // Set up event listeners with better error handling
         const setupListeners = async () => {
             try {
@@ -185,7 +183,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
                 const timeSinceLastSync = Date.now() - lastSyncTime;
                 // Sync every 30 seconds if there are running tasks, or every 5 minutes otherwise
                 const syncIntervalMs = hasRunningTasks ? 30000 : 300000;
-                
+
                 if (timeSinceLastSync >= syncIntervalMs) {
                     console.log("Periodic task sync triggered");
                     syncTasks();
@@ -197,7 +195,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
             mounted = false;
             clearInterval(syncInterval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
-            
+
             // Clean up event listeners
             unlistenRef.current.forEach((unlisten) => {
                 try {
@@ -211,12 +209,12 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     }, [syncTasks, updateTaskSafely, lastSyncTime, hasRunningTasks]);
 
     return (
-        <TasksContext.Provider value={{ 
-            tasks, 
-            setTasks, 
-            hasRunningTasks, 
-            taskCount, 
-            instancesBootstraping, 
+        <TasksContext.Provider value={{
+            tasks,
+            setTasks,
+            hasRunningTasks,
+            taskCount,
+            instancesBootstraping,
             isModpackInstalling,
             syncTasks,
             lastSyncTime

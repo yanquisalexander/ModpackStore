@@ -189,7 +189,25 @@ pub fn update_task(
                     task.status = status;
                     task.progress = bounded_progress;
                     task.message = message.to_string();
-                    task.data = data;
+
+                    // Merge data instead of replacing
+                    if let Some(new_data) = data {
+                        if let Some(existing) = &mut task.data {
+                            if let (
+                                serde_json::Value::Object(existing_obj),
+                                serde_json::Value::Object(new_obj),
+                            ) = (existing, &new_data)
+                            {
+                                for (k, v) in new_obj {
+                                    existing_obj.insert(k.clone(), v.clone());
+                                }
+                            } else {
+                                task.data = Some(new_data);
+                            }
+                        } else {
+                            task.data = Some(new_data);
+                        }
+                    }
 
                     debug!(
                         "Updated task {}: status={:?}, progress={:.1}%, message='{}'",
