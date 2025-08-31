@@ -1,3 +1,4 @@
+use crate::core::bootstrap::tasks::{emit_status_with_stage, Stage};
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::tasks_manager::{add_task, update_task, TaskStatus};
 use serde::{Deserialize, Serialize};
@@ -513,6 +514,13 @@ async fn download_modpack_files(
     );
     let mut downloaded_count = 0;
 
+    // Emit initial stage for downloading modpack files
+    let initial_stage = Stage::DownloadingModpackFiles {
+        current: 0,
+        total: files.len(),
+    };
+    emit_status_with_stage(instance, "instance-downloading-modpack-files", &initial_stage);
+
     for (index, file_entry) in files.iter().enumerate() {
         let file_path = instance_dir.join(&file_entry.path);
 
@@ -550,6 +558,15 @@ async fn download_modpack_files(
         }
 
         downloaded_count += 1;
+
+        // Emit stage progress every few files or on the last one
+        if downloaded_count % 3 == 0 || downloaded_count == files.len() {
+            let stage = Stage::DownloadingModpackFiles {
+                current: downloaded_count,
+                total: files.len(),
+            };
+            emit_status_with_stage(instance, "instance-downloading-modpack-files", &stage);
+        }
     }
 
     Ok(downloaded_count)
