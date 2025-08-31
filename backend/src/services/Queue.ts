@@ -27,7 +27,7 @@ export class SimpleQueue {
 
     constructor(private concurrency = 1) { }
 
-    add(fn: TaskFunction, name?: string): { id: string; promise: Promise<any> } {
+    add(fn: TaskFunction, name?: string): { id: string; promise: Promise<any>; position: number; estimatedTime: string } {
         const id = genId();
         const task: TaskItem = {
             id,
@@ -43,9 +43,14 @@ export class SimpleQueue {
         });
 
         this.queue.push(task);
-        console.log("Task added to queue:", task);
+        const position = this.queue.length;
+        const estimatedTime = position <= this.concurrency ? 'Inmediatamente' : `Después de ${Math.ceil((position - this.concurrency) / this.concurrency)} lotes`;
+        console.log("Task added to queue:", task.id, task.name);
+        console.log("Estimated time:", estimatedTime);
+        console.log("Current queue size:", this.size());
+        console.log("Running tasks:", this.running);
         this.runNext();
-        return { id, promise };
+        return { id, promise, position, estimatedTime };
     }
 
     remove(id: string) {
@@ -93,11 +98,14 @@ export class SimpleQueue {
     }
 
     list() {
-        return [...this.queue, ...this.runningTasks].map(t => ({
+        const all = [...this.queue, ...this.runningTasks];
+        return all.map((t, index) => ({
             id: t.id,
             name: t.name,
             status: t.status,
             createdAt: t.createdAt,
+            position: index + 1,
+            estimatedTime: t.status === 'running' ? 'Ejecutándose' : index < this.concurrency ? 'Inmediatamente' : `Después de ${Math.ceil((index - this.concurrency + 1) / this.concurrency)} lotes`,
         }));
     }
 

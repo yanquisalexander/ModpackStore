@@ -135,10 +135,10 @@ export const processModpackFileUpload = async (
   };
 
   // Delegar a la queue
-  queue.add(task, `${modpackId}-${fileType}`);
+  const { position, estimatedTime } = queue.add(task, `${modpackId}-${fileType}`);
 
   return {
-    message: "Archivo recibido, se procesará en background",
+    message: `Archivo recibido, se procesará en background. Posición en cola: ${position}. ${estimatedTime}`,
     tempPath,
   };
 };

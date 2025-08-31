@@ -114,7 +114,9 @@ pub async fn download_and_install_files(
             files_processed += 1;
             // Update progress for existing files too
             if let Some(ref tid) = task_id {
-                let progress = (60.0 + (index as f64 / total_files as f64) * 30.0) as f32;
+                let progress: f32 =
+                    (((85.0 + (index as f64 / total_files as f64) * 30.0) * 10.0).round() / 10.0)
+                        .clamp(0.0, 100.0) as f32;
                 update_task(
                     tid,
                     TaskStatus::Running,
