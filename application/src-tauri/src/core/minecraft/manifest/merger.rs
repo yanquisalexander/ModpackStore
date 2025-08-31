@@ -7,161 +7,98 @@ impl ManifestMerger {
     pub fn merge(vanilla: Value, forge: Value) -> Value {
         let mut result = vanilla.clone();
 
-        // Merge main class
         if let Some(mc) = forge.get("mainClass") {
             result["mainClass"] = mc.clone();
         }
 
-        // Merge libraries
         Self::merge_libraries(&mut result, &vanilla, &forge);
-
-        // Merge arguments
         Self::merge_arguments(&mut result, &vanilla, &forge);
-
-        // Merge legacy arguments
         Self::merge_legacy_arguments(&mut result, &vanilla, &forge);
 
         result
     }
 
     fn merge_libraries(result: &mut Value, vanilla: &Value, forge: &Value) {
-        let mut libs: BTreeMap<String, Value> = BTreeMap::new();
-        let mut duplicates: HashMap<String, Vec<String>> = HashMap::new();
+        // Usamos un mapa para manejar duplicados fácilmente. La clave es `ga:classifier`.
+        let mut merged_libs: BTreeMap<String, Value> = BTreeMap::new();
 
-        // Primero agregamos todas las bibliotecas vanilla directamente
+        // 1. Primera pasada: Agregar todas las bibliotecas de vanilla como base.
         if let Some(arr) = vanilla.get("libraries").and_then(Value::as_array) {
             for lib in arr {
-                if let Some((name, ga, vver, _, classifier)) = Self::extract_lib_info(lib) {
-                    // Construimos una clave que incluya el clasificador y la versión para garantizar unicidad
-                    let key = Self::build_complete_lib_key(&ga, &vver, &classifier);
-
-                    // No consideramos duplicados dentro de vanilla, simplemente las agregamos
-                    libs.insert(key, lib.clone());
-
-                    // Guardamos esta versión para posible referencia de debug
-                    let version_str = format!("vanilla:{}", vver.unwrap_or_default());
-                    duplicates.entry(ga).or_default().push(version_str);
+                if let Some((_, ga, _, _, classifier)) = Self::extract_lib_info(lib) {
+                    let key = Self::build_lib_key(&ga, &classifier);
+                    merged_libs.insert(key, lib.clone());
                 }
             }
         }
 
-        // Luego procesamos las bibliotecas de forge con reglas especiales para manejar duplicados
+        // 2. Segunda pasada: Agregar bibliotecas de Forge, resolviendo conflictos.
         if let Some(arr) = forge.get("libraries").and_then(Value::as_array) {
-            for lib in arr {
-                if let Some((name, ga, fver, furl, classifier)) = Self::extract_lib_info(lib) {
-                    // Construimos la misma clave que usaríamos para vanilla
-                    let std_key = Self::build_lib_key(&ga, &classifier);
-                    // También construimos una clave única para esta versión específica
-                    let forge_key = Self::build_complete_lib_key(&ga, &fver, &classifier);
+            for forge_lib in arr {
+                if let Some((_, ga, fver, _, classifier)) = Self::extract_lib_info(forge_lib) {
+                    let key = Self::build_lib_key(&ga, &classifier);
 
-                    // Verificamos si hay alguna versión de esta biblioteca en vanilla
-                    let vanilla_versions: Vec<(&String, &Value)> = libs
-                        .iter()
-                        .filter(|(k, _)| k.starts_with(&std_key))
-                        .collect();
+                    // Verificamos si ya existe una versión de esta biblioteca (de vanilla).
+                    if let Some(vanilla_lib) = merged_libs.get_mut(&key) {
+                        // Conflicto: decidir cuál mantener.
+                        let (_, _, vver, _, _) = Self::extract_lib_info(vanilla_lib).unwrap();
 
-                    let should_add_forge = if !vanilla_versions.is_empty() {
-                        // Si hay versiones de vanilla, decidimos si preferimos la de forge
-                        let mut prefer_forge = true;
-
-                        for (_, vanilla_lib) in &vanilla_versions {
-                            let (_, _, vver, vurl, _) =
-                                Self::extract_lib_info(vanilla_lib).unwrap();
-
-                            // Si las URLs son diferentes, mantenemos ambas versiones
-                            if furl != vurl {
-                                continue;
-                            }
-
-                            // Para log4j específicamente, preferimos la versión más alta
-                            if ga.contains("log4j") {
-                                if let (Some(v), Some(f)) = (&vver, &fver) {
-                                    let cmp_v: Vec<i32> =
-                                        v.split('.').filter_map(|p| p.parse().ok()).collect();
-                                    let cmp_f: Vec<i32> =
-                                        f.split('.').filter_map(|p| p.parse().ok()).collect();
-                                    prefer_forge = cmp_f > cmp_v;
-                                }
-                            }
-
-                            // Si decidimos no preferir forge, no necesitamos revisar más versiones de vanilla
-                            if !prefer_forge {
-                                break;
-                            }
+                        if Self::prefer_forge(&ga, &vver, &fver) {
+                            // Si preferimos Forge, reemplazamos la entrada existente.
+                            *vanilla_lib = forge_lib.clone();
                         }
-
-                        prefer_forge
+                        // Si no, no hacemos nada y mantenemos la de vanilla.
                     } else {
-                        // Si no hay versiones en vanilla, siempre agregamos la de forge
-                        true
-                    };
-
-                    if should_add_forge {
-                        // Registramos esta versión para depuración
-                        let forge_version_str =
-                            format!("forge:{}", fver.clone().unwrap_or_default());
-                        duplicates
-                            .entry(ga.clone())
-                            .or_default()
-                            .push(forge_version_str);
-
-                        // Agregamos la biblioteca de forge
-                        libs.insert(forge_key, lib.clone());
+                        // Si no hay conflicto, simplemente la agregamos.
+                        merged_libs.insert(key, forge_lib.clone());
                     }
                 }
             }
         }
 
-        // Registramos duplicados solo para depuración (bibliotecas con múltiples versiones)
-        for (ga, sources) in duplicates.iter().filter(|(_, s)| s.len() > 1) {
-            log::info!("Multiple versions of {}: {}", ga, sources.join(", "));
-        }
-
-        result["libraries"] = Value::Array(libs.into_values().collect());
+        result["libraries"] = Value::Array(merged_libs.into_values().collect());
     }
 
     fn merge_arguments(result: &mut Value, vanilla: &Value, forge: &Value) {
+        // Esta función ya era correcta, no necesita cambios.
         let mut args_map = Map::default();
-
         for kind in &["game", "jvm"] {
             let mut list = Vec::new();
-
             if let Some(v) = vanilla
                 .get("arguments")
                 .and_then(|a| a.get(kind))
                 .and_then(Value::as_array)
             {
-                list.extend(v.clone());
+                list.extend_from_slice(v);
             }
-
             if let Some(f) = forge
                 .get("arguments")
                 .and_then(|a| a.get(kind))
                 .and_then(Value::as_array)
             {
-                list.extend(f.clone());
+                list.extend_from_slice(f);
             }
-
             if !list.is_empty() {
                 args_map.insert(kind.to_string(), Value::Array(list));
             }
         }
-
         if !args_map.is_empty() {
             result["arguments"] = Value::Object(args_map);
         }
     }
 
     fn merge_legacy_arguments(result: &mut Value, vanilla: &Value, forge: &Value) {
+        // Lógica mejorada para ser más robusta y evitar panics.
         let mut kv = HashMap::new();
-
         for src in [
             vanilla.get("minecraftArguments"),
             forge.get("minecraftArguments"),
         ] {
             if let Some(Value::String(s)) = src {
-                for pair in s.split_whitespace().collect::<Vec<_>>().chunks(2) {
-                    if let [k, v] = pair {
+                let args: Vec<&str> = s.split_whitespace().collect();
+                // Iteramos en pares de forma segura.
+                for i in (0..args.len()).step_by(2) {
+                    if let (Some(k), Some(v)) = (args.get(i), args.get(i + 1)) {
                         kv.insert(k.to_string(), v.to_string());
                     }
                 }
@@ -177,6 +114,8 @@ impl ManifestMerger {
             result["minecraftArguments"] = Value::String(merged_legacy);
         }
     }
+
+    // --- Funciones de ayuda (sin cambios, excepto que 'build_complete_lib_key' y 'furl' ya no se usan) ---
 
     fn extract_lib_info(
         lib: &Value,
@@ -195,6 +134,7 @@ impl ManifestMerger {
             name.clone()
         };
         let version = parts.get(2).map(|s| s.to_string());
+        // El clasificador puede estar en varios sitios, esta lógica es correcta
         let classifier = lib
             .get("downloads")
             .and_then(|d| d.get("artifact"))
@@ -206,7 +146,6 @@ impl ManifestMerger {
         Some((name, ga, version, url, classifier))
     }
 
-    // Construye una clave básica basada en groupId:artifactId y clasificador opcional
     fn build_lib_key(ga: &str, classifier: &Option<String>) -> String {
         if let Some(c) = classifier {
             format!("{}:{}", ga, c)
@@ -215,28 +154,23 @@ impl ManifestMerger {
         }
     }
 
-    // Construye una clave completa que incluye versión para garantizar unicidad
-    fn build_complete_lib_key(
-        ga: &str,
-        version: &Option<String>,
-        classifier: &Option<String>,
-    ) -> String {
-        let ver_part = version.as_ref().map_or("", |v| v.as_str());
-        if let Some(c) = classifier {
-            format!("{}:{}:{}", ga, ver_part, c)
-        } else {
-            format!("{}:{}", ga, ver_part)
-        }
-    }
-
+    // Reglas para decidir si preferimos la versión de Forge sobre la de Vanilla
     fn prefer_forge(ga: &str, vver: &Option<String>, fver: &Option<String>) -> bool {
+        // Regla especial para log4j: siempre usar la versión más reciente por seguridad.
         if ga.contains("log4j") {
-            if let (Some(v), Some(f)) = (vver, fver) {
-                let cmp_v: Vec<i32> = v.split('.').filter_map(|p| p.parse().ok()).collect();
-                let cmp_f: Vec<i32> = f.split('.').filter_map(|p| p.parse().ok()).collect();
-                return cmp_f > cmp_v;
+            if let (Some(v_str), Some(f_str)) = (vver, fver) {
+                // Comparamos versiones numéricamente
+                let v_parts: Vec<u32> = v_str.split('.').filter_map(|p| p.parse().ok()).collect();
+                let f_parts: Vec<u32> = f_str.split('.').filter_map(|p| p.parse().ok()).collect();
+                if f_parts > v_parts {
+                    return true; // La versión de Forge es más nueva
+                } else {
+                    return false; // La de Vanilla es igual o más nueva
+                }
             }
         }
+
+        // Regla por defecto: siempre preferir la biblioteca de Forge si no hay otra regla.
         true
     }
 }
