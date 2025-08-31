@@ -16,6 +16,12 @@ export interface StageInstallingForge {
     type: "InstallingForge";
 }
 
+export interface StageDownloadingForgeLibraries {
+    type: "DownloadingForgeLibraries";
+    current: number;
+    total: number;
+}
+
 export interface StageValidatingAssets {
     type: "ValidatingAssets";
     current: number;
@@ -26,6 +32,7 @@ export type InstallationStage =
     | StageDownloadingFiles 
     | StageExtractingLibraries 
     | StageInstallingForge 
+    | StageDownloadingForgeLibraries
     | StageValidatingAssets;
 
 // Event payload type that includes stage information

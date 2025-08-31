@@ -14,6 +14,7 @@ pub enum Stage {
     DownloadingFiles { current: usize, total: usize },
     ExtractingLibraries { current: usize, total: usize },
     InstallingForge,
+    DownloadingForgeLibraries { current: usize, total: usize },
     ValidatingAssets { current: usize, total: usize },
 }
 
@@ -110,6 +111,10 @@ fn format_stage_message(stage: &Stage) -> String {
         }
         Stage::InstallingForge => {
             "Instalando Forge...".to_string()
+        }
+        Stage::DownloadingForgeLibraries { current, total } => {
+            let percentage = if *total > 0 { (*current as f32 / *total as f32 * 100.0) } else { 0.0 };
+            format!("Descargando librerías de Forge: {}/{} ({:.1}%)", current, total, percentage)
         }
         Stage::ValidatingAssets { current, total } => {
             let percentage = if *total > 0 { (*current * 100) / *total } else { 0 };
