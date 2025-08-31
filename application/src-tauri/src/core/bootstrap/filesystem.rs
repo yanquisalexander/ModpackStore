@@ -67,13 +67,23 @@ pub fn extract_natives(
     natives_dir: &Path,
     instance: &MinecraftInstance,
 ) -> Result<(), String> {
+    log::info!(
+        "Iniciando extracción de nativos para instancia: {}",
+        instance
+            .instanceDirectory
+            .as_ref()
+            .unwrap_or(&"".to_string())
+    );
     // Obtener el sistema operativo actual
     let os = std::env::consts::OS;
     let os_name = match os {
         "windows" => "windows",
         "macos" => "osx",
         "linux" => "linux",
-        _ => return Err(format!("Sistema operativo no soportado: {}", os)),
+        _ => {
+            log::error!("Sistema operativo no soportado: {}", os);
+            return Err(format!("Sistema operativo no soportado: {}", os));
+        }
     };
 
     // Obtener la arquitectura
@@ -82,19 +92,30 @@ pub fn extract_natives(
         "x86_64" => "64",
         "x86" => "32",
         "aarch64" => "arm64",
-        _ => return Err(format!("Arquitectura no soportada: {}", arch)),
+        _ => {
+            log::error!("Arquitectura no soportada: {}", arch);
+            return Err(format!("Arquitectura no soportada: {}", arch));
+        }
     };
 
+    log::info!("Detectado OS: {}, Arch: {}", os_name, arch_name);
+
     // Obtener las bibliotecas del manifiesto de versión
-    let libraries = version_details["libraries"]
-        .as_array()
-        .ok_or_else(|| "No se encontraron bibliotecas en el manifiesto".to_string())?;
+    let libraries = version_details["libraries"].as_array().ok_or_else(|| {
+        log::error!("No se encontraron bibliotecas en el manifiesto de versión");
+        "No se encontraron bibliotecas en el manifiesto".to_string()
+    })?;
 
     let mut processed_libraries = 0;
     let total_native_libraries = libraries
         .iter()
         .filter(|lib| lib.get("natives").is_some())
         .count();
+
+    log::info!(
+        "Encontradas {} bibliotecas con nativos",
+        total_native_libraries
+    );
 
     emit_status(
         instance,
@@ -105,19 +126,15 @@ pub fn extract_natives(
         ),
     );
 
-    println!(
-        "DEBUG: Iniciando extracción de {} bibliotecas nativas",
-        total_native_libraries
-    );
-
     for library in libraries {
         // Verificar si la biblioteca tiene nativos
         if let Some(natives) = library.get("natives") {
             processed_libraries += 1;
 
-            println!(
-                "DEBUG: Procesando biblioteca nativa {}/{}",
-                processed_libraries, total_native_libraries
+            log::info!(
+                "Procesando biblioteca nativa {}/{}",
+                processed_libraries,
+                total_native_libraries
             );
 
             // Update progress for each native library
@@ -140,39 +157,38 @@ pub fn extract_natives(
 
             // Si hay nativos para este sistema operativo
             if let Some(os_natives_value) = os_natives {
-                println!("DEBUG: Encontrados nativos para OS: {}", os_name);
+                log::info!("Encontrados nativos para OS: {}", os_name);
 
                 // Obtener información sobre la biblioteca
+                let default_classifier = format!("{}-{}", os_name, arch_name);
+                let classifier_key = os_natives_value.as_str().unwrap_or(&default_classifier);
+
+                log::info!("Buscando classifier: {}", classifier_key);
+
                 let library_info = library["downloads"]["classifiers"]
-                    .get(
-                        os_natives_value
-                            .as_str()
-                            .unwrap_or(&format!("{}-{}", os_name, arch_name)),
-                    )
-                    .or_else(|| {
-                        library["downloads"]["classifiers"]
-                            .get(&format!("{}-{}", os_name, arch_name))
-                    })
+                    .get(classifier_key)
                     .ok_or_else(|| {
+                        log::error!(
+                            "No se encontró información de nativos para classifier: {}",
+                            classifier_key
+                        );
                         format!("No se encontró información de nativos para la biblioteca")
                     })?;
 
                 // Obtener la ruta y URL del archivo JAR
-                let path = library_info["path"]
-                    .as_str()
-                    .ok_or_else(|| "No se encontró la ruta del archivo nativo".to_string())?;
+                let path = library_info["path"].as_str().ok_or_else(|| {
+                    log::error!("No se encontró la ruta del archivo nativo en library_info");
+                    "No se encontró la ruta del archivo nativo".to_string()
+                })?;
 
                 let library_path = libraries_dir.join(path);
 
-                println!(
-                    "DEBUG: Ruta de biblioteca nativa: {}",
-                    library_path.display()
-                );
+                log::info!("Ruta de biblioteca nativa: {}", library_path.display());
 
-                // Si el archivo no existe, ya debería haber sido descargado por download_libraries
+                // Verificar si el archivo existe y tiene tamaño > 0
                 if !library_path.exists() {
-                    println!(
-                        "DEBUG: Archivo de biblioteca nativa no existe: {}",
+                    log::warn!(
+                        "Archivo de biblioteca nativa no existe: {}",
                         library_path.display()
                     );
                     emit_status(
@@ -183,7 +199,24 @@ pub fn extract_natives(
                     continue; // Skip this library if not downloaded
                 }
 
-                println!("DEBUG: Archivo de biblioteca nativa existe, procediendo con extracción");
+                let metadata = fs::metadata(&library_path).map_err(|e| {
+                    log::error!(
+                        "Error obteniendo metadata del archivo {}: {}",
+                        library_path.display(),
+                        e
+                    );
+                    format!("Error obteniendo metadata del archivo: {}", e)
+                })?;
+
+                if metadata.len() == 0 {
+                    log::warn!(
+                        "Archivo de biblioteca nativa está vacío: {}",
+                        library_path.display()
+                    );
+                    continue;
+                }
+
+                log::info!("Archivo de biblioteca nativa existe y tiene tamaño {} bytes, procediendo con extracción", metadata.len());
 
                 // Verificar si hay reglas de extracción (exclude)
                 let exclude_patterns: Vec<String> = if let Some(extract) = library.get("extract") {
@@ -201,6 +234,8 @@ pub fn extract_natives(
                     Vec::new()
                 };
 
+                log::info!("Patrones de exclusión: {:?}", exclude_patterns);
+
                 // Extraer el archivo JAR al directorio de nativos
                 emit_status(
                     instance,
@@ -208,15 +243,24 @@ pub fn extract_natives(
                     &format!("Extrayendo biblioteca nativa: {}", path),
                 );
 
-                extract_jar_file(&library_path, natives_dir, &exclude_patterns)?;
-                println!("DEBUG: Extracción completada para: {}", path);
+                if let Err(e) = extract_jar_file(&library_path, natives_dir, &exclude_patterns) {
+                    log::error!("Error extrayendo JAR {}: {}", library_path.display(), e);
+                    // Continue with other libraries instead of failing completely
+                    emit_status(
+                        instance,
+                        "instance-native-extraction-error",
+                        &format!("Error extrayendo {}: {}", path, e),
+                    );
+                } else {
+                    log::info!("Extracción completada para: {}", path);
+                }
             } else {
-                println!("DEBUG: No se encontraron nativos para OS: {}", os_name);
+                log::info!("No se encontraron nativos para OS: {}", os_name);
             }
         }
     }
 
-    println!("DEBUG: Extracción de bibliotecas nativas completada");
+    log::info!("Extracción de bibliotecas nativas completada");
     Ok(())
 }
 
@@ -226,30 +270,55 @@ fn extract_jar_file(
     target_dir: &Path,
     exclude_patterns: &[String],
 ) -> Result<(), String> {
-    println!(
-        "DEBUG: Iniciando extracción de JAR: {} -> {}",
+    log::info!(
+        "Iniciando extracción de JAR: {} -> {}",
         jar_path.display(),
         target_dir.display()
     );
 
+    // Verificar que el directorio de destino existe
+    if !target_dir.exists() {
+        fs::create_dir_all(target_dir).map_err(|e| {
+            log::error!(
+                "Error creando directorio de destino {}: {}",
+                target_dir.display(),
+                e
+            );
+            format!("Error creando directorio de destino: {}", e)
+        })?;
+    }
+
     // Abrir el archivo JAR
-    let file =
-        fs::File::open(jar_path).map_err(|e| format!("Error abriendo archivo JAR: {}", e))?;
+    let file = fs::File::open(jar_path).map_err(|e| {
+        log::error!("Error abriendo archivo JAR {}: {}", jar_path.display(), e);
+        format!("Error abriendo archivo JAR: {}", e)
+    })?;
 
     let reader = std::io::BufReader::new(file);
-    let mut archive =
-        zip::ZipArchive::new(reader).map_err(|e| format!("Error leyendo archivo ZIP: {}", e))?;
+    let mut archive = zip::ZipArchive::new(reader).map_err(|e| {
+        log::error!("Error leyendo archivo ZIP {}: {}", jar_path.display(), e);
+        format!("Error leyendo archivo ZIP: {}", e)
+    })?;
 
-    println!(
-        "DEBUG: Archivo JAR abierto correctamente, {} entradas",
+    log::info!(
+        "Archivo JAR abierto correctamente, {} entradas",
         archive.len()
     );
 
+    let mut extracted_count = 0;
+    let mut skipped_count = 0;
+
     // Extraer cada entrada que no esté excluida
     for i in 0..archive.len() {
-        let mut file = archive
-            .by_index(i)
-            .map_err(|e| format!("Error obteniendo entrada ZIP: {}", e))?;
+        let mut file = archive.by_index(i).map_err(|e| {
+            log::error!(
+                "Error obteniendo entrada ZIP {} en {}: {}",
+                i,
+                jar_path.display(),
+                e
+            );
+            format!("Error obteniendo entrada ZIP: {}", e)
+        })?;
 
         let file_name = file.name().to_string();
 
@@ -269,22 +338,48 @@ fn extract_jar_file(
 
             // Crear directorios padres si no existen
             if let Some(parent) = output_path.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|e| format!("Error creando directorio para archivo nativo: {}", e))?;
+                fs::create_dir_all(parent).map_err(|e| {
+                    log::error!(
+                        "Error creando directorio para archivo nativo {}: {}",
+                        parent.display(),
+                        e
+                    );
+                    format!("Error creando directorio para archivo nativo: {}", e)
+                })?;
             }
 
             // Extraer el archivo
-            let mut output_file = fs::File::create(&output_path)
-                .map_err(|e| format!("Error creando archivo nativo: {}", e))?;
+            let mut output_file = fs::File::create(&output_path).map_err(|e| {
+                log::error!(
+                    "Error creando archivo nativo {}: {}",
+                    output_path.display(),
+                    e
+                );
+                format!("Error creando archivo nativo: {}", e)
+            })?;
 
-            std::io::copy(&mut file, &mut output_file)
-                .map_err(|e| format!("Error escribiendo archivo nativo: {}", e))?;
+            std::io::copy(&mut file, &mut output_file).map_err(|e| {
+                log::error!(
+                    "Error escribiendo archivo nativo {}: {}",
+                    output_path.display(),
+                    e
+                );
+                format!("Error escribiendo archivo nativo: {}", e)
+            })?;
 
-            println!("DEBUG: Extraído: {}", file_name);
+            extracted_count += 1;
+            log::debug!("Extraído: {}", file_name);
+        } else {
+            skipped_count += 1;
+            log::debug!("Saltado: {} (excluido o directorio)", file_name);
         }
     }
 
-    println!("DEBUG: Extracción de JAR completada");
+    log::info!(
+        "Extracción de JAR completada: {} extraídos, {} saltados",
+        extracted_count,
+        skipped_count
+    );
     Ok(())
 }
 
