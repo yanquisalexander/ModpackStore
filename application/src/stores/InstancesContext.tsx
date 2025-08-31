@@ -213,6 +213,18 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             });
             unlistenList.push(downloadingLibrariesUnlisten);
 
+            const downloadingForgeLibrariesUnlisten = await listen("instance-downloading-forge-libraries", (e: any) => {
+                const { id, message, stage } = e.payload as StageEventPayload;
+                console.log("Downloading Forge libraries event:", { id, message, stage });
+
+                updateInstance(id, {
+                    status: "downloading-assets",
+                    message: message || "Descargando librerías de Forge...",
+                    stage
+                });
+            });
+            unlistenList.push(downloadingForgeLibrariesUnlisten);
+
             const extractingNativesUnlisten = await listen("instance-extracting-natives-progress", (e: any) => {
                 const { id, message, stage } = e.payload as StageEventPayload;
                 console.log("Extracting natives event:", { id, message, stage });

@@ -319,13 +319,13 @@ pub fn download_forge_libraries(
     let total_libraries = libraries.len();
     let mut downloaded_libraries = 0;
 
-    emit_status(
+    emit_status_with_stage(
         instance,
         "instance-downloading-forge-libraries",
-        &format!(
-            "Descargando librerías de Forge: 0/{} (0.0%)",
-            total_libraries
-        ),
+        &Stage::DownloadingForgeLibraries {
+            current: 0,
+            total: total_libraries,
+        },
     );
 
     for library in libraries {
@@ -485,14 +485,13 @@ pub fn download_forge_libraries(
 
         // Actualizar progreso cada 5 librerías o en la última
         if downloaded_libraries % 5 == 0 || downloaded_libraries == total_libraries {
-            let progress = (downloaded_libraries as f32 / total_libraries as f32) * 100.0;
-            emit_status(
+            emit_status_with_stage(
                 instance,
                 "instance-downloading-forge-libraries",
-                &format!(
-                    "Descargando librerías de Forge: {}/{} ({:.1}%)",
-                    downloaded_libraries, total_libraries, progress
-                ),
+                &Stage::DownloadingForgeLibraries {
+                    current: downloaded_libraries,
+                    total: total_libraries,
+                },
             );
         }
     }

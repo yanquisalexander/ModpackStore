@@ -22,11 +22,18 @@ export interface StageValidatingAssets {
     total: number;
 }
 
+export interface StageDownloadingForgeLibraries {
+    type: "DownloadingForgeLibraries";
+    current: number;
+    total: number;
+}
+
 export type InstallationStage = 
     | StageDownloadingFiles 
     | StageExtractingLibraries 
     | StageInstallingForge 
-    | StageValidatingAssets;
+    | StageValidatingAssets
+    | StageDownloadingForgeLibraries;
 
 // Event payload type that includes stage information
 export interface StageEventPayload {
