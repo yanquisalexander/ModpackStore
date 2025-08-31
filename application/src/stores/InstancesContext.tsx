@@ -225,6 +225,18 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             });
             unlistenList.push(downloadingForgeLibrariesUnlisten);
 
+            const downloadingModpackFilesUnlisten = await listen("instance-downloading-modpack-files", (e: any) => {
+                const { id, message, stage } = e.payload as StageEventPayload;
+                console.log("Downloading modpack files event:", { id, message, stage });
+
+                updateInstance(id, {
+                    status: "downloading-modpack-assets",
+                    message: message || "Descargando archivos de modpack...",
+                    stage
+                });
+            });
+            unlistenList.push(downloadingModpackFilesUnlisten);
+
             const extractingNativesUnlisten = await listen("instance-extracting-natives-progress", (e: any) => {
                 const { id, message, stage } = e.payload as StageEventPayload;
                 console.log("Extracting natives event:", { id, message, stage });

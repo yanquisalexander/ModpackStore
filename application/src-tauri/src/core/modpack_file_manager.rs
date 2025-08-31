@@ -1,5 +1,6 @@
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::tasks_manager::{add_task, update_task, TaskStatus};
+use crate::core::bootstrap::tasks::{emit_status_with_stage, Stage};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -533,6 +534,16 @@ async fn download_modpack_files(
             );
         }
 
+        // Emit stage progress for UI
+        emit_status_with_stage(
+            instance,
+            "instance-downloading-modpack-files",
+            &Stage::DownloadingModpackFiles {
+                current: index,
+                total: files.len(),
+            },
+        );
+
         // Create parent directories if they don't exist
         if let Some(parent) = file_path.parent() {
             if let Err(e) = fs::create_dir_all(parent) {
@@ -551,6 +562,16 @@ async fn download_modpack_files(
 
         downloaded_count += 1;
     }
+
+    // Emit final completion stage
+    emit_status_with_stage(
+        instance,
+        "instance-downloading-modpack-files",
+        &Stage::DownloadingModpackFiles {
+            current: files.len(),
+            total: files.len(),
+        },
+    );
 
     Ok(downloaded_count)
 }

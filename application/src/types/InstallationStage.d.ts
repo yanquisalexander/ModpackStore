@@ -28,12 +28,19 @@ export interface StageDownloadingForgeLibraries {
     total: number;
 }
 
+export interface StageDownloadingModpackFiles {
+    type: "DownloadingModpackFiles";
+    current: number;
+    total: number;
+}
+
 export type InstallationStage = 
     | StageDownloadingFiles 
     | StageExtractingLibraries 
     | StageInstallingForge 
     | StageValidatingAssets
-    | StageDownloadingForgeLibraries;
+    | StageDownloadingForgeLibraries
+    | StageDownloadingModpackFiles;
 
 // Event payload type that includes stage information
 export interface StageEventPayload {

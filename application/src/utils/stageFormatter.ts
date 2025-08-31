@@ -26,6 +26,10 @@ export function formatStageMessage(stage: InstallationStage | undefined, fallbac
             const forgePercentage = stage.total > 0 ? Number(((stage.current * 100) / stage.total).toFixed(1)) : 0;
             return `Descargando librerías de Forge: ${stage.current}/${stage.total} (${forgePercentage.toFixed(1)}%)`;
 
+        case "DownloadingModpackFiles":
+            const modpackPercentage = stage.total > 0 ? Number(((stage.current * 100) / stage.total).toFixed(1)) : 0;
+            return `Descargando archivos de modpack: ${stage.current}/${stage.total} (${modpackPercentage.toFixed(1)}%)`;
+
         default:
             return fallbackMessage;
     }
@@ -39,6 +43,7 @@ export function getStageProgress(stage: InstallationStage | undefined): number |
         case "ExtractingLibraries":
         case "ValidatingAssets":
         case "DownloadingForgeLibraries":
+        case "DownloadingModpackFiles":
             return stage.total > 0 ? Number(((stage.current / stage.total) * 100).toFixed(1)) : 0;
         case "InstallingForge":
             return undefined; // No progress for Forge installation
