@@ -259,3 +259,72 @@ pub fn task_exists(id: &str) -> bool {
 pub fn get_all_tasks_command() -> Vec<TaskInfo> {
     get_all_tasks()
 }
+
+// Function to clean up completed/failed tasks older than specified duration
+pub fn cleanup_old_tasks(max_age_seconds: u64) -> usize {
+    let cutoff_time = chrono::Utc::now() - chrono::Duration::seconds(max_age_seconds as i64);
+    
+    match TASKS.lock() {
+        Ok(mut tasks) => {
+            let initial_count = tasks.len();
+            tasks.retain(|_, task| {
+                // Keep running and pending tasks regardless of age
+                if matches!(task.status, TaskStatus::Running | TaskStatus::Pending) {
+                    return true;
+                }
+                
+                // Parse created_at and check age for completed/failed tasks
+                match chrono::DateTime::parse_from_rfc3339(&task.created_at) {
+                    Ok(created_time) => {
+                        created_time.with_timezone(&chrono::Utc) > cutoff_time
+                    }
+                    Err(_) => {
+                        // If we can't parse the time, keep the task to be safe
+                        warn!("Could not parse created_at for task {}: {}", task.id, task.created_at);
+                        true
+                    }
+                }
+            });
+            
+            let removed_count = initial_count - tasks.len();
+            if removed_count > 0 {
+                info!("Cleaned up {} old completed/failed tasks", removed_count);
+            }
+            removed_count
+        }
+        Err(e) => {
+            error!("Failed to lock TASKS mutex for cleanup: {}", e);
+            0
+        }
+    }
+}
+
+// Function to force emit all current tasks (useful for frontend recovery)
+pub fn emit_all_tasks() -> bool {
+    match TASKS.lock() {
+        Ok(tasks) => {
+            let mut success_count = 0;
+            let total_count = tasks.len();
+            
+            for task in tasks.values() {
+                if emit_event_with_retry("task-updated", task, 1) {
+                    success_count += 1;
+                }
+            }
+            
+            info!("Re-emitted {}/{} tasks", success_count, total_count);
+            success_count == total_count
+        }
+        Err(e) => {
+            error!("Failed to lock TASKS mutex for emit_all_tasks: {}", e);
+            false
+        }
+    }
+}
+
+// Tauri command to trigger task re-emission (for frontend recovery)
+#[tauri::command]
+pub fn resync_tasks_command() -> bool {
+    info!("Frontend requested task resync");
+    emit_all_tasks()
+}

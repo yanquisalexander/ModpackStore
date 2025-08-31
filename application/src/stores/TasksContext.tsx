@@ -108,6 +108,17 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
             }
         } catch (error) {
             console.error("Failed to sync tasks from backend:", error);
+            // Try to trigger resync from backend side as fallback
+            try {
+                const resyncSuccess = await invoke("resync_tasks_command");
+                if (resyncSuccess) {
+                    console.log("Backend resync triggered successfully");
+                } else {
+                    console.warn("Backend resync failed");
+                }
+            } catch (resyncError) {
+                console.error("Failed to trigger backend resync:", resyncError);
+            }
         }
     }, []);
 
@@ -158,6 +169,16 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
 
         setupListeners();
 
+        // Set up visibility change handler for sync when user returns to tab
+        const handleVisibilityChange = () => {
+            if (!document.hidden && mounted) {
+                console.log("Window became visible, syncing tasks");
+                syncTasks();
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+
         // Set up periodic sync to prevent desynchronization
         const syncInterval = setInterval(() => {
             if (mounted) {
@@ -175,6 +196,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
         return () => {
             mounted = false;
             clearInterval(syncInterval);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
             
             // Clean up event listeners
             unlistenRef.current.forEach((unlisten) => {
