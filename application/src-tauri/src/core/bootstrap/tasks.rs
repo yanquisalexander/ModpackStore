@@ -3,8 +3,19 @@
 
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::GLOBAL_APP_HANDLE;
+use serde::{Deserialize, Serialize};
 use std::sync::Mutex;
 use tauri::Emitter;
+
+/// Represents different stages of the installation process
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum Stage {
+    DownloadingFiles { current: usize, total: usize },
+    ExtractingLibraries { current: usize, total: usize },
+    InstallingForge,
+    ValidatingAssets { current: usize, total: usize },
+}
 
 /// Emits a status update event to the frontend.
 /// Uses the global `AppHandle` to send events to all windows.
@@ -41,6 +52,69 @@ pub fn emit_status(instance: &MinecraftInstance, event_name: &str, message: &str
             "[Bootstrap] Error: Failed to lock GLOBAL_APP_HANDLE when trying to emit '{}'.",
             event_name
         );
+    }
+}
+
+/// Emits a status update event with stage information to the frontend.
+/// This function enhances the original emit_status to include stage data.
+///
+/// # Arguments
+///
+/// * `instance` - The Minecraft instance being processed
+/// * `event_name` - The name of the event (e.g., "instance-launch-start").
+/// * `stage` - The current stage information
+pub fn emit_status_with_stage(instance: &MinecraftInstance, event_name: &str, stage: &Stage) {
+    let message = format_stage_message(stage);
+    
+    println!(
+        "[Instance: {}] Emitting Event: {} - Stage: {:?}",
+        instance.instanceId, event_name, stage
+    );
+    
+    if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+        if let Some(app_handle) = guard.as_ref() {
+            let payload = serde_json::json!({
+                "id": instance.instanceId,
+                "name": instance.instanceName,
+                "message": message,
+                "stage": stage
+            });
+            // Use emit to notify the specific window listening for this event
+            if let Err(e) = app_handle.emit(event_name, payload) {
+                log::info!("[Bootstrap] Error emitting event '{}': {}", event_name, e);
+            }
+        } else {
+            log::info!(
+                "[Bootstrap] Error: GLOBAL_APP_HANDLE is None when trying to emit '{}'.",
+                event_name
+            );
+        }
+    } else {
+        eprintln!(
+            "[Bootstrap] Error: Failed to lock GLOBAL_APP_HANDLE when trying to emit '{}'.",
+            event_name
+        );
+    }
+}
+
+/// Formats a stage into a user-friendly message according to requirements
+fn format_stage_message(stage: &Stage) -> String {
+    match stage {
+        Stage::DownloadingFiles { current, total } => {
+            let percentage = if *total > 0 { (*current * 100) / *total } else { 0 };
+            format!("Descargando archivos: {}/{} ({}%)", current, total, percentage)
+        }
+        Stage::ExtractingLibraries { current, total } => {
+            let percentage = if *total > 0 { (*current * 100) / *total } else { 0 };
+            format!("Extrayendo librerías: {}/{} ({}%)", current, total, percentage)
+        }
+        Stage::InstallingForge => {
+            "Instalando Forge...".to_string()
+        }
+        Stage::ValidatingAssets { current, total } => {
+            let percentage = if *total > 0 { (*current * 100) / *total } else { 0 };
+            format!("Validando assets: {}/{} ({}%)", current, total, percentage)
+        }
     }
 }
 

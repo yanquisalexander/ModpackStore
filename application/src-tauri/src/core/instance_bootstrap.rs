@@ -7,7 +7,7 @@ use crate::core::bootstrap::{
         build_forge_installer_url, get_java_version_requirement, get_version_details,
         get_version_manifest,
     },
-    tasks::{emit_bootstrap_complete, emit_bootstrap_start, emit_status},
+    tasks::{emit_bootstrap_complete, emit_bootstrap_start, emit_status, emit_status_with_stage, Stage},
     validate::revalidate_assets,
 };
 use crate::core::instance_manager::get_instance_by_id;
@@ -725,7 +725,8 @@ impl InstanceBootstrap {
         }
 
         // Run Forge installer
-        emit_status(instance, "instance-installing-forge", "Instalando Forge");
+        let stage = Stage::InstallingForge;
+        emit_status_with_stage(instance, "instance-installing-forge", &stage);
 
         // Ejecutar el instalador de Forge
         self.run_forge_installer(

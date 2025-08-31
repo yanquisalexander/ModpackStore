@@ -1,7 +1,7 @@
 // src/core/bootstrap/filesystem.rs
 // Filesystem operations extracted from instance_bootstrap.rs
 
-use crate::core::bootstrap::tasks::emit_status;
+use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
 use crate::core::minecraft_instance::MinecraftInstance;
 use serde_json::Value;
 use std::fs;
@@ -119,14 +119,11 @@ pub fn extract_natives(
             total_native_libraries
         );
 
-        emit_status(
-            instance,
-            "instance-extracting-natives-progress",
-            &format!(
-                "Procesando biblioteca nativa {}/{} ({:.1}%)",
-                progress, total_native_libraries, progress_percentage
-            ),
-        );
+        let stage = Stage::ExtractingLibraries {
+            current: progress,
+            total: total_native_libraries,
+        };
+        emit_status_with_stage(instance, "instance-extracting-natives-progress", &stage);
 
         if let Err(e) =
             extract_single_native_library(library, libraries_dir, natives_dir, &os_info, instance)
