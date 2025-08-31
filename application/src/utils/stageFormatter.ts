@@ -18,6 +18,10 @@ export function formatStageMessage(stage: InstallationStage | undefined, fallbac
         case "InstallingForge":
             return "Instalando Forge...";
 
+        case "DownloadingForgeLibraries":
+            const forgeLibrariesPercentage = stage.total > 0 ? Number(((stage.current * 100) / stage.total).toFixed(1)) : 0;
+            return `Descargando librerías de Forge: ${stage.current}/${stage.total} (${forgeLibrariesPercentage.toFixed(1)}%)`;
+
         case "ValidatingAssets":
             const validatingPercentage = stage.total > 0 ? Number(((stage.current * 100) / stage.total).toFixed(1)) : 0;
             return `Validando assets: ${stage.current}/${stage.total} (${validatingPercentage.toFixed(1)}%)`;
@@ -33,6 +37,7 @@ export function getStageProgress(stage: InstallationStage | undefined): number |
     switch (stage.type) {
         case "DownloadingFiles":
         case "ExtractingLibraries":
+        case "DownloadingForgeLibraries":
         case "ValidatingAssets":
             return stage.total > 0 ? Number(((stage.current / stage.total) * 100).toFixed(1)) : 0;
         case "InstallingForge":

@@ -319,14 +319,12 @@ pub fn download_forge_libraries(
     let total_libraries = libraries.len();
     let mut downloaded_libraries = 0;
 
-    emit_status(
-        instance,
-        "instance-downloading-forge-libraries",
-        &format!(
-            "Descargando librerías de Forge: 0/{} (0.0%)",
-            total_libraries
-        ),
-    );
+    // Emit initial stage status
+    let initial_stage = Stage::DownloadingForgeLibraries {
+        current: 0,
+        total: total_libraries,
+    };
+    emit_status_with_stage(instance, "instance-downloading-forge-libraries", &initial_stage);
 
     for library in libraries {
         // Verificar reglas de exclusión/inclusión para esta librería
@@ -485,15 +483,11 @@ pub fn download_forge_libraries(
 
         // Actualizar progreso cada 5 librerías o en la última
         if downloaded_libraries % 5 == 0 || downloaded_libraries == total_libraries {
-            let progress = (downloaded_libraries as f32 / total_libraries as f32) * 100.0;
-            emit_status(
-                instance,
-                "instance-downloading-forge-libraries",
-                &format!(
-                    "Descargando librerías de Forge: {}/{} ({:.1}%)",
-                    downloaded_libraries, total_libraries, progress
-                ),
-            );
+            let stage = Stage::DownloadingForgeLibraries {
+                current: downloaded_libraries,
+                total: total_libraries,
+            };
+            emit_status_with_stage(instance, "instance-downloading-forge-libraries", &stage);
         }
     }
 

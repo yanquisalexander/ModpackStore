@@ -237,6 +237,18 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             });
             unlistenList.push(installingForgeUnlisten);
 
+            const downloadingForgeLibrariesUnlisten = await listen("instance-downloading-forge-libraries", (e: any) => {
+                const { id, message, stage } = e.payload as StageEventPayload;
+                console.log("Downloading Forge libraries event:", { id, message, stage });
+
+                updateInstance(id, {
+                    status: "downloading-assets",
+                    message: message || "Descargando librerías de Forge...",
+                    stage
+                });
+            });
+            unlistenList.push(downloadingForgeLibrariesUnlisten);
+
             // Update the existing downloading assets listener to handle stages
             const downloadingAssetsStageUnlisten = await listen("instance-downloading-assets", (e: any) => {
                 const { id, message, stage } = e.payload as StageEventPayload;

@@ -7,6 +7,9 @@ import { BackgroundVideo } from "@/components/LauncherBackgroundVideo";
 import PreLaunchQuickActions from "@/components/PreLaunchQuickActions";
 import { InstanceCrashDialog } from "@/components/InstanceCrashDialog";
 import { useParams } from "react-router-dom";
+import { Progress } from "@/components/ui/progress";
+import { InstallationStage } from "@/types/InstallationStage";
+import { getStageProgress } from "@/utils/stageFormatter";
 
 
 // Memoized Background Component
@@ -68,13 +71,26 @@ const Logo = memo(({ logo, onLoadError }: { logo: PreLaunchAppearance['logo'], o
 });
 
 // Memoized Loading Indicator Component
-const LoadingIndicator = memo(({ isLoading, message }: { isLoading: boolean, message: string }) => {
+const LoadingIndicator = memo(({ isLoading, message, stage }: { isLoading: boolean, message: string, stage?: InstallationStage }) => {
     if (!isLoading) return null;
 
+    const progress = getStageProgress(stage);
+    const showProgress = progress !== undefined && progress >= 0;
+
     return (
-        <div className="flex gap-x-2 absolute animate-fade-in-down tabular-nums animate-duration-400 ease-in-out z-20 top-12 right-4 bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center">
-            <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" />
-            {message}
+        <div className="flex flex-col gap-y-2 absolute animate-fade-in-down tabular-nums animate-duration-400 ease-in-out z-20 top-12 right-4 bg-black/80 px-3 py-2 max-w-sm w-full text-white">
+            <div className="flex gap-x-2 items-center">
+                <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" />
+                <span className="text-sm">{message}</span>
+            </div>
+            {showProgress && (
+                <div className="flex flex-col gap-y-1">
+                    <Progress value={progress} className="h-1.5" />
+                    <div className="text-xs text-white/80 text-right">
+                        {progress.toFixed(1)}%
+                    </div>
+                </div>
+            )}
         </div>
     );
 });
@@ -220,6 +236,7 @@ export const PreLaunchInstance = () => {
                 <LoadingIndicator
                     isLoading={loadingStatus.isLoading}
                     message={loadingStatus.message}
+                    stage={loadingStatus.stage}
                 />
                 <Logo
                     logo={appearance?.logo}
