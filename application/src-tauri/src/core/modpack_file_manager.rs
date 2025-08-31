@@ -1,4 +1,4 @@
-use crate::core::bootstrap::tasks::{emit_status_with_stage, Stage};
+use crate::core::bootstrap::tasks::{emit_bootstrap_complete, emit_status_with_stage, Stage};
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::tasks_manager::{add_task, update_task, TaskStatus};
 use serde::{Deserialize, Serialize};
@@ -505,6 +505,8 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
 
     let downloaded_count =
         download_modpack_files(&instance, &files_to_download, Some(task_id.clone())).await?;
+
+    emit_bootstrap_complete(&instance, "forge");
 
     update_task(
         &task_id,

@@ -67,12 +67,12 @@ pub fn emit_status(instance: &MinecraftInstance, event_name: &str, message: &str
 /// * `stage` - The current stage information
 pub fn emit_status_with_stage(instance: &MinecraftInstance, event_name: &str, stage: &Stage) {
     let message = format_stage_message(stage);
-    
+
     println!(
         "[Instance: {}] Emitting Event: {} - Stage: {:?}",
         instance.instanceId, event_name, stage
     );
-    
+
     if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
         if let Some(app_handle) = guard.as_ref() {
             let payload = serde_json::json!({
@@ -103,27 +103,60 @@ pub fn emit_status_with_stage(instance: &MinecraftInstance, event_name: &str, st
 fn format_stage_message(stage: &Stage) -> String {
     match stage {
         Stage::DownloadingFiles { current, total } => {
-            let percentage = if *total > 0 { (*current as f32 * 100.0) / *total as f32 } else { 0.0 };
-            format!("Descargando archivos: {}/{} ({:.1}%)", current, total, percentage)
+            let percentage = if *total > 0 {
+                (*current as f32 * 100.0) / *total as f32
+            } else {
+                0.0
+            };
+            format!(
+                "Descargando archivos: {}/{} ({:.1}%)",
+                current, total, percentage
+            )
         }
         Stage::ExtractingLibraries { current, total } => {
-            let percentage = if *total > 0 { (*current as f32 * 100.0) / *total as f32 } else { 0.0 };
-            format!("Extrayendo librerías: {}/{} ({:.1}%)", current, total, percentage)
+            let percentage = if *total > 0 {
+                (*current as f32 * 100.0) / *total as f32
+            } else {
+                0.0
+            };
+            format!(
+                "Extrayendo librerías: {}/{} ({:.1}%)",
+                current, total, percentage
+            )
         }
-        Stage::InstallingForge => {
-            "Instalando Forge...".to_string()
-        }
+        Stage::InstallingForge => "Instalando Forge...".to_string(),
         Stage::ValidatingAssets { current, total } => {
-            let percentage = if *total > 0 { (*current as f32 * 100.0) / *total as f32 } else { 0.0 };
-            format!("Validando assets: {}/{} ({:.1}%)", current, total, percentage)
+            let percentage = if *total > 0 {
+                (*current as f32 * 100.0) / *total as f32
+            } else {
+                0.0
+            };
+            format!(
+                "Validando assets: {}/{} ({:.1}%)",
+                current, total, percentage
+            )
         }
         Stage::DownloadingForgeLibraries { current, total } => {
-            let percentage = if *total > 0 { (*current as f32 * 100.0) / *total as f32 } else { 0.0 };
-            format!("Descargando librerías de Forge: {}/{} ({:.1}%)", current, total, percentage)
+            let percentage = if *total > 0 {
+                (*current as f32 * 100.0) / *total as f32
+            } else {
+                0.0
+            };
+            format!(
+                "Descargando librerías de Forge: {}/{} ({:.1}%)",
+                current, total, percentage
+            )
         }
         Stage::DownloadingModpackFiles { current, total } => {
-            let percentage = if *total > 0 { (*current as f32 * 100.0) / *total as f32 } else { 0.0 };
-            format!("Descargando archivos del modpack: {}/{} ({:.1}%)", current, total, percentage)
+            let percentage = if *total > 0 {
+                (*current as f32 * 100.0) / *total as f32
+            } else {
+                0.0
+            };
+            format!(
+                "Descargando archivos del modpack: {}/{} ({:.1}%)",
+                current, total, percentage
+            )
         }
     }
 }
@@ -160,9 +193,6 @@ pub fn emit_download_progress(
     emit_status(
         instance,
         event_type,
-        &format!(
-            "Progreso: {}/{} ({:.1}%)",
-            current, total, percentage
-        ),
+        &format!("Progreso: {}/{} ({:.1}%)", current, total, percentage),
     );
 }
