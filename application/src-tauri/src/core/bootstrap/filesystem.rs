@@ -157,9 +157,9 @@ pub fn extract_natives(
 
             // Si hay nativos para este sistema operativo
             if let Some(os_natives_value) = os_natives {
+                // Lógica para classifiers (ya existente)
                 log::info!("Encontrados nativos para OS: {}", os_name);
 
-                // Obtener información sobre la biblioteca
                 let default_classifier = format!("{}-{}", os_name, arch_name);
                 let classifier_key = os_natives_value.as_str().unwrap_or(&default_classifier);
 
@@ -167,9 +167,14 @@ pub fn extract_natives(
 
                 let library_info = library["downloads"]["classifiers"]
                     .get(classifier_key)
+                    .or_else(|| {
+                        // Si no hay classifiers, intentar artifact
+                        log::info!("Classifier no encontrado, intentando artifact");
+                        library["downloads"].get("artifact")
+                    })
                     .ok_or_else(|| {
                         log::error!(
-                            "No se encontró información de nativos para classifier: {}",
+                            "No se encontró información de nativos ni artifact para {}",
                             classifier_key
                         );
                         format!("No se encontró información de nativos para la biblioteca")
@@ -196,7 +201,7 @@ pub fn extract_natives(
                         "instance-native-library-missing",
                         &format!("Biblioteca nativa no encontrada: {}", path),
                     );
-                    continue; // Skip this library if not downloaded
+                    continue;
                 }
 
                 let metadata = fs::metadata(&library_path).map_err(|e| {
@@ -245,7 +250,6 @@ pub fn extract_natives(
 
                 if let Err(e) = extract_jar_file(&library_path, natives_dir, &exclude_patterns) {
                     log::error!("Error extrayendo JAR {}: {}", library_path.display(), e);
-                    // Continue with other libraries instead of failing completely
                     emit_status(
                         instance,
                         "instance-native-extraction-error",

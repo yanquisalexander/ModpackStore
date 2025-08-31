@@ -1,7 +1,9 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { merge } from "lodash-es";
 
 export type TaskStatus = "Pending" | "Running" | "Completed" | "Failed" | "Cancelled";
+
 
 export type TaskInfo = {
     id: string;
@@ -34,12 +36,14 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
 
     // Función para verificar si un modpack está siendo instalado
     const isModpackInstalling = (modpackId: string) => {
-        return tasks.some(
+        const result = tasks.some(
             (task) =>
                 task.status === "Running" &&
                 (task.data?.type === "modpack_instance_creation" || task.data?.type === "modpack_update") &&
                 task.data?.modpackId === modpackId
         );
+        console.log("isModpackInstalling check for", modpackId, "result:", result, "tasks:", tasks.filter(t => t.status === "Running"));
+        return result;
     };
 
     useEffect(() => {
@@ -52,7 +56,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
                 const updated = [...prev];
                 const idx = updated.findIndex((t) => t.id === event.payload.id);
                 if (idx !== -1) {
-                    updated[idx] = event.payload;
+                    updated[idx] = merge({}, updated[idx], event.payload);
                 } else {
                     updated.push(event.payload);
                 }
