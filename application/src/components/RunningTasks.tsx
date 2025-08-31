@@ -3,12 +3,16 @@ import { LucideCheck, LucideInfo, LucideRefreshCcw, LucideTrash2, LucideX } from
 import { useEffect, useRef, useState } from "react";
 
 export const RunningTasks = () => {
-    const { tasks, hasRunningTasks, taskCount } = useTasksContext();
+    const { tasks, hasRunningTasks, taskCount, syncTasks } = useTasksContext();
     const [openMenu, setOpenMenu] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
     const toggleMenu = () => {
         setOpenMenu(!openMenu);
+        // Sync tasks when opening the menu to ensure we have the latest state
+        if (!openMenu) {
+            syncTasks().catch(console.error);
+        }
     };
 
     const closeMenu = () => {
@@ -97,7 +101,9 @@ export const RunningTasks = () => {
                                             {getStatusIcon(task.status)}
                                             <span className="font-medium">{task.label}</span>
                                         </div>
-                                        <span className="text-xs text-neutral-400">{task.progress}%</span>
+                                        <span className="text-xs text-neutral-400">
+                                            {task.progress.toFixed(1)}%
+                                        </span>
                                     </div>
                                     {task.message && (
                                         <div className="ml-6 text-xs text-neutral-400 break-words whitespace-normal overflow-wrap-anywhere">
@@ -107,8 +113,13 @@ export const RunningTasks = () => {
                                     <div className="pl-6">
                                         <div className="mt-1 w-full bg-neutral-800 h-1 rounded-full">
                                             <div
-                                                className="bg-sky-600 h-1 rounded-full"
-                                                style={{ width: `${task.progress}%` }}
+                                                className={`h-1 rounded-full transition-all duration-300 ${
+                                                    task.status === "Completed" ? "bg-green-600" :
+                                                    task.status === "Failed" ? "bg-red-600" :
+                                                    task.status === "Cancelled" ? "bg-yellow-600" :
+                                                    "bg-sky-600"
+                                                }`}
+                                                style={{ width: `${Math.max(0, Math.min(100, task.progress))}%` }}
                                             ></div>
                                         </div>
                                     </div>

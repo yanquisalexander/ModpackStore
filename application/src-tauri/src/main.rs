@@ -162,6 +162,8 @@ pub fn main() {
             core::auth::init_session,
             core::microsoft_auth::start_microsoft_auth,
             core::prelaunch_appearance::get_prelaunch_appearance,
+            core::tasks_manager::get_all_tasks_command,
+            core::tasks_manager::resync_tasks_command,
             utils::desktop_integration::create_shortcut,
             get_git_hash,
             splash_done,
