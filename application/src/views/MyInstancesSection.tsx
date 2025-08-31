@@ -10,7 +10,7 @@ import { TauriCommandReturns } from "@/types/TauriCommandReturns";
 import { useConnection } from "@/utils/ConnectionContext";
 import { invoke } from "@tauri-apps/api/core";
 import { LucidePackageOpen } from "lucide-react";
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 
 export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) => {
@@ -18,27 +18,24 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
     const { hasInternetAccess } = useConnection()
     const { instances: instancesOnContext } = useInstances()
     const { instancesBootstraping } = useTasksContext()
-    console.log({ instancesBootstraping })
 
     const [instances, setInstances] = useState<TauriCommandReturns['get_instance_by_id'][]>([])
     const [isLoading, setIsLoading] = useState(true)
-    const fetchInstances = async () => {
+    const fetchInstances = useCallback(async () => {
         setIsLoading(true)
         await sleep(1000) // Simulate a short delay for better UX
         const instances = await invoke('get_all_instances') as any
-        console.log("Instances fetched from Tauri:", instances)
         setInstances(instances)
         setIsLoading(false)
-    }
+    }, [])
 
     useEffect(() => {
         fetchInstances()
-    }, [])
+    }, []) // Sin dependencias para que se ejecute solo al montar
 
     useEffect(() => {
         if (offlineMode) return // Prevents setting title bar state if in offline mode
         setTitleBarState({
-            ...titleBarState,
             title: "Mis instancias",
             icon: LucidePackageOpen,
             canGoBack: true,
@@ -47,7 +44,15 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
         });
 
         trackSectionView("my-instances")
-    }, [])
+    }, [offlineMode, setTitleBarState])
+
+    const isBootstrapping = useCallback((instanceId: string) => {
+        return instancesBootstraping.some((id) => id === instanceId)
+    }, [instancesBootstraping])
+
+    const isRunning = useCallback((instanceId: string) => {
+        return instancesOnContext.some((i) => i.id === instanceId && i.status === "running")
+    }, [instancesOnContext])
 
 
     return (
@@ -72,9 +77,9 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                         <InstanceCard
                             key={instance.instanceId}
                             instance={instance}
-                            isBootstrapping={instancesBootstraping.some((id) => id === instance.instanceId)}
+                            isBootstrapping={isBootstrapping(instance.instanceId)}
                             onInstanceRemoved={fetchInstances}
-                            running={instancesOnContext.some((i) => i.id === instance.instanceId && i.status === "running")}
+                            running={isRunning(instance.instanceId)}
                         />
                     ))}
                     {

@@ -104,14 +104,18 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
         .ok_or_else(|| format!("Instance with ID {} not found", instance_id))?;
 
     // Handle modpack instances with special logic
-    if let (Some(modpack_id), Some(version_id)) = (&instance.modpackId, &instance.modpackVersionId) {
-        // Check if version is "latest" and handle updates
+    if let (Some(modpack_id), Some(version_id)) = (&instance.modpackId, &instance.modpackVersionId)
+    {
+        let modpack_id = modpack_id.clone(); // Extract modpack_id to avoid immutable borrow conflict
+                                             // Check if version is "latest" and handle updates
         if version_id == "latest" {
-            match handle_latest_version_update(&mut instance, modpack_id).await {
+            match handle_latest_version_update(&mut instance, &modpack_id).await {
                 Ok(updated) => {
                     if updated {
                         // Save the updated instance
-                        instance.save().map_err(|e| format!("Failed to save updated instance: {}", e))?;
+                        instance
+                            .save()
+                            .map_err(|e| format!("Failed to save updated instance: {}", e))?;
                     }
                 }
                 Err(e) => {
@@ -143,11 +147,11 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
 /// Handles "latest" version updates for a modpack instance
 /// Returns true if the instance was updated, false otherwise
 async fn handle_latest_version_update(
-    instance: &mut MinecraftInstance, 
-    modpack_id: &str
+    instance: &mut MinecraftInstance,
+    modpack_id: &str,
 ) -> Result<bool, String> {
     let current_version_id = instance.modpackVersionId.as_ref().unwrap();
-    
+
     // If version is not "latest", no need to check
     if current_version_id != "latest" {
         return Ok(false);
@@ -156,11 +160,14 @@ async fn handle_latest_version_update(
     // Emit status update
     if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
         if let Some(app_handle) = guard.as_ref() {
-            let _ = app_handle.emit(&format!("instance-{}", instance.instanceId), serde_json::json!({
-                "id": instance.instanceId,
-                "status": "preparing",
-                "message": "Verificando actualizaciones..."
-            }));
+            let _ = app_handle.emit(
+                &format!("instance-{}", instance.instanceId),
+                serde_json::json!({
+                    "id": instance.instanceId,
+                    "status": "preparing",
+                    "message": "Verificando actualizaciones..."
+                }),
+            );
         }
     }
 
@@ -179,7 +186,7 @@ async fn handle_latest_version_update(
 
     // Get the actual latest version ID
     let latest_version_id = fetch_latest_version(modpack_id).await?;
-    
+
     // Check if there's an actual version stored in the instance metadata
     // We need to compare against the last known version, not "latest"
     let needs_update = if let Some(last_known_version) = get_instance_last_known_version(instance) {
@@ -193,20 +200,28 @@ async fn handle_latest_version_update(
         // Emit status update
         if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
             if let Some(app_handle) = guard.as_ref() {
-                let _ = app_handle.emit(&format!("instance-{}", instance.instanceId), serde_json::json!({
-                    "id": instance.instanceId,
-                    "status": "downloading-modpack-assets",
-                    "message": "Actualizando modpack..."
-                }));
+                let _ = app_handle.emit(
+                    &format!("instance-{}", instance.instanceId),
+                    serde_json::json!({
+                        "id": instance.instanceId,
+                        "status": "downloading-modpack-assets",
+                        "message": "Actualizando modpack..."
+                    }),
+                );
             }
         }
 
         // Update to the latest version
-        update_modpack_instance(instance.instanceId.clone(), Some(latest_version_id.clone())).await?;
-        
+        update_modpack_instance(
+            instance.instanceId.clone(),
+            Some(latest_version_id.clone()),
+            None,
+        )
+        .await?;
+
         // Store the latest version as last known version
         set_instance_last_known_version(instance, &latest_version_id);
-        
+
         return Ok(true);
     }
 
@@ -248,10 +263,13 @@ async fn check_and_validate_modpack_password(modpack_id: &str) -> Result<bool, S
     // For now, we'll emit an event to the frontend to handle password prompt
     if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
         if let Some(app_handle) = guard.as_ref() {
-            let _ = app_handle.emit("modpack-password-required", serde_json::json!({
-                "modpackId": modpack_id,
-                "message": "Este modpack requiere contraseña"
-            }));
+            let _ = app_handle.emit(
+                "modpack-password-required",
+                serde_json::json!({
+                    "modpackId": modpack_id,
+                    "message": "Este modpack requiere contraseña"
+                }),
+            );
         }
     }
 
@@ -264,15 +282,14 @@ async fn check_and_validate_modpack_password(modpack_id: &str) -> Result<bool, S
 async fn validate_modpack_assets_for_launch(instance: &MinecraftInstance) -> Result<(), String> {
     let modpack_id = instance.modpackId.as_ref().unwrap();
     let version_id = instance.modpackVersionId.as_ref().unwrap();
-    
+
     // Get actual version ID if it's "latest"
     let actual_version_id = if version_id == "latest" {
-        get_instance_last_known_version(instance)
-            .unwrap_or_else(|| {
-                // Fallback to fetching latest version synchronously
-                // In a real implementation, you might want to handle this better
-                version_id.clone()
-            })
+        get_instance_last_known_version(instance).unwrap_or_else(|| {
+            // Fallback to fetching latest version synchronously
+            // In a real implementation, you might want to handle this better
+            version_id.clone()
+        })
     } else {
         version_id.clone()
     };
@@ -280,16 +297,22 @@ async fn validate_modpack_assets_for_launch(instance: &MinecraftInstance) -> Res
     // Emit status update
     if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
         if let Some(app_handle) = guard.as_ref() {
-            let _ = app_handle.emit(&format!("instance-{}", instance.instanceId), serde_json::json!({
-                "id": instance.instanceId,
-                "status": "downloading-modpack-assets",
-                "message": "Validando archivos del modpack..."
-            }));
+            let _ = app_handle.emit(
+                &format!("instance-{}", instance.instanceId),
+                serde_json::json!({
+                    "id": instance.instanceId,
+                    "status": "downloading-modpack-assets",
+                    "message": "Validando archivos del modpack..."
+                }),
+            );
         }
     }
 
     // Validate and download missing assets
-    crate::core::modpack_file_manager::validate_and_download_modpack_assets(instance.instanceId.clone()).await?;
+    crate::core::modpack_file_manager::validate_and_download_modpack_assets(
+        instance.instanceId.clone(),
+    )
+    .await?;
 
     Ok(())
 }
@@ -304,7 +327,7 @@ fn get_instance_last_known_version(instance: &MinecraftInstance) -> Option<Strin
     let metadata_path = std::path::PathBuf::from(instance_dir)
         .join(".modpackstore")
         .join("last_known_version.txt");
-    
+
     std::fs::read_to_string(metadata_path).ok()
 }
 
@@ -313,13 +336,13 @@ fn set_instance_last_known_version(instance: &MinecraftInstance, version_id: &st
     if let Some(instance_dir) = &instance.instanceDirectory {
         let metadata_dir = std::path::PathBuf::from(instance_dir).join(".modpackstore");
         let metadata_path = metadata_dir.join("last_known_version.txt");
-        
+
         // Create directory if it doesn't exist
         if let Err(e) = std::fs::create_dir_all(&metadata_dir) {
             eprintln!("Failed to create metadata directory: {}", e);
             return;
         }
-        
+
         // Write the version
         if let Err(e) = std::fs::write(metadata_path, version_id) {
             eprintln!("Failed to write last known version: {}", e);
@@ -433,6 +456,7 @@ pub async fn create_modpack_instance(
     instance_name: String,
     modpack_id: String,
     version_id: Option<String>,
+    password: Option<String>,
 ) -> Result<String, String> {
     let task_id = add_task(
         &format!("Creando instancia de modpack: {}", instance_name),
@@ -446,6 +470,11 @@ pub async fn create_modpack_instance(
 
     // Obtener información del modpack
     let modpack_info = fetch_modpack_info(&modpack_id).await?;
+
+    // Validar contraseña si el modpack está protegido
+    if let Some(pwd) = password {
+        validate_modpack_password(modpack_id.clone(), pwd).await?;
+    }
 
     // Determinar versión
     let final_version_id = match version_id {
@@ -587,6 +616,7 @@ pub async fn check_modpack_updates(
 pub async fn update_modpack_instance(
     instance_id: String,
     target_version_id: Option<String>,
+    password: Option<String>,
 ) -> Result<String, String> {
     let mut instance =
         MinecraftInstance::from_instance_id(&instance_id).ok_or("Instance not found")?;
@@ -606,6 +636,11 @@ pub async fn update_modpack_instance(
             "modpackId": modpack_id
         })),
     );
+
+    // Validar contraseña si el modpack está protegido
+    if let Some(pwd) = password {
+        validate_modpack_password(modpack_id.clone(), pwd).await?;
+    }
 
     // Determinar versión objetivo
     let final_version_id = match target_version_id {
@@ -1061,9 +1096,16 @@ fn detect_image_mime_type(bytes: &[u8]) -> &'static str {
 }
 
 #[tauri::command]
-pub async fn validate_modpack_password(modpack_id: String, password: String) -> Result<bool, String> {
+pub async fn validate_modpack_password(
+    modpack_id: String,
+    password: String,
+) -> Result<bool, String> {
     let client = reqwest::Client::new();
-    let url = format!("{}/explore/modpacks/{}/validate-password", crate::API_ENDPOINT, modpack_id);
+    let url = format!(
+        "{}/explore/modpacks/{}/validate-password",
+        crate::API_ENDPOINT,
+        modpack_id
+    );
 
     let response = client
         .post(&url)

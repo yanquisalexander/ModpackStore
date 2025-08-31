@@ -4,7 +4,6 @@ import { cors } from 'hono/cors';
 import rootRouter from "./routes"; // Corrected import for router
 import Passport from "./lib/Passport";
 import "dotenv/config";
-import "./middleware/upload.middleware"; // Import multer middleware
 import { logger } from 'hono/logger'
 import { HTTPException } from 'hono/http-exception';
 

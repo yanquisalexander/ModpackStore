@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use tauri::Emitter;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ModpackManifest {
@@ -256,8 +257,10 @@ pub async fn validate_modpack_assets(
     task_id: Option<String>,
 ) -> Result<Vec<ModpackFileEntry>, String> {
     let instance_dir = PathBuf::from(
-        instance.instanceDirectory.as_ref()
-            .ok_or("Instance directory not set")?
+        instance
+            .instanceDirectory
+            .as_ref()
+            .ok_or("Instance directory not set")?,
     );
     let mut files_to_download = Vec::new();
 
@@ -272,10 +275,10 @@ pub async fn validate_modpack_assets(
     }
 
     let total_files = manifest.files.len();
-    
+
     for (index, file_entry) in manifest.files.iter().enumerate() {
         let file_path = instance_dir.join(&file_entry.path);
-        
+
         // Update progress
         if let Some(task_id) = &task_id {
             let progress = (index as f32 / total_files as f32) * 100.0;
@@ -283,7 +286,12 @@ pub async fn validate_modpack_assets(
                 task_id,
                 TaskStatus::Running,
                 progress,
-                &format!("Validando {} ({}/{})", file_entry.path, index + 1, total_files),
+                &format!(
+                    "Validando {} ({}/{})",
+                    file_entry.path,
+                    index + 1,
+                    total_files
+                ),
                 None,
             );
         }
@@ -304,7 +312,9 @@ pub async fn validate_modpack_assets(
             }
 
             // Check file hash if size is correct
-            if !needs_download && !file_exists_with_correct_hash(&file_path, &file_entry.fileHash).await {
+            if !needs_download
+                && !file_exists_with_correct_hash(&file_path, &file_entry.fileHash).await
+            {
                 needs_download = true;
             }
         }
@@ -319,7 +329,10 @@ pub async fn validate_modpack_assets(
             task_id,
             TaskStatus::Running,
             100.0,
-            &format!("Validación completa. {} archivos necesitan descarga", files_to_download.len()),
+            &format!(
+                "Validación completa. {} archivos necesitan descarga",
+                files_to_download.len()
+            ),
             None,
         );
     }
@@ -400,11 +413,12 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
     // Create a task for this operation
     let task_id = format!("validate_modpack_assets_{}", instance_id);
     add_task(
-        task_id.clone(),
-        "Validando assets del modpack".to_string(),
-        TaskStatus::Running,
-        0.0,
-        "Iniciando validación...".to_string(),
+        &task_id.clone(),
+        Some(serde_json::json!({
+            "status": "Validando assets del modpack",
+            "progress": 0.0,
+            "message": "Iniciando validación..."
+        })),
     );
 
     // Fetch current manifest
@@ -425,28 +439,32 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
     // Emit event to indicate we're downloading modpack assets
     if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
         if let Some(app_handle) = guard.as_ref() {
-            let _ = app_handle.emit(&format!("instance-{}", instance_id), serde_json::json!({
-                "id": instance_id,
-                "status": "downloading-modpack-assets",
-                "message": "Validando assets del modpack..."
-            }));
+            let _ = app_handle.emit(
+                &format!("instance-{}", instance_id),
+                serde_json::json!({
+                    "id": instance_id,
+                    "status": "downloading-modpack-assets",
+                    "message": "Validando assets del modpack..."
+                }),
+            );
         }
     }
 
     // Validate assets and get files that need downloading
-    let files_to_download = match validate_modpack_assets(&instance, &manifest, Some(task_id.clone())).await {
-        Ok(files) => files,
-        Err(e) => {
-            update_task(
-                &task_id,
-                TaskStatus::Failed,
-                0.0,
-                &format!("Error validando assets: {}", e),
-                None,
-            );
-            return Err(e);
-        }
-    };
+    let files_to_download =
+        match validate_modpack_assets(&instance, &manifest, Some(task_id.clone())).await {
+            Ok(files) => files,
+            Err(e) => {
+                update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error validando assets: {}", e),
+                    None,
+                );
+                return Err(e);
+            }
+        };
 
     if files_to_download.is_empty() {
         update_task(
@@ -468,7 +486,8 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         None,
     );
 
-    let downloaded_count = download_modpack_files(&instance, &files_to_download, Some(task_id.clone())).await?;
+    let downloaded_count =
+        download_modpack_files(&instance, &files_to_download, Some(task_id.clone())).await?;
 
     update_task(
         &task_id,
@@ -487,14 +506,16 @@ async fn download_modpack_files(
     task_id: Option<String>,
 ) -> Result<usize, String> {
     let instance_dir = PathBuf::from(
-        instance.instanceDirectory.as_ref()
-            .ok_or("Instance directory not set")?
+        instance
+            .instanceDirectory
+            .as_ref()
+            .ok_or("Instance directory not set")?,
     );
     let mut downloaded_count = 0;
 
     for (index, file_entry) in files.iter().enumerate() {
         let file_path = instance_dir.join(&file_entry.path);
-        
+
         // Update progress
         if let Some(task_id) = &task_id {
             let progress = (index as f32 / files.len() as f32) * 100.0;
@@ -502,7 +523,12 @@ async fn download_modpack_files(
                 task_id,
                 TaskStatus::Running,
                 progress,
-                &format!("Descargando {} ({}/{})", file_entry.path, index + 1, files.len()),
+                &format!(
+                    "Descargando {} ({}/{})",
+                    file_entry.path,
+                    index + 1,
+                    files.len()
+                ),
                 None,
             );
         }
@@ -510,7 +536,11 @@ async fn download_modpack_files(
         // Create parent directories if they don't exist
         if let Some(parent) = file_path.parent() {
             if let Err(e) = fs::create_dir_all(parent) {
-                return Err(format!("Failed to create directory {}: {}", parent.display(), e));
+                return Err(format!(
+                    "Failed to create directory {}: {}",
+                    parent.display(),
+                    e
+                ));
             }
         }
 
