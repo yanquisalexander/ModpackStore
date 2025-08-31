@@ -250,6 +250,32 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             });
             unlistenList.push(downloadingAssetsStageUnlisten);
 
+            // Listener for downloading Forge libraries with stage information
+            const downloadingForgeUnlisten = await listen("instance-downloading-forge", (e: any) => {
+                const { id, message, stage } = e.payload as StageEventPayload;
+                console.log("Downloading Forge event:", { id, message, stage });
+
+                updateInstance(id, {
+                    status: "downloading-assets",
+                    message: message || "Descargando librerías de Forge...",
+                    stage
+                });
+            });
+            unlistenList.push(downloadingForgeUnlisten);
+
+            // Listener for downloading modpack files with stage information
+            const downloadingModpackFilesUnlisten = await listen("instance-downloading-modpack-files", (e: any) => {
+                const { id, message, stage } = e.payload as StageEventPayload;
+                console.log("Downloading modpack files event:", { id, message, stage });
+
+                updateInstance(id, {
+                    status: "downloading-assets",
+                    message: message || "Descargando archivos del modpack...",
+                    stage
+                });
+            });
+            unlistenList.push(downloadingModpackFilesUnlisten);
+
             // Listeners for bootstrap completion so UI doesn't stay stuck in a stage like "Instalando Forge..."
             const forgeBootstrappedUnlisten = await listen("forge-instance-bootstrapped", (e: any) => {
                 const { id, message } = e.payload;
