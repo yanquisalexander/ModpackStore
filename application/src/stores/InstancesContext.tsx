@@ -249,6 +249,29 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                 });
             });
             unlistenList.push(downloadingAssetsStageUnlisten);
+
+            // Listeners for bootstrap completion so UI doesn't stay stuck in a stage like "Instalando Forge..."
+            const forgeBootstrappedUnlisten = await listen("forge-instance-bootstrapped", (e: any) => {
+                const { id, message } = e.payload;
+                console.log("Forge bootstrapped event:", { id, message });
+
+                updateInstance(id, {
+                    status: "idle",
+                    message: message || "Forge instalado correctamente"
+                });
+            });
+            unlistenList.push(forgeBootstrappedUnlisten);
+
+            const vanillaBootstrappedUnlisten = await listen("vanilla-instance-bootstrapped", (e: any) => {
+                const { id, message } = e.payload;
+                console.log("Vanilla bootstrapped event:", { id, message });
+
+                updateInstance(id, {
+                    status: "idle",
+                    message: message || "Bootstrap completado"
+                });
+            });
+            unlistenList.push(vanillaBootstrappedUnlisten);
         };
 
         setupListeners();

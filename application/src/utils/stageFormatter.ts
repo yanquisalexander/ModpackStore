@@ -8,19 +8,19 @@ export function formatStageMessage(stage: InstallationStage | undefined, fallbac
 
     switch (stage.type) {
         case "DownloadingFiles":
-            const downloadPercentage = stage.total > 0 ? Math.round((stage.current * 100) / stage.total) : 0;
-            return `Descargando archivos: ${stage.current}/${stage.total} (${downloadPercentage}%)`;
+            const downloadPercentage = stage.total > 0 ? Number(((stage.current * 100) / stage.total).toFixed(1)) : 0;
+            return `Descargando archivos: ${stage.current}/${stage.total} (${downloadPercentage.toFixed(1)}%)`;
 
         case "ExtractingLibraries":
-            const extractPercentage = stage.total > 0 ? Math.round((stage.current * 100) / stage.total) : 0;
-            return `Extrayendo librerías: ${stage.current}/${stage.total} (${extractPercentage}%)`;
+            const extractPercentage = stage.total > 0 ? Number(((stage.current * 100) / stage.total).toFixed(1)) : 0;
+            return `Extrayendo librerías: ${stage.current}/${stage.total} (${extractPercentage.toFixed(1)}%)`;
 
         case "InstallingForge":
             return "Instalando Forge...";
 
         case "ValidatingAssets":
-            const validatingPercentage = stage.total > 0 ? Math.round((stage.current * 100) / stage.total) : 0;
-            return `Validando assets: ${stage.current}/${stage.total} (${validatingPercentage}%)`;
+            const validatingPercentage = stage.total > 0 ? Number(((stage.current * 100) / stage.total).toFixed(1)) : 0;
+            return `Validando assets: ${stage.current}/${stage.total} (${validatingPercentage.toFixed(1)}%)`;
 
         default:
             return fallbackMessage;
@@ -34,7 +34,7 @@ export function getStageProgress(stage: InstallationStage | undefined): number |
         case "DownloadingFiles":
         case "ExtractingLibraries":
         case "ValidatingAssets":
-            return stage.total > 0 ? (stage.current / stage.total) * 100 : 0;
+            return stage.total > 0 ? Number(((stage.current / stage.total) * 100).toFixed(1)) : 0;
         case "InstallingForge":
             return undefined; // No progress for Forge installation
         default:
