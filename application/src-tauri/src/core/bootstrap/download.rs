@@ -1,7 +1,7 @@
 // src/core/bootstrap/download.rs
 // Download-related functionality extracted from instance_bootstrap.rs
 
-use crate::core::bootstrap::tasks::emit_status;
+use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
 use crate::core::minecraft_instance::MinecraftInstance;
 use serde_json::Value;
 use std::fs;
@@ -283,19 +283,11 @@ pub fn download_libraries(
         if downloaded_libraries % 3 == 0
             || downloaded_libraries == total_libraries - skipped_libraries
         {
-            let progress = (downloaded_libraries as f32
-                / (total_libraries - skipped_libraries) as f32)
-                * 100.0;
-            emit_status(
-                instance,
-                "instance-downloading-libraries",
-                &format!(
-                    "Descargando librerías: {}/{} ({:.1}%)",
-                    downloaded_libraries,
-                    total_libraries - skipped_libraries,
-                    progress
-                ),
-            );
+            let stage = Stage::DownloadingFiles {
+                current: downloaded_libraries,
+                total: total_libraries - skipped_libraries,
+            };
+            emit_status_with_stage(instance, "instance-downloading-libraries", &stage);
         }
     }
 

@@ -4,12 +4,14 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { trackEvent } from "@aptabase/web";
 import { toast } from "sonner";
 import { playSound } from "@/utils/sounds";
+import { InstallationStage, StageEventPayload } from "@/types/InstallationStage";
 
 type InstanceState = {
     id: string;
     name: string;
     status: "idle" | "preparing" | "running" | "exited" | "error" | "downloading-assets";
     message: string;
+    stage?: InstallationStage;
 };
 
 // El contexto solo expone las instancias
@@ -197,6 +199,56 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                 window.setFocus();
             });
             unlistenList.push(errorUnlisten);
+
+            // New stage-based event listeners
+            const downloadingLibrariesUnlisten = await listen("instance-downloading-libraries", (e: any) => {
+                const { id, message, stage } = e.payload as StageEventPayload;
+                console.log("Downloading libraries event:", { id, message, stage });
+
+                updateInstance(id, {
+                    status: "downloading-assets",
+                    message: message || "Descargando librerías...",
+                    stage
+                });
+            });
+            unlistenList.push(downloadingLibrariesUnlisten);
+
+            const extractingNativesUnlisten = await listen("instance-extracting-natives-progress", (e: any) => {
+                const { id, message, stage } = e.payload as StageEventPayload;
+                console.log("Extracting natives event:", { id, message, stage });
+
+                updateInstance(id, {
+                    status: "downloading-assets",
+                    message: message || "Extrayendo librerías...",
+                    stage
+                });
+            });
+            unlistenList.push(extractingNativesUnlisten);
+
+            const installingForgeUnlisten = await listen("instance-installing-forge", (e: any) => {
+                const { id, message, stage } = e.payload as StageEventPayload;
+                console.log("Installing Forge event:", { id, message, stage });
+
+                updateInstance(id, {
+                    status: "downloading-assets",
+                    message: message || "Instalando Forge...",
+                    stage
+                });
+            });
+            unlistenList.push(installingForgeUnlisten);
+
+            // Update the existing downloading assets listener to handle stages
+            const downloadingAssetsStageUnlisten = await listen("instance-downloading-assets", (e: any) => {
+                const { id, message, stage } = e.payload as StageEventPayload;
+                console.log("Downloading assets with stage event:", { id, message, stage });
+
+                updateInstance(id, {
+                    status: "downloading-assets",
+                    message: message || "Validando assets...",
+                    stage
+                });
+            });
+            unlistenList.push(downloadingAssetsStageUnlisten);
         };
 
         setupListeners();

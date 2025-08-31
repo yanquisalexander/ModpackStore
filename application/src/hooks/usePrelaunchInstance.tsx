@@ -15,10 +15,13 @@ import { setActivity } from "tauri-plugin-drpc";
 import { LucideUnplug } from "lucide-react";
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance";
 import { MinecraftInstance, TauriCommandReturns } from "@/types/TauriCommandReturns";
+import { InstallationStage } from "@/types/InstallationStage";
+import { formatStageMessage } from "@/utils/stageFormatter";
 
 const DEFAULT_LOADING_STATE = {
     isLoading: false,
     message: "Descargando archivos necesarios...",
+    stage: undefined as InstallationStage | undefined,
 };
 
 const RANDOM_MESSAGES = [
@@ -182,24 +185,33 @@ export const usePrelaunchInstance = (instanceId: string) => {
     useEffect(() => {
         if (currentInstanceRunning) {
             const isLoading = ["preparing", "downloading-assets", "downloading-modpack-assets"].includes(currentInstanceRunning.status);
+            
+            // Use stage information if available, otherwise fall back to existing message
+            const formattedMessage = currentInstanceRunning.stage 
+                ? formatStageMessage(currentInstanceRunning.stage, currentInstanceRunning.message || "Procesando...")
+                : currentInstanceRunning.message || (isLoading ? getRandomMessage() : DEFAULT_LOADING_STATE.message);
 
             setLoadingStatus(prev => ({
                 ...prev,
                 isLoading,
-                message: currentInstanceRunning.message || (isLoading ? getRandomMessage() : DEFAULT_LOADING_STATE.message),
+                message: formattedMessage,
+                stage: currentInstanceRunning.stage
             }));
 
             if (isLoading) {
-                if (lastMessageRef.current !== currentInstanceRunning.message) {
-                    lastMessageRef.current = currentInstanceRunning.message;
+                if (lastMessageRef.current !== formattedMessage) {
+                    lastMessageRef.current = formattedMessage;
 
                     if (messageTimeoutRef.current) {
                         clearTimeout(messageTimeoutRef.current);
                     }
 
-                    messageTimeoutRef.current = window.setTimeout(() => {
-                        startMessageInterval();
-                    }, 5000); // Espera de 5 segundos antes de activar mensajes aleatorios
+                    // Only use random messages if we don't have stage information
+                    if (!currentInstanceRunning.stage) {
+                        messageTimeoutRef.current = window.setTimeout(() => {
+                            startMessageInterval();
+                        }, 5000); // Espera de 5 segundos antes de activar mensajes aleatorios
+                    }
                 }
             } else {
                 if (messageIntervalRef.current) {

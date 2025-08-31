@@ -3,7 +3,7 @@
 
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::bootstrap::download::download_file;
-use crate::core::bootstrap::tasks::emit_status;
+use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
 use crate::core::bootstrap::filesystem::create_asset_directories;
 use crate::core::bootstrap::manifest::get_asset_index_info;
 use serde_json::Value;
@@ -123,25 +123,12 @@ fn download_missing_assets(
         let asset_file = assets_objects_dir.join(hash_prefix).join(hash);
 
         // Informar progreso
-        let progress_percentage = (processed_assets as f64 * 100.0 / total_assets as f64);
+        let stage = Stage::ValidatingAssets {
+            current: processed_assets,
+            total: total_assets,
+        };
         
-        log::info!(
-            "Validando assets: {}/{} ({:.1}%)",
-            processed_assets,
-            total_assets,
-            progress_percentage
-        );
-        
-        emit_status(
-            instance,
-            "instance-downloading-assets",
-            &format!(
-                "Validando assets: {}/{} ({:.1}%)",
-                processed_assets,
-                total_assets,
-                progress_percentage
-            ),
-        );
+        emit_status_with_stage(instance, "instance-downloading-assets", &stage);
 
         if !asset_file.exists() {
             missing_assets += 1;
