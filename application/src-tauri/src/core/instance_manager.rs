@@ -6,6 +6,7 @@ use crate::core::minecraft_instance::{self, MinecraftInstance};
 use crate::core::modpack_file_manager::ModpackManifest;
 use crate::core::tasks_manager::{add_task, remove_task, update_task, TaskStatus};
 use crate::API_ENDPOINT;
+use base64::{engine::general_purpose, Engine as _};
 use dirs::config_dir;
 use serde_json::from_str;
 use std::fs;
@@ -545,8 +546,12 @@ fn spawn_modpack_creation_task(
         // Instalar archivos del modpack
         let rt = tokio::runtime::Runtime::new().unwrap();
         let files_processed = rt.block_on(async {
-            crate::core::modpack_file_manager::download_and_install_files(&instance, &manifest, Some(task_id.clone()))
-                .await
+            crate::core::modpack_file_manager::download_and_install_files(
+                &instance,
+                &manifest,
+                Some(task_id.clone()),
+            )
+            .await
         });
 
         let files_processed = match files_processed {
@@ -629,8 +634,12 @@ fn spawn_modpack_update_task(
 
         // Instalar archivos actualizados
         let files_processed = tokio::runtime::Runtime::new().unwrap().block_on(async {
-            crate::core::modpack_file_manager::download_and_install_files(&instance, &manifest, Some(task_id.clone()))
-                .await
+            crate::core::modpack_file_manager::download_and_install_files(
+                &instance,
+                &manifest,
+                Some(task_id.clone()),
+            )
+            .await
         });
 
         let files_processed = match files_processed {
@@ -687,10 +696,21 @@ async fn create_modpack_instance_struct(
     instance.minecraftVersion = manifest.mc_version;
     instance.forgeVersion = manifest.forge_version;
 
+    println!("{}", modpack_info.to_string());
+
     // Configurar banner
-    if let Some(banner_url) = modpack_info["bannerUrl"].as_str() {
+    if let Some(banner_url) = modpack_info["data"]["attributes"]["bannerUrl"].as_str() {
         let base64_banner = download_image_as_base64(banner_url).await?;
-        instance.bannerUrl = Some(format!("data:image/png;base64,{}", base64_banner));
+        instance.bannerUrl = Some(base64_banner);
+    }
+
+    // Configurar ícono
+    if let Some(icon_url) = modpack_info["data"]["attributes"]["iconUrl"].as_str() {
+        let base64_icon = download_image_as_base64(icon_url).await?;
+        instance.iconUrl = Some(base64_icon);
+        instance.usesDefaultIcon = false;
+    } else {
+        instance.usesDefaultIcon = true;
     }
 
     // Configurar directorios
@@ -804,7 +824,7 @@ async fn download_image_as_base64(url: &str) -> Result<String, String> {
         .map_err(|e| format!("Failed to read image bytes: {}", e))?;
 
     let mime_type = detect_image_mime_type(&bytes);
-    let base64_data = base64::encode(&bytes);
+    let base64_data = general_purpose::STANDARD.encode(&bytes);
 
     Ok(format!("data:{};base64,{}", mime_type, base64_data))
 }
