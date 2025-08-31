@@ -55,6 +55,9 @@ export class Modpack extends BaseEntity {
     @Column({ name: "creator_user_id", type: "uuid", nullable: true })
     creatorUserId?: string;
 
+    @Column({ name: "featured", type: "boolean", default: false })
+    featured: boolean;
+
     @Column({
         name: "status",
         type: "enum",

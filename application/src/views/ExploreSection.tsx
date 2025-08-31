@@ -10,6 +10,7 @@ import { ModpackCard } from "@/components/ModpackCard"
 import { trackEvent } from "@aptabase/web"
 import { trackSectionView } from "@/lib/analytics"
 import { motion } from "motion/react"
+import { FeaturedSlideshow } from "@/components/FeaturedSlideshow"
 
 export const ExploreSection = () => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
@@ -111,8 +112,12 @@ export const ExploreSection = () => {
             initial="hidden"
             animate="visible"
             variants={fadeInVariants}
-            className="mx-auto max-w-7xl px-4 py-10 overflow-y-auto"
+            className="mx-auto max-w-7xl px-4 pt-4 pb-10 overflow-y-auto"
         >
+
+            {/* Featured slideshow */}
+            <FeaturedSlideshow className="mb-8" heightClass="h-[40vh] md:h-[50vh] lg:h-[60vh]" />
+
             <motion.header
                 className="flex flex-col items-center justify-center gap-y-8 mb-16"
                 variants={containerVariants}
@@ -171,6 +176,7 @@ export const ExploreSection = () => {
                     </motion.div>
                 </motion.div>
             </motion.header>
+
 
             {loading ? (
                 <motion.div

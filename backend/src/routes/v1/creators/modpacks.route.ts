@@ -43,6 +43,7 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks", isOrganizationMemb
             visibility: true,
             showUserAsPublisher: true,
             publisherId: true,
+            shortDescription: true,
             status: true,
             description: true,
             updatedAt: true,
@@ -76,6 +77,33 @@ ModpackCreatorsRoute.patch(
 
         const body = await c.req.parseBody();
 
+        // --- Procesar icono si viene ---
+
+        if (body.icon && body.icon instanceof File && body.icon.size > 0) {
+            try {
+                const arrayBuffer = await body.icon.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                const webpIcon = await sharp(buffer)
+                    .resize(512, 512, {
+                        fit: 'cover',
+                        position: 'center'
+                    })
+                    .webp()
+                    .toBuffer();
+
+                const { cdnUrl, url } = await uploadToR2(
+                    `modpacks/${modpackId}/icon`,
+                    webpIcon,
+                    "image/webp"
+                );
+
+                modpack.iconUrl = `${cdnUrl || url}?t=${Date.now()}`;
+            } catch (error) {
+                console.error("Error processing icon:", error);
+                return c.json({ error: "Failed to process icon" }, 500);
+            }
+        }
+
         // --- Procesar banner si viene ---
         if (body.banner && body.banner instanceof File && body.banner.size > 0) {
             try {
@@ -105,6 +133,7 @@ ModpackCreatorsRoute.patch(
             "showUserAsPublisher",
             "status",
             "description",
+            "shortDescription",
             "versions",
             "creatorUserId",
         ];

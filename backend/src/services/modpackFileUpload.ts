@@ -43,8 +43,14 @@ export const processModpackFileUpload = async (
   const task = async () => {
     console.log(`Procesando ${fileType} para modpack ${modpackId}...`);
 
-    // Eliminar todos los ModpackVersionFile existentes para esta versión
-    await ModpackVersionFile.delete({ modpackVersionId: versionId });
+    // Eliminar todos los ModpackVersionFile existentes para esta versión y tipo
+    await ModpackVersionFile.createQueryBuilder()
+      .delete()
+      .from(ModpackVersionFile)
+      .where(`modpackVersionId = :versionId AND fileHash IN (
+        SELECT hash FROM modpack_files WHERE type = :fileType
+      )`, { versionId, fileType })
+      .execute();
 
     const fileEntries: { path: string; hash: string; content: Buffer }[] = [];
 
@@ -56,7 +62,7 @@ export const processModpackFileUpload = async (
       const zipFile = zip.files[entryName];
       if (!zipFile.dir) {
         const content = await zipFile.async("nodebuffer");
-        const hash = crypto.createHash("md5").update(content).digest("hex");
+        const hash = crypto.createHash("sha1").update(content).digest("hex");
         // Adjust path based on fileType
         const adjustedPath = fileType === 'extras' ? entryName : `${fileType}/${entryName}`;
         fileEntries.push({ path: adjustedPath, hash, content });

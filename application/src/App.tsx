@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import "./App.css";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { HomeMainHeader } from "./components/home/MainHeader";
@@ -47,6 +47,7 @@ function App() {
   const { isConnected, isLoading: connectionLoading, hasInternetAccess } = useConnection();
   const { isConfigOpen, closeConfigDialog } = useConfigDialog();
   const navigate = useNavigate();
+  const hasLaunched = useRef(false);
 
   // CAMBIO 2: Lógica de toasts simplificada y reactiva
   useEffect(() => {
@@ -71,9 +72,12 @@ function App() {
 
   // Efecto de inicialización (sin cambios, ya estaba bien)
   useEffect(() => {
-    initAnalytics();
-    preloadSounds();
-    trackEvent("app_launch");
+    if (!hasLaunched.current) {
+      initAnalytics();
+      preloadSounds();
+      trackEvent("app_launch");
+      hasLaunched.current = true;
+    }
 
     const handler = (e: Event) => {
       const instanceId = (e as CustomEvent<string>).detail;

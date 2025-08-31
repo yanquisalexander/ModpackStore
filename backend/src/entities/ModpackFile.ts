@@ -6,7 +6,7 @@ export type ModpackFileType = 'mods' | 'resourcepacks' | 'config' | 'shaderpacks
 @Entity({ name: "modpack_files" })
 export class ModpackFile extends BaseEntity {
     @PrimaryColumn({ name: "hash", type: "varchar", length: 64 })
-    hash: string; // SHA256 or MD5 in hex
+    hash: string; // SHA1 in hex
 
     @Column({ name: "size", type: "integer" })
     size: number; // bytes

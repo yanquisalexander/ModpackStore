@@ -247,8 +247,8 @@ async fn file_exists_with_correct_hash(file_path: &Path, expected_hash: &str) ->
 }
 
 fn compute_file_hash(contents: &[u8]) -> String {
-    use md5::{Digest, Md5};
-    let mut hasher = Md5::new();
+    use sha1::{Digest, Sha1};
+    let mut hasher = Sha1::new();
     hasher.update(contents);
     format!("{:x}", hasher.finalize())
 }
