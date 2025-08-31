@@ -310,6 +310,10 @@ export class ExploreModpacksController {
                 }), 404);
             }
 
+            console.log(`[CONTROLLER_EXPLORE] Validating password for modpack ID ${modpackId}`);
+
+            console.log(`[CONTROLLER_EXPLORE] Modpack password: ${modpack.password}, Provided password: ${password}`);
+
             // Check if modpack requires password
             if (!modpack.password) {
                 return c.json({

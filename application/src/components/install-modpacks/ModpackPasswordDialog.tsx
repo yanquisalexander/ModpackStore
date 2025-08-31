@@ -11,34 +11,58 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { LucideShieldAlert } from "lucide-react"
+import { invoke } from "@tauri-apps/api/core"
+import { toast } from "sonner"
 
 interface PasswordDialogProps {
     isOpen: boolean;
     onClose: () => void;
+    onSuccess: () => void;
+    modpackId: string;
     modpackName: string;
-    onConfirm: (password: string) => void;
-    isLoading?: boolean;
-    error?: string;
 }
 
 export const PasswordDialog = ({
     isOpen,
     onClose,
+    onSuccess,
+    modpackId,
     modpackName,
-    onConfirm,
-    isLoading = false,
-    error,
 }: PasswordDialogProps) => {
     const [password, setPassword] = useState<string>("");
+    const [isValidating, setIsValidating] = useState(false);
 
-    const handleConfirm = () => {
-        if (password.trim()) {
-            onConfirm(password);
+    const handleConfirm = async () => {
+        if (!password.trim()) {
+            toast.error("Por favor ingresa la contraseña");
+            return;
+        }
+
+        setIsValidating(true);
+
+        try {
+            const isValid = await invoke<boolean>('validate_modpack_password', {
+                modpackId,
+                password: password.trim()
+            });
+
+            if (isValid) {
+                toast.success('Contraseña correcta');
+                onSuccess();
+                handleClose();
+            } else {
+                toast.error('Contraseña incorrecta');
+            }
+        } catch (error) {
+            console.error('Error validating password:', error);
+            toast.error('Error al validar la contraseña');
+        } finally {
+            setIsValidating(false);
         }
     }
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === "Enter" && password.trim()) {
+        if (e.key === "Enter" && password.trim() && !isValidating) {
             handleConfirm();
         }
     }
@@ -46,6 +70,7 @@ export const PasswordDialog = ({
     // Limpiar el campo de contraseña cuando se cierra el diálogo
     const handleClose = () => {
         setPassword("");
+        setIsValidating(false);
         onClose();
     };
 
@@ -75,28 +100,24 @@ export const PasswordDialog = ({
                             placeholder="Ingresa la contraseña"
                             autoComplete="off"
                             autoFocus
-                            className={error ? "border-red-500" : ""}
-                            disabled={isLoading}
+                            disabled={isValidating}
                         />
-                        {error && (
-                            <p className="text-sm text-red-500">{error}</p>
-                        )}
                     </div>
                 </div>
                 <DialogFooter>
                     <Button
                         variant="secondary"
                         onClick={handleClose}
-                        disabled={isLoading}
+                        disabled={isValidating}
                     >
                         Cancelar
                     </Button>
                     <Button
                         onClick={handleConfirm}
-                        disabled={!password.trim() || isLoading}
+                        disabled={!password.trim() || isValidating}
                         className="bg-indigo-600 hover:bg-indigo-700 text-white"
                     >
-                        {isLoading ? "Procesando..." : "Continuar"}
+                        {isValidating ? "Validando..." : "Continuar"}
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, BaseEntity, Like } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, ManyToOne, OneToMany, JoinColumn, BaseEntity, Like, Index } from "typeorm";
 import { Publisher } from "./Publisher";
 import { User } from "./User";
 import { ModpackCategory } from "./ModpackCategory";
@@ -9,6 +9,8 @@ import { WalletTransaction } from "./WalletTransaction";
 import { ModpackVisibility, ModpackStatus } from "../types/enums";
 
 @Entity({ name: "modpacks" })
+@Index(["visibility", "status"])
+@Index(["slug"], { unique: true })
 export class Modpack extends BaseEntity {
     @PrimaryGeneratedColumn("uuid")
     id: string;
@@ -26,10 +28,10 @@ export class Modpack extends BaseEntity {
     slug: string;
 
     @Column({ name: "icon_url", type: "text", nullable: true })
-    iconUrl: string;
+    iconUrl?: string;
 
     @Column({ name: "banner_url", type: "text", nullable: true })
-    bannerUrl: string;
+    bannerUrl?: string;
 
     @Column({ name: "trailer_url", type: "text", nullable: true })
     trailerUrl?: string;
@@ -80,11 +82,11 @@ export class Modpack extends BaseEntity {
     updatedAt: Date;
 
     // Relations
-    @ManyToOne(() => Publisher, publisher => publisher.modpacks)
+    @ManyToOne(() => Publisher, publisher => publisher.modpacks, { onDelete: "CASCADE" })
     @JoinColumn({ name: "publisher_id" })
     publisher: Publisher;
 
-    @ManyToOne(() => User, user => user.createdModpacks, { nullable: true })
+    @ManyToOne(() => User, user => user.createdModpacks, { nullable: true, onDelete: "SET NULL" })
     @JoinColumn({ name: "creator_user_id" })
     creatorUser?: User;
 
@@ -103,12 +105,68 @@ export class Modpack extends BaseEntity {
     @OneToMany(() => WalletTransaction, transaction => transaction.relatedModpack, { cascade: true })
     relatedTransactions: WalletTransaction[];
 
+    // Métodos de búsqueda y consulta
     static async search(query: string, limit: number = 25): Promise<Modpack[]> {
         return this.createQueryBuilder("modpack")
-            .where("modpack.visibility = :visibility", { visibility: "public" })
-            .andWhere("modpack.status = :status", { status: "published" })
-            .andWhere("modpack.name LIKE :query", { query: `%${query}%` })
+            .leftJoinAndSelect("modpack.publisher", "publisher")
+            .leftJoinAndSelect("modpack.creatorUser", "creatorUser")
+            .leftJoinAndSelect("modpack.categories", "categories")
+            .leftJoinAndSelect("categories.category", "category")
+            .where("modpack.visibility = :visibility", { visibility: ModpackVisibility.PUBLIC })
+            .andWhere("modpack.status = :status", { status: ModpackStatus.PUBLISHED })
+            .andWhere("(modpack.name ILIKE :query OR modpack.shortDescription ILIKE :query OR modpack.description ILIKE :query)")
+            .setParameters({ query: `%${query}%` })
+            .orderBy("modpack.createdAt", "DESC")
             .limit(limit)
             .getMany();
+    }
+
+    static async findBySlug(slug: string): Promise<Modpack | null> {
+        return this.createQueryBuilder("modpack")
+            .leftJoinAndSelect("modpack.publisher", "publisher")
+            .leftJoinAndSelect("modpack.creatorUser", "creatorUser")
+            .leftJoinAndSelect("modpack.categories", "categories")
+            .leftJoinAndSelect("categories.category", "category")
+            .leftJoinAndSelect("modpack.versions", "versions")
+            .where("modpack.slug = :slug", { slug })
+            .andWhere("modpack.visibility = :visibility", { visibility: ModpackVisibility.PUBLIC })
+            .andWhere("modpack.status = :status", { status: ModpackStatus.PUBLISHED })
+            .getOne();
+    }
+
+    static async findFeatured(limit: number = 10): Promise<Modpack[]> {
+        return this.createQueryBuilder("modpack")
+            .leftJoinAndSelect("modpack.publisher", "publisher")
+            .leftJoinAndSelect("modpack.creatorUser", "creatorUser")
+            .where("modpack.featured = :featured", { featured: true })
+            .andWhere("modpack.visibility = :visibility", { visibility: ModpackVisibility.PUBLIC })
+            .andWhere("modpack.status = :status", { status: ModpackStatus.PUBLISHED })
+            .orderBy("modpack.createdAt", "DESC")
+            .limit(limit)
+            .getMany();
+    }
+
+    static async findByPublisher(publisherId: string, limit?: number): Promise<Modpack[]> {
+        const query = this.createQueryBuilder("modpack")
+            .leftJoinAndSelect("modpack.publisher", "publisher")
+            .leftJoinAndSelect("modpack.creatorUser", "creatorUser")
+            .where("modpack.publisherId = :publisherId", { publisherId })
+            .orderBy("modpack.createdAt", "DESC");
+
+        if (limit) {
+            query.limit(limit);
+        }
+
+        return query.getMany();
+    }
+
+    // Método para verificar si el modpack requiere contraseña
+    isPasswordProtected(): boolean {
+        return this.password !== null && this.password !== undefined && this.password.trim() !== "";
+    }
+
+    // Método para validar contraseña
+    validatePassword(inputPassword: string): boolean {
+        return this.password === inputPassword;
     }
 }

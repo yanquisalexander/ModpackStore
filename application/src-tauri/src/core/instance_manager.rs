@@ -255,6 +255,7 @@ async fn check_and_validate_modpack_password(modpack_id: &str) -> Result<bool, S
         .as_bool()
         .unwrap_or(false);
 
+
     if !is_password_protected {
         return Ok(true); // No password required
     }
