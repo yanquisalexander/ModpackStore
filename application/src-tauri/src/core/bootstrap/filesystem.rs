@@ -60,7 +60,7 @@ pub fn create_launcher_profiles(minecraft_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Extracts native libraries from JAR files to the natives directory
+/// Extracts native libraries from JAR files to the natives directory (IMPROVED VERSION)
 pub fn extract_natives(
     version_details: &Value,
     libraries_dir: &Path,
@@ -74,48 +74,31 @@ pub fn extract_natives(
             .as_ref()
             .unwrap_or(&"".to_string())
     );
-    // Obtener el sistema operativo actual
-    let os = std::env::consts::OS;
-    let os_name = match os {
-        "windows" => "windows",
-        "macos" => "osx",
-        "linux" => "linux",
-        _ => {
-            log::error!("Sistema operativo no soportado: {}", os);
-            return Err(format!("Sistema operativo no soportado: {}", os));
-        }
-    };
 
-    // Obtener la arquitectura
-    let arch = std::env::consts::ARCH;
-    let arch_name = match arch {
-        "x86_64" => "64",
-        "x86" => "32",
-        "aarch64" => "arm64",
-        _ => {
-            log::error!("Arquitectura no soportada: {}", arch);
-            return Err(format!("Arquitectura no soportada: {}", arch));
-        }
-    };
+    let os_info = get_os_info()?;
+    log::info!("Detectado OS: {}, Arch: {}", os_info.name, os_info.arch);
 
-    log::info!("Detectado OS: {}, Arch: {}", os_name, arch_name);
-
-    // Obtener las bibliotecas del manifiesto de versión
     let libraries = version_details["libraries"].as_array().ok_or_else(|| {
         log::error!("No se encontraron bibliotecas en el manifiesto de versión");
         "No se encontraron bibliotecas en el manifiesto".to_string()
     })?;
 
-    let mut processed_libraries = 0;
-    let total_native_libraries = libraries
+    // Filter native libraries more accurately
+    let native_libraries: Vec<&Value> = libraries
         .iter()
-        .filter(|lib| lib.get("natives").is_some())
-        .count();
+        .filter(|lib| is_native_library(lib, &os_info))
+        .collect();
 
+    let total_native_libraries = native_libraries.len();
     log::info!(
         "Encontradas {} bibliotecas con nativos",
         total_native_libraries
     );
+
+    if total_native_libraries == 0 {
+        log::info!("No se encontraron bibliotecas nativas para procesar");
+        return Ok(());
+    }
 
     emit_status(
         instance,
@@ -126,146 +109,241 @@ pub fn extract_natives(
         ),
     );
 
-    for library in libraries {
-        // Verificar si la biblioteca tiene nativos
-        if let Some(natives) = library.get("natives") {
-            processed_libraries += 1;
+    for (index, library) in native_libraries.iter().enumerate() {
+        let progress = index + 1;
+        let progress_percentage = (progress as f64 / total_native_libraries as f64) * 100.0;
 
-            log::info!(
-                "Procesando biblioteca nativa {}/{}",
-                processed_libraries,
-                total_native_libraries
-            );
+        log::info!(
+            "Procesando biblioteca nativa {}/{}",
+            progress,
+            total_native_libraries
+        );
 
-            // Update progress for each native library
-            let progress_percentage = if total_native_libraries > 0 {
-                (processed_libraries as f64 / total_native_libraries as f64) * 100.0
-            } else {
-                100.0
-            };
+        emit_status(
+            instance,
+            "instance-extracting-natives-progress",
+            &format!(
+                "Procesando biblioteca nativa {}/{} ({:.1}%)",
+                progress, total_native_libraries, progress_percentage
+            ),
+        );
 
+        if let Err(e) =
+            extract_single_native_library(library, libraries_dir, natives_dir, &os_info, instance)
+        {
+            log::error!("Error procesando biblioteca nativa: {}", e);
             emit_status(
                 instance,
-                "instance-extracting-natives-progress",
-                &format!(
-                    "Procesando biblioteca nativa {}/{} ({:.1}%)",
-                    processed_libraries, total_native_libraries, progress_percentage
-                ),
+                "instance-native-extraction-error",
+                &format!("Error en biblioteca nativa: {}", e),
             );
-
-            let os_natives = natives.get(os_name);
-
-            // Si hay nativos para este sistema operativo
-            if let Some(os_natives_value) = os_natives {
-                // Lógica para classifiers (ya existente)
-                log::info!("Encontrados nativos para OS: {}", os_name);
-
-                let default_classifier = format!("{}-{}", os_name, arch_name);
-                let classifier_key = os_natives_value.as_str().unwrap_or(&default_classifier);
-
-                log::info!("Buscando classifier: {}", classifier_key);
-
-                let library_info = library["downloads"]["classifiers"]
-                    .get(classifier_key)
-                    .or_else(|| {
-                        // Si no hay classifiers, intentar artifact
-                        log::info!("Classifier no encontrado, intentando artifact");
-                        library["downloads"].get("artifact")
-                    })
-                    .ok_or_else(|| {
-                        log::error!(
-                            "No se encontró información de nativos ni artifact para {}",
-                            classifier_key
-                        );
-                        format!("No se encontró información de nativos para la biblioteca")
-                    })?;
-
-                // Obtener la ruta y URL del archivo JAR
-                let path = library_info["path"].as_str().ok_or_else(|| {
-                    log::error!("No se encontró la ruta del archivo nativo en library_info");
-                    "No se encontró la ruta del archivo nativo".to_string()
-                })?;
-
-                let library_path = libraries_dir.join(path);
-
-                log::info!("Ruta de biblioteca nativa: {}", library_path.display());
-
-                // Verificar si el archivo existe y tiene tamaño > 0
-                if !library_path.exists() {
-                    log::warn!(
-                        "Archivo de biblioteca nativa no existe: {}",
-                        library_path.display()
-                    );
-                    emit_status(
-                        instance,
-                        "instance-native-library-missing",
-                        &format!("Biblioteca nativa no encontrada: {}", path),
-                    );
-                    continue;
-                }
-
-                let metadata = fs::metadata(&library_path).map_err(|e| {
-                    log::error!(
-                        "Error obteniendo metadata del archivo {}: {}",
-                        library_path.display(),
-                        e
-                    );
-                    format!("Error obteniendo metadata del archivo: {}", e)
-                })?;
-
-                if metadata.len() == 0 {
-                    log::warn!(
-                        "Archivo de biblioteca nativa está vacío: {}",
-                        library_path.display()
-                    );
-                    continue;
-                }
-
-                log::info!("Archivo de biblioteca nativa existe y tiene tamaño {} bytes, procediendo con extracción", metadata.len());
-
-                // Verificar si hay reglas de extracción (exclude)
-                let exclude_patterns: Vec<String> = if let Some(extract) = library.get("extract") {
-                    if let Some(exclude) = extract.get("exclude") {
-                        exclude
-                            .as_array()
-                            .unwrap_or(&Vec::new())
-                            .iter()
-                            .filter_map(|v| v.as_str().map(|s| s.to_string()))
-                            .collect()
-                    } else {
-                        Vec::new()
-                    }
-                } else {
-                    Vec::new()
-                };
-
-                log::info!("Patrones de exclusión: {:?}", exclude_patterns);
-
-                // Extraer el archivo JAR al directorio de nativos
-                emit_status(
-                    instance,
-                    "instance-extracting-native-library",
-                    &format!("Extrayendo biblioteca nativa: {}", path),
-                );
-
-                if let Err(e) = extract_jar_file(&library_path, natives_dir, &exclude_patterns) {
-                    log::error!("Error extrayendo JAR {}: {}", library_path.display(), e);
-                    emit_status(
-                        instance,
-                        "instance-native-extraction-error",
-                        &format!("Error extrayendo {}: {}", path, e),
-                    );
-                } else {
-                    log::info!("Extracción completada para: {}", path);
-                }
-            } else {
-                log::info!("No se encontraron nativos para OS: {}", os_name);
-            }
+            // Continue with other libraries instead of failing completely
         }
     }
 
     log::info!("Extracción de bibliotecas nativas completada");
     Ok(())
+}
+
+#[derive(Debug)]
+struct OsInfo {
+    name: String,
+    arch: String,
+    classifier: String,
+}
+
+fn get_os_info() -> Result<OsInfo, String> {
+    let os = std::env::consts::OS;
+    let arch = std::env::consts::ARCH;
+
+    let os_name = match os {
+        "windows" => "windows",
+        "macos" => "osx",
+        "linux" => "linux",
+        _ => return Err(format!("Sistema operativo no soportado: {}", os)),
+    };
+
+    let arch_name = match arch {
+        "x86_64" => "64",
+        "x86" => "32",
+        "aarch64" => "arm64",
+        _ => return Err(format!("Arquitectura no soportada: {}", arch)),
+    };
+
+    // Build the classifier that Minecraft uses
+    let classifier = format!("natives-{}", os_name);
+
+    Ok(OsInfo {
+        name: os_name.to_string(),
+        arch: arch_name.to_string(),
+        classifier,
+    })
+}
+
+fn is_native_library(library: &Value, os_info: &OsInfo) -> bool {
+    // Check if library has natives object with our OS
+    if let Some(natives) = library.get("natives") {
+        if natives.get(&os_info.name).is_some() {
+            // Also check rules to ensure this library should be included
+            return should_include_library(library, os_info);
+        }
+    }
+
+    // Check if library name contains natives classifier
+    if let Some(name) = library.get("name").and_then(|n| n.as_str()) {
+        if name.contains(&os_info.classifier) {
+            return should_include_library(library, os_info);
+        }
+    }
+
+    false
+}
+
+fn should_include_library(library: &Value, os_info: &OsInfo) -> bool {
+    // Check rules array for allow/disallow conditions
+    if let Some(rules) = library.get("rules").and_then(|r| r.as_array()) {
+        let mut allowed = false; // Default deny if rules exist
+
+        for rule in rules {
+            if let Some(action) = rule.get("action").and_then(|a| a.as_str()) {
+                let rule_matches = if let Some(os_rule) = rule.get("os") {
+                    check_os_rule(os_rule, os_info)
+                } else {
+                    true // Rule applies to all OS if no OS specified
+                };
+
+                if rule_matches {
+                    match action {
+                        "allow" => allowed = true,
+                        "disallow" => return false, // Explicit deny
+                        _ => {}
+                    }
+                }
+            }
+        }
+        allowed
+    } else {
+        true // No rules means allowed by default
+    }
+}
+
+fn check_os_rule(os_rule: &Value, os_info: &OsInfo) -> bool {
+    if let Some(rule_name) = os_rule.get("name").and_then(|n| n.as_str()) {
+        if rule_name != os_info.name {
+            return false;
+        }
+    }
+
+    if let Some(rule_arch) = os_rule.get("arch").and_then(|a| a.as_str()) {
+        // Match against system architecture
+        let system_arch = std::env::consts::ARCH;
+        if rule_arch != system_arch {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn extract_single_native_library(
+    library: &Value,
+    libraries_dir: &Path,
+    natives_dir: &Path,
+    os_info: &OsInfo,
+    instance: &MinecraftInstance,
+) -> Result<(), String> {
+    let library_path = get_native_library_path(library, libraries_dir, os_info)?;
+
+    if !library_path.exists() {
+        return Err(format!(
+            "Archivo de biblioteca nativa no encontrado: {}",
+            library_path.display()
+        ));
+    }
+
+    let metadata = fs::metadata(&library_path)
+        .map_err(|e| format!("Error obteniendo metadata del archivo: {}", e))?;
+
+    if metadata.len() == 0 {
+        return Err("Archivo de biblioteca nativa está vacío".to_string());
+    }
+
+    log::info!(
+        "Extrayendo biblioteca nativa: {} ({} bytes)",
+        library_path.display(),
+        metadata.len()
+    );
+
+    // Get exclusion patterns
+    let exclude_patterns = get_exclusion_patterns(library);
+
+    emit_status(
+        instance,
+        "instance-extracting-native-library",
+        &format!(
+            "Extrayendo: {}",
+            library_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy()
+        ),
+    );
+
+    extract_jar_file(&library_path, natives_dir, &exclude_patterns)?;
+
+    log::info!("Extracción completada para: {}", library_path.display());
+    Ok(())
+}
+
+fn get_native_library_path(
+    library: &Value,
+    libraries_dir: &Path,
+    os_info: &OsInfo,
+) -> Result<PathBuf, String> {
+    // Try to get classifier-specific download first
+    if let Some(classifiers) = library.get("downloads").and_then(|d| d.get("classifiers")) {
+        if let Some(natives) = library.get("natives") {
+            if let Some(classifier_template) = natives.get(&os_info.name).and_then(|n| n.as_str()) {
+                // Replace ${arch} placeholder if present
+                let classifier = classifier_template.replace("${arch}", &os_info.arch);
+
+                if let Some(classifier_info) = classifiers.get(&classifier) {
+                    if let Some(path) = classifier_info.get("path").and_then(|p| p.as_str()) {
+                        return Ok(libraries_dir.join(path));
+                    }
+                }
+            }
+        }
+    }
+
+    // Fallback to artifact download
+    if let Some(artifact) = library.get("downloads").and_then(|d| d.get("artifact")) {
+        if let Some(path) = artifact.get("path").and_then(|p| p.as_str()) {
+            return Ok(libraries_dir.join(path));
+        }
+    }
+
+    Err("No se encontró información de descarga para la biblioteca nativa".to_string())
+}
+
+fn get_exclusion_patterns(library: &Value) -> Vec<String> {
+    if let Some(extract) = library.get("extract") {
+        if let Some(exclude) = extract.get("exclude") {
+            return exclude
+                .as_array()
+                .unwrap_or(&Vec::new())
+                .iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect();
+        }
+    }
+
+    // Default exclusions for native libraries
+    vec![
+        "META-INF/".to_string(),
+        "*.txt".to_string(),
+        "*.xml".to_string(),
+    ]
 }
 
 /// Helper function to extract a JAR file to a directory, excluding specified patterns
@@ -280,111 +358,74 @@ fn extract_jar_file(
         target_dir.display()
     );
 
-    // Verificar que el directorio de destino existe
-    if !target_dir.exists() {
-        fs::create_dir_all(target_dir).map_err(|e| {
-            log::error!(
-                "Error creando directorio de destino {}: {}",
-                target_dir.display(),
-                e
-            );
-            format!("Error creando directorio de destino: {}", e)
-        })?;
-    }
+    // Ensure target directory exists
+    fs::create_dir_all(target_dir)
+        .map_err(|e| format!("Error creando directorio de destino: {}", e))?;
 
-    // Abrir el archivo JAR
-    let file = fs::File::open(jar_path).map_err(|e| {
-        log::error!("Error abriendo archivo JAR {}: {}", jar_path.display(), e);
-        format!("Error abriendo archivo JAR: {}", e)
-    })?;
+    let file =
+        fs::File::open(jar_path).map_err(|e| format!("Error abriendo archivo JAR: {}", e))?;
 
     let reader = std::io::BufReader::new(file);
-    let mut archive = zip::ZipArchive::new(reader).map_err(|e| {
-        log::error!("Error leyendo archivo ZIP {}: {}", jar_path.display(), e);
-        format!("Error leyendo archivo ZIP: {}", e)
-    })?;
-
-    log::info!(
-        "Archivo JAR abierto correctamente, {} entradas",
-        archive.len()
-    );
+    let mut archive =
+        zip::ZipArchive::new(reader).map_err(|e| format!("Error leyendo archivo ZIP: {}", e))?;
 
     let mut extracted_count = 0;
     let mut skipped_count = 0;
 
-    // Extraer cada entrada que no esté excluida
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i).map_err(|e| {
-            log::error!(
-                "Error obteniendo entrada ZIP {} en {}: {}",
-                i,
-                jar_path.display(),
-                e
-            );
-            format!("Error obteniendo entrada ZIP: {}", e)
-        })?;
+        let mut file = archive
+            .by_index(i)
+            .map_err(|e| format!("Error obteniendo entrada ZIP: {}", e))?;
 
-        let file_name = file.name().to_string();
+        let file_name = file.name().to_string(); // Store the name as a separate variable
 
-        // Verificar si el archivo está excluido
-        let should_extract = !exclude_patterns.iter().any(|pattern| {
-            if pattern.ends_with("*") {
-                let prefix = &pattern[0..pattern.len() - 1];
-                file_name.starts_with(prefix)
-            } else {
-                file_name == *pattern
-            }
-        });
-
-        if should_extract && !file.is_dir() {
-            // Crear la ruta de destino
-            let output_path = target_dir.join(&file_name);
-
-            // Crear directorios padres si no existen
-            if let Some(parent) = output_path.parent() {
-                fs::create_dir_all(parent).map_err(|e| {
-                    log::error!(
-                        "Error creando directorio para archivo nativo {}: {}",
-                        parent.display(),
-                        e
-                    );
-                    format!("Error creando directorio para archivo nativo: {}", e)
-                })?;
-            }
-
-            // Extraer el archivo
-            let mut output_file = fs::File::create(&output_path).map_err(|e| {
-                log::error!(
-                    "Error creando archivo nativo {}: {}",
-                    output_path.display(),
-                    e
-                );
-                format!("Error creando archivo nativo: {}", e)
-            })?;
-
-            std::io::copy(&mut file, &mut output_file).map_err(|e| {
-                log::error!(
-                    "Error escribiendo archivo nativo {}: {}",
-                    output_path.display(),
-                    e
-                );
-                format!("Error escribiendo archivo nativo: {}", e)
-            })?;
-
-            extracted_count += 1;
-            log::debug!("Extraído: {}", file_name);
-        } else {
+        // Skip directories and excluded patterns
+        if file.is_dir() || should_exclude_file(&file_name, exclude_patterns) {
             skipped_count += 1;
-            log::debug!("Saltado: {} (excluido o directorio)", file_name);
+            log::debug!("Saltado: {} (directorio o excluido)", file_name);
+            continue;
         }
+
+        let output_path = target_dir.join(&file_name);
+
+        // Create parent directories
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Error creando directorio padre: {}", e))?;
+        }
+
+        // Extract file with error handling
+        let mut output_file =
+            fs::File::create(&output_path).map_err(|e| format!("Error creando archivo: {}", e))?;
+
+        io::copy(&mut file, &mut output_file)
+            .map_err(|e| format!("Error escribiendo archivo: {}", e))?;
+
+        extracted_count += 1;
+        log::debug!("Extraído: {}", file_name);
     }
 
     log::info!(
-        "Extracción de JAR completada: {} extraídos, {} saltados",
+        "Extracción completada: {} extraídos, {} saltados",
         extracted_count,
         skipped_count
     );
+
     Ok(())
+}
+
+fn should_exclude_file(file_name: &str, exclude_patterns: &[String]) -> bool {
+    exclude_patterns.iter().any(|pattern| {
+        if pattern.ends_with('*') {
+            let prefix = &pattern[0..pattern.len() - 1];
+            file_name.starts_with(prefix)
+        } else if pattern.ends_with('/') {
+            // Directory pattern
+            file_name.starts_with(pattern)
+        } else {
+            file_name == *pattern || file_name.ends_with(pattern)
+        }
+    })
 }
 
 /// Creates asset directories required for Minecraft
