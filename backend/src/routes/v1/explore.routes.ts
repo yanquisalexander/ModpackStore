@@ -237,6 +237,56 @@ app.get('/modpacks/:modpackId/latest', ExploreModpacksController.getLatestVersio
  */
 app.get('/modpacks/:modpackId/check-update', ExploreModpacksController.checkForUpdates);
 
+/**
+ * @openapi
+ * /explore/modpacks/{modpackId}/validate-password:
+ *   post:
+ *     summary: Validate modpack password
+ *     tags: [Explore]
+ *     description: Validates the password for a password-protected modpack.
+ *     parameters:
+ *       - in: path
+ *         name: modpackId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The ID of the modpack to validate password for.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 description: The password to validate.
+ *             required:
+ *               - password
+ *     responses:
+ *       200:
+ *         description: Password validation result.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 valid:
+ *                   type: boolean
+ *                   description: Whether the password is valid.
+ *                 message:
+ *                   type: string
+ *                   description: Validation result message.
+ *       400:
+ *         description: Bad Request (missing password).
+ *       404:
+ *         description: Modpack not found.
+ *       500:
+ *         description: Internal Server Error.
+ */
+app.post('/modpacks/:modpackId/validate-password', ExploreModpacksController.validateModpackPassword);
+
 
 
 export default app;

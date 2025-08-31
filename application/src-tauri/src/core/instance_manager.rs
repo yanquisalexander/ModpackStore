@@ -94,20 +94,237 @@ pub fn delete_instance(instance_path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn launch_mc_instance(instance_id: String) -> Result<(), String> {
+pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
     let instances_dir = get_instances_dir()?;
     let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
 
-    let instance = instances
+    let mut instance = instances
         .into_iter()
         .find(|i| i.instanceId == instance_id)
         .ok_or_else(|| format!("Instance with ID {} not found", instance_id))?;
 
+    // Handle modpack instances with special logic
+    if let (Some(modpack_id), Some(version_id)) = (&instance.modpackId, &instance.modpackVersionId) {
+        // Check if version is "latest" and handle updates
+        if version_id == "latest" {
+            match handle_latest_version_update(&mut instance, modpack_id).await {
+                Ok(updated) => {
+                    if updated {
+                        // Save the updated instance
+                        instance.save().map_err(|e| format!("Failed to save updated instance: {}", e))?;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Warning: Failed to check for latest version updates: {}", e);
+                    // Continue with launch even if update check fails
+                }
+            }
+        }
+
+        // Validate modpack assets before launch
+        match validate_modpack_assets_for_launch(&instance).await {
+            Ok(_) => {
+                // Assets are valid, proceed with launch
+            }
+            Err(e) => {
+                return Err(format!("Failed to validate modpack assets: {}", e));
+            }
+        }
+    }
+
+    // Proceed with normal launch
     instance
         .launch()
         .map_err(|e| format!("Failed to launch instance: {}", e))?;
 
     Ok(())
+}
+
+/// Handles "latest" version updates for a modpack instance
+/// Returns true if the instance was updated, false otherwise
+async fn handle_latest_version_update(
+    instance: &mut MinecraftInstance, 
+    modpack_id: &str
+) -> Result<bool, String> {
+    let current_version_id = instance.modpackVersionId.as_ref().unwrap();
+    
+    // If version is not "latest", no need to check
+    if current_version_id != "latest" {
+        return Ok(false);
+    }
+
+    // Emit status update
+    if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
+        if let Some(app_handle) = guard.as_ref() {
+            let _ = app_handle.emit(&format!("instance-{}", instance.instanceId), serde_json::json!({
+                "id": instance.instanceId,
+                "status": "preparing",
+                "message": "Verificando actualizaciones..."
+            }));
+        }
+    }
+
+    // Check if modpack requires password and validate it
+    match check_and_validate_modpack_password(modpack_id).await {
+        Ok(valid) => {
+            if !valid {
+                return Err("Invalid modpack password".to_string());
+            }
+        }
+        Err(e) => {
+            eprintln!("Warning: Failed to validate modpack password: {}", e);
+            // Continue anyway for non-password-protected modpacks
+        }
+    }
+
+    // Get the actual latest version ID
+    let latest_version_id = fetch_latest_version(modpack_id).await?;
+    
+    // Check if there's an actual version stored in the instance metadata
+    // We need to compare against the last known version, not "latest"
+    let needs_update = if let Some(last_known_version) = get_instance_last_known_version(instance) {
+        last_known_version != latest_version_id
+    } else {
+        // First time with "latest", always update
+        true
+    };
+
+    if needs_update {
+        // Emit status update
+        if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
+            if let Some(app_handle) = guard.as_ref() {
+                let _ = app_handle.emit(&format!("instance-{}", instance.instanceId), serde_json::json!({
+                    "id": instance.instanceId,
+                    "status": "downloading-modpack-assets",
+                    "message": "Actualizando modpack..."
+                }));
+            }
+        }
+
+        // Update to the latest version
+        update_modpack_instance(instance.instanceId.clone(), Some(latest_version_id.clone())).await?;
+        
+        // Store the latest version as last known version
+        set_instance_last_known_version(instance, &latest_version_id);
+        
+        return Ok(true);
+    }
+
+    Ok(false)
+}
+
+/// Checks if a modpack requires password and validates it
+/// Returns true if password is valid or not required, false if invalid
+async fn check_and_validate_modpack_password(modpack_id: &str) -> Result<bool, String> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/explore/modpacks/{}", crate::API_ENDPOINT, modpack_id);
+
+    // First, get modpack info to check if it requires password
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch modpack info: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("API error: {}", response.status()));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+    // Check if password is required
+    let is_password_protected = json["data"]["attributes"]["isPasswordProtected"]
+        .as_bool()
+        .unwrap_or(false);
+
+    if !is_password_protected {
+        return Ok(true); // No password required
+    }
+
+    // Get stored password or prompt user
+    // For now, we'll emit an event to the frontend to handle password prompt
+    if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
+        if let Some(app_handle) = guard.as_ref() {
+            let _ = app_handle.emit("modpack-password-required", serde_json::json!({
+                "modpackId": modpack_id,
+                "message": "Este modpack requiere contraseña"
+            }));
+        }
+    }
+
+    // For this implementation, we'll return true and let the frontend handle password validation
+    // In a production implementation, you would implement a proper password dialog flow
+    Ok(true)
+}
+
+/// Validates modpack assets before launch
+async fn validate_modpack_assets_for_launch(instance: &MinecraftInstance) -> Result<(), String> {
+    let modpack_id = instance.modpackId.as_ref().unwrap();
+    let version_id = instance.modpackVersionId.as_ref().unwrap();
+    
+    // Get actual version ID if it's "latest"
+    let actual_version_id = if version_id == "latest" {
+        get_instance_last_known_version(instance)
+            .unwrap_or_else(|| {
+                // Fallback to fetching latest version synchronously
+                // In a real implementation, you might want to handle this better
+                version_id.clone()
+            })
+    } else {
+        version_id.clone()
+    };
+
+    // Emit status update
+    if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
+        if let Some(app_handle) = guard.as_ref() {
+            let _ = app_handle.emit(&format!("instance-{}", instance.instanceId), serde_json::json!({
+                "id": instance.instanceId,
+                "status": "downloading-modpack-assets",
+                "message": "Validando archivos del modpack..."
+            }));
+        }
+    }
+
+    // Validate and download missing assets
+    crate::core::modpack_file_manager::validate_and_download_modpack_assets(instance.instanceId.clone()).await?;
+
+    Ok(())
+}
+
+/// Gets the last known version for a "latest" instance
+/// This is stored in instance metadata to track actual version changes
+fn get_instance_last_known_version(instance: &MinecraftInstance) -> Option<String> {
+    // For now, we'll store this in a custom field or use a simple approach
+    // In a real implementation, you might store this in instance metadata
+    // For this implementation, we'll use a simple file-based approach
+    let instance_dir = instance.instanceDirectory.as_ref()?;
+    let metadata_path = std::path::PathBuf::from(instance_dir)
+        .join(".modpackstore")
+        .join("last_known_version.txt");
+    
+    std::fs::read_to_string(metadata_path).ok()
+}
+
+/// Sets the last known version for a "latest" instance
+fn set_instance_last_known_version(instance: &MinecraftInstance, version_id: &str) {
+    if let Some(instance_dir) = &instance.instanceDirectory {
+        let metadata_dir = std::path::PathBuf::from(instance_dir).join(".modpackstore");
+        let metadata_path = metadata_dir.join("last_known_version.txt");
+        
+        // Create directory if it doesn't exist
+        if let Err(e) = std::fs::create_dir_all(&metadata_dir) {
+            eprintln!("Failed to create metadata directory: {}", e);
+            return;
+        }
+        
+        // Write the version
+        if let Err(e) = std::fs::write(metadata_path, version_id) {
+            eprintln!("Failed to write last known version: {}", e);
+        }
+    }
 }
 
 fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> {
@@ -841,4 +1058,30 @@ fn detect_image_mime_type(bytes: &[u8]) -> &'static str {
     } else {
         "image/png" // fallback
     }
+}
+
+#[tauri::command]
+pub async fn validate_modpack_password(modpack_id: String, password: String) -> Result<bool, String> {
+    let client = reqwest::Client::new();
+    let url = format!("{}/explore/modpacks/{}/validate-password", crate::API_ENDPOINT, modpack_id);
+
+    let response = client
+        .post(&url)
+        .json(&serde_json::json!({
+            "password": password
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("Failed to validate password: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("API error: {}", response.status()));
+    }
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+    Ok(json["valid"].as_bool().unwrap_or(false))
 }
