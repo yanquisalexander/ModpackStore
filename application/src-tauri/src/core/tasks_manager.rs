@@ -1,9 +1,12 @@
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter, Wry};
 use uuid::Uuid;
+use log::{debug, error, info, warn};
 
 // --- TaskStatus y TaskInfo permanecen iguales ---
 
@@ -31,7 +34,67 @@ pub struct TaskInfo {
 use crate::GLOBAL_APP_HANDLE;
 
 lazy_static! {
-    static ref TASKS: Mutex<HashMap<String, TaskInfo>> = Mutex::new(HashMap::new());
+    static ref TASKS: Arc<Mutex<HashMap<String, TaskInfo>>> = Arc::new(Mutex::new(HashMap::new()));
+}
+
+// Helper function for reliable event emission with retry mechanism
+fn emit_event_with_retry(event_name: &str, payload: impl Clone + Serialize + std::fmt::Debug, max_retries: u32) -> bool {
+    for attempt in 0..=max_retries {
+        match GLOBAL_APP_HANDLE.lock() {
+            Ok(guard) => {
+                if let Some(app_handle) = guard.as_ref() {
+                    match app_handle.emit(event_name, payload.clone()) {
+                        Ok(_) => {
+                            debug!("Successfully emitted {} event on attempt {}", event_name, attempt + 1);
+                            return true;
+                        }
+                        Err(e) => {
+                            warn!("Failed to emit {} event on attempt {}: {}", event_name, attempt + 1, e);
+                        }
+                    }
+                } else {
+                    warn!("GLOBAL_APP_HANDLE is None when trying to emit {} on attempt {}", event_name, attempt + 1);
+                }
+            }
+            Err(e) => {
+                warn!("Could not lock GLOBAL_APP_HANDLE mutex for {} on attempt {}: {}", event_name, attempt + 1, e);
+            }
+        }
+        
+        // Wait before retrying, except on the last attempt
+        if attempt < max_retries {
+            thread::sleep(Duration::from_millis(50 * (attempt + 1) as u64));
+        }
+    }
+    
+    error!("Failed to emit {} event after {} attempts", event_name, max_retries + 1);
+    false
+}
+
+// Helper function to validate task state transitions
+fn is_valid_transition(current: &TaskStatus, new: &TaskStatus) -> bool {
+    match (current, new) {
+        // From Pending
+        (TaskStatus::Pending, TaskStatus::Running) => true,
+        (TaskStatus::Pending, TaskStatus::Cancelled) => true,
+        (TaskStatus::Pending, TaskStatus::Failed) => true,
+        
+        // From Running
+        (TaskStatus::Running, TaskStatus::Completed) => true,
+        (TaskStatus::Running, TaskStatus::Failed) => true,
+        (TaskStatus::Running, TaskStatus::Cancelled) => true,
+        
+        // From final states (no transitions allowed)
+        (TaskStatus::Completed, _) => false,
+        (TaskStatus::Failed, _) => false,
+        (TaskStatus::Cancelled, _) => false,
+        
+        // Same state is always valid (for progress updates)
+        (a, b) if a == b => true,
+        
+        // Any other transition is invalid
+        _ => false,
+    }
 }
 
 // Funciones del singleton
@@ -47,27 +110,22 @@ pub fn add_task(label: &str, data: Option<serde_json::Value>) -> String {
         created_at: chrono::Utc::now().to_rfc3339(),
     };
 
-    println!("Task created: {}", task.id);
+    info!("Creating task: {} ({})", task.id, task.label);
 
-    TASKS.lock().unwrap().insert(id.clone(), task.clone());
-
-    // Emitir evento usando el AppHandle global
-    println!(
-        "Attempting to emit task-created event for task: {}",
-        task.id
-    );
-    if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
-        if let Some(app_handle) = guard.as_ref() {
-            if let Err(e) = app_handle.emit("task-created", task.clone()) {
-                eprintln!("Failed to emit task-created event: {}", e);
-            } else {
-                println!("Successfully emitted task-created event.");
-            }
-        } else {
-            eprintln!("Error: GLOBAL_APP_HANDLE is None when trying to emit task-created.");
+    // Use proper error handling for mutex lock
+    match TASKS.lock() {
+        Ok(mut tasks) => {
+            tasks.insert(id.clone(), task.clone());
         }
-    } else {
-        eprintln!("Error: Could not lock GLOBAL_APP_HANDLE mutex for task-created.");
+        Err(e) => {
+            error!("Failed to lock TASKS mutex when adding task {}: {}", id, e);
+            return id; // Return early if we can't store the task
+        }
+    }
+
+    // Emit event with retry mechanism
+    if !emit_event_with_retry("task-created", &task, 2) {
+        warn!("Failed to emit task-created event for task: {}", task.id);
     }
 
     id
@@ -80,59 +138,124 @@ pub fn update_task(
     message: &str,
     data: Option<serde_json::Value>,
 ) {
-    let mut updated_task_clone = None;
-
-    {
-        let mut tasks = TASKS.lock().unwrap();
-        if let Some(task) = tasks.get_mut(id) {
-            task.status = status;
-            task.progress = progress;
-            task.message = message.to_string();
-            task.data = data;
-            updated_task_clone = Some(task.clone());
-        }
-    }
-
-    if let Some(task_to_emit) = updated_task_clone {
-        println!(
-            "Attempting to emit task-updated event for task: {}",
-            task_to_emit.id
-        );
-        if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
-            if let Some(app_handle) = guard.as_ref() {
-                if let Err(e) = app_handle.emit("task-updated", task_to_emit) {
-                    eprintln!("Failed to emit task-updated event: {}", e);
-                } else {
-                    println!("Successfully emitted task-updated event.");
+    let updated_task = match TASKS.lock() {
+        Ok(mut tasks) => {
+            match tasks.get_mut(id) {
+                Some(task) => {
+                    // Validate state transition
+                    if !is_valid_transition(&task.status, &status) {
+                        warn!(
+                            "Invalid state transition for task {}: {:?} -> {:?}", 
+                            id, task.status, status
+                        );
+                        return;
+                    }
+                    
+                    // Validate progress bounds
+                    let bounded_progress = progress.clamp(0.0, 100.0);
+                    if bounded_progress != progress {
+                        warn!("Progress value {} clamped to {} for task {}", progress, bounded_progress, id);
+                    }
+                    
+                    task.status = status;
+                    task.progress = bounded_progress;
+                    task.message = message.to_string();
+                    task.data = data;
+                    
+                    debug!(
+                        "Updated task {}: status={:?}, progress={:.1}%, message='{}'", 
+                        id, task.status, task.progress, task.message
+                    );
+                    
+                    Some(task.clone())
                 }
-            } else {
-                eprintln!("Error: GLOBAL_APP_HANDLE is None when trying to emit task-updated.");
+                None => {
+                    warn!("Attempted to update non-existent task: {}", id);
+                    None
+                }
             }
-        } else {
-            eprintln!("Error: Could not lock GLOBAL_APP_HANDLE mutex for task-updated.");
+        }
+        Err(e) => {
+            error!("Failed to lock TASKS mutex when updating task {}: {}", id, e);
+            None
+        }
+    };
+
+    // Emit event if task was successfully updated
+    if let Some(task_to_emit) = updated_task {
+        if !emit_event_with_retry("task-updated", &task_to_emit, 2) {
+            warn!("Failed to emit task-updated event for task: {}", task_to_emit.id);
         }
     }
 }
 
 pub fn get_all_tasks() -> Vec<TaskInfo> {
-    TASKS.lock().unwrap().values().cloned().collect()
+    match TASKS.lock() {
+        Ok(tasks) => {
+            let task_list: Vec<TaskInfo> = tasks.values().cloned().collect();
+            debug!("Retrieved {} tasks", task_list.len());
+            task_list
+        }
+        Err(e) => {
+            error!("Failed to lock TASKS mutex when getting all tasks: {}", e);
+            Vec::new()
+        }
+    }
 }
 
-pub fn remove_task(id: &str) {
-    TASKS.lock().unwrap().remove(id);
-
-    println!("Task removed: {}", id);
-    if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
-        if let Some(app_handle) = guard.as_ref() {
-            if let Err(e) = app_handle.emit("task-removed", id) {
-                eprintln!("Failed to emit task-removed event: {}", e);
-            } else {
-                println!("Successfully emitted task-removed event.");
+pub fn remove_task(id: &str) -> bool {
+    let removed = match TASKS.lock() {
+        Ok(mut tasks) => {
+            match tasks.remove(id) {
+                Some(_) => {
+                    info!("Removed task: {}", id);
+                    true
+                }
+                None => {
+                    warn!("Attempted to remove non-existent task: {}", id);
+                    false
+                }
             }
-        } else {
-            eprintln!("Error: GLOBAL_APP_HANDLE is None when trying to emit task-removed.");
         }
-    } else {
-        eprintln!("Error: Could not lock GLOBAL_APP_HANDLE mutex for task-removed.");
+        Err(e) => {
+            error!("Failed to lock TASKS mutex when removing task {}: {}", id, e);
+            false
+        }
+    };
+
+    if removed {
+        if !emit_event_with_retry("task-removed", id, 2) {
+            warn!("Failed to emit task-removed event for task: {}", id);
+        }
     }
+    
+    removed
+}
+
+// New function to get a specific task by ID
+pub fn get_task(id: &str) -> Option<TaskInfo> {
+    match TASKS.lock() {
+        Ok(tasks) => tasks.get(id).cloned(),
+        Err(e) => {
+            error!("Failed to lock TASKS mutex when getting task {}: {}", id, e);
+            None
+        }
+    }
+}
+
+// New function to check if a task exists
+pub fn task_exists(id: &str) -> bool {
+    match TASKS.lock() {
+        Ok(tasks) => tasks.contains_key(id),
+        Err(e) => {
+            error!("Failed to lock TASKS mutex when checking task existence {}: {}", id, e);
+            false
+        }
+    }
+}
+
+// Tauri command to expose get_all_tasks to frontend for synchronization
+#[tauri::command]
+pub fn get_all_tasks_command() -> Vec<TaskInfo> {
+    get_all_tasks()
 }
