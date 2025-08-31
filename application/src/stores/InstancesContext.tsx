@@ -283,7 +283,8 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
 
                 updateInstance(id, {
                     status: "idle",
-                    message: message || "Forge instalado correctamente"
+                    message: message || "Forge instalado correctamente",
+                    stage: undefined
                 });
             });
             unlistenList.push(forgeBootstrappedUnlisten);
@@ -294,7 +295,8 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
 
                 updateInstance(id, {
                     status: "idle",
-                    message: message || "Bootstrap completado"
+                    message: message || "Bootstrap completado",
+                    stage: undefined
                 });
             });
             unlistenList.push(vanillaBootstrappedUnlisten);

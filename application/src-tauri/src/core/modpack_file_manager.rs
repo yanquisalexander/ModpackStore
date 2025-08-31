@@ -1,4 +1,6 @@
-use crate::core::bootstrap::tasks::{emit_bootstrap_complete, emit_status_with_stage, Stage};
+use crate::core::bootstrap::tasks::{
+    emit_bootstrap_complete, emit_status, emit_status_with_stage, Stage,
+};
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::tasks_manager::{add_task, update_task, TaskStatus};
 use serde::{Deserialize, Serialize};
@@ -507,6 +509,13 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         download_modpack_files(&instance, &files_to_download, Some(task_id.clone())).await?;
 
     emit_bootstrap_complete(&instance, "forge");
+
+    // Notify frontend that assets download finished so listeners can clear stages
+    emit_status(
+        &instance,
+        "instance-finish-assets-download",
+        &format!("Descargados {} archivos", downloaded_count),
+    );
 
     update_task(
         &task_id,

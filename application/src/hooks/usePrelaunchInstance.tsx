@@ -197,21 +197,17 @@ export const usePrelaunchInstance = (instanceId: string) => {
             }));
 
             if (isLoading) {
-                if (lastMessageRef.current !== formattedMessage) {
-                    lastMessageRef.current = formattedMessage;
+                // Always update lastMessageRef to the current formatted message
+                lastMessageRef.current = formattedMessage;
 
-                    if (messageTimeoutRef.current) {
-                        clearTimeout(messageTimeoutRef.current);
-                    }
-
-                    // Only use random messages if we don't have stage information
-                    if (!currentInstanceRunning.stage) {
-                        messageTimeoutRef.current = window.setTimeout(() => {
-                            startMessageInterval();
-                        }, 5000); // Espera de 5 segundos antes de activar mensajes aleatorios
-                    }
+                // If we don't already have a rotating interval, start one
+                if (!messageIntervalRef.current) {
+                    messageIntervalRef.current = window.setInterval(() => {
+                        setLoadingStatus(prev => ({ ...prev, message: getRandomMessage() }));
+                    }, 5000);
                 }
             } else {
+                // Not loading: clear rotating interval and any pending timeout
                 if (messageIntervalRef.current) {
                     clearInterval(messageIntervalRef.current);
                     messageIntervalRef.current = null;
@@ -221,6 +217,9 @@ export const usePrelaunchInstance = (instanceId: string) => {
                     clearTimeout(messageTimeoutRef.current);
                     messageTimeoutRef.current = null;
                 }
+
+                // Ensure loadingStatus reflects non-loading default state (keep message if provided)
+                setLoadingStatus(prev => ({ ...prev, isLoading: false }));
             }
         }
     }, [currentInstanceRunning, getRandomMessage, startMessageInterval]);
