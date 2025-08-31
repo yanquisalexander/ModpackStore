@@ -57,12 +57,57 @@ pub fn download_libraries(
     let mut downloaded_libraries = 0;
     let mut skipped_libraries = 0;
 
-    // Emit initial status
+    // Pre-scan to compute how many libraries will be skipped so we can use a stable total
+    let is_allowed = |library: &Value| -> bool {
+        if let Some(rules) = library.get("rules") {
+            let mut allowed = false;
+            for rule in rules.as_array().unwrap_or(&Vec::new()) {
+                let action = rule["action"].as_str().unwrap_or("disallow");
+
+                if let Some(os) = rule.get("os") {
+                    let os_name = os["name"].as_str().unwrap_or("");
+                    let current_os = if cfg!(target_os = "windows") {
+                        "windows"
+                    } else if cfg!(target_os = "macos") {
+                        "osx"
+                    } else {
+                        "linux"
+                    };
+
+                    if os_name == current_os {
+                        allowed = action == "allow";
+                    }
+                } else {
+                    allowed = action == "allow";
+                }
+            }
+            allowed
+        } else {
+            true
+        }
+    };
+
+    let mut initial_skipped = 0;
+    for lib in libraries.iter() {
+        if !is_allowed(lib) {
+            initial_skipped += 1;
+        }
+    }
+    let effective_total = total_libraries - initial_skipped;
+
+    // Emit initial status (show effective total)
     emit_status(
         instance,
         "instance-downloading-libraries-start",
-        &format!("Iniciando descarga de {} librerías", total_libraries),
+        &format!("Iniciando descarga de {} librerías", effective_total),
     );
+
+    // Emit initial stage for downloading libraries
+    let initial_stage = Stage::DownloadingFiles {
+        current: 0,
+        total: effective_total,
+    };
+    emit_status_with_stage(instance, "instance-downloading-libraries", &initial_stage);
 
     for library in libraries {
         // Check if we should skip this library based on rules
@@ -281,7 +326,7 @@ pub fn download_libraries(
 
         let stage = Stage::DownloadingFiles {
             current: downloaded_libraries,
-            total: total_libraries - skipped_libraries,
+            total: effective_total,
         };
         emit_status_with_stage(instance, "instance-downloading-libraries", &stage);
     }
@@ -314,10 +359,48 @@ pub fn download_forge_libraries(
     let total_libraries = libraries.len();
     let mut downloaded_libraries = 0;
 
-    // Emit initial stage for downloading forge libraries
+    // Pre-scan to compute how many forge libraries will be skipped so we can use a stable total
+    let is_allowed = |library: &Value| -> bool {
+        if let Some(rules) = library.get("rules") {
+            let mut allowed = false;
+            for rule in rules.as_array().unwrap_or(&Vec::new()) {
+                let action = rule["action"].as_str().unwrap_or("disallow");
+
+                if let Some(os) = rule.get("os") {
+                    let os_name = os["name"].as_str().unwrap_or("");
+                    let current_os = if cfg!(target_os = "windows") {
+                        "windows"
+                    } else if cfg!(target_os = "macos") {
+                        "osx"
+                    } else {
+                        "linux"
+                    };
+
+                    if os_name == current_os {
+                        allowed = action == "allow";
+                    }
+                } else {
+                    allowed = action == "allow";
+                }
+            }
+            allowed
+        } else {
+            true
+        }
+    };
+
+    let mut initial_skipped = 0;
+    for lib in libraries.iter() {
+        if !is_allowed(lib) {
+            initial_skipped += 1;
+        }
+    }
+    let effective_total = total_libraries - initial_skipped;
+
+    // Emit initial stage for downloading forge libraries using effective_total
     let initial_stage = Stage::DownloadingForgeLibraries {
         current: 0,
-        total: total_libraries,
+        total: effective_total,
     };
     emit_status_with_stage(instance, "instance-downloading-forge", &initial_stage);
 
@@ -478,7 +561,7 @@ pub fn download_forge_libraries(
 
         let stage = Stage::DownloadingForgeLibraries {
             current: downloaded_libraries,
-            total: total_libraries,
+            total: effective_total,
         };
         emit_status_with_stage(instance, "instance-downloading-forge", &stage);
     }

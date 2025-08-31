@@ -16,6 +16,7 @@ type ModpackForExplore = {
     status: ModpackStatus;
     createdAt: Date;
     updatedAt: Date;
+    featured: boolean;
     showUserAsPublisher: boolean;
     creatorUser: { username: string | null; avatarUrl: string | null } | null;
     publisher: { id: string; publisherName: string; verified: boolean; partnered: boolean; isHostingPartner: boolean } | null;
@@ -65,6 +66,7 @@ export const getExploreModpacks = async (): Promise<GroupedModpackResult[]> => {
                     createdAt: modpack.createdAt,
                     updatedAt: modpack.updatedAt,
                     showUserAsPublisher: modpack.showUserAsPublisher,
+                    featured: modpack.featured,
                     creatorUser: modpack.creatorUser ? {
                         username: modpack.creatorUser.username,
                         avatarUrl: modpack.creatorUser.avatarUrl ?? null
@@ -145,6 +147,7 @@ export const searchModpacks = async (query: string, limit = 25): Promise<Modpack
             trailerUrl: modpack.trailerUrl,
             visibility: modpack.visibility,
             status: modpack.status,
+            featured: modpack.featured,
             createdAt: modpack.createdAt,
             updatedAt: modpack.updatedAt,
             showUserAsPublisher: modpack.showUserAsPublisher,
