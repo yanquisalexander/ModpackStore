@@ -91,7 +91,8 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
 
                 updateInstance(id, {
                     status: "idle",
-
+                    message: message || "Descarga completada",
+                    stage: undefined
                 });
             })
             unlistenList.push(finishAssetsDownloadUnlisten);
