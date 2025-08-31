@@ -8,6 +8,7 @@ import { CreateInstanceDialog } from "./CreateInstanceDialog"
 import { PasswordDialog } from "./ModpackPasswordDialog"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { useTasksContext } from "@/stores/TasksContext"
+import { toast } from "sonner"
 
 interface InstallButtonProps {
     modpackId: string;
@@ -147,7 +148,11 @@ export const InstallButton = ({
                 instanceName,
                 modpackId
             });
-            console.log(`Nueva instancia creada: ${instanceName}`);
+
+            toast.success("Creando instancia...", {
+                description: `Tu instancia "${instanceName}" del modpack "${modpackName}" está siendo instalada. Verifica el progreso en el Task Manager.`,
+            });
+
         } catch (err) {
             console.error("Error al crear la instancia:", err);
 
