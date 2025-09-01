@@ -131,12 +131,11 @@ export const CreateModpackInstanceDialog: React.FC<Props> = ({ isOpen, onClose, 
         });
 
         try {
-            const versionId = selectedVersionId === 'latest' ? undefined : selectedVersionId;
-            
+            // Pass the selected version ID directly, including "latest"
             const instanceId = await invoke<string>('create_modpack_instance', {
                 instanceName: instanceName.trim(),
                 modpackId: modpack.id,
-                versionId
+                versionId: selectedVersionId
             });
 
             toast.success('Proceso de creación iniciado');

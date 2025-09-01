@@ -15,13 +15,15 @@ interface InstallButtonProps {
     modpackName: string;
     localInstances: TauriCommandReturns["get_instances_by_modpack_id"];
     isPasswordProtected?: boolean;
+    selectedVersionId?: string; // New prop for version selection
 }
 
 export const InstallButton = ({
     modpackId,
     modpackName,
     localInstances,
-    isPasswordProtected = false
+    isPasswordProtected = false,
+    selectedVersionId
 }: InstallButtonProps) => {
     const [isInstallOptionsOpen, setIsInstallOptionsOpen] = useState<boolean>(false)
     const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState<boolean>(false)
@@ -116,6 +118,7 @@ export const InstallButton = ({
             await invoke("create_modpack_instance", {
                 instanceName,
                 modpackId,
+                versionId: selectedVersionId, // Use the selected version
                 password: null
             });
 
