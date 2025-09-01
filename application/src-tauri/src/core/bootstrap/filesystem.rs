@@ -4,6 +4,7 @@
 use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
 use crate::core::minecraft_instance::MinecraftInstance;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
