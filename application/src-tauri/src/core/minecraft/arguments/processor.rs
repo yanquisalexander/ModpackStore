@@ -4,6 +4,7 @@ use crate::core::minecraft_account::MinecraftAccount;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::Path;
+use tauri::Window;
 
 pub struct ArgumentProcessor<'a> {
     manifest: &'a Value,
@@ -27,8 +28,10 @@ impl<'a> ArgumentProcessor<'a> {
         }
     }
 
-    pub fn process_arguments(&self) -> Option<(Vec<String>, Vec<String>)> {
-        let placeholders = self.create_placeholders();
+    // AHORA RECIBE LA VENTANA COMO PARÁMETRO
+    pub fn process_arguments(&self, window: &Window) -> Option<(Vec<String>, Vec<String>)> {
+        // Y LA PASA A LA FUNCIÓN QUE LA NECESITA
+        let placeholders = self.create_placeholders(window);
         let features = self.create_features_map();
 
         let jvm_args = self.process_jvm_arguments(&placeholders)?;
@@ -37,7 +40,18 @@ impl<'a> ArgumentProcessor<'a> {
         Some((jvm_args, game_args))
     }
 
-    fn create_placeholders(&self) -> HashMap<String, String> {
+    // Esta función estaba bien, no necesita cambios.
+    fn get_screen_resolution(window: &Window) -> (u32, u32) {
+        if let Ok(Some(monitor)) = window.primary_monitor() {
+            let size = monitor.size();
+            (size.width, size.height)
+        } else {
+            (854, 480) // fallback por defecto
+        }
+    }
+
+    // AHORA RECIBE LA VENTANA COMO PARÁMETRO
+    fn create_placeholders(&self, window: &Window) -> HashMap<String, String> {
         let mut placeholders = HashMap::new();
         placeholders.insert(
             "auth_player_name".to_string(),
@@ -55,6 +69,13 @@ impl<'a> ArgumentProcessor<'a> {
             "assets_root".to_string(),
             self.paths.assets_dir().to_string_lossy().to_string(),
         );
+
+        // --- CORRECCIÓN AQUÍ ---
+        // Se elimina la llamada a la variable global y se usa el parámetro `window`.
+        let (width, height) = Self::get_screen_resolution(window);
+        placeholders.insert("resolution_width".to_string(), width.to_string());
+        placeholders.insert("resolution_height".to_string(), height.to_string());
+
         placeholders.insert(
             "assets_index_name".to_string(),
             self.manifest
@@ -117,15 +138,12 @@ impl<'a> ArgumentProcessor<'a> {
 
         if let Some(args_obj) = self.manifest.get("arguments").and_then(|v| v.get("jvm")) {
             let manifest_args = self.process_arguments_list(args_obj, placeholders, None);
-            // Create a filtered vector first to avoid the borrow conflict
             let filtered_args: Vec<String> = manifest_args
                 .into_iter()
                 .filter(|arg| !jvm_args.contains(arg))
                 .collect();
-            // Then extend jvm_args with the filtered arguments
             jvm_args.extend(filtered_args);
         } else {
-            // Legacy format
             jvm_args.extend(vec![
                 format!("-Djava.library.path={}", self.paths.natives_dir().display()),
                 format!("-Dminecraft.launcher.brand=modpackstore"),
@@ -141,7 +159,6 @@ impl<'a> ArgumentProcessor<'a> {
                 ),
             ]);
 
-            // OS-specific arguments
             if cfg!(target_os = "macos") {
                 jvm_args.push("-XstartOnFirstThread".to_string());
             }
@@ -155,7 +172,6 @@ impl<'a> ArgumentProcessor<'a> {
             }
         }
 
-        // Ensure classpath is included
         if !jvm_args
             .iter()
             .any(|arg| arg == "-cp" || arg == "-classpath")
@@ -187,8 +203,7 @@ impl<'a> ArgumentProcessor<'a> {
                     .collect(),
             )
         } else {
-            // Fallback to hardcoded arguments for very old versions
-            let mut arguments = vec![
+            let arguments = vec![
                 "--username".to_string(),
                 placeholders["auth_player_name"].clone(),
                 "--version".to_string(),
@@ -226,14 +241,12 @@ impl<'a> ArgumentProcessor<'a> {
                 } else if arg.is_object() {
                     if let Some(rules) = arg.get("rules").and_then(|r| r.as_array()) {
                         let mut should_include = false;
-
                         for rule in rules {
                             if RuleEvaluator::should_apply_rule(rule, features) {
                                 should_include = true;
                                 break;
                             }
                         }
-
                         if should_include {
                             if let Some(value) = arg.get("value") {
                                 processed_args
@@ -254,7 +267,6 @@ impl<'a> ArgumentProcessor<'a> {
         placeholder_map: &HashMap<String, String>,
     ) -> Vec<String> {
         let mut values = Vec::new();
-
         if let Some(value_str) = value.as_str() {
             values.push(self.replace_placeholders(value_str, placeholder_map));
         } else if let Some(value_arr) = value.as_array() {
@@ -264,7 +276,6 @@ impl<'a> ArgumentProcessor<'a> {
                 }
             }
         }
-
         values
     }
 
