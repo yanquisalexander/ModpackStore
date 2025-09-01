@@ -126,11 +126,19 @@ export const usePrelaunchInstance = (instanceId: string) => {
             }
         } catch (err) {
             console.warn("Failed to update prelaunch appearance:", err);
-            // Don't show error toast as this is optional functionality
+            
+            // Mostrar notificación no bloqueante de modo offline para modpacks
+            if (prelaunchState.instance?.modpackId) {
+                toast.warning("Modo offline", {
+                    description: "No se pudo verificar actualizaciones del modpack. Usando datos locales.",
+                    duration: 3000
+                });
+            }
+            
             // Still load the existing appearance
             await loadAppearance();
         }
-    }, [instanceId, loadAppearance]);
+    }, [instanceId, loadAppearance, prelaunchState.instance?.modpackId]);
 
     const startMessageInterval = useCallback(() => {
         if (messageIntervalRef.current) clearInterval(messageIntervalRef.current);

@@ -24,6 +24,7 @@ interface UpdateInfo {
         forgeVersion?: string;
         releaseDate: string;
     };
+    offlineMode?: boolean;
 }
 
 interface Props {
@@ -55,6 +56,10 @@ export const ModpackUpdateChecker: React.FC<Props> = ({ instance, onUpdate }) =>
         message: '',
         status: 'Pending'
     });
+
+    // OFFLINE MODE: Este componente maneja errores de red de forma tolerante.
+    // Si no puede contactar el backend, muestra un aviso no bloqueante y continúa funcionando.
+    // El objetivo es que el launcher nunca se bloquee por problemas de conexión.
 
     // Only show for modpack instances
     if (!instance.modpackId) {
@@ -107,14 +112,33 @@ export const ModpackUpdateChecker: React.FC<Props> = ({ instance, onUpdate }) =>
             setUpdateInfo(result);
             setLastChecked(new Date());
             
-            if (result.hasUpdate) {
+            if (result.offlineMode) {
+                // En modo offline - mostrar advertencia no bloqueante
+                toast.warning('No se pudo verificar actualizaciones', {
+                    description: 'Ejecutando en modo offline. Usando información local.',
+                    duration: 4000
+                });
+            } else if (result.hasUpdate) {
                 toast.success('¡Actualización disponible!');
             } else {
                 toast.success('Estás en la última versión');
             }
         } catch (error) {
             console.error('Error checking for updates:', error);
-            toast.error(error instanceof Error ? error.message : 'Error al verificar actualizaciones');
+            
+            // Fallback: Si incluso el comando Tauri falla, usar datos locales
+            toast.warning('No se pudo verificar actualizaciones', {
+                description: 'Ejecutando en modo offline. Usando información local.',
+                duration: 4000
+            });
+            
+            // Usar datos locales - asumir no hay actualización si no podemos verificar
+            setUpdateInfo({
+                hasUpdate: false,
+                latestVersion: undefined,
+                offlineMode: true
+            });
+            setLastChecked(new Date());
         } finally {
             setChecking(false);
         }
@@ -154,6 +178,13 @@ export const ModpackUpdateChecker: React.FC<Props> = ({ instance, onUpdate }) =>
                 <Badge variant="destructive" className="ml-2">
                     <LucideAlert className="h-3 w-3 mr-1" />
                     Actualización disponible
+                </Badge>
+            );
+        } else if (updateInfo.offlineMode) {
+            return (
+                <Badge variant="outline" className="ml-2">
+                    <LucideX className="h-3 w-3 mr-1" />
+                    Modo offline
                 </Badge>
             );
         } else {
