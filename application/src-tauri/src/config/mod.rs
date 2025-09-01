@@ -194,10 +194,11 @@ fn expand_path(path: &str) -> PathBuf {
         }
     }
 
-    // Reemplazar variables de entorno
-    if result.contains("$") {
+    // Reemplazar variables de entorno (maneja tanto $VAR como %VAR%)
+    if result.contains("$") || result.contains("%") {
         for (key, value) in std::env::vars() {
             result = result.replace(&format!("${}", key), &value);
+            result = result.replace(&format!("%{}%", key), &value);
         }
     }
 

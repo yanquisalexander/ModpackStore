@@ -328,6 +328,43 @@ const ModpackVersionDetailView: React.FC = () => {
         }));
     };
 
+    const selectAllFiles = () => {
+        const allFileHashes = reuseDialog.previousFiles.flatMap(version => version.files.map(file => file.fileHash));
+        setReuseDialog(prev => ({
+            ...prev,
+            selectedFiles: allFileHashes
+        }));
+    };
+
+    const deselectAllFiles = () => {
+        setReuseDialog(prev => ({
+            ...prev,
+            selectedFiles: []
+        }));
+    };
+
+    const selectAllFilesForVersion = (versionId: string) => {
+        const version = reuseDialog.previousFiles.find(v => v.versionId === versionId);
+        if (!version) return;
+
+        const versionFileHashes = version.files.map(file => file.fileHash);
+        setReuseDialog(prev => ({
+            ...prev,
+            selectedFiles: [...new Set([...prev.selectedFiles, ...versionFileHashes])]
+        }));
+    };
+
+    const deselectAllFilesForVersion = (versionId: string) => {
+        const version = reuseDialog.previousFiles.find(v => v.versionId === versionId);
+        if (!version) return;
+
+        const versionFileHashes = version.files.map(file => file.fileHash);
+        setReuseDialog(prev => ({
+            ...prev,
+            selectedFiles: prev.selectedFiles.filter(hash => !versionFileHashes.includes(hash))
+        }));
+    };
+
     const confirmFileReuse = async () => {
         if (reuseDialog.selectedFiles.length === 0) {
             toast.error('Selecciona al menos un archivo para reutilizar');
@@ -637,49 +674,105 @@ const ModpackVersionDetailView: React.FC = () => {
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                {reuseDialog.previousFiles.map((version) => (
-                                    <div key={version.versionId} className="border rounded-lg p-4">
-                                        <h3 className="font-medium text-gray-900 mb-3">
-                                            Versión {version.version} ({version.files.length} archivos)
-                                        </h3>
-                                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                                            {version.files.map((file) => (
-                                                <div
-                                                    key={file.fileHash}
-                                                    className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
-                                                        reuseDialog.selectedFiles.includes(file.fileHash)
-                                                            ? 'bg-blue-50 border border-blue-200'
-                                                            : 'bg-gray-50 hover:bg-gray-100'
-                                                    }`}
-                                                    onClick={() => toggleFileSelection(file.fileHash)}
-                                                >
-                                                    <div className="flex items-center space-x-3">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={reuseDialog.selectedFiles.includes(file.fileHash)}
-                                                            onChange={() => toggleFileSelection(file.fileHash)}
-                                                            className="rounded border-gray-300"
-                                                        />
-                                                        <LucideFile className="h-4 w-4 text-gray-500" />
-                                                        <div>
-                                                            <p className="text-sm font-medium text-gray-900">{file.path}</p>
-                                                            <p className="text-xs text-gray-500">
-                                                                {formatFileSize(file.size)} • {file.fileHash.substring(0, 8)}...
-                                                            </p>
+                                {reuseDialog.previousFiles.map((version) => {
+                                    const versionFileHashes = version.files.map(file => file.fileHash);
+                                    const allVersionSelected = versionFileHashes.every(hash => reuseDialog.selectedFiles.includes(hash));
+                                    const someVersionSelected = versionFileHashes.some(hash => reuseDialog.selectedFiles.includes(hash));
+
+                                    return (
+                                        <div key={version.versionId} className="border rounded-lg p-4">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h3 className="font-medium text-gray-900">
+                                                    Versión {version.version} ({version.files.length} archivos)
+                                                </h3>
+                                                <div className="flex space-x-2">
+                                                    {!allVersionSelected && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => selectAllFilesForVersion(version.versionId)}
+                                                        >
+                                                            Seleccionar todo
+                                                        </Button>
+                                                    )}
+                                                    {someVersionSelected && (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => deselectAllFilesForVersion(version.versionId)}
+                                                        >
+                                                            Deseleccionar todo
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="space-y-2 max-h-48 overflow-y-auto">
+                                                {version.files.map((file) => (
+                                                    <div
+                                                        key={file.fileHash}
+                                                        className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${reuseDialog.selectedFiles.includes(file.fileHash)
+                                                                ? 'bg-blue-50 border border-blue-200'
+                                                                : 'bg-gray-50 hover:bg-gray-100'
+                                                            }`}
+                                                        onClick={() => toggleFileSelection(file.fileHash)}
+                                                    >
+                                                        <div className="flex items-center space-x-3">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={reuseDialog.selectedFiles.includes(file.fileHash)}
+                                                                onChange={() => toggleFileSelection(file.fileHash)}
+                                                                className="rounded border-gray-300"
+                                                            />
+                                                            <LucideFile className="h-4 w-4 text-gray-500" />
+                                                            <div>
+                                                                <p className="text-sm font-medium text-gray-900">{file.path}</p>
+                                                                <p className="text-xs text-gray-500">
+                                                                    {formatFileSize(file.size)} • {file.fileHash.substring(0, 8)}...
+                                                                </p>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            ))}
+                                                ))}
+                                            </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
 
                     <DialogFooter className="flex justify-between">
-                        <div className="text-sm text-gray-600">
-                            {reuseDialog.selectedFiles.length} archivo(s) seleccionado(s)
+                        <div className="flex items-center space-x-4">
+                            <div className="text-sm text-gray-600">
+                                {reuseDialog.selectedFiles.length} archivo(s) seleccionado(s)
+                            </div>
+                            {(() => {
+                                const allFileHashes = reuseDialog.previousFiles.flatMap(version => version.files.map(file => file.fileHash));
+                                const allSelected = allFileHashes.length > 0 && allFileHashes.every(hash => reuseDialog.selectedFiles.includes(hash));
+                                const noneSelected = reuseDialog.selectedFiles.length === 0;
+                                return (
+                                    <>
+                                        {!allSelected && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={selectAllFiles}
+                                            >
+                                                Seleccionar todo
+                                            </Button>
+                                        )}
+                                        {!noneSelected && (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={deselectAllFiles}
+                                            >
+                                                Deseleccionar todo
+                                            </Button>
+                                        )}
+                                    </>
+                                );
+                            })()}
                         </div>
                         <div className="space-x-2">
                             <Button

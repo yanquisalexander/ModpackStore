@@ -445,10 +445,24 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
         throw new APIError(400, "Se requiere un array de hashes de archivos");
     }
 
-    // Remove existing files of this type for this version first
-    await ModpackVersionFile.delete({
-        modpackVersionId: versionId
-    });
+    await ModpackVersionFile.createQueryBuilder()
+        .delete()
+        .where(
+            `("modpack_version_id", "file_hash") IN ` +
+            ModpackVersionFile.createQueryBuilder("mvf")
+                .subQuery()
+                .select(["mvf.modpack_version_id", "mvf.file_hash"])
+                .from(ModpackVersionFile, "mvf")
+                .innerJoin("modpack_files", "file", "file.hash = mvf.file_hash")
+                .where("mvf.modpack_version_id = :versionId")
+                .andWhere("file.type = :type")
+                .getQuery()
+        )
+        .setParameters({ versionId, type })
+        .execute();
+
+
+    console.log("Reusing files with hashes:", fileHashes, "for version:", versionId);
 
     // Get the actual files and their paths from a previous version
     const filesToReuse = await ModpackVersionFile.find({
@@ -456,20 +470,23 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
             fileHash: In(fileHashes)
         },
         relations: ["file"],
-        take: 1 // Just get one instance to copy the path structure
     });
 
     // Create new ModpackVersionFile entries for this version
-    for (const fileHash of fileHashes) {
+    const newVersionFiles = fileHashes.map(fileHash => {
         const originalFile = filesToReuse.find(f => f.fileHash === fileHash);
-        if (originalFile) {
-            const newVersionFile = new ModpackVersionFile();
-            newVersionFile.modpackVersionId = versionId;
-            newVersionFile.fileHash = fileHash;
-            newVersionFile.path = originalFile.path;
-            await newVersionFile.save();
-        }
+        if (!originalFile) return null;
+        return {
+            modpackVersionId: versionId,
+            fileHash,
+            path: originalFile.path
+        };
+    }).filter((v): v is { modpackVersionId: string; fileHash: string; path: string } => v !== null);
+
+    if (newVersionFiles.length > 0) {
+        await ModpackVersionFile.insert(newVersionFiles as Partial<ModpackVersionFile>[]);
     }
+
 
     return c.json({
         message: `${fileHashes.length} archivos reutilizados para ${type}`,

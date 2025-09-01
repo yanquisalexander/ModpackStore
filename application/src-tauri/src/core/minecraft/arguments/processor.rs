@@ -28,10 +28,8 @@ impl<'a> ArgumentProcessor<'a> {
         }
     }
 
-    // AHORA RECIBE LA VENTANA COMO PARÁMETRO
-    pub fn process_arguments(&self, window: &Window) -> Option<(Vec<String>, Vec<String>)> {
-        // Y LA PASA A LA FUNCIÓN QUE LA NECESITA
-        let placeholders = self.create_placeholders(window);
+    pub fn process_arguments(&self) -> Option<(Vec<String>, Vec<String>)> {
+        let placeholders = self.create_placeholders();
         let features = self.create_features_map();
 
         let jvm_args = self.process_jvm_arguments(&placeholders)?;
@@ -40,18 +38,16 @@ impl<'a> ArgumentProcessor<'a> {
         Some((jvm_args, game_args))
     }
 
-    // Esta función estaba bien, no necesita cambios.
-    fn get_screen_resolution(window: &Window) -> (u32, u32) {
-        if let Ok(Some(monitor)) = window.primary_monitor() {
+    fn get_screen_resolution(app_handle: &tauri::AppHandle) -> (u32, u32) {
+        if let Some(monitor) = app_handle.primary_monitor().unwrap_or(None) {
             let size = monitor.size();
             (size.width, size.height)
         } else {
-            (854, 480) // fallback por defecto
+            (800, 600)
         }
     }
 
-    // AHORA RECIBE LA VENTANA COMO PARÁMETRO
-    fn create_placeholders(&self, window: &Window) -> HashMap<String, String> {
+    fn create_placeholders(&self) -> HashMap<String, String> {
         let mut placeholders = HashMap::new();
         placeholders.insert(
             "auth_player_name".to_string(),
@@ -70,9 +66,9 @@ impl<'a> ArgumentProcessor<'a> {
             self.paths.assets_dir().to_string_lossy().to_string(),
         );
 
-        // --- CORRECCIÓN AQUÍ ---
-        // Se elimina la llamada a la variable global y se usa el parámetro `window`.
-        let (width, height) = Self::get_screen_resolution(window);
+        let binding = crate::GLOBAL_APP_HANDLE.lock().unwrap();
+        let app_handle = binding.as_ref().unwrap();
+        let (width, height) = Self::get_screen_resolution(app_handle);
         placeholders.insert("resolution_width".to_string(), width.to_string());
         placeholders.insert("resolution_height".to_string(), height.to_string());
 
@@ -124,7 +120,7 @@ impl<'a> ArgumentProcessor<'a> {
 
     fn create_features_map(&self) -> HashMap<String, bool> {
         let mut features = HashMap::new();
-        features.insert("has_custom_resolution".to_string(), false);
+        // features.insert("has_custom_resolution".to_string(), true); // Cambiado a true para incluir argumentos de resolución
         features.insert("has_quick_plays_support".to_string(), false);
         features.insert("is_demo_user".to_string(), false);
         features.insert("is_quick_play_singleplayer".to_string(), false);
@@ -190,20 +186,28 @@ impl<'a> ArgumentProcessor<'a> {
         features: &HashMap<String, bool>,
     ) -> Option<Vec<String>> {
         if let Some(args_obj) = self.manifest.get("arguments").and_then(|v| v.get("game")) {
-            Some(self.process_arguments_list(args_obj, placeholders, Some(features)))
+            let mut args = self.process_arguments_list(args_obj, placeholders, Some(features));
+            if !args.contains(&"--guiScale".to_string()) {
+                args.push("--guiScale".to_string());
+                args.push("2".to_string());
+            }
+            Some(args)
         } else if let Some(min_args) = self
             .manifest
             .get("minecraftArguments")
             .and_then(|v| v.as_str())
         {
-            Some(
-                min_args
-                    .split_whitespace()
-                    .map(|arg| self.replace_placeholders(arg, placeholders))
-                    .collect(),
-            )
+            let mut args: Vec<String> = min_args
+                .split_whitespace()
+                .map(|arg| self.replace_placeholders(arg, placeholders))
+                .collect();
+            if !args.contains(&"--guiScale".to_string()) {
+                args.push("--guiScale".to_string());
+                args.push("2".to_string());
+            }
+            Some(args)
         } else {
-            let arguments = vec![
+            let mut arguments = vec![
                 "--username".to_string(),
                 placeholders["auth_player_name"].clone(),
                 "--version".to_string(),
@@ -221,7 +225,10 @@ impl<'a> ArgumentProcessor<'a> {
                 "--userType".to_string(),
                 placeholders["user_type"].clone(),
             ];
-
+            if !arguments.contains(&"--guiScale".to_string()) {
+                arguments.push("--guiScale".to_string());
+                arguments.push("2".to_string());
+            }
             Some(arguments)
         }
     }
