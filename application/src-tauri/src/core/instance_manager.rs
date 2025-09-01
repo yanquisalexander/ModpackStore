@@ -477,19 +477,40 @@ pub async fn create_modpack_instance(
         validate_modpack_password(modpack_id.clone(), pwd).await?;
     }
 
-    // Determinar versión
-    let final_version_id = match version_id {
-        Some(vid) => vid,
-        None => fetch_latest_version(&modpack_id).await.map_err(|e| {
-            update_task(
-                &task_id,
-                TaskStatus::Failed,
-                0.0,
-                &format!("Error obteniendo versión latest: {}", e),
-                None,
-            );
-            e
-        })?,
+    // Determinar versión - distinguir entre "latest" seleccionado por el usuario vs sin versión
+    let (final_version_id_for_storage, actual_version_id_for_manifest) = match version_id {
+        Some(vid) if vid == "latest" => {
+            // Usuario seleccionó "latest" - guardar "latest" pero obtener la versión actual para el manifiesto
+            let actual_latest = fetch_latest_version(&modpack_id).await.map_err(|e| {
+                update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error obteniendo versión latest: {}", e),
+                    None,
+                );
+                e
+            })?;
+            ("latest".to_string(), actual_latest)
+        }
+        Some(vid) => {
+            // Usuario seleccionó una versión específica
+            (vid.clone(), vid)
+        }
+        None => {
+            // Compatibilidad con casos donde no se especifica versión (usar latest)
+            let actual_latest = fetch_latest_version(&modpack_id).await.map_err(|e| {
+                update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error obteniendo versión latest: {}", e),
+                    None,
+                );
+                e
+            })?;
+            ("latest".to_string(), actual_latest)
+        }
     };
 
     update_task(
@@ -500,8 +521,8 @@ pub async fn create_modpack_instance(
         None,
     );
 
-    // Obtener manifiesto
-    let manifest = fetch_modpack_manifest(&modpack_id, &final_version_id)
+    // Obtener manifiesto usando la versión actual (no "latest")
+    let manifest = fetch_modpack_manifest(&modpack_id, &actual_version_id_for_manifest)
         .await
         .map_err(|e| {
             update_task(
@@ -516,15 +537,20 @@ pub async fn create_modpack_instance(
 
     let manifest_clone = manifest.clone();
 
-    // Crear instancia
+    // Crear instancia usando la versión para almacenamiento (puede ser "latest")
     let instance = create_modpack_instance_struct(
         instance_name,
         modpack_id.clone(),
-        final_version_id.clone(),
+        final_version_id_for_storage.clone(),
         manifest,
         modpack_info,
     )
     .await?;
+
+    // Si la versión almacenada es "latest", guardar la versión actual como last known
+    if final_version_id_for_storage == "latest" {
+        set_instance_last_known_version(&instance, &actual_version_id_for_manifest);
+    }
 
     // Obtener instanceId antes de mover instance
     let instance_id = instance.instanceId.clone();
