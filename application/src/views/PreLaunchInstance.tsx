@@ -110,6 +110,10 @@ const Footer = memo(({ appearance, isLoading, isPlaying, isInstanceBootstraping,
                     id="play-button"
                     onClick={onPlay}
                     disabled={isLoading || isPlaying || isInstanceBootstraping}
+                    aria-busy={isLoading || isInstanceBootstraping}
+                    aria-live="polite"
+                    aria-label={isInstanceBootstraping ? "Instalando..." : isPlaying ? "Ya estás jugando" : appearance?.playButton?.text ?? "Jugar ahora"}
+                    tabIndex={0}
                     className={`
                     ${hasCustomPosition ? "fixed" : ""}
                     cursor-pointer

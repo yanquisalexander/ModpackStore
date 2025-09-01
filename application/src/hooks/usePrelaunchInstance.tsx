@@ -163,17 +163,17 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
         try {
             trackEvent("play_instance_clicked", { name: "Play Minecraft Instance Clicked", modpackId: "null", timestamp: new Date().toISOString() });
-            
+
             // ENHANCED: Clear any previous loading state and messages before starting new instance
             clearLoadingState();
-            
+
             // Set initial loading state for new instance
             setLoadingStatus({
                 isLoading: true,
                 message: "Preparando instancia...",
                 stage: undefined
             });
-            
+
             await invoke("launch_mc_instance", { instanceId });
             startMessageInterval();
         } catch (error) {
@@ -257,7 +257,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
     useEffect(() => {
         if (currentInstanceRunning) {
             const isLoading = ["preparing", "downloading-assets", "downloading-modpack-assets"].includes(currentInstanceRunning.status);
-            
+
             // Use stage information if available, otherwise fall back to existing message
             const formattedMessage = currentInstanceRunning.stage
                 ? formatStageMessage(currentInstanceRunning.stage, currentInstanceRunning.message || "Procesando...")
@@ -295,11 +295,11 @@ export const usePrelaunchInstance = (instanceId: string) => {
             } else {
                 // Not loading: clear all timers and reset state for clean start
                 clearAllTimers();
-                
+
                 // Set non-loading state but only if we're not already set to non-loading
                 if (loadingStatus.isLoading) {
-                    setLoadingStatus(prev => ({ 
-                        ...prev, 
+                    setLoadingStatus(prev => ({
+                        ...prev,
                         isLoading: false,
                         message: DEFAULT_LOADING_STATE.message // Reset to clean message
                     }));
@@ -331,7 +331,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
     useEffect(() => {
         // Clear state when instance changes to prevent old messages
         clearLoadingState();
-        
+
         return () => {
             clearAllTimers();
             lastMessageRef.current = null;
