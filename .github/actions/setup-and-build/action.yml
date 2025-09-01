@@ -45,7 +45,7 @@ runs:
         save-if: ${{ github.ref == 'refs/heads/main' }}
 
     - name: Build & Publish Canary Release
-      uses: tauri-apps/tauri-action@v0
+      uses: tauri-apps/tauri-action@dev
       env:
         # Usa los inputs que definiste arriba
         TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.TAURI_SIGNING_PRIVATE_KEY }}
