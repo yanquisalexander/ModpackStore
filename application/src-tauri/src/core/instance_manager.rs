@@ -1,10 +1,11 @@
 // src-tauri/src/core/instance_manager.rs
 
 use crate::config::get_config_manager;
+use crate::core::bootstrap_error::BootstrapError;
 use crate::core::instance_bootstrap::InstanceBootstrap;
 use crate::core::minecraft_instance::{self, MinecraftInstance};
 use crate::core::modpack_file_manager::ModpackManifest;
-use crate::core::tasks_manager::{add_task, remove_task, update_task, TaskStatus};
+use crate::core::tasks_manager::{add_task, remove_task, update_task, update_task_with_bootstrap_error, TaskStatus};
 use crate::API_ENDPOINT;
 use base64::{engine::general_purpose, Engine as _};
 use dirs::config_dir;
@@ -766,13 +767,19 @@ fn spawn_instance_creation_task(instance: MinecraftInstance, task_id: String) {
                 );
             }
             Err(e) => {
-                update_task(
-                    &task_id,
-                    TaskStatus::Failed,
-                    0.0,
-                    &format!("Error en bootstrap: {}", e),
-                    None,
-                );
+                // Check if this is a bootstrap error
+                if let Ok(bootstrap_error) = serde_json::from_str::<BootstrapError>(&e) {
+                    update_task_with_bootstrap_error(&task_id, &bootstrap_error);
+                } else {
+                    // Fallback to generic error handling
+                    update_task(
+                        &task_id,
+                        TaskStatus::Failed,
+                        0.0,
+                        &format!("Error en bootstrap: {}", e),
+                        None,
+                    );
+                }
             }
         }
 
@@ -804,13 +811,19 @@ fn spawn_modpack_creation_task(
         };
 
         if let Err(e) = bootstrap_result {
-            update_task(
-                &task_id,
-                TaskStatus::Failed,
-                0.0,
-                &format!("Error en bootstrap: {}", e),
-                None,
-            );
+            // Check if this is a bootstrap error
+            if let Ok(bootstrap_error) = serde_json::from_str::<BootstrapError>(&e) {
+                update_task_with_bootstrap_error(&task_id, &bootstrap_error);
+            } else {
+                // Fallback to generic error handling
+                update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error en bootstrap: {}", e),
+                    None,
+                );
+            }
             return;
         }
 
