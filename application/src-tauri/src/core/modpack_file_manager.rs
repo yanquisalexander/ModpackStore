@@ -1,9 +1,9 @@
 use crate::core::bootstrap::tasks::{
     emit_bootstrap_complete, emit_status, emit_status_with_stage, Stage,
 };
-use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::minecraft::paths::MinecraftPaths;
-use crate::core::tasks_manager::{add_task, update_task, TaskStatus, task_exists, remove_task};
+use crate::core::minecraft_instance::MinecraftInstance;
+use crate::core::tasks_manager::{add_task, remove_task, task_exists, update_task, TaskStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -42,15 +42,18 @@ pub struct ModpackFileType {
 }
 
 /// Identifies essential Minecraft files and directories that should never be deleted
-fn get_essential_minecraft_paths(minecraft_dir: &Path, instance: &MinecraftInstance) -> HashSet<PathBuf> {
+fn get_essential_minecraft_paths(
+    minecraft_dir: &Path,
+    instance: &MinecraftInstance,
+) -> HashSet<PathBuf> {
     let mut essential_paths = HashSet::new();
-    
+
     // Essential directories that contain base Minecraft files
     essential_paths.insert(minecraft_dir.join("versions"));
     essential_paths.insert(minecraft_dir.join("libraries"));
     essential_paths.insert(minecraft_dir.join("assets"));
     essential_paths.insert(minecraft_dir.join("natives"));
-    
+
     // Runtime and cache directories
     essential_paths.insert(minecraft_dir.join("logs"));
     essential_paths.insert(minecraft_dir.join("crash-reports"));
@@ -59,13 +62,13 @@ fn get_essential_minecraft_paths(minecraft_dir: &Path, instance: &MinecraftInsta
     essential_paths.insert(minecraft_dir.join("resourcepacks"));
     essential_paths.insert(minecraft_dir.join("shaderpacks"));
     essential_paths.insert(minecraft_dir.join("config")); // May contain user configurations
-    
+
     // Launcher and profile files
     essential_paths.insert(minecraft_dir.join("launcher_profiles.json"));
     essential_paths.insert(minecraft_dir.join("options.txt"));
     essential_paths.insert(minecraft_dir.join("optionsshaders.txt"));
     essential_paths.insert(minecraft_dir.join("servers.dat"));
-    
+
     // Create MinecraftPaths to get specific file locations
     match crate::config::get_config_manager().lock() {
         Ok(config_result) => {
@@ -73,7 +76,7 @@ fn get_essential_minecraft_paths(minecraft_dir: &Path, instance: &MinecraftInsta
                 if let Some(mc_paths) = MinecraftPaths::new(instance, config) {
                     // Add specific client jar
                     essential_paths.insert(mc_paths.client_jar());
-                    
+
                     // Add natives directory for this version
                     essential_paths.insert(mc_paths.natives_dir());
                 }
@@ -83,9 +86,12 @@ fn get_essential_minecraft_paths(minecraft_dir: &Path, instance: &MinecraftInsta
             log::warn!("[Cleanup] Could not access config manager for paths");
         }
     }
-    
-    log::info!("[Cleanup] Protected {} essential Minecraft paths", essential_paths.len());
-    
+
+    log::info!(
+        "[Cleanup] Protected {} essential Minecraft paths",
+        essential_paths.len()
+    );
+
     essential_paths
 }
 
@@ -95,54 +101,65 @@ fn is_essential_path(file_path: &Path, essential_paths: &HashSet<PathBuf>) -> bo
     if essential_paths.contains(file_path) {
         return true;
     }
-    
+
     // Check if the file is inside any essential directory
     for essential_path in essential_paths {
         if file_path.starts_with(essential_path) {
             return true;
         }
     }
-    
+
     false
 }
 
 /// Loads previous manifest if available for comparison
 fn load_previous_manifest(instance: &MinecraftInstance) -> Option<ModpackManifest> {
     let instance_dir = instance.instanceDirectory.as_ref()?;
-    let manifest_cache_path = Path::new(instance_dir).join(".modpack_cache").join("previous_manifest.json");
-    
+    let manifest_cache_path = Path::new(instance_dir)
+        .join(".modpack_cache")
+        .join("previous_manifest.json");
+
     if manifest_cache_path.exists() {
         if let Ok(content) = fs::read_to_string(&manifest_cache_path) {
             if let Ok(manifest) = serde_json::from_str::<ModpackManifest>(&content) {
-                log::info!("[Cleanup] Loaded previous manifest with {} files", manifest.files.len());
+                log::info!(
+                    "[Cleanup] Loaded previous manifest with {} files",
+                    manifest.files.len()
+                );
                 return Some(manifest);
             }
         }
     }
-    
+
     log::info!("[Cleanup] No previous manifest found");
     None
 }
 
 /// Saves current manifest for future comparison
-fn save_manifest_cache(instance: &MinecraftInstance, manifest: &ModpackManifest) -> Result<(), String> {
+fn save_manifest_cache(
+    instance: &MinecraftInstance,
+    manifest: &ModpackManifest,
+) -> Result<(), String> {
     let instance_dir = instance
         .instanceDirectory
         .as_ref()
         .ok_or("Instance directory not set")?;
-    
+
     let cache_dir = Path::new(instance_dir).join(".modpack_cache");
     fs::create_dir_all(&cache_dir)
         .map_err(|e| format!("Failed to create cache directory: {}", e))?;
-    
+
     let manifest_cache_path = cache_dir.join("previous_manifest.json");
     let manifest_json = serde_json::to_string_pretty(manifest)
         .map_err(|e| format!("Failed to serialize manifest: {}", e))?;
-    
+
     fs::write(&manifest_cache_path, manifest_json)
         .map_err(|e| format!("Failed to save manifest cache: {}", e))?;
-    
-    log::info!("[Cleanup] Saved manifest cache with {} files", manifest.files.len());
+
+    log::info!(
+        "[Cleanup] Saved manifest cache with {} files",
+        manifest.files.len()
+    );
     Ok(())
 }
 
@@ -163,7 +180,10 @@ pub fn cleanup_obsolete_files(
         return Ok(vec![]);
     }
 
-    log::info!("[Cleanup] Starting cleanup for instance: {}", instance.instanceName);
+    log::info!(
+        "[Cleanup] Starting cleanup for instance: {}",
+        instance.instanceName
+    );
 
     let mut removed_files = Vec::new();
     let mut preserved_files = Vec::new();
@@ -173,57 +193,71 @@ pub fn cleanup_obsolete_files(
 
     // Get current manifest files
     let current_files: HashSet<String> = manifest.files.iter().map(|f| f.path.clone()).collect();
-    log::info!("[Cleanup] Current manifest has {} files", current_files.len());
+    log::info!(
+        "[Cleanup] Current manifest has {} files",
+        current_files.len()
+    );
 
     // Load previous manifest for comparison
     let previous_manifest = load_previous_manifest(instance);
-    
+
     // Determine files to clean based on manifest comparison
     let files_to_clean = if let Some(prev_manifest) = previous_manifest {
-        let previous_files: HashSet<String> = prev_manifest.files.iter().map(|f| f.path.clone()).collect();
-        log::info!("[Cleanup] Previous manifest had {} files", previous_files.len());
-        
+        let previous_files: HashSet<String> =
+            prev_manifest.files.iter().map(|f| f.path.clone()).collect();
+        log::info!(
+            "[Cleanup] Previous manifest had {} files",
+            previous_files.len()
+        );
+
         // Only clean files that were in the previous manifest but not in current manifest
-        let obsolete_files: HashSet<String> = previous_files.difference(&current_files).cloned().collect();
-        log::info!("[Cleanup] Found {} obsolete files to clean", obsolete_files.len());
-        
+        let obsolete_files: HashSet<String> =
+            previous_files.difference(&current_files).cloned().collect();
+        log::info!(
+            "[Cleanup] Found {} obsolete files to clean",
+            obsolete_files.len()
+        );
+
         obsolete_files
     } else {
         // If no previous manifest, be more conservative - only clean files in specific modpack directories
         log::warn!("[Cleanup] No previous manifest found, using conservative cleanup");
-        
+
         // Find files in modpack-specific directories that aren't in current manifest
         let existing_files = find_files_recursively(&minecraft_dir)?;
         let mut files_to_clean = HashSet::new();
-        
+
         for file_path in existing_files {
             let relative_path = file_path
                 .strip_prefix(&minecraft_dir)
                 .map_err(|_| "Failed to get relative path")?
                 .to_string_lossy()
                 .replace("\\", "/"); // Normalize path separators
-            
+
             // Only consider files in known modpack directories for conservative cleanup
             if is_modpack_file(&relative_path) && !current_files.contains(&relative_path) {
                 files_to_clean.insert(relative_path);
             }
         }
-        
-        log::info!("[Cleanup] Conservative cleanup will process {} files", files_to_clean.len());
+
+        log::info!(
+            "[Cleanup] Conservative cleanup will process {} files",
+            files_to_clean.len()
+        );
         files_to_clean
     };
 
     // Process files for cleanup
     for file_to_clean in files_to_clean {
         let file_path = minecraft_dir.join(&file_to_clean);
-        
+
         // Double-check: never delete essential files
         if is_essential_path(&file_path, &essential_paths) {
             log::warn!("[Cleanup] Skipping essential file: {}", file_to_clean);
             preserved_files.push(file_to_clean);
             continue;
         }
-        
+
         // Only clean if file actually exists
         if file_path.exists() {
             match fs::remove_file(&file_path) {
@@ -400,7 +434,10 @@ fn find_files_recursively(dir: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(files)
 }
 
-fn remove_empty_directories_safe(dir: &Path, essential_paths: &HashSet<PathBuf>) -> Result<(), String> {
+fn remove_empty_directories_safe(
+    dir: &Path,
+    essential_paths: &HashSet<PathBuf>,
+) -> Result<(), String> {
     // Don't remove essential directories
     if is_essential_path(dir, essential_paths) {
         return Ok(());
@@ -631,7 +668,7 @@ async fn download_file(url: &str, target_path: &Path) -> Result<(), String> {
 #[tauri::command]
 pub async fn cleanup_instance_files(instance_id: String) -> Result<Vec<String>, String> {
     log::info!("[Cleanup] Starting cleanup for instance: {}", instance_id);
-    
+
     let instance =
         crate::core::minecraft_instance::MinecraftInstance::from_instance_id(&instance_id)
             .ok_or("Instance not found")?;
@@ -647,7 +684,11 @@ pub async fn cleanup_instance_files(instance_id: String) -> Result<Vec<String>, 
         .as_ref()
         .ok_or("Instance does not have a version ID")?;
 
-    log::info!("[Cleanup] Fetching manifest for modpack {} version {}", modpack_id, version_id);
+    log::info!(
+        "[Cleanup] Fetching manifest for modpack {} version {}",
+        modpack_id,
+        version_id
+    );
 
     // Fetch current manifest
     let manifest = fetch_modpack_manifest(modpack_id, version_id).await?;
@@ -656,9 +697,12 @@ pub async fn cleanup_instance_files(instance_id: String) -> Result<Vec<String>, 
 
     // Cleanup obsolete files using improved method
     let removed_files = cleanup_obsolete_files(&instance, &manifest)?;
-    
-    log::info!("[Cleanup] Cleanup completed successfully, {} files removed", removed_files.len());
-    
+
+    log::info!(
+        "[Cleanup] Cleanup completed successfully, {} files removed",
+        removed_files.len()
+    );
+
     Ok(removed_files)
 }
 
@@ -681,13 +725,16 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
 
     // Create a task for this operation - prevent duplicates
     let base_task_id = format!("validate_modpack_assets_{}", instance_id);
-    
+
     // Check if task already exists, if so, remove it first to create a fresh one
     if task_exists(&base_task_id) {
-        log::info!("Removing existing task for instance {} before creating new one", instance_id);
+        log::info!(
+            "Removing existing task for instance {} before creating new one",
+            instance_id
+        );
         remove_task(&base_task_id);
     }
-    
+
     let task_id = base_task_id;
     add_task(
         &task_id.clone(),
@@ -698,6 +745,10 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
             "instanceId": instance_id.clone()
         })),
     );
+
+    // Emitir con stage
+
+    emit_status(&instance, "instance-launch-start", &"");
 
     // Fetch current manifest
     let manifest = match fetch_modpack_manifest(modpack_id, version_id).await {
@@ -710,15 +761,18 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
                 &format!("Error obteniendo manifest: {}", e),
                 None,
             );
-            
+
             // Schedule task removal after a delay on failure
             let task_id_for_cleanup = task_id.clone();
             tokio::spawn(async move {
                 tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
                 remove_task(&task_id_for_cleanup);
-                log::info!("Cleaned up failed modpack validation task (manifest error): {}", task_id_for_cleanup);
+                log::info!(
+                    "Cleaned up failed modpack validation task (manifest error): {}",
+                    task_id_for_cleanup
+                );
             });
-            
+
             return Err(e);
         }
     };
@@ -730,7 +784,7 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
                 &format!("instance-{}", instance_id),
                 serde_json::json!({
                     "id": instance_id,
-                    "status": "downloading-modpack-assets",
+                    "status": "downloading-assets",
                     "message": "Validando assets del modpack..."
                 }),
             );
@@ -749,15 +803,18 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
                     &format!("Error validando assets: {}", e),
                     None,
                 );
-                
+
                 // Schedule task removal after a delay even on failure
                 let task_id_for_cleanup = task_id.clone();
                 tokio::spawn(async move {
                     tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
                     remove_task(&task_id_for_cleanup);
-                    log::info!("Cleaned up failed modpack validation task: {}", task_id_for_cleanup);
+                    log::info!(
+                        "Cleaned up failed modpack validation task: {}",
+                        task_id_for_cleanup
+                    );
                 });
-                
+
                 return Err(e);
             }
         };
@@ -770,15 +827,18 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
             "Todos los assets están actualizados",
             None,
         );
-        
+
         // Schedule task removal after a delay to allow UI to show completion
         let task_id_for_cleanup = task_id.clone();
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
             remove_task(&task_id_for_cleanup);
-            log::info!("Cleaned up completed modpack validation task (no downloads needed): {}", task_id_for_cleanup);
+            log::info!(
+                "Cleaned up completed modpack validation task (no downloads needed): {}",
+                task_id_for_cleanup
+            );
         });
-        
+
         return Ok(0);
     }
 
@@ -816,7 +876,10 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
     tokio::spawn(async move {
         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
         remove_task(&task_id_for_cleanup);
-        log::info!("Cleaned up completed modpack validation task: {}", task_id_for_cleanup);
+        log::info!(
+            "Cleaned up completed modpack validation task: {}",
+            task_id_for_cleanup
+        );
     });
 
     Ok(downloaded_count)

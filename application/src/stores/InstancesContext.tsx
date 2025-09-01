@@ -272,7 +272,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                 updateInstance(id, {
                     status: "downloading-assets",
                     message: message || "Descargando archivos del modpack...",
-                    stage
+                    stage,
                 });
             });
             unlistenList.push(downloadingModpackFilesUnlisten);

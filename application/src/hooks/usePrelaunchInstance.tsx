@@ -126,7 +126,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
             }
         } catch (err) {
             console.warn("Failed to update prelaunch appearance:", err);
-            
+
             // Mostrar notificación no bloqueante de modo offline para modpacks
             if (prelaunchState.instance?.modpackId) {
                 toast.warning("Modo offline", {
@@ -134,7 +134,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
                     duration: 3000
                 });
             }
-            
+
             // Still load the existing appearance
             await loadAppearance();
         }
@@ -217,6 +217,19 @@ export const usePrelaunchInstance = (instanceId: string) => {
         });
 
         console.log("LoadingIndicator state cleared for new instance launch");
+    }, []);
+
+    // Helper function to clear all timers
+    const clearAllTimers = useCallback(() => {
+        if (messageIntervalRef.current) {
+            clearInterval(messageIntervalRef.current);
+            messageIntervalRef.current = null;
+        }
+
+        if (messageTimeoutRef.current) {
+            clearTimeout(messageTimeoutRef.current);
+            messageTimeoutRef.current = null;
+        }
     }, []);
 
     // --- EFECTOS SECUNDARIOS ---
@@ -304,14 +317,8 @@ export const usePrelaunchInstance = (instanceId: string) => {
                 // Not loading: clear all timers and reset state for clean start
                 clearAllTimers();
 
-                // Set non-loading state but only if we're not already set to non-loading
-                if (loadingStatus.isLoading) {
-                    setLoadingStatus(prev => ({
-                        ...prev,
-                        isLoading: false,
-                        message: DEFAULT_LOADING_STATE.message // Reset to clean message
-                    }));
-                }
+                setLoadingStatus(DEFAULT_LOADING_STATE);
+
             }
         } else {
             // No instance running - ensure clean state
@@ -321,19 +328,6 @@ export const usePrelaunchInstance = (instanceId: string) => {
             }
         }
     }, [currentInstanceRunning, getRandomMessage, instanceId, loadingStatus.isLoading]);
-
-    // Helper function to clear all timers
-    const clearAllTimers = useCallback(() => {
-        if (messageIntervalRef.current) {
-            clearInterval(messageIntervalRef.current);
-            messageIntervalRef.current = null;
-        }
-
-        if (messageTimeoutRef.current) {
-            clearTimeout(messageTimeoutRef.current);
-            messageTimeoutRef.current = null;
-        }
-    }, []);
 
     // Enhanced cleanup effect to ensure no timers leak between instances
     useEffect(() => {

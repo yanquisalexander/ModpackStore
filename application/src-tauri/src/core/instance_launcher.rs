@@ -30,7 +30,6 @@ use thiserror::Error;
 //-----------------------------------------------------------------------------
 const EVENT_LAUNCH_START: &str = "instance-launch-start";
 const EVENT_DOWNLOADING_ASSETS: &str = "instance-downloading-assets";
-const EVENT_DOWNLOADING_MODPACK_ASSETS: &str = "instance-downloading-modpack-assets";
 const EVENT_LAUNCHED: &str = "instance-launched";
 const EVENT_EXITED: &str = "instance-exited";
 const EVENT_ERROR: &str = "instance-error";

@@ -5,7 +5,9 @@ use crate::core::bootstrap_error::BootstrapError;
 use crate::core::instance_bootstrap::InstanceBootstrap;
 use crate::core::minecraft_instance::{self, MinecraftInstance};
 use crate::core::modpack_file_manager::ModpackManifest;
-use crate::core::tasks_manager::{add_task, remove_task, update_task, update_task_with_bootstrap_error, TaskStatus};
+use crate::core::tasks_manager::{
+    add_task, remove_task, update_task, update_task_with_bootstrap_error, TaskStatus,
+};
 use crate::API_ENDPOINT;
 use base64::{engine::general_purpose, Engine as _};
 use dirs::config_dir;
@@ -205,7 +207,7 @@ async fn handle_latest_version_update(
                     &format!("instance-{}", instance.instanceId),
                     serde_json::json!({
                         "id": instance.instanceId,
-                        "status": "downloading-modpack-assets",
+                        "status": "downloading-assets",
                         "message": "Actualizando modpack..."
                     }),
                 );
@@ -256,7 +258,6 @@ async fn check_and_validate_modpack_password(modpack_id: &str) -> Result<bool, S
         .as_bool()
         .unwrap_or(false);
 
-
     if !is_password_protected {
         return Ok(true); // No password required
     }
@@ -303,7 +304,7 @@ async fn validate_modpack_assets_for_launch(instance: &MinecraftInstance) -> Res
                 &format!("instance-{}", instance.instanceId),
                 serde_json::json!({
                     "id": instance.instanceId,
-                    "status": "downloading-modpack-assets",
+                    "status": "downloading-assets",
                     "message": "Validando archivos del modpack..."
                 }),
             );
@@ -637,7 +638,11 @@ pub async fn check_modpack_updates(
                     .map_err(|e| format!("Failed to parse JSON: {}", e))
             } else {
                 // API error - return offline mode response instead of failing
-                log::warn!("API error checking updates for modpack {}: {}", modpack_id, response.status());
+                log::warn!(
+                    "API error checking updates for modpack {}: {}",
+                    modpack_id,
+                    response.status()
+                );
                 Ok(serde_json::json!({
                     "hasUpdate": false,
                     "currentVersion": current_version,
@@ -648,7 +653,11 @@ pub async fn check_modpack_updates(
         }
         Err(e) => {
             // Network error - return offline mode response instead of failing
-            log::warn!("Network error checking updates for modpack {}: {}", modpack_id, e);
+            log::warn!(
+                "Network error checking updates for modpack {}: {}",
+                modpack_id,
+                e
+            );
             Ok(serde_json::json!({
                 "hasUpdate": false,
                 "currentVersion": current_version,
@@ -1043,8 +1052,13 @@ async fn create_modpack_instance_struct(
         if let Err(e) = crate::core::prelaunch_appearance::fetch_and_save_prelaunch_appearance(
             modpack_id_clone,
             instance_id_clone,
-        ).await {
-            log::warn!("Failed to fetch prelaunch appearance during instance creation: {}", e);
+        )
+        .await
+        {
+            log::warn!(
+                "Failed to fetch prelaunch appearance during instance creation: {}",
+                e
+            );
         }
     });
 
