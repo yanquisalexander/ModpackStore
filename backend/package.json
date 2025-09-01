@@ -4,7 +4,7 @@
     "description": "",
     "main": "index.js",
     "scripts": {
-        "build": "tsc",
+        "build": "pnpx esbuild src/index.ts --bundle --platform=node --outdir=dist",
         "dev": "tsx watch src/index.ts",
         "start": "node dist/index.js",
         "db:generate": "drizzle-kit generate",
