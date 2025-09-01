@@ -1,4 +1,5 @@
 export interface Modpack {
+  prelaunchAppearance: string;
   id: string;
   name: string;
   slug: string;

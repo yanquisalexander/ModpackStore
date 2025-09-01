@@ -9,6 +9,9 @@ import { useAuthentication } from '@/stores/AuthContext';
 import { toast } from 'sonner';
 import { Modpack } from '@/types/modpacks';
 import { UploadCloud } from 'lucide-react';
+import CodeMirror from '@uiw/react-codemirror';
+import { json } from '@codemirror/lang-json';
+import { oneDark } from '@codemirror/theme-one-dark';
 
 // --- Props del componente principal ---
 interface Props {
@@ -88,6 +91,9 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
     const [iconFile, setIconFile] = useState<File | null>(null);
     const [bannerFile, setBannerFile] = useState<File | null>(null);
 
+    // NUEVO: Estado para prelaunchAppearance
+    const [prelaunchAppearanceJson, setPrelaunchAppearanceJson] = useState('{}');
+
     // Efecto para popular el formulario cuando el modpack cambia
     useEffect(() => {
         if (modpack) {
@@ -98,6 +104,8 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             // Resetear los archivos al cambiar de modpack
             setIconFile(null);
             setBannerFile(null);
+            // Inicializar el JSON del prelaunchAppearance
+            setPrelaunchAppearanceJson(modpack.prelaunchAppearance || "{}");
         }
     }, [modpack]);
 
@@ -115,6 +123,15 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             formData.append('shortDescription', shortDescription);
             formData.append('description', description);
             formData.append('visibility', visibility);
+
+            // Añadir prelaunchAppearance si es válido
+            try {
+                const prelaunchAppearance = JSON.parse(prelaunchAppearanceJson);
+                formData.append('prelaunchAppearance', JSON.stringify(prelaunchAppearance));
+            } catch (error) {
+                toast.error('JSON del pre-launch no es válido');
+                return;
+            }
 
             // Añadir archivos solo si han sido seleccionados
             if (iconFile) {
@@ -207,6 +224,23 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                     <div>
                         <label className="text-sm text-zinc-300 block mb-1">Descripción completa</label>
                         <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={5} />
+                    </div>
+
+                    <div>
+                        <label className="text-sm text-zinc-300 block mb-2">Configuración Pre-Launch (JSON)</label>
+                        <div className="border border-zinc-700 rounded-md overflow-hidden">
+                            <CodeMirror
+                                value={prelaunchAppearanceJson}
+                                height="300px"
+                                theme={oneDark}
+                                extensions={[json()]}
+                                onChange={(value) => setPrelaunchAppearanceJson(value)}
+                                className="text-sm"
+                            />
+                        </div>
+                        <p className="text-xs text-zinc-500 mt-1">
+                            Configura la apariencia del launcher antes de iniciar Minecraft. Usa JSON válido.
+                        </p>
                     </div>
 
                     <DialogFooter className="pt-4">

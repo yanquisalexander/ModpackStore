@@ -46,6 +46,7 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks", isOrganizationMemb
             shortDescription: true,
             status: true,
             description: true,
+            prelaunchAppearance: true,
             updatedAt: true,
             createdAt: true,
             versions: true,
@@ -76,6 +77,8 @@ ModpackCreatorsRoute.patch(
         }
 
         const body = await c.req.parseBody();
+
+        console.log({ body })
 
         // --- Procesar icono si viene ---
 
@@ -136,6 +139,7 @@ ModpackCreatorsRoute.patch(
             "shortDescription",
             "versions",
             "creatorUserId",
+            "prelaunchAppearance",
         ];
 
         for (const field of allowedFields) {

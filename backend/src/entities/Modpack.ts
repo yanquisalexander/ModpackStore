@@ -60,7 +60,75 @@ export class Modpack extends BaseEntity {
     @Column({ name: "featured", type: "boolean", default: false })
     featured: boolean;
 
-
+    @Column({ name: "prelaunch_appearance", type: "jsonb", nullable: true })
+    prelaunchAppearance?: {
+        title?: string;
+        description?: string;
+        logo?: {
+            url?: string;
+            height?: string;
+            position?: {
+                top?: string;
+                left?: string;
+                right?: string;
+                bottom?: string;
+                transform?: string;
+            };
+            fadeInDuration?: string;
+            fadeInDelay?: string;
+        };
+        playButton?: {
+            text?: string;
+            backgroundColor?: string;
+            hoverColor?: string;
+            position?: {
+                bottom?: string;
+                left?: string;
+                right?: string;
+                top?: string;
+                transform?: string;
+            };
+            textColor?: string;
+            borderColor?: string;
+            fadeInDuration?: string;
+            fadeInDelay?: string;
+        };
+        background?: {
+            imageUrl?: string;
+            videoUrl?: string | string[];
+        };
+        audio?: {
+            url?: string;
+            volume?: number;
+        };
+        news?: {
+            position?: {
+                top?: string;
+                right?: string;
+            };
+            style?: {
+                background?: string;
+                color?: string;
+                borderRadius?: string;
+                padding?: string;
+                width?: string;
+                fontSize?: string;
+            };
+            entries?: Array<{
+                title?: string;
+                content?: string;
+            }>;
+        };
+        footerStyle?: {
+            background?: string;
+            color?: string;
+            borderRadius?: string;
+            padding?: string;
+            width?: string;
+            fontSize?: string;
+        };
+        footerText?: string;
+    };
 
     @Column({
         name: "status",
