@@ -17,6 +17,7 @@ import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance";
 import { MinecraftInstance, TauriCommandReturns } from "@/types/TauriCommandReturns";
 import { InstallationStage } from "@/types/InstallationStage";
 import { formatStageMessage } from "@/utils/stageFormatter";
+import { info } from "@tauri-apps/plugin-log";
 
 const DEFAULT_LOADING_STATE = {
     isLoading: false,
@@ -119,9 +120,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
                 console.log("Prelaunch appearance updated successfully, reloading...");
                 // Reload the appearance after successful update
                 await loadAppearance();
-                toast.success("Apariencia actualizada", {
-                    description: "Se ha actualizado la apariencia del modpack exitosamente."
-                });
+                info(`Apariencia actualizada para la instancia: ${instanceId}`);
             } else {
                 console.log("No prelaunch appearance available for this instance");
             }
@@ -182,8 +181,10 @@ export const usePrelaunchInstance = (instanceId: string) => {
         const loadInitialData = async () => {
             const instance = await fetchInstanceData();
             if (instance && instance.modpackId) {
-                // For modpack instances, try to update appearance first, then load
-                await updateAppearance();
+                // For modpack instances, load existing appearance first, then update in background
+                await loadAppearance();
+                // Update appearance in background without blocking
+                updateAppearance();
             } else {
                 // For non-modpack instances, just load existing appearance
                 await loadAppearance();

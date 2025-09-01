@@ -5,6 +5,7 @@ import { ModpackVersion } from "@/entities/ModpackVersion";
 import { ModpackVersionStatus } from "@/types/enums";
 import { DOWNLOAD_PREFIX_URL } from "@/services/r2UploadService";
 import { Modpack } from "@/entities/Modpack";
+import { tryParseJSON } from "@/utils/tryParseJSON";
 
 export class ExploreModpacksController {
     static async getHomepage(c: Context): Promise<Response> {
@@ -94,12 +95,14 @@ export class ExploreModpacksController {
                 }), 404);
             }
 
+            let attributes = tryParseJSON(modpack.prelaunchAppearance);
+
             // Return the prelaunch appearance or null if not set
             return c.json({
                 data: {
                     type: 'prelaunch-appearance',
                     id: modpackId,
-                    attributes: modpack.prelaunchAppearance || null
+                    attributes: attributes || null
                 }
             }, 200);
         } catch (error: any) {
