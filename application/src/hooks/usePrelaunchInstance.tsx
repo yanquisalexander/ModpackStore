@@ -26,10 +26,14 @@ const DEFAULT_LOADING_STATE = {
 
 const RANDOM_MESSAGES = [
     "Descargando archivos necesarios...",
-    "Cargando modpack...",
     "Muy pronto estarás jugando...",
     "Seguro que te va a encantar...",
     "Preparando todo para ti...",
+    "Steve está esperando a que te unas...",
+    "No te preocupes, todo está bajo control...",
+    "Casi listo para jugar...",
+    "Preparando las minas...",
+    "Crafteando tu experiencia..."
 ];
 
 export const usePrelaunchInstance = (instanceId: string) => {
