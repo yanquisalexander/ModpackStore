@@ -182,6 +182,12 @@ pub async fn download_and_install_files(
         }
     }
 
+    emit_status(
+        instance,
+        "instance-finish-assets-download",
+        &format!("Descargados {} archivos", files_processed),
+    );
+
     Ok(files_processed)
 }
 
