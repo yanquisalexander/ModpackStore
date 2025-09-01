@@ -81,7 +81,7 @@ export async function requireAdmin(c: Context<{ Variables: AuthVariables }>, nex
         throw new APIError(500, 'Middleware Misconfiguration', 'USER_TYPE_INVALID');
     }
 
-    if (!user.admin) {
+    if (!user.isAdmin()) {
         throw new APIError(403, 'Forbidden', 'INSUFFICIENT_PERMISSIONS');
     }
 

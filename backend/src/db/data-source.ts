@@ -14,6 +14,7 @@ import { ModpackCategory } from "../entities/ModpackCategory";
 import { Wallet } from "../entities/Wallet";
 import { WalletTransaction } from "../entities/WalletTransaction";
 import { UserPurchase } from "../entities/UserPurchase";
+import { AuditLog } from "../entities/AuditLog";
 
 export const AppDataSource = new DataSource({
     type: "postgres",
@@ -39,6 +40,7 @@ export const AppDataSource = new DataSource({
         ModpackCategory,
         Wallet,
         WalletTransaction,
-        UserPurchase
+        UserPurchase,
+        AuditLog
     ],
 });

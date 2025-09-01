@@ -31,3 +31,9 @@ export enum PublisherMemberRole {
     ADMIN = 'admin',
     MEMBER = 'member'
 }
+
+export enum UserRole {
+    USER = 'user',
+    ADMIN = 'admin',
+    SUPERADMIN = 'superadmin'
+}

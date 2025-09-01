@@ -13,7 +13,7 @@ interface UserSession {
   username: string;
   email: string;
   avatarUrl?: string;
-  admin: boolean;
+  role: 'user' | 'admin' | 'superadmin';
   publisherMemberships: null | {
     createdAt: string;
     id: number;
@@ -22,6 +22,10 @@ interface UserSession {
     role: string;
     updatedAt: string;
   }[];
+  // Helper methods for role checking
+  isAdmin?: () => boolean;
+  isSuperAdmin?: () => boolean;
+  hasRole?: (role: 'user' | 'admin' | 'superadmin') => boolean;
 }
 
 interface SessionTokens {
@@ -61,6 +65,20 @@ interface AuthContextType {
   isAuthenticated: boolean;
   sessionTokens: SessionTokens | null;
 }
+
+// --- Utility Functions ---
+
+const enhanceSession = (session: UserSession | null): UserSession | null => {
+  if (!session) return null;
+  
+  // Add helper methods to session object
+  return {
+    ...session,
+    isAdmin: () => session.role === 'admin' || session.role === 'superadmin',
+    isSuperAdmin: () => session.role === 'superadmin',
+    hasRole: (role: 'user' | 'admin' | 'superadmin') => session.role === role,
+  };
+};
 
 // --- Provider Component ---
 
@@ -135,7 +153,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           } else {
             setSessionTokens(null);
           }
-          setSession(event.payload);
+          setSession(enhanceSession(event.payload));
           resetAuthState();
         } catch (err) {
           setError(parseError(err));
