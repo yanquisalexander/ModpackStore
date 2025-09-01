@@ -111,6 +111,28 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }
     }, [instanceId, handleResourceError]);
 
+    const updateAppearance = useCallback(async () => {
+        try {
+            console.log("Attempting to update prelaunch appearance for instance:", instanceId);
+            const updated = await invoke<boolean>("update_prelaunch_appearance", { instanceId });
+            if (updated) {
+                console.log("Prelaunch appearance updated successfully, reloading...");
+                // Reload the appearance after successful update
+                await loadAppearance();
+                toast.success("Apariencia actualizada", {
+                    description: "Se ha actualizado la apariencia del modpack exitosamente."
+                });
+            } else {
+                console.log("No prelaunch appearance available for this instance");
+            }
+        } catch (err) {
+            console.warn("Failed to update prelaunch appearance:", err);
+            // Don't show error toast as this is optional functionality
+            // Still load the existing appearance
+            await loadAppearance();
+        }
+    }, [instanceId, loadAppearance]);
+
     const startMessageInterval = useCallback(() => {
         if (messageIntervalRef.current) clearInterval(messageIntervalRef.current);
         messageIntervalRef.current = window.setInterval(() => {
@@ -157,9 +179,18 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
     // Efecto para cargar datos iniciales
     useEffect(() => {
-        fetchInstanceData();
-        loadAppearance();
-    }, [fetchInstanceData, loadAppearance]);
+        const loadInitialData = async () => {
+            const instance = await fetchInstanceData();
+            if (instance && instance.modpackId) {
+                // For modpack instances, try to update appearance first, then load
+                await updateAppearance();
+            } else {
+                // For non-modpack instances, just load existing appearance
+                await loadAppearance();
+            }
+        };
+        loadInitialData();
+    }, [fetchInstanceData, loadAppearance, updateAppearance]);
 
     // Efecto para manejar el audio de fondo
     useEffect(() => {

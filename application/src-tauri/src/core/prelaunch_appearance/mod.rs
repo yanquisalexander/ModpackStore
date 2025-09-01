@@ -1,5 +1,6 @@
 use crate::core::instance_manager::get_instance_by_id;
 use crate::core::minecraft_instance::MinecraftInstance;
+use crate::API_ENDPOINT;
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 use serde_json::from_slice;
@@ -327,4 +328,110 @@ pub async fn get_prelaunch_appearance(instance_id: String) -> Option<PreLaunchAp
             None
         }
     }
+}
+
+/// Fetch prelaunch appearance from the ModpackStore API
+async fn fetch_prelaunch_appearance_from_api(modpack_id: &str) -> std::result::Result<Option<PreLaunchAppearance>, String> {
+    let url = format!("{}/explore/modpacks/{}/prelaunch-appearance", API_ENDPOINT, modpack_id);
+    log::info!("Fetching prelaunch appearance from API: {}", url);
+
+    let response = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("Failed to fetch prelaunch appearance: {}", e))?;
+
+    if !response.status().is_success() {
+        if response.status() == 404 {
+            log::info!("Prelaunch appearance not found for modpack: {}", modpack_id);
+            return Ok(None);
+        }
+        return Err(format!("API returned error: {}", response.status()));
+    }
+
+    let response_text = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read response: {}", e))?;
+
+    #[derive(Deserialize)]
+    struct ApiResponse {
+        data: Option<ApiData>,
+    }
+
+    #[derive(Deserialize)]
+    struct ApiData {
+        attributes: Option<PreLaunchAppearance>,
+    }
+
+    let api_response: ApiResponse = serde_json::from_str(&response_text)
+        .map_err(|e| format!("Failed to parse API response: {}", e))?;
+
+    match api_response.data {
+        Some(data) => Ok(data.attributes),
+        None => Ok(None),
+    }
+}
+
+/// Save prelaunch appearance to the instance directory
+async fn save_prelaunch_appearance(instance_dir: &PathBuf, appearance: &PreLaunchAppearance) -> std::result::Result<(), String> {
+    let prelaunch_appearance_path = instance_dir.join("prelaunch_appearance.json");
+    
+    let json_content = serde_json::to_string_pretty(appearance)
+        .map_err(|e| format!("Failed to serialize prelaunch appearance: {}", e))?;
+
+    tokio::fs::write(&prelaunch_appearance_path, json_content)
+        .await
+        .map_err(|e| format!("Failed to save prelaunch appearance: {}", e))?;
+
+    log::info!("Saved prelaunch appearance to: {:?}", prelaunch_appearance_path);
+    Ok(())
+}
+
+/// Fetch and save prelaunch appearance for a modpack instance
+#[tauri::command]
+pub async fn fetch_and_save_prelaunch_appearance(modpack_id: String, instance_id: String) -> std::result::Result<bool, String> {
+    log::info!("Fetching prelaunch appearance for modpack: {}, instance: {}", modpack_id, instance_id);
+
+    // Get the instance to find its directory
+    let instance = get_instance_by_id(instance_id.clone())
+        .map_err(|e| format!("Failed to get instance: {}", e))?
+        .ok_or_else(|| "Instance not found".to_string())?;
+
+    let instance_dir = instance.instanceDirectory
+        .ok_or_else(|| "Instance directory not set".to_string())?;
+
+    let instance_dir_path = PathBuf::from(instance_dir);
+
+    // Fetch from API
+    match fetch_prelaunch_appearance_from_api(&modpack_id).await {
+        Ok(Some(appearance)) => {
+            // Save to local file
+            save_prelaunch_appearance(&instance_dir_path, &appearance).await?;
+            Ok(true)
+        }
+        Ok(None) => {
+            log::info!("No prelaunch appearance available for modpack: {}", modpack_id);
+            Ok(false)
+        }
+        Err(e) => {
+            log::error!("Failed to fetch prelaunch appearance: {}", e);
+            Err(e)
+        }
+    }
+}
+
+/// Update prelaunch appearance for an instance (fetch latest from API)
+#[tauri::command]
+pub async fn update_prelaunch_appearance(instance_id: String) -> std::result::Result<bool, String> {
+    log::info!("Updating prelaunch appearance for instance: {}", instance_id);
+
+    // Get the instance to find the modpack ID
+    let instance = get_instance_by_id(instance_id.clone())
+        .map_err(|e| format!("Failed to get instance: {}", e))?
+        .ok_or_else(|| "Instance not found".to_string())?;
+
+    let modpack_id = instance.modpackId
+        .ok_or_else(|| "Instance is not a modpack instance".to_string())?;
+
+    // Use the fetch and save function
+    fetch_and_save_prelaunch_appearance(modpack_id, instance_id).await
 }

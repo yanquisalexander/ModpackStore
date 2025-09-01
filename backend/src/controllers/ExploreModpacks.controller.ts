@@ -81,6 +81,38 @@ export class ExploreModpacksController {
         }
     }
 
+    static async getPrelaunchAppearance(c: Context): Promise<Response> {
+        const modpackId = c.req.param('modpackId');
+
+        try {
+            const modpack = await getModpackById(modpackId);
+            if (!modpack) {
+                return c.json(serializeError({
+                    status: '404',
+                    title: 'Not Found',
+                    detail: "Modpack not found.",
+                }), 404);
+            }
+
+            // Return the prelaunch appearance or null if not set
+            return c.json({
+                data: {
+                    type: 'prelaunch-appearance',
+                    id: modpackId,
+                    attributes: modpack.prelaunchAppearance || null
+                }
+            }, 200);
+        } catch (error: any) {
+            console.error(`[CONTROLLER_EXPLORE] Error in getPrelaunchAppearance for ID ${modpackId}:`, error);
+            const statusCode = error.statusCode || 500;
+            return c.json(serializeError({
+                status: statusCode.toString(),
+                title: error.name || 'Prelaunch Appearance Error',
+                detail: error.message || "Failed to fetch prelaunch appearance."
+            }), statusCode);
+        }
+    }
+
     static async getModpackVersions(c: Context): Promise<Response> {
         const modpackId = c.req.param('modpackId');
 
