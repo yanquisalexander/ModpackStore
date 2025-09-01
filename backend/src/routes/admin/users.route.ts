@@ -7,6 +7,8 @@ const usersRoute = new Hono();
 usersRoute.use('*', ensureAdmin);
 
 usersRoute.get('/', AdminUsersController.listUsers);
+usersRoute.post('/', AdminUsersController.createUser);
+usersRoute.get('/stats', AdminUsersController.getUserStats);
 usersRoute.get('/:userId', AdminUsersController.getUser);
 usersRoute.patch('/:userId', AdminUsersController.updateUser);
 usersRoute.delete('/:userId', AdminUsersController.deleteUser);
