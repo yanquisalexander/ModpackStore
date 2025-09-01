@@ -7,13 +7,14 @@ use crate::core::bootstrap::{
         build_forge_installer_url, get_java_version_requirement, get_version_details,
         get_version_manifest,
     },
-    tasks::{emit_bootstrap_complete, emit_bootstrap_start, emit_status, emit_status_with_stage, Stage},
+    tasks::{emit_bootstrap_complete, emit_bootstrap_start, emit_status, emit_status_with_stage, emit_bootstrap_error, Stage},
     validate::revalidate_assets,
 };
+use crate::core::bootstrap_error::{BootstrapError, BootstrapStep, ErrorCategory};
 use crate::core::instance_manager::get_instance_by_id;
 use crate::core::java_manager::JavaManager;
 use crate::core::minecraft_instance::MinecraftInstance;
-use crate::core::tasks_manager::{add_task, remove_task, update_task, TaskStatus};
+use crate::core::tasks_manager::{add_task, remove_task, update_task, update_task_with_bootstrap_error, TaskStatus};
 use crate::GLOBAL_APP_HANDLE;
 use serde_json::{json, Value};
 use std::fs;
@@ -36,6 +37,16 @@ impl InstanceBootstrap {
             client: reqwest::blocking::Client::new(),
             version_manifest_cache: None,
         }
+    }
+
+    // --- Error handling helpers ---
+    
+    fn handle_network_error(&self, step: BootstrapStep, error: impl std::fmt::Display) -> BootstrapError {
+        BootstrapError::network_error(step, error.to_string())
+    }
+    
+    fn handle_filesystem_error(&self, step: BootstrapStep, error: impl std::fmt::Display) -> BootstrapError {
+        BootstrapError::filesystem_error(step, error.to_string())
     }
 
     // --- Public Methods ---
@@ -116,7 +127,10 @@ impl InstanceBootstrap {
 
         if !minecraft_dir.exists() {
             fs::create_dir_all(&minecraft_dir)
-                .map_err(|e| format!("Error creating minecraft directory: {}", e))?;
+                .map_err(|e| self.handle_filesystem_error(
+                    BootstrapStep::CreatingDirectories,
+                    format!("Error creating minecraft directory: {}", e)
+                ))?;
         }
 
         // Create required subdirectories using modular function
@@ -162,7 +176,10 @@ impl InstanceBootstrap {
 
         let version_details = self
             .get_version_details(&instance.minecraftVersion)
-            .map_err(|e| format!("Error fetching version details: {}", e))?;
+            .map_err(|e| self.handle_network_error(
+                BootstrapStep::DownloadingManifest,
+                format!("Error fetching version details: {}", e)
+            ))?;
 
         // Update task status after manifest download - 20%
         if let Some(task_id) = &task_id {
@@ -233,7 +250,10 @@ impl InstanceBootstrap {
             );
 
             self.download_file(version_url, &version_json_path)
-                .map_err(|e| format!("Error downloading version JSON: {}", e))?;
+                .map_err(|e| self.handle_network_error(
+                    BootstrapStep::DownloadingVersionJson,
+                    format!("Error downloading version JSON: {}", e)
+                ))?;
         } else {
             // Update task status if file already exists
             if let Some(task_id) = &task_id {
@@ -292,7 +312,10 @@ impl InstanceBootstrap {
             );
 
             self.download_file(client_url, &client_jar_path)
-                .map_err(|e| format!("Error downloading client jar: {}", e))?;
+                .map_err(|e| self.handle_network_error(
+                    BootstrapStep::DownloadingClientJar,
+                    format!("Error downloading client jar: {}", e)
+                ))?;
         } else {
             // Update task status if file already exists
             if let Some(task_id) = &task_id {
@@ -487,7 +510,7 @@ impl InstanceBootstrap {
         minecraft_version: &str,
         forge_version: &str,
         instance: &MinecraftInstance,
-    ) -> Result<(), String> {
+    ) -> Result<(), BootstrapError> {
         // Determinar la ruta de Java
         let java_path = self.find_java_path()?;
 
@@ -502,7 +525,10 @@ impl InstanceBootstrap {
         });
 
         fs::write(&install_profile, install_profile_content.to_string())
-            .map_err(|e| format!("Error al crear archivo de perfil de instalación: {}", e))?;
+            .map_err(|e| BootstrapError::filesystem_error(
+                BootstrapStep::RunningForgeInstaller,
+                format!("Error al crear archivo de perfil de instalación: {}", e)
+            ))?;
 
         // Lista de opciones de instalación para probar secuencialmente
         let install_options = ["--installClient", "--installDir", "--installServer"];
@@ -572,34 +598,44 @@ impl InstanceBootstrap {
                 "Todos los métodos de instalación de Forge fallaron. Último error: {}",
                 last_error
             );
-            Err(format!(
-                "Todos los métodos de instalación de Forge fallaron. Último error: {}",
-                last_error
-            ))
+            Err(BootstrapError::forge_error(last_error)
+                .with_technical_details(format!("Tried installation options: {:?}", install_options)))
         }
     }
 
-    fn find_java_path(&self) -> Result<String, String> {
+    fn find_java_path(&self) -> Result<String, BootstrapError> {
         let config_lock = get_config_manager()
             .lock()
-            .expect("Failed to lock config manager mutex");
+            .map_err(|e| BootstrapError::new(
+                BootstrapStep::CheckingJavaVersion,
+                ErrorCategory::Configuration,
+                format!("Failed to lock config manager: {}", e)
+            ))?;
 
         let config = config_lock
             .as_ref()
-            .expect("Config manager failed to initialize");
+            .map_err(|e| BootstrapError::new(
+                BootstrapStep::CheckingJavaVersion,
+                ErrorCategory::Configuration,
+                format!("Config manager failed to initialize: {}", e)
+            ))?;
 
         let java_path = config
             .get_java_dir()
-            .ok_or_else(|| "Java path is not set".to_string())?
+            .ok_or_else(|| BootstrapError::java_error(
+                BootstrapStep::CheckingJavaVersion,
+                "Java path is not set in configuration"
+            ))?
             .join("bin")
             .join(if cfg!(windows) { "javaw.exe" } else { "java" });
 
         if !java_path.exists() {
-            return Err(format!(
-                "Java executable not found at: {}",
-                java_path.display()
-            ));
+            return Err(BootstrapError::java_error(
+                BootstrapStep::CheckingJavaVersion,
+                format!("Java executable not found at: {}", java_path.display())
+            ).with_technical_details(format!("Expected Java executable at: {}", java_path.display())));
         }
+        
         Ok(java_path.to_string_lossy().to_string())
     }
 
@@ -729,28 +765,40 @@ impl InstanceBootstrap {
         emit_status_with_stage(instance, "instance-installing-forge", &stage);
 
         // Ejecutar el instalador de Forge
-        self.run_forge_installer(
+        match self.run_forge_installer(
             &forge_installer_path,
             &minecraft_dir,
             &instance.minecraftVersion,
             forge_version,
             instance,
-        )
-        .map_err(|e| format!("Error ejecutando instalador de Forge: {}", e))?;
-
-        // Update task status - 95%
-        if let Some(task_id) = &task_id {
-            update_task(
-                task_id,
-                TaskStatus::Running,
-                95.0,
-                "Forge instalado correctamente",
-                Some(serde_json::json!({
-                    "instanceName": instance.instanceName.clone(),
-                    "instanceId": instance.instanceId.clone(),
-                    "forgeVersion": forge_version
-                })),
-            );
+        ) {
+            Ok(_) => {
+                // Update task status - 95%
+                if let Some(task_id) = &task_id {
+                    update_task(
+                        task_id,
+                        TaskStatus::Running,
+                        95.0,
+                        "Forge instalado correctamente",
+                        Some(serde_json::json!({
+                            "instanceName": instance.instanceName.clone(),
+                            "instanceId": instance.instanceId.clone(),
+                            "forgeVersion": forge_version
+                        })),
+                    );
+                }
+            }
+            Err(bootstrap_error) => {
+                // Emit bootstrap error event
+                emit_bootstrap_error(instance, &bootstrap_error);
+                
+                // Update task with error information
+                if let Some(task_id) = &task_id {
+                    update_task_with_bootstrap_error(task_id, &bootstrap_error);
+                }
+                
+                return Err(bootstrap_error.into());
+            }
         }
 
         emit_bootstrap_complete(instance, "Forge");
