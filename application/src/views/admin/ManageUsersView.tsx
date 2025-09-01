@@ -8,15 +8,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { 
-    LucideLoader, 
-    LucideTrash, 
-    LucideEdit, 
-    LucideUserPlus, 
-    LucideSearch, 
-    LucideRefreshCw 
+import {
+    LucideLoader,
+    LucideTrash,
+    LucideEdit,
+    LucideUserPlus,
+    LucideSearch,
+    LucideRefreshCw
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
+import { API_ENDPOINT } from "@/consts";
 
 // Types
 interface User {
@@ -45,7 +46,7 @@ interface UserFormData {
 
 // API Service
 class AdminUsersAPI {
-    private static baseUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1/admin/users`;
+    private static baseUrl = `${API_ENDPOINT}/admin/users`;
 
     static async fetchUsers(params: {
         page?: number;
@@ -54,7 +55,7 @@ class AdminUsersAPI {
         role?: string;
         sortBy?: string;
         sortOrder?: string;
-    } = {}): Promise<PaginatedUsers> {
+    } = {}, accessToken: string): Promise<PaginatedUsers> {
         const queryParams = new URLSearchParams();
         Object.entries(params).forEach(([key, value]) => {
             if (value !== undefined && value !== '') {
@@ -64,7 +65,7 @@ class AdminUsersAPI {
 
         const response = await fetch(`${this.baseUrl}?${queryParams}`, {
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
         });
@@ -76,11 +77,11 @@ class AdminUsersAPI {
         return response.json();
     }
 
-    static async createUser(userData: UserFormData): Promise<User> {
+    static async createUser(userData: UserFormData, accessToken: string): Promise<User> {
         const response = await fetch(this.baseUrl, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(userData),
@@ -94,11 +95,11 @@ class AdminUsersAPI {
         return response.json();
     }
 
-    static async updateUser(userId: string, userData: Partial<UserFormData>): Promise<User> {
+    static async updateUser(userId: string, userData: Partial<UserFormData>, accessToken: string): Promise<User> {
         const response = await fetch(`${this.baseUrl}/${userId}`, {
             method: 'PATCH',
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(userData),
@@ -112,11 +113,11 @@ class AdminUsersAPI {
         return response.json();
     }
 
-    static async deleteUser(userId: string): Promise<void> {
+    static async deleteUser(userId: string, accessToken: string): Promise<void> {
         const response = await fetch(`${this.baseUrl}/${userId}`, {
             method: 'DELETE',
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                'Authorization': `Bearer ${accessToken}`,
             },
         });
 
@@ -160,7 +161,7 @@ const UserForm: React.FC<{
                     required
                 />
             </div>
-            
+
             <div>
                 <label htmlFor="email" className="block text-sm font-medium mb-1">
                     Email
@@ -174,14 +175,14 @@ const UserForm: React.FC<{
                     required
                 />
             </div>
-            
+
             <div>
                 <label htmlFor="role" className="block text-sm font-medium mb-1">
                     Role
                 </label>
-                <Select 
-                    value={formData.role} 
-                    onValueChange={(value: 'user' | 'admin' | 'superadmin') => 
+                <Select
+                    value={formData.role}
+                    onValueChange={(value: 'user' | 'admin' | 'superadmin') =>
                         setFormData(prev => ({ ...prev, role: value }))
                     }
                 >
@@ -195,7 +196,7 @@ const UserForm: React.FC<{
                     </SelectContent>
                 </Select>
             </div>
-            
+
             <div>
                 <label htmlFor="avatarUrl" className="block text-sm font-medium mb-1">
                     Avatar URL (Optional)
@@ -249,29 +250,34 @@ export const ManageUsersView: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [roleFilter, setRoleFilter] = useState('');
+    const [roleFilter, setRoleFilter] = useState('all');
     const [currentPage, setCurrentPage] = useState(1);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    
+
     const { toast } = useToast();
-    const { session } = useAuthentication();
+    const { session, sessionTokens } = useAuthentication();
 
     const loadUsers = async () => {
+        if (!sessionTokens?.accessToken) {
+            setError('No access token available');
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
-        
+
         try {
             const data = await AdminUsersAPI.fetchUsers({
                 page: currentPage,
                 limit: 20,
                 search: searchTerm || undefined,
-                role: roleFilter || undefined,
+                role: roleFilter === 'all' ? undefined : roleFilter || undefined,
                 sortBy: 'createdAt',
                 sortOrder: 'DESC'
-            });
-            
+            }, sessionTokens.accessToken);
+
             setUsersData(data);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load users');
@@ -286,13 +292,24 @@ export const ManageUsersView: React.FC = () => {
     };
 
     useEffect(() => {
-        loadUsers();
-    }, [currentPage, searchTerm, roleFilter]);
+        if (sessionTokens?.accessToken) {
+            loadUsers();
+        }
+    }, [currentPage, searchTerm, roleFilter, sessionTokens?.accessToken]);
 
     const handleCreateUser = async (userData: UserFormData) => {
+        if (!sessionTokens?.accessToken) {
+            toast({
+                title: 'Error',
+                description: 'No access token available',
+                variant: 'destructive'
+            });
+            return;
+        }
+
         setIsSubmitting(true);
         try {
-            await AdminUsersAPI.createUser(userData);
+            await AdminUsersAPI.createUser(userData, sessionTokens.accessToken);
             setIsCreateDialogOpen(false);
             await loadUsers();
             toast({
@@ -312,10 +329,19 @@ export const ManageUsersView: React.FC = () => {
 
     const handleUpdateUser = async (userData: UserFormData) => {
         if (!editingUser) return;
-        
+
+        if (!sessionTokens?.accessToken) {
+            toast({
+                title: 'Error',
+                description: 'No access token available',
+                variant: 'destructive'
+            });
+            return;
+        }
+
         setIsSubmitting(true);
         try {
-            await AdminUsersAPI.updateUser(editingUser.id, userData);
+            await AdminUsersAPI.updateUser(editingUser.id, userData, sessionTokens.accessToken);
             setEditingUser(null);
             await loadUsers();
             toast({
@@ -338,8 +364,17 @@ export const ManageUsersView: React.FC = () => {
             return;
         }
 
+        if (!sessionTokens?.accessToken) {
+            toast({
+                title: 'Error',
+                description: 'No access token available',
+                variant: 'destructive'
+            });
+            return;
+        }
+
         try {
-            await AdminUsersAPI.deleteUser(user.id);
+            await AdminUsersAPI.deleteUser(user.id, sessionTokens.accessToken);
             await loadUsers();
             toast({
                 title: 'Success',
@@ -393,7 +428,7 @@ export const ManageUsersView: React.FC = () => {
                         </Dialog>
                     </CardTitle>
                 </CardHeader>
-                
+
                 <CardContent className="space-y-4">
                     {/* Filters */}
                     <div className="flex flex-col sm:flex-row gap-4">
@@ -408,19 +443,19 @@ export const ManageUsersView: React.FC = () => {
                                 />
                             </div>
                         </div>
-                        
+
                         <Select value={roleFilter} onValueChange={setRoleFilter}>
                             <SelectTrigger className="w-full sm:w-48">
                                 <SelectValue placeholder="Filter by role" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">All Roles</SelectItem>
+                                <SelectItem value="all">All Roles</SelectItem>
                                 <SelectItem value="user">User</SelectItem>
                                 <SelectItem value="admin">Admin</SelectItem>
                                 <SelectItem value="superadmin">Super Admin</SelectItem>
                             </SelectContent>
                         </Select>
-                        
+
                         <Button variant="outline" onClick={loadUsers} disabled={isLoading}>
                             <LucideRefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                         </Button>
@@ -465,8 +500,8 @@ export const ManageUsersView: React.FC = () => {
                                             <TableCell className="font-medium">
                                                 <div className="flex items-center gap-2">
                                                     {user.avatarUrl && (
-                                                        <img 
-                                                            src={user.avatarUrl} 
+                                                        <img
+                                                            src={user.avatarUrl}
                                                             alt={user.username}
                                                             className="w-6 h-6 rounded-full"
                                                         />

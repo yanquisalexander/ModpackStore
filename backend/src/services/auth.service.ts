@@ -6,6 +6,7 @@ import { Session } from "@/models/Session.model";
 import { exchangeCodeForToken, getDiscordUser } from '@/services/discord';
 import { DISCORD_GUILD_ID, IS_BETA_PROGRAM } from "@/consts";
 import { APIError } from "@/lib/APIError"; // 1. Importar APIError
+import { UserRole } from "@/types/enums";
 
 // Asumimos que JWT_SECRET se valida al iniciar la app
 const JWT_SECRET = process.env.JWT_SECRET!;
@@ -15,6 +16,7 @@ interface UserPublicProfile {
     id: string;
     username: string;
     avatarUrl?: string | null;
+    role: UserRole;
     publisherMemberships: any[]; // Debería ser un tipo más específico
 }
 
@@ -105,6 +107,7 @@ export class AuthService {
         return {
             ...publicUserProfile,
             publisherMemberships: userWithRelations.publisherMemberships || [],
+            role: userWithRelations.role || UserRole.USER,
         };
     }
 

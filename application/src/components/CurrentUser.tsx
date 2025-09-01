@@ -88,6 +88,9 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
     const isPublisher = session?.publisherMemberships && session.publisherMemberships.length > 0;
 
+
+    if (!session) return null;
+
     return (
         <div className="relative" ref={containerRef}>
             <div
@@ -136,9 +139,10 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         </Link>
                     )}
 
-                    {session?.admin && (
+
+                    {(session.hasRole?.("admin") || session.hasRole?.("superadmin")) && (
                         <Link
-                            to="/admin/organizations"
+                            to="/admin"
                             onClick={closeMenu}
                             className="w-full shrink-0 flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded whitespace-nowrap"
                         >

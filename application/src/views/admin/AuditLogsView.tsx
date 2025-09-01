@@ -53,7 +53,7 @@ class AuditAPI {
         action?: string;
         startDate?: string;
         endDate?: string;
-    } = {}): Promise<PaginatedAuditLogs> {
+    } = {}, accessToken: string): Promise<PaginatedAuditLogs> {
         const queryParams = new URLSearchParams();
         Object.entries(params).forEach(([key, value]) => {
             if (value !== undefined && value !== '') {
@@ -63,7 +63,7 @@ class AuditAPI {
 
         const response = await fetch(`${this.baseUrl}?${queryParams}`, {
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
         });
@@ -75,10 +75,10 @@ class AuditAPI {
         return response.json();
     }
 
-    static async getActions(): Promise<{ actions: string[] }> {
+    static async getActions(accessToken: string): Promise<{ actions: string[] }> {
         const response = await fetch(`${this.baseUrl}/actions`, {
             headers: {
-                'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+                'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
         });
@@ -123,15 +123,20 @@ export const AuditLogsView: React.FC = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [userIdFilter, setUserIdFilter] = useState('');
-    const [actionFilter, setActionFilter] = useState('');
+    const [actionFilter, setActionFilter] = useState('all');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     
     const { toast } = useToast();
-    const { session } = useAuthentication();
+    const { session, sessionTokens } = useAuthentication();
 
     const loadLogs = async () => {
+        if (!sessionTokens?.accessToken) {
+            setError('No access token available');
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
         
@@ -143,7 +148,7 @@ export const AuditLogsView: React.FC = () => {
                 action: actionFilter || undefined,
                 startDate: startDate || undefined,
                 endDate: endDate || undefined
-            });
+            }, sessionTokens.accessToken);
             
             setLogsData(data);
         } catch (err) {
@@ -159,8 +164,12 @@ export const AuditLogsView: React.FC = () => {
     };
 
     const loadActions = async () => {
+        if (!sessionTokens?.accessToken) {
+            return;
+        }
+
         try {
-            const { actions } = await AuditAPI.getActions();
+            const { actions } = await AuditAPI.getActions(sessionTokens.accessToken);
             setAvailableActions(actions);
         } catch (err) {
             console.error('Failed to load actions:', err);
@@ -168,16 +177,20 @@ export const AuditLogsView: React.FC = () => {
     };
 
     useEffect(() => {
-        loadActions();
-    }, []);
+        if (sessionTokens?.accessToken) {
+            loadActions();
+        }
+    }, [sessionTokens?.accessToken]);
 
     useEffect(() => {
-        loadLogs();
-    }, [currentPage, userIdFilter, actionFilter, startDate, endDate]);
+        if (sessionTokens?.accessToken) {
+            loadLogs();
+        }
+    }, [currentPage, userIdFilter, actionFilter, startDate, endDate, sessionTokens?.accessToken]);
 
     const resetFilters = () => {
         setUserIdFilter('');
-        setActionFilter('');
+        setActionFilter('all');
         setStartDate('');
         setEndDate('');
         setCurrentPage(1);
@@ -244,7 +257,7 @@ export const AuditLogsView: React.FC = () => {
                                     <SelectValue placeholder="Filter by action" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="">All Actions</SelectItem>
+                                    <SelectItem value="all">All Actions</SelectItem>
                                     {availableActions.map((action) => (
                                         <SelectItem key={action} value={action}>
                                             {action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}

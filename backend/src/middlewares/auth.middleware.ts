@@ -42,6 +42,8 @@ export async function requireAuth(c: Context<{ Variables: AuthVariables }>, next
     try {
         const payload = verify(token, JWT_SECRET) as AuthVariables['jwt_payload'];
 
+        console.log('JWT Payload:', payload);
+
         const user = await User.findOne({ where: { id: payload.sub }, relations: ['publisherMemberships'] });
 
         if (!user) {
