@@ -4,6 +4,7 @@
 use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
 use crate::core::minecraft_instance::MinecraftInstance;
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -60,7 +61,7 @@ pub fn create_launcher_profiles(minecraft_dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Extracts native libraries from JAR files to the natives directory (IMPROVED VERSION)
+/// Extracts native libraries from JAR files to the natives directory (ENHANCED VERSION)
 pub fn extract_natives(
     version_details: &Value,
     libraries_dir: &Path,
@@ -76,24 +77,31 @@ pub fn extract_natives(
     );
 
     let os_info = get_os_info()?;
-    log::info!("Detectado OS: {}, Arch: {}", os_info.name, os_info.arch);
+    log::info!("Detectado OS: {}, Arch: {}, Classifier: {}", os_info.name, os_info.arch, os_info.classifier);
 
     let libraries = version_details["libraries"].as_array().ok_or_else(|| {
         log::error!("No se encontraron bibliotecas en el manifiesto de versión");
         "No se encontraron bibliotecas en el manifiesto".to_string()
     })?;
 
-    // Filter native libraries more accurately
+    // Enhanced native library detection including Forge-specific libraries
     let native_libraries: Vec<&Value> = libraries
         .iter()
-        .filter(|lib| is_native_library(lib, &os_info))
+        .filter(|lib| is_native_library_enhanced(lib, &os_info))
         .collect();
 
     let total_native_libraries = native_libraries.len();
     log::info!(
-        "Encontradas {} bibliotecas con nativos",
+        "Encontradas {} bibliotecas con nativos (incluyendo bibliotecas de Forge)",
         total_native_libraries
     );
+
+    // Log detailed information about found native libraries
+    for (i, library) in native_libraries.iter().enumerate() {
+        if let Some(name) = library.get("name").and_then(|n| n.as_str()) {
+            log::info!("  {}: {}", i + 1, name);
+        }
+    }
 
     if total_native_libraries == 0 {
         log::info!("No se encontraron bibliotecas nativas para procesar");
@@ -109,15 +117,20 @@ pub fn extract_natives(
         ),
     );
 
+    let mut successfully_extracted = 0;
+    let mut failed_extractions = Vec::new();
+
     for (index, library) in native_libraries.iter().enumerate() {
         let progress = index + 1;
-        let progress_percentage = (progress as f64 / total_native_libraries as f64) * 100.0;
 
-        log::info!(
-            "Procesando biblioteca nativa {}/{}",
-            progress,
-            total_native_libraries
-        );
+        if let Some(name) = library.get("name").and_then(|n| n.as_str()) {
+            log::info!(
+                "Procesando biblioteca nativa {}/{}: {}",
+                progress,
+                total_native_libraries,
+                name
+            );
+        }
 
         let stage = Stage::ExtractingLibraries {
             current: progress,
@@ -125,20 +138,63 @@ pub fn extract_natives(
         };
         emit_status_with_stage(instance, "instance-extracting-natives-progress", &stage);
 
-        if let Err(e) =
-            extract_single_native_library(library, libraries_dir, natives_dir, &os_info, instance)
-        {
-            log::error!("Error procesando biblioteca nativa: {}", e);
-            emit_status(
-                instance,
-                "instance-native-extraction-error",
-                &format!("Error en biblioteca nativa: {}", e),
-            );
-            // Continue with other libraries instead of failing completely
+        match extract_single_native_library_enhanced(library, libraries_dir, natives_dir, &os_info, instance) {
+            Ok(extracted_files) => {
+                successfully_extracted += 1;
+                log::info!("Biblioteca nativa extraída correctamente: {} archivos extraídos", extracted_files);
+            }
+            Err(e) => {
+                let library_name = library.get("name")
+                    .and_then(|n| n.as_str())
+                    .unwrap_or("desconocido");
+                
+                log::error!("Error procesando biblioteca nativa '{}': {}", library_name, e);
+                failed_extractions.push((library_name.to_string(), e.clone()));
+                
+                emit_status(
+                    instance,
+                    "instance-native-extraction-error",
+                    &format!("Error en biblioteca nativa '{}': {}", library_name, e),
+                );
+
+                // Enhanced fallback error reporting - report the library details but continue
+                if let Some(downloads) = library.get("downloads") {
+                    log::warn!("Información de descarga para '{}': {}", library_name, downloads);
+                }
+                if let Some(url) = library.get("url").and_then(|u| u.as_str()) {
+                    log::warn!("URL del repositorio para '{}': {}", library_name, url);
+                }
+            }
         }
     }
 
-    log::info!("Extracción de bibliotecas nativas completada");
+    // Final status report with detailed logging
+    log::info!(
+        "Extracción de bibliotecas nativas completada: {} exitosas, {} fallidas",
+        successfully_extracted,
+        failed_extractions.len()
+    );
+
+    if !failed_extractions.is_empty() {
+        log::warn!("Bibliotecas que fallaron en la extracción:");
+        for (name, error) in &failed_extractions {
+            log::warn!("  - {}: {}", name, error);
+        }
+        
+        // Don't fail the whole process, just warn about missing libraries
+        emit_status(
+            instance,
+            "instance-native-extraction-warnings", 
+            &format!("Extracción completada con {} advertencias (ver logs)", failed_extractions.len()),
+        );
+    } else {
+        emit_status(
+            instance,
+            "instance-native-extraction-complete",
+            "Todas las bibliotecas nativas extraídas correctamente",
+        );
+    }
+
     Ok(())
 }
 
@@ -191,6 +247,103 @@ fn is_native_library(library: &Value, os_info: &OsInfo) -> bool {
         if name.contains(&os_info.classifier) {
             return should_include_library(library, os_info);
         }
+    }
+
+    false
+}
+
+/// Enhanced native library detection that includes Forge-specific patterns
+fn is_native_library_enhanced(library: &Value, os_info: &OsInfo) -> bool {
+    // First, try the standard detection
+    if is_native_library(library, os_info) {
+        return true;
+    }
+
+    // Enhanced detection for Forge and modded libraries
+    if let Some(name) = library.get("name").and_then(|n| n.as_str()) {
+        // Check for common native library patterns
+        let native_patterns = [
+            "lwjgl",      // LWJGL libraries like org.lwjgl.tinyfd
+            "jinput",     // JInput libraries
+            "jutils",     // JUtils libraries  
+            "joml",       // Java OpenGL Math Library (sometimes has natives)
+            "natives",    // General natives pattern
+            "platform",   // Platform-specific libraries
+        ];
+
+        let name_lower = name.to_lowercase();
+        
+        // Check if library name contains common native patterns
+        for pattern in &native_patterns {
+            if name_lower.contains(pattern) {
+                // Additional verification: check if there's classifier or download info suggesting natives
+                if has_native_artifacts(library, os_info) {
+                    log::debug!("Detected native library via pattern '{}': {}", pattern, name);
+                    return should_include_library(library, os_info);
+                }
+            }
+        }
+
+        // Check for OS-specific classifiers in the name
+        let os_classifiers = [
+            &format!("natives-{}", os_info.name),
+            &format!("{}-natives", os_info.name),
+            &format!("native-{}", os_info.name),
+            &format!("{}-native", os_info.name),
+        ];
+
+        for classifier in &os_classifiers {
+            if name_lower.contains(classifier) {
+                log::debug!("Detected native library via OS classifier '{}': {}", classifier, name);
+                return should_include_library(library, os_info);
+            }
+        }
+    }
+
+    // Check for download artifacts with native classifiers
+    if let Some(downloads) = library.get("downloads") {
+        if let Some(classifiers) = downloads.get("classifiers") {
+            // Check for our OS-specific classifier
+            let possible_classifiers = [
+                format!("natives-{}", os_info.name),
+                format!("natives-{}-{}", os_info.name, os_info.arch),
+                format!("{}-natives", os_info.name),
+                format!("{}-{}-natives", os_info.name, os_info.arch),
+            ];
+
+            for classifier in &possible_classifiers {
+                if classifiers.get(classifier).is_some() {
+                    log::debug!("Detected native library via download classifier '{}': {}", 
+                              classifier, 
+                              library.get("name").and_then(|n| n.as_str()).unwrap_or("unknown"));
+                    return should_include_library(library, os_info);
+                }
+            }
+        }
+    }
+
+    false
+}
+
+/// Check if library has native artifacts for the current OS
+fn has_native_artifacts(library: &Value, os_info: &OsInfo) -> bool {
+    // Check downloads section for classifiers
+    if let Some(downloads) = library.get("downloads") {
+        if let Some(classifiers) = downloads.get("classifiers") {
+            // Look for any native classifier that might be relevant
+            for (key, _) in classifiers.as_object().unwrap_or(&serde_json::Map::new()) {
+                if key.contains("native") || 
+                   key.contains(&os_info.name) || 
+                   key.contains(&os_info.classifier) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    // Check natives section
+    if let Some(natives) = library.get("natives") {
+        return natives.get(&os_info.name).is_some();
     }
 
     false
@@ -292,6 +445,85 @@ fn extract_single_native_library(
     Ok(())
 }
 
+/// Enhanced single native library extraction with better error handling and duplicate detection
+fn extract_single_native_library_enhanced(
+    library: &Value,
+    libraries_dir: &Path,
+    natives_dir: &Path,
+    os_info: &OsInfo,
+    instance: &MinecraftInstance,
+) -> Result<usize, String> {
+    let library_name = library.get("name")
+        .and_then(|n| n.as_str())
+        .unwrap_or("unknown");
+
+    // Try to get the library path with enhanced path resolution
+    let library_path = match get_native_library_path_enhanced(library, libraries_dir, os_info) {
+        Ok(path) => path,
+        Err(e) => {
+            // Enhanced error reporting with fallback information
+            log::warn!("No se pudo determinar la ruta para '{}': {}", library_name, e);
+            
+            // Try to provide helpful information about the library
+            if let Some(downloads) = library.get("downloads") {
+                log::info!("Información de descarga disponible para '{}': {}", library_name, downloads);
+            }
+            if let Some(url) = library.get("url").and_then(|u| u.as_str()) {
+                log::info!("URL del repositorio para '{}': {}", library_name, url);
+            }
+            
+            return Err(format!("No se pudo resolver la ruta de descarga para '{}': {}", library_name, e));
+        }
+    };
+
+    if !library_path.exists() {
+        return Err(format!(
+            "Archivo de biblioteca nativa no encontrado: {} (biblioteca: {})",
+            library_path.display(),
+            library_name
+        ));
+    }
+
+    let metadata = fs::metadata(&library_path)
+        .map_err(|e| format!("Error obteniendo metadata del archivo {}: {}", library_path.display(), e))?;
+
+    if metadata.len() == 0 {
+        return Err(format!("Archivo de biblioteca nativa está vacío: {} (biblioteca: {})", 
+                          library_path.display(), library_name));
+    }
+
+    log::info!(
+        "Extrayendo biblioteca nativa '{}': {} ({} bytes)",
+        library_name,
+        library_path.display(),
+        metadata.len()
+    );
+
+    // Get exclusion patterns with enhanced defaults
+    let exclude_patterns = get_exclusion_patterns_enhanced(library);
+
+    emit_status(
+        instance,
+        "instance-extracting-native-library",
+        &format!(
+            "Extrayendo: {} ({})",
+            library_path
+                .file_name()
+                .unwrap_or_default()
+                .to_string_lossy(),
+            library_name
+        ),
+    );
+
+    // Extract with duplicate detection
+    let extracted_files = extract_jar_file_enhanced(&library_path, natives_dir, &exclude_patterns, library_name)?;
+
+    log::info!("Extracción completada para '{}': {} archivos extraídos desde {}", 
+              library_name, extracted_files, library_path.display());
+    
+    Ok(extracted_files)
+}
+
 fn get_native_library_path(
     library: &Value,
     libraries_dir: &Path,
@@ -323,6 +555,95 @@ fn get_native_library_path(
     Err("No se encontró información de descarga para la biblioteca nativa".to_string())
 }
 
+/// Enhanced native library path resolution with better fallback support
+fn get_native_library_path_enhanced(
+    library: &Value,
+    libraries_dir: &Path,
+    os_info: &OsInfo,
+) -> Result<PathBuf, String> {
+    let library_name = library.get("name")
+        .and_then(|n| n.as_str())
+        .unwrap_or("unknown");
+
+    // Strategy 1: Try classifier-specific downloads (most reliable for natives)
+    if let Some(classifiers) = library.get("downloads").and_then(|d| d.get("classifiers")) {
+        // Try various classifier patterns
+        let possible_classifiers = vec![
+            // Standard natives pattern with arch replacement
+            library.get("natives")
+                .and_then(|n| n.get(&os_info.name))
+                .and_then(|n| n.as_str())
+                .map(|template| template.replace("${arch}", &os_info.arch)),
+            // Direct OS-specific patterns
+            Some(format!("natives-{}", os_info.name)),
+            Some(format!("natives-{}-{}", os_info.name, os_info.arch)),
+            Some(format!("{}-natives", os_info.name)),
+            Some(format!("{}-{}-natives", os_info.name, os_info.arch)),
+        ];
+
+        for classifier_opt in possible_classifiers {
+            if let Some(classifier) = classifier_opt {
+                if let Some(classifier_info) = classifiers.get(&classifier) {
+                    if let Some(path) = classifier_info.get("path").and_then(|p| p.as_str()) {
+                        let full_path = libraries_dir.join(path);
+                        log::debug!("Found native library path via classifier '{}': {}", classifier, full_path.display());
+                        return Ok(full_path);
+                    }
+                }
+            }
+        }
+    }
+
+    // Strategy 2: Try standard artifact download
+    if let Some(artifact) = library.get("downloads").and_then(|d| d.get("artifact")) {
+        if let Some(path) = artifact.get("path").and_then(|p| p.as_str()) {
+            let full_path = libraries_dir.join(path);
+            log::debug!("Found library path via artifact: {}", full_path.display());
+            return Ok(full_path);
+        }
+    }
+
+    // Strategy 3: Manual path construction from Maven coordinates (for Forge libraries)
+    if let Some(name) = library.get("name").and_then(|n| n.as_str()) {
+        let parts: Vec<&str> = name.split(':').collect();
+        if parts.len() >= 3 {
+            let group_id = parts[0];
+            let artifact_id = parts[1];
+            let version = parts[2];
+            
+            // Try to find a classifier that suggests it's a native library
+            let classifier = if parts.len() > 3 {
+                Some(parts[3])
+            } else {
+                // Check if any part of the name suggests a native classifier
+                if name.contains(&os_info.classifier) {
+                    Some(&os_info.classifier[8..]) // Remove "natives-" prefix
+                } else if name.contains(&format!("{}-native", os_info.name)) {
+                    Some(&format!("{}-native", os_info.name))
+                } else {
+                    None
+                }
+            };
+
+            // Build the Maven-style path
+            let group_path = group_id.replace('.', "/");
+            let jar_name = if let Some(classifier) = classifier {
+                format!("{}-{}-{}.jar", artifact_id, version, classifier)
+            } else {
+                format!("{}-{}.jar", artifact_id, version)
+            };
+
+            let maven_path = format!("{}/{}/{}/{}", group_path, artifact_id, version, jar_name);
+            let full_path = libraries_dir.join(&maven_path);
+            
+            log::debug!("Constructed Maven path for native library: {}", full_path.display());
+            return Ok(full_path);
+        }
+    }
+
+    Err(format!("No se pudo resolver la ruta para la biblioteca nativa '{}'", library_name))
+}
+
 fn get_exclusion_patterns(library: &Value) -> Vec<String> {
     if let Some(extract) = library.get("extract") {
         if let Some(exclude) = extract.get("exclude") {
@@ -341,6 +662,48 @@ fn get_exclusion_patterns(library: &Value) -> Vec<String> {
         "*.txt".to_string(),
         "*.xml".to_string(),
     ]
+}
+
+/// Enhanced exclusion patterns with better defaults and Forge-specific patterns
+fn get_exclusion_patterns_enhanced(library: &Value) -> Vec<String> {
+    let mut patterns = Vec::new();
+
+    // Get library-specific exclusions first
+    if let Some(extract) = library.get("extract") {
+        if let Some(exclude) = extract.get("exclude") {
+            patterns.extend(
+                exclude
+                    .as_array()
+                    .unwrap_or(&Vec::new())
+                    .iter()
+                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            );
+        }
+    }
+
+    // Add enhanced default exclusions if none were specified
+    if patterns.is_empty() {
+        patterns.extend([
+            "META-INF/".to_string(),
+            "*.txt".to_string(),
+            "*.xml".to_string(),
+            "*.md".to_string(),
+            "*.properties".to_string(),
+            "*.class".to_string(),    // Don't extract Java class files
+            "*.java".to_string(),     // Don't extract Java source files
+            "LICENSE*".to_string(),   // Don't extract license files
+            "NOTICE*".to_string(),    // Don't extract notice files
+        ]);
+    }
+
+    // Always exclude certain patterns regardless of library specification
+    patterns.extend([
+        "module-info.class".to_string(),  // Java 9+ module info
+        "*.jar".to_string(),              // Don't extract nested JARs
+        "*.zip".to_string(),              // Don't extract nested ZIPs
+    ]);
+
+    patterns
 }
 
 /// Helper function to extract a JAR file to a directory, excluding specified patterns
@@ -426,6 +789,130 @@ fn extract_jar_file(
     );
 
     Ok(())
+}
+
+/// Enhanced JAR extraction with duplicate detection and better logging
+fn extract_jar_file_enhanced(
+    jar_path: &Path,
+    target_dir: &Path,
+    exclude_patterns: &[String],
+    library_name: &str,
+) -> Result<usize, String> {
+    log::info!(
+        "Iniciando extracción de JAR para '{}': {} -> {}",
+        library_name,
+        jar_path.display(),
+        target_dir.display()
+    );
+
+    fs::create_dir_all(target_dir)
+        .map_err(|e| format!("Error creando directorio de destino: {}", e))?;
+
+    let file =
+        fs::File::open(jar_path).map_err(|e| format!("Error abriendo archivo JAR: {}", e))?;
+
+    let reader = std::io::BufReader::new(file);
+    let mut archive =
+        zip::ZipArchive::new(reader).map_err(|e| format!("Error leyendo archivo ZIP: {}", e))?;
+
+    let mut extracted_count = 0;
+    let mut skipped_count = 0;
+    let mut duplicate_count = 0;
+    let mut error_count = 0;
+
+    for i in 0..archive.len() {
+        let mut file = archive
+            .by_index(i)
+            .map_err(|e| format!("Error obteniendo entrada ZIP en índice {}: {}", i, e))?;
+
+        // El nombre completo dentro del zip (ej: "org/lwjgl/lwjgl.dll")
+        let full_path_in_zip = match file.enclosed_name() {
+            Some(path) => path.to_owned(),
+            None => {
+                skipped_count += 1;
+                continue;
+            }
+        };
+
+        let path_str = full_path_in_zip.to_str().unwrap_or("");
+
+        // Skip directories
+        if file.is_dir() {
+            log::trace!("Saltado directorio: {}", full_path_in_zip.display());
+            skipped_count += 1;
+            continue;
+        }
+
+        // Skip excluded files
+        if should_exclude_file(path_str, exclude_patterns) {
+            log::trace!("Saltado por exclusión: {}", full_path_in_zip.display());
+            skipped_count += 1;
+            continue;
+        }
+
+        // Extract only the final filename (flattening the directory structure)
+        if let Some(file_name_only) = full_path_in_zip.file_name() {
+            let output_path = target_dir.join(file_name_only);
+
+            // Check for duplicates
+            if output_path.exists() {
+                // Compare file sizes to determine if it's actually the same file
+                if let Ok(existing_metadata) = fs::metadata(&output_path) {
+                    if existing_metadata.len() == file.size() {
+                        log::debug!("Archivo duplicado detectado (mismo tamaño), saltando: {}", 
+                                  file_name_only.to_string_lossy());
+                        duplicate_count += 1;
+                        continue;
+                    } else {
+                        log::warn!("Archivo duplicado con diferente tamaño, sobrescribiendo: {} (existente: {} bytes, nuevo: {} bytes)", 
+                                 file_name_only.to_string_lossy(), existing_metadata.len(), file.size());
+                    }
+                }
+            }
+
+            // Extract the file
+            match fs::File::create(&output_path) {
+                Ok(mut output_file) => {
+                    match io::copy(&mut file, &mut output_file) {
+                        Ok(bytes_copied) => {
+                            extracted_count += 1;
+                            log::debug!("Extraído '{}': {} -> {} ({} bytes)", 
+                                      library_name,
+                                      full_path_in_zip.display(), 
+                                      output_path.display(),
+                                      bytes_copied);
+                        }
+                        Err(e) => {
+                            error_count += 1;
+                            log::error!("Error escribiendo archivo {}: {}", output_path.display(), e);
+                        }
+                    }
+                }
+                Err(e) => {
+                    error_count += 1;
+                    log::error!("Error creando archivo {}: {}", output_path.display(), e);
+                }
+            }
+        } else {
+            skipped_count += 1;
+            log::debug!("Saltado (sin nombre de archivo): {}", full_path_in_zip.display());
+        }
+    }
+
+    log::info!(
+        "Extracción completada para '{}': {} extraídos, {} saltados, {} duplicados, {} errores",
+        library_name,
+        extracted_count,
+        skipped_count,
+        duplicate_count,
+        error_count
+    );
+
+    if error_count > 0 {
+        return Err(format!("Se produjeron {} errores durante la extracción de '{}'", error_count, library_name));
+    }
+
+    Ok(extracted_count)
 }
 
 fn should_exclude_file(file_name: &str, exclude_patterns: &[String]) -> bool {

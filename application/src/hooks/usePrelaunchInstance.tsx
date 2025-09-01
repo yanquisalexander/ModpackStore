@@ -163,7 +163,17 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
         try {
             trackEvent("play_instance_clicked", { name: "Play Minecraft Instance Clicked", modpackId: "null", timestamp: new Date().toISOString() });
-            setLoadingStatus(prev => ({ ...prev, isLoading: true }));
+            
+            // ENHANCED: Clear any previous loading state and messages before starting new instance
+            clearLoadingState();
+            
+            // Set initial loading state for new instance
+            setLoadingStatus({
+                isLoading: true,
+                message: "Preparando instancia...",
+                stage: undefined
+            });
+            
             await invoke("launch_mc_instance", { instanceId });
             startMessageInterval();
         } catch (error) {
@@ -173,6 +183,33 @@ export const usePrelaunchInstance = (instanceId: string) => {
             setLoadingStatus(DEFAULT_LOADING_STATE);
         }
     }, [instanceId, loadingStatus.isLoading, isPlaying, isInstanceBootstraping, prelaunchState.instance, startMessageInterval]);
+
+    // Enhanced function to clear loading state and prevent old messages from showing
+    const clearLoadingState = useCallback(() => {
+        // Clear any existing intervals
+        if (messageIntervalRef.current) {
+            clearInterval(messageIntervalRef.current);
+            messageIntervalRef.current = null;
+        }
+
+        // Clear any existing timeouts
+        if (messageTimeoutRef.current) {
+            clearTimeout(messageTimeoutRef.current);
+            messageTimeoutRef.current = null;
+        }
+
+        // Reset message reference
+        lastMessageRef.current = null;
+
+        // Reset loading status to clean state
+        setLoadingStatus({
+            isLoading: false,
+            message: "Preparando instancia...", // Fresh message instead of old residual one
+            stage: undefined
+        });
+
+        console.log("LoadingIndicator state cleared for new instance launch");
+    }, []);
 
     // --- EFECTOS SECUNDARIOS ---
 
@@ -216,10 +253,11 @@ export const usePrelaunchInstance = (instanceId: string) => {
         };
     }, [appearance?.audio?.url, isPlaying]);
 
-    // Efecto para manejar los intervalos de mensajes y el estado de carga
+    // Enhanced effect to handle loading state with better cleanup and message management
     useEffect(() => {
         if (currentInstanceRunning) {
             const isLoading = ["preparing", "downloading-assets", "downloading-modpack-assets"].includes(currentInstanceRunning.status);
+            
             // Use stage information if available, otherwise fall back to existing message
             const formattedMessage = currentInstanceRunning.stage
                 ? formatStageMessage(currentInstanceRunning.stage, currentInstanceRunning.message || "Procesando...")
@@ -233,10 +271,11 @@ export const usePrelaunchInstance = (instanceId: string) => {
             }));
 
             if (isLoading) {
-                // Check if the message has changed
-                if (lastMessageRef.current !== formattedMessage) {
+                // Check if the message has changed for this specific instance
+                const messageKey = `${instanceId}-${formattedMessage}`;
+                if (lastMessageRef.current !== messageKey) {
                     // Message changed: update ref and reset timeout
-                    lastMessageRef.current = formattedMessage;
+                    lastMessageRef.current = messageKey;
 
                     // Clear any existing timeout
                     if (messageTimeoutRef.current) {
@@ -245,32 +284,56 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
                     // Set a new timeout to start rotating after 5 seconds of stability
                     messageTimeoutRef.current = window.setTimeout(() => {
-                        // Start rotating interval if not already active
-                        if (!messageIntervalRef.current) {
+                        // Start rotating interval if not already active and still loading
+                        if (!messageIntervalRef.current && loadingStatus.isLoading) {
                             messageIntervalRef.current = window.setInterval(() => {
                                 setLoadingStatus(prev => ({ ...prev, message: getRandomMessage() }));
                             }, 5000);
                         }
                     }, 5000);
                 }
-                // If message hasn't changed, let the timeout run or interval continue
             } else {
-                // Not loading: clear all timers
-                if (messageIntervalRef.current) {
-                    clearInterval(messageIntervalRef.current);
-                    messageIntervalRef.current = null;
+                // Not loading: clear all timers and reset state for clean start
+                clearAllTimers();
+                
+                // Set non-loading state but only if we're not already set to non-loading
+                if (loadingStatus.isLoading) {
+                    setLoadingStatus(prev => ({ 
+                        ...prev, 
+                        isLoading: false,
+                        message: DEFAULT_LOADING_STATE.message // Reset to clean message
+                    }));
                 }
-
-                if (messageTimeoutRef.current) {
-                    clearTimeout(messageTimeoutRef.current);
-                    messageTimeoutRef.current = null;
-                }
-
-                // Reset to non-loading state
-                setLoadingStatus(prev => ({ ...prev, isLoading: false }));
+            }
+        } else {
+            // No instance running - ensure clean state
+            clearAllTimers();
+            if (loadingStatus.isLoading) {
+                setLoadingStatus(DEFAULT_LOADING_STATE);
             }
         }
-    }, [currentInstanceRunning, getRandomMessage, startMessageInterval]);
+    }, [currentInstanceRunning, getRandomMessage, instanceId, loadingStatus.isLoading]);
+
+    // Helper function to clear all timers
+    const clearAllTimers = useCallback(() => {
+        if (messageIntervalRef.current) {
+            clearInterval(messageIntervalRef.current);
+            messageIntervalRef.current = null;
+        }
+
+        if (messageTimeoutRef.current) {
+            clearTimeout(messageTimeoutRef.current);
+            messageTimeoutRef.current = null;
+        }
+    }, []);
+
+    // Enhanced cleanup effect to ensure no timers leak between instances
+    useEffect(() => {
+        return () => {
+            clearAllTimers();
+            lastMessageRef.current = null;
+        };
+    }, [instanceId, clearAllTimers]); // Cleanup when instanceId changes
 
 
     // Efecto para Discord RPC
