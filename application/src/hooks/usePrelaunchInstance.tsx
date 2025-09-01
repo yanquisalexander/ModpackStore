@@ -197,17 +197,29 @@ export const usePrelaunchInstance = (instanceId: string) => {
             }));
 
             if (isLoading) {
-                // Always update lastMessageRef to the current formatted message
-                lastMessageRef.current = formattedMessage;
+                // Check if the message has changed
+                if (lastMessageRef.current !== formattedMessage) {
+                    // Message changed: update ref and reset timeout
+                    lastMessageRef.current = formattedMessage;
 
-                // If we don't already have a rotating interval, start one
-                if (!messageIntervalRef.current) {
-                    messageIntervalRef.current = window.setInterval(() => {
-                        setLoadingStatus(prev => ({ ...prev, message: getRandomMessage() }));
+                    // Clear any existing timeout
+                    if (messageTimeoutRef.current) {
+                        clearTimeout(messageTimeoutRef.current);
+                    }
+
+                    // Set a new timeout to start rotating after 5 seconds of stability
+                    messageTimeoutRef.current = window.setTimeout(() => {
+                        // Start rotating interval if not already active
+                        if (!messageIntervalRef.current) {
+                            messageIntervalRef.current = window.setInterval(() => {
+                                setLoadingStatus(prev => ({ ...prev, message: getRandomMessage() }));
+                            }, 5000);
+                        }
                     }, 5000);
                 }
+                // If message hasn't changed, let the timeout run or interval continue
             } else {
-                // Not loading: clear rotating interval and any pending timeout
+                // Not loading: clear all timers
                 if (messageIntervalRef.current) {
                     clearInterval(messageIntervalRef.current);
                     messageIntervalRef.current = null;
@@ -218,7 +230,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
                     messageTimeoutRef.current = null;
                 }
 
-                // Ensure loadingStatus reflects non-loading default state (keep message if provided)
+                // Reset to non-loading state
                 setLoadingStatus(prev => ({ ...prev, isLoading: false }));
             }
         }
@@ -262,6 +274,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }
         return () => {
             if (messageIntervalRef.current) clearInterval(messageIntervalRef.current);
+            if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
         };
     }, [setTitleBarState]);
 

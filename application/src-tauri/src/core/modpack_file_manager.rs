@@ -597,6 +597,12 @@ async fn download_modpack_files(
         emit_status_with_stage(instance, "instance-downloading-modpack-files", &stage);
     }
 
+    emit_status(
+        instance,
+        "instance-finish-assets-download",
+        &format!("Descargados {} archivos", downloaded_count),
+    );
+
     Ok(downloaded_count)
 }
 
