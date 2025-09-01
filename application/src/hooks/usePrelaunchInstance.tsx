@@ -329,11 +329,14 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
     // Enhanced cleanup effect to ensure no timers leak between instances
     useEffect(() => {
+        // Clear state when instance changes to prevent old messages
+        clearLoadingState();
+        
         return () => {
             clearAllTimers();
             lastMessageRef.current = null;
         };
-    }, [instanceId, clearAllTimers]); // Cleanup when instanceId changes
+    }, [instanceId, clearAllTimers, clearLoadingState]); // Cleanup when instanceId changes
 
 
     // Efecto para Discord RPC

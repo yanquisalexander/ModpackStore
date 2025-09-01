@@ -289,12 +289,17 @@ fn is_native_library_enhanced(library: &Value, os_info: &OsInfo) -> bool {
     if let Some(name) = library.get("name").and_then(|n| n.as_str()) {
         // Check for common native library patterns
         let native_patterns = [
-            "lwjgl",    // LWJGL libraries like org.lwjgl.tinyfd
+            "lwjgl",    // LWJGL libraries like org.lwjgl.tinyfd, org.lwjgl.glfw
+            "tinyfd",   // Specific TinyFileDialogs library
+            "glfw",     // GLFW windowing library  
+            "openal",   // OpenAL audio library
+            "opengl",   // OpenGL libraries
             "jinput",   // JInput libraries
             "jutils",   // JUtils libraries
             "joml",     // Java OpenGL Math Library (sometimes has natives)
             "natives",  // General natives pattern
             "platform", // Platform-specific libraries
+            "jni",      // JNI libraries
         ];
 
         let name_lower = name.to_lowercase();
