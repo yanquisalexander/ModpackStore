@@ -613,6 +613,10 @@ pub async fn search_instances(query: String) -> Result<Vec<MinecraftInstance>, S
     Ok(filtered_instances)
 }
 
+/// Check for modpack updates
+/// OFFLINE MODE: Esta función está diseñada para ser tolerante a errores de red.
+/// En lugar de fallar cuando no hay conexión, devuelve un resultado que indica
+/// que no hay actualizaciones disponibles y que se está ejecutando en modo offline.
 #[tauri::command]
 pub async fn check_modpack_updates(
     modpack_id: String,
@@ -624,20 +628,35 @@ pub async fn check_modpack_updates(
         API_ENDPOINT, modpack_id, current_version
     );
 
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to check for updates: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!("API error: {}", response.status()));
+    match client.get(&url).send().await {
+        Ok(response) => {
+            if response.status().is_success() {
+                response
+                    .json()
+                    .await
+                    .map_err(|e| format!("Failed to parse JSON: {}", e))
+            } else {
+                // API error - return offline mode response instead of failing
+                log::warn!("API error checking updates for modpack {}: {}", modpack_id, response.status());
+                Ok(serde_json::json!({
+                    "hasUpdate": false,
+                    "currentVersion": current_version,
+                    "latestVersion": null,
+                    "offlineMode": true
+                }))
+            }
+        }
+        Err(e) => {
+            // Network error - return offline mode response instead of failing
+            log::warn!("Network error checking updates for modpack {}: {}", modpack_id, e);
+            Ok(serde_json::json!({
+                "hasUpdate": false,
+                "currentVersion": current_version,
+                "latestVersion": null,
+                "offlineMode": true
+            }))
+        }
     }
-
-    response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse JSON: {}", e))
 }
 
 #[tauri::command]
