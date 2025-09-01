@@ -287,6 +287,7 @@ pub async fn validate_modpack_assets(
             .as_ref()
             .ok_or("Instance directory not set")?,
     );
+    let minecraft_dir = instance_dir.join("minecraft");
     let mut files_to_download = Vec::new();
 
     if let Some(task_id) = &task_id {
@@ -302,7 +303,7 @@ pub async fn validate_modpack_assets(
     let total_files = manifest.files.len();
 
     for (index, file_entry) in manifest.files.iter().enumerate() {
-        let file_path = instance_dir.join(&file_entry.path);
+        let file_path = minecraft_dir.join(&file_entry.path);
 
         // Update progress
         if let Some(task_id) = &task_id {
@@ -545,6 +546,7 @@ async fn download_modpack_files(
             .as_ref()
             .ok_or("Instance directory not set")?,
     );
+    let minecraft_dir = instance_dir.join("minecraft");
     let mut downloaded_count = 0;
 
     // Emit initial stage for downloading modpack files
@@ -559,7 +561,7 @@ async fn download_modpack_files(
     );
 
     for (index, file_entry) in files.iter().enumerate() {
-        let file_path = instance_dir.join(&file_entry.path);
+        let file_path = minecraft_dir.join(&file_entry.path);
 
         // Update progress
         if let Some(task_id) = &task_id {
