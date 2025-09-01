@@ -6,7 +6,7 @@ import { ModpackVersion } from "./ModpackVersion";
 import { UserPurchase } from "./UserPurchase";
 import { WalletTransaction } from "./WalletTransaction";
 import { Publisher } from "./Publisher";
-import { PublisherMemberRole } from "@/types/enums";
+import { PublisherMemberRole, UserRole } from "@/types/enums";
 
 @Entity({ name: "users" })
 export class User extends BaseEntity {
@@ -42,8 +42,13 @@ export class User extends BaseEntity {
     @Column({ name: "patreon_refresh_token", type: "text", nullable: true })
     patreonRefreshToken?: string;
 
-    @Column({ name: "admin", type: "boolean", default: false })
-    admin: boolean;
+    @Column({ 
+        name: "role", 
+        type: "enum", 
+        enum: UserRole, 
+        default: UserRole.USER 
+    })
+    role: UserRole;
 
     @CreateDateColumn({ name: "created_at" })
     createdAt: Date;
@@ -78,5 +83,18 @@ export class User extends BaseEntity {
     async getRoleInPublisher(publisherId: string): Promise<PublisherMemberRole | null> {
         const membership = await PublisherMember.findOne({ where: { user: { id: this.id }, publisher: { id: publisherId } } });
         return membership ? membership.role : null;
+    }
+
+    // Helper methods for role checking
+    isAdmin(): boolean {
+        return this.role === UserRole.ADMIN || this.role === UserRole.SUPERADMIN;
+    }
+
+    isSuperAdmin(): boolean {
+        return this.role === UserRole.SUPERADMIN;
+    }
+
+    hasRole(role: UserRole): boolean {
+        return this.role === role;
     }
 }

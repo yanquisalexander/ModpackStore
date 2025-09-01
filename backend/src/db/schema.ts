@@ -2,7 +2,15 @@ import { relations } from "drizzle-orm";
 import { boolean, integer, jsonb, numeric, pgEnum, timestamp, uuid } from "drizzle-orm/pg-core";
 import { pgTable, serial, text, varchar } from "drizzle-orm/pg-core";
 
-// Tabla de usuarios (sin cambios)
+// Enums
+export const userRoleEnum = pgEnum('user_role', ['user', 'admin', 'superadmin']);
+export const auditActionEnum = pgEnum('audit_action', [
+    'user_login', 'user_logout', 'user_created', 'user_updated', 'user_deleted', 
+    'user_role_changed', 'modpack_created', 'modpack_updated', 'modpack_deleted',
+    'admin_access', 'audit_log_viewed'
+]);
+
+// Tabla de usuarios actualizada con roles
 export const UsersTable = pgTable("users", {
     id: uuid("id").primaryKey().notNull().defaultRandom(),
     username: varchar("username", { length: 32 }).notNull().unique(),
@@ -16,9 +24,22 @@ export const UsersTable = pgTable("users", {
     patreonId: text("patreon_id"),
     patreonAccessToken: text("patreon_access_token"),
     patreonRefreshToken: text("patreon_refresh_token"),
-    admin: boolean("admin").default(false).notNull(),
+    role: userRoleEnum("role").default('user').notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// Nueva tabla de audit logs
+export const AuditLogsTable = pgTable("audit_logs", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    action: auditActionEnum("action").notNull(),
+    userId: uuid("user_id").references(() => UsersTable.id),
+    targetUserId: uuid("target_user_id").references(() => UsersTable.id),
+    targetResourceId: uuid("target_resource_id"),
+    details: jsonb("details"),
+    ipAddress: varchar("ip_address", { length: 45 }),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const SessionsTable = pgTable('sessions', {

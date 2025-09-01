@@ -21,6 +21,7 @@ import { OfflineMode } from "./views/OfflineMode";
 import NoticeTestBuild from "./components/NoticeTestBuild";
 import CommandPalette from "./components/CommandPalette";
 import { CreatorsLayout } from "./components/layouts/CreatorsLayout";
+import { AdminLayout } from "./components/admin/AdminLayout";
 import { ConfigurationDialog } from "./components/ConfigurationDialog";
 import { useConfigDialog } from "./stores/ConfigDialogContext";
 
@@ -126,6 +127,10 @@ function App() {
 
         {session?.publisherMemberships && session.publisherMemberships.length > 0 && (
           <Route path="/creators/*" element={<CreatorsLayout />} />
+        )}
+
+        {session?.isAdmin?.() && (
+          <Route path="/admin/*" element={<AdminLayout />} />
         )}
 
         <Route path="*" element={<NotFound />} />
