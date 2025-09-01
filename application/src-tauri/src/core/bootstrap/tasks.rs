@@ -200,12 +200,37 @@ pub fn emit_download_progress(
 
 /// Emits a bootstrap error event with enhanced error information
 pub fn emit_bootstrap_error(instance: &MinecraftInstance, error: &BootstrapError) {
+    // Detailed logging for debugging (this won't affect user experience)
     log::error!(
         "[Instance: {}] Bootstrap error in step '{}': {}",
         instance.instanceId,
         error.step,
         error.message
     );
+    
+    // Log additional context for debugging
+    log::debug!(
+        "[Instance: {}] Bootstrap error details - Category: {:?}, Step: {:?}",
+        instance.instanceId,
+        error.category,
+        error.step
+    );
+    
+    if let Some(suggestion) = &error.suggestion {
+        log::info!(
+            "[Instance: {}] Bootstrap error suggestion: {}",
+            instance.instanceId,
+            suggestion
+        );
+    }
+    
+    if let Some(technical_details) = &error.technical_details {
+        log::debug!(
+            "[Instance: {}] Bootstrap error technical details: {}",
+            instance.instanceId,
+            technical_details
+        );
+    }
 
     if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
         if let Some(app_handle) = guard.as_ref() {
