@@ -2,6 +2,7 @@ use crate::core::bootstrap::tasks::{
     emit_bootstrap_complete, emit_status, emit_status_with_stage, Stage,
 };
 use crate::core::minecraft_instance::MinecraftInstance;
+use crate::core::minecraft::paths::MinecraftPaths;
 use crate::core::tasks_manager::{add_task, update_task, TaskStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -40,7 +41,113 @@ pub struct ModpackFileType {
     pub r#type: String,
 }
 
-/// Cleans up obsolete files in the instance directory based on the manifest
+/// Identifies essential Minecraft files and directories that should never be deleted
+fn get_essential_minecraft_paths(minecraft_dir: &Path, instance: &MinecraftInstance) -> HashSet<PathBuf> {
+    let mut essential_paths = HashSet::new();
+    
+    // Essential directories that contain base Minecraft files
+    essential_paths.insert(minecraft_dir.join("versions"));
+    essential_paths.insert(minecraft_dir.join("libraries"));
+    essential_paths.insert(minecraft_dir.join("assets"));
+    essential_paths.insert(minecraft_dir.join("natives"));
+    
+    // Runtime and cache directories
+    essential_paths.insert(minecraft_dir.join("logs"));
+    essential_paths.insert(minecraft_dir.join("crash-reports"));
+    essential_paths.insert(minecraft_dir.join("saves"));
+    essential_paths.insert(minecraft_dir.join("screenshots"));
+    essential_paths.insert(minecraft_dir.join("resourcepacks"));
+    essential_paths.insert(minecraft_dir.join("shaderpacks"));
+    essential_paths.insert(minecraft_dir.join("config")); // May contain user configurations
+    
+    // Launcher and profile files
+    essential_paths.insert(minecraft_dir.join("launcher_profiles.json"));
+    essential_paths.insert(minecraft_dir.join("options.txt"));
+    essential_paths.insert(minecraft_dir.join("optionsshaders.txt"));
+    essential_paths.insert(minecraft_dir.join("servers.dat"));
+    
+    // Create MinecraftPaths to get specific file locations
+    match crate::config::get_config_manager().lock() {
+        Ok(config_result) => {
+            if let Ok(config) = &*config_result {
+                if let Some(mc_paths) = MinecraftPaths::new(instance, config) {
+                    // Add specific client jar
+                    essential_paths.insert(mc_paths.client_jar());
+                    
+                    // Add natives directory for this version
+                    essential_paths.insert(mc_paths.natives_dir());
+                }
+            }
+        }
+        Err(_) => {
+            log::warn!("[Cleanup] Could not access config manager for paths");
+        }
+    }
+    
+    log::info!("[Cleanup] Protected {} essential Minecraft paths", essential_paths.len());
+    
+    essential_paths
+}
+
+/// Checks if a file path should be protected from deletion
+fn is_essential_path(file_path: &Path, essential_paths: &HashSet<PathBuf>) -> bool {
+    // Check if the file itself is essential
+    if essential_paths.contains(file_path) {
+        return true;
+    }
+    
+    // Check if the file is inside any essential directory
+    for essential_path in essential_paths {
+        if file_path.starts_with(essential_path) {
+            return true;
+        }
+    }
+    
+    false
+}
+
+/// Loads previous manifest if available for comparison
+fn load_previous_manifest(instance: &MinecraftInstance) -> Option<ModpackManifest> {
+    let instance_dir = instance.instanceDirectory.as_ref()?;
+    let manifest_cache_path = Path::new(instance_dir).join(".modpack_cache").join("previous_manifest.json");
+    
+    if manifest_cache_path.exists() {
+        if let Ok(content) = fs::read_to_string(&manifest_cache_path) {
+            if let Ok(manifest) = serde_json::from_str::<ModpackManifest>(&content) {
+                log::info!("[Cleanup] Loaded previous manifest with {} files", manifest.files.len());
+                return Some(manifest);
+            }
+        }
+    }
+    
+    log::info!("[Cleanup] No previous manifest found");
+    None
+}
+
+/// Saves current manifest for future comparison
+fn save_manifest_cache(instance: &MinecraftInstance, manifest: &ModpackManifest) -> Result<(), String> {
+    let instance_dir = instance
+        .instanceDirectory
+        .as_ref()
+        .ok_or("Instance directory not set")?;
+    
+    let cache_dir = Path::new(instance_dir).join(".modpack_cache");
+    fs::create_dir_all(&cache_dir)
+        .map_err(|e| format!("Failed to create cache directory: {}", e))?;
+    
+    let manifest_cache_path = cache_dir.join("previous_manifest.json");
+    let manifest_json = serde_json::to_string_pretty(manifest)
+        .map_err(|e| format!("Failed to serialize manifest: {}", e))?;
+    
+    fs::write(&manifest_cache_path, manifest_json)
+        .map_err(|e| format!("Failed to save manifest cache: {}", e))?;
+    
+    log::info!("[Cleanup] Saved manifest cache with {} files", manifest.files.len());
+    Ok(())
+}
+
+/// Cleans up obsolete files in the instance directory based on manifest comparison
+/// Only removes files that were previously managed by the launcher and are no longer needed
 pub fn cleanup_obsolete_files(
     instance: &MinecraftInstance,
     manifest: &ModpackManifest,
@@ -52,38 +159,118 @@ pub fn cleanup_obsolete_files(
 
     let minecraft_dir = Path::new(instance_dir).join("minecraft");
     if !minecraft_dir.exists() {
+        log::info!("[Cleanup] Minecraft directory does not exist, nothing to clean");
         return Ok(vec![]);
     }
 
+    log::info!("[Cleanup] Starting cleanup for instance: {}", instance.instanceName);
+
     let mut removed_files = Vec::new();
+    let mut preserved_files = Vec::new();
 
-    // Get all expected files from manifest
-    let expected_files: HashSet<String> = manifest.files.iter().map(|f| f.path.clone()).collect();
+    // Get essential paths that should never be deleted
+    let essential_paths = get_essential_minecraft_paths(&minecraft_dir, instance);
 
-    // Find all files in minecraft directory recursively
-    let existing_files = find_files_recursively(&minecraft_dir)?;
+    // Get current manifest files
+    let current_files: HashSet<String> = manifest.files.iter().map(|f| f.path.clone()).collect();
+    log::info!("[Cleanup] Current manifest has {} files", current_files.len());
 
-    // Remove files that are not in the manifest
-    for file_path in existing_files {
-        let relative_path = file_path
-            .strip_prefix(&minecraft_dir)
-            .map_err(|_| "Failed to get relative path")?
-            .to_string_lossy()
-            .replace("\\", "/"); // Normalize path separators
+    // Load previous manifest for comparison
+    let previous_manifest = load_previous_manifest(instance);
+    
+    // Determine files to clean based on manifest comparison
+    let files_to_clean = if let Some(prev_manifest) = previous_manifest {
+        let previous_files: HashSet<String> = prev_manifest.files.iter().map(|f| f.path.clone()).collect();
+        log::info!("[Cleanup] Previous manifest had {} files", previous_files.len());
+        
+        // Only clean files that were in the previous manifest but not in current manifest
+        let obsolete_files: HashSet<String> = previous_files.difference(&current_files).cloned().collect();
+        log::info!("[Cleanup] Found {} obsolete files to clean", obsolete_files.len());
+        
+        obsolete_files
+    } else {
+        // If no previous manifest, be more conservative - only clean files in specific modpack directories
+        log::warn!("[Cleanup] No previous manifest found, using conservative cleanup");
+        
+        // Find files in modpack-specific directories that aren't in current manifest
+        let existing_files = find_files_recursively(&minecraft_dir)?;
+        let mut files_to_clean = HashSet::new();
+        
+        for file_path in existing_files {
+            let relative_path = file_path
+                .strip_prefix(&minecraft_dir)
+                .map_err(|_| "Failed to get relative path")?
+                .to_string_lossy()
+                .replace("\\", "/"); // Normalize path separators
+            
+            // Only consider files in known modpack directories for conservative cleanup
+            if is_modpack_file(&relative_path) && !current_files.contains(&relative_path) {
+                files_to_clean.insert(relative_path);
+            }
+        }
+        
+        log::info!("[Cleanup] Conservative cleanup will process {} files", files_to_clean.len());
+        files_to_clean
+    };
 
-        if !expected_files.contains(&relative_path) {
-            if let Err(e) = fs::remove_file(&file_path) {
-                eprintln!("Failed to remove file {}: {}", file_path.display(), e);
-            } else {
-                removed_files.push(relative_path);
+    // Process files for cleanup
+    for file_to_clean in files_to_clean {
+        let file_path = minecraft_dir.join(&file_to_clean);
+        
+        // Double-check: never delete essential files
+        if is_essential_path(&file_path, &essential_paths) {
+            log::warn!("[Cleanup] Skipping essential file: {}", file_to_clean);
+            preserved_files.push(file_to_clean);
+            continue;
+        }
+        
+        // Only clean if file actually exists
+        if file_path.exists() {
+            match fs::remove_file(&file_path) {
+                Ok(_) => {
+                    log::info!("[Cleanup] Removed obsolete file: {}", file_to_clean);
+                    removed_files.push(file_to_clean);
+                }
+                Err(e) => {
+                    log::error!("[Cleanup] Failed to remove file {}: {}", file_to_clean, e);
+                }
             }
         }
     }
 
-    // Remove empty directories
-    remove_empty_directories(&minecraft_dir)?;
+    // Remove empty directories (but not essential ones)
+    remove_empty_directories_safe(&minecraft_dir, &essential_paths)?;
+
+    // Save current manifest for future comparisons
+    if let Err(e) = save_manifest_cache(instance, manifest) {
+        log::warn!("[Cleanup] Failed to save manifest cache: {}", e);
+    }
+
+    log::info!(
+        "[Cleanup] Cleanup complete: {} files removed, {} files preserved",
+        removed_files.len(),
+        preserved_files.len()
+    );
 
     Ok(removed_files)
+}
+
+/// Checks if a file path represents a modpack-managed file
+fn is_modpack_file(relative_path: &str) -> bool {
+    // Common modpack directories
+    relative_path.starts_with("mods/") ||
+    relative_path.starts_with("coremods/") ||
+    relative_path.starts_with("scripts/") ||
+    relative_path.starts_with("resources/") ||
+    relative_path.starts_with("packmenu/") ||
+    relative_path.starts_with("structures/") ||
+    relative_path.starts_with("schematics/") ||
+    // Configuration files that are often modpack-specific
+    (relative_path.starts_with("config/") && !relative_path.contains("options")) ||
+    // Other modpack-specific files
+    relative_path == "manifest.json" ||
+    relative_path == "modlist.html" ||
+    relative_path.starts_with("changelogs/")
 }
 
 /// Downloads and installs modpack files, reusing existing files when possible
@@ -211,6 +398,52 @@ fn find_files_recursively(dir: &Path) -> Result<Vec<PathBuf>, String> {
     }
 
     Ok(files)
+}
+
+fn remove_empty_directories_safe(dir: &Path, essential_paths: &HashSet<PathBuf>) -> Result<(), String> {
+    // Don't remove essential directories
+    if is_essential_path(dir, essential_paths) {
+        return Ok(());
+    }
+
+    let entries = fs::read_dir(dir)
+        .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?;
+
+    let mut has_files = false;
+    let mut subdirs = Vec::new();
+
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let path = entry.path();
+
+        if path.is_file() {
+            has_files = true;
+        } else if path.is_dir() {
+            subdirs.push(path);
+        }
+    }
+
+    // Recursively process subdirectories
+    for subdir in subdirs {
+        remove_empty_directories_safe(&subdir, essential_paths)?;
+
+        // Check if subdirectory is now empty and not essential
+        if !is_essential_path(&subdir, essential_paths) && is_directory_empty(&subdir)? {
+            if let Err(e) = fs::remove_dir(&subdir) {
+                log::warn!(
+                    "[Cleanup] Failed to remove empty directory {}: {}",
+                    subdir.display(),
+                    e
+                );
+            } else {
+                log::info!("[Cleanup] Removed empty directory: {}", subdir.display());
+            }
+        } else {
+            has_files = true;
+        }
+    }
+
+    Ok(())
 }
 
 fn remove_empty_directories(dir: &Path) -> Result<(), String> {
@@ -397,6 +630,8 @@ async fn download_file(url: &str, target_path: &Path) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn cleanup_instance_files(instance_id: String) -> Result<Vec<String>, String> {
+    log::info!("[Cleanup] Starting cleanup for instance: {}", instance_id);
+    
     let instance =
         crate::core::minecraft_instance::MinecraftInstance::from_instance_id(&instance_id)
             .ok_or("Instance not found")?;
@@ -412,11 +647,19 @@ pub async fn cleanup_instance_files(instance_id: String) -> Result<Vec<String>, 
         .as_ref()
         .ok_or("Instance does not have a version ID")?;
 
+    log::info!("[Cleanup] Fetching manifest for modpack {} version {}", modpack_id, version_id);
+
     // Fetch current manifest
     let manifest = fetch_modpack_manifest(modpack_id, version_id).await?;
 
-    // Cleanup obsolete files
-    cleanup_obsolete_files(&instance, &manifest)
+    log::info!("[Cleanup] Starting safe cleanup process");
+
+    // Cleanup obsolete files using improved method
+    let removed_files = cleanup_obsolete_files(&instance, &manifest)?;
+    
+    log::info!("[Cleanup] Cleanup completed successfully, {} files removed", removed_files.len());
+    
+    Ok(removed_files)
 }
 
 #[tauri::command]
