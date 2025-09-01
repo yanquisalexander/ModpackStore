@@ -1,8 +1,33 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
+import { toast } from "sonner";
 
 export type TaskStatus = "Pending" | "Running" | "Completed" | "Failed" | "Cancelled";
+
+export type BootstrapStep = 
+    | "CreatingDirectories"
+    | "DownloadingManifest" 
+    | "DownloadingVersionJson"
+    | "DownloadingClientJar"
+    | "CheckingJavaVersion"
+    | "InstallingJava"
+    | "DownloadingLibraries"
+    | "ValidatingAssets"
+    | "ExtractingNatives"
+    | "DownloadingForgeInstaller"
+    | "RunningForgeInstaller"
+    | "CreatingLauncherProfiles";
+
+export type ErrorCategory = "Network" | "Filesystem" | "Java" | "Forge" | "Configuration" | "Other";
+
+export type BootstrapError = {
+    step: BootstrapStep;
+    category: ErrorCategory;
+    message: string;
+    suggestion?: string;
+    technical_details?: string;
+};
 
 export type TaskInfo = {
     id: string;
@@ -131,6 +156,44 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
         return result;
     }, [tasks]);
 
+    // Helper function to display bootstrap errors with better messaging
+    const displayBootstrapError = useCallback((error: BootstrapError, instanceName: string) => {
+        const stepMessages: Record<BootstrapStep, string> = {
+            CreatingDirectories: "creando directorios",
+            DownloadingManifest: "descargando manifiesto de versión",
+            DownloadingVersionJson: "descargando configuración de versión", 
+            DownloadingClientJar: "descargando cliente de Minecraft",
+            CheckingJavaVersion: "verificando versión de Java",
+            InstallingJava: "instalando Java",
+            DownloadingLibraries: "descargando librerías",
+            ValidatingAssets: "validando assets",
+            ExtractingNatives: "extrayendo librerías nativas",
+            DownloadingForgeInstaller: "descargando instalador de Forge",
+            RunningForgeInstaller: "ejecutando instalador de Forge",
+            CreatingLauncherProfiles: "creando perfiles del launcher"
+        };
+
+        const stepName = stepMessages[error.step] || "realizando operación";
+        const title = `Error ${stepName} en "${instanceName}"`;
+
+        let description = error.message;
+        if (error.suggestion) {
+            description += `\n\nSugerencia: ${error.suggestion}`;
+        }
+
+        toast.error(title, {
+            description,
+            duration: 10000,
+            action: error.technical_details ? {
+                label: "Ver detalles",
+                onClick: () => toast.info("Detalles técnicos", {
+                    description: error.technical_details,
+                    duration: 15000
+                })
+            } : undefined
+        });
+    }, []);
+
     useEffect(() => {
         let mounted = true;
 
@@ -158,7 +221,18 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
                     setTasks((prev) => prev.filter((task) => task.id !== event.payload));
                 });
 
-                unlistenRef.current = [unlisten1, unlisten2, unlisten3];
+                // Listen for bootstrap errors to show enhanced error messages
+                const unlisten4 = await listen<any>("bootstrap-error", (event) => {
+                    if (!mounted) return;
+                    console.log("Bootstrap error received:", event.payload);
+                    
+                    const { name: instanceName, error } = event.payload;
+                    if (error && instanceName) {
+                        displayBootstrapError(error, instanceName);
+                    }
+                });
+
+                unlistenRef.current = [unlisten1, unlisten2, unlisten3, unlisten4];
             } catch (error) {
                 console.error("Failed to set up task event listeners:", error);
             }
@@ -205,7 +279,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
             });
             unlistenRef.current = [];
         };
-    }, [syncTasks, updateTaskSafely, lastSyncTime, hasRunningTasks]);
+    }, [syncTasks, updateTaskSafely, lastSyncTime, hasRunningTasks, displayBootstrapError]);
 
     return (
         <TasksContext.Provider value={{

@@ -8,6 +8,8 @@ use std::time::Duration;
 use tauri::{AppHandle, Emitter, Wry};
 use uuid::Uuid;
 
+use crate::core::bootstrap_error::BootstrapError;
+
 // --- TaskStatus y TaskInfo permanecen iguales ---
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
@@ -385,4 +387,26 @@ pub fn emit_all_tasks() -> bool {
 pub fn resync_tasks_command() -> bool {
     info!("Frontend requested task resync");
     emit_all_tasks()
+}
+
+/// Update task with bootstrap error information
+pub fn update_task_with_bootstrap_error(
+    id: &str,
+    error: &BootstrapError,
+) {
+    let error_data = serde_json::json!({
+        "step": error.step,
+        "category": error.category,
+        "suggestion": error.suggestion,
+        "technical_details": error.technical_details,
+        "bootstrap_error": true
+    });
+
+    update_task(
+        id,
+        TaskStatus::Failed,
+        0.0,
+        &format!("Error en {}: {}", error.step, error.message),
+        Some(error_data),
+    );
 }

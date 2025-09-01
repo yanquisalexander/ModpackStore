@@ -1,6 +1,7 @@
 // src/core/bootstrap/tasks.rs
 // Task management integration extracted from instance_bootstrap.rs
 
+use crate::core::bootstrap_error::BootstrapError;
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::GLOBAL_APP_HANDLE;
 use serde::{Deserialize, Serialize};
@@ -195,4 +196,67 @@ pub fn emit_download_progress(
         event_type,
         &format!("Progreso: {}/{} ({:.1}%)", current, total, percentage),
     );
+}
+
+/// Emits a bootstrap error event with enhanced error information
+pub fn emit_bootstrap_error(instance: &MinecraftInstance, error: &BootstrapError) {
+    // Detailed logging for debugging (this won't affect user experience)
+    log::error!(
+        "[Instance: {}] Bootstrap error in step '{}': {}",
+        instance.instanceId,
+        error.step,
+        error.message
+    );
+    
+    // Log additional context for debugging
+    log::debug!(
+        "[Instance: {}] Bootstrap error details - Category: {:?}, Step: {:?}",
+        instance.instanceId,
+        error.category,
+        error.step
+    );
+    
+    if let Some(suggestion) = &error.suggestion {
+        log::info!(
+            "[Instance: {}] Bootstrap error suggestion: {}",
+            instance.instanceId,
+            suggestion
+        );
+    }
+    
+    if let Some(technical_details) = &error.technical_details {
+        log::debug!(
+            "[Instance: {}] Bootstrap error technical details: {}",
+            instance.instanceId,
+            technical_details
+        );
+    }
+
+    if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+        if let Some(app_handle) = guard.as_ref() {
+            let payload = serde_json::json!({
+                "id": instance.instanceId,
+                "name": instance.instanceName,
+                "message": error.message,
+                "step": error.step,
+                "category": error.category,
+                "suggestion": error.suggestion,
+                "technical_details": error.technical_details,
+                "error": error
+            });
+
+            // Emit both the specific bootstrap-error event and the general instance-error event
+            if let Err(e) = app_handle.emit("bootstrap-error", payload.clone()) {
+                log::error!("Error emitting bootstrap-error event: {}", e);
+            }
+
+            if let Err(e) = app_handle.emit("instance-error", payload) {
+                log::error!("Error emitting instance-error event: {}", e);
+            }
+        } else {
+            log::error!("GLOBAL_APP_HANDLE is None when trying to emit bootstrap error");
+        }
+    } else {
+        log::error!("Failed to lock GLOBAL_APP_HANDLE when trying to emit bootstrap error");
+    }
 }
