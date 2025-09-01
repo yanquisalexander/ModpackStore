@@ -3,7 +3,7 @@ use crate::core::bootstrap::tasks::{
 };
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::minecraft::paths::MinecraftPaths;
-use crate::core::tasks_manager::{add_task, update_task, TaskStatus};
+use crate::core::tasks_manager::{add_task, update_task, TaskStatus, task_exists, remove_task};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -679,14 +679,23 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         .as_ref()
         .ok_or("Instance does not have a version ID")?;
 
-    // Create a task for this operation
-    let task_id = format!("validate_modpack_assets_{}", instance_id);
+    // Create a task for this operation - prevent duplicates
+    let base_task_id = format!("validate_modpack_assets_{}", instance_id);
+    
+    // Check if task already exists, if so, remove it first to create a fresh one
+    if task_exists(&base_task_id) {
+        log::info!("Removing existing task for instance {} before creating new one", instance_id);
+        remove_task(&base_task_id);
+    }
+    
+    let task_id = base_task_id;
     add_task(
         &task_id.clone(),
         Some(serde_json::json!({
             "status": "Validando assets del modpack",
             "progress": 0.0,
-            "message": "Iniciando validación..."
+            "message": "Iniciando validación...",
+            "instanceId": instance_id.clone()
         })),
     );
 
@@ -701,6 +710,15 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
                 &format!("Error obteniendo manifest: {}", e),
                 None,
             );
+            
+            // Schedule task removal after a delay on failure
+            let task_id_for_cleanup = task_id.clone();
+            tokio::spawn(async move {
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                remove_task(&task_id_for_cleanup);
+                log::info!("Cleaned up failed modpack validation task (manifest error): {}", task_id_for_cleanup);
+            });
+            
             return Err(e);
         }
     };
@@ -731,6 +749,15 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
                     &format!("Error validando assets: {}", e),
                     None,
                 );
+                
+                // Schedule task removal after a delay even on failure
+                let task_id_for_cleanup = task_id.clone();
+                tokio::spawn(async move {
+                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                    remove_task(&task_id_for_cleanup);
+                    log::info!("Cleaned up failed modpack validation task: {}", task_id_for_cleanup);
+                });
+                
                 return Err(e);
             }
         };
@@ -743,6 +770,15 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
             "Todos los assets están actualizados",
             None,
         );
+        
+        // Schedule task removal after a delay to allow UI to show completion
+        let task_id_for_cleanup = task_id.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+            remove_task(&task_id_for_cleanup);
+            log::info!("Cleaned up completed modpack validation task (no downloads needed): {}", task_id_for_cleanup);
+        });
+        
         return Ok(0);
     }
 
@@ -774,6 +810,14 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         &format!("Descargados {} archivos", downloaded_count),
         None,
     );
+
+    // Schedule task removal after a delay to allow UI to show completion
+    let task_id_for_cleanup = task_id.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+        remove_task(&task_id_for_cleanup);
+        log::info!("Cleaned up completed modpack validation task: {}", task_id_for_cleanup);
+    });
 
     Ok(downloaded_count)
 }
