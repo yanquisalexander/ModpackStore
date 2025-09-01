@@ -983,7 +983,7 @@ async fn create_modpack_instance_struct(
     let mut instance = MinecraftInstance::new();
     instance.instanceName = instance_name;
     instance.instanceId = instance_id.clone();
-    instance.modpackId = Some(modpack_id);
+    instance.modpackId = Some(modpack_id.clone());
     instance.modpackVersionId = Some(final_version_id);
     instance.minecraftVersion = manifest.mc_version;
     instance.forgeVersion = manifest.forge_version;
@@ -1016,6 +1016,18 @@ async fn create_modpack_instance_struct(
     instance
         .save()
         .map_err(|e| format!("Error guardando configuración: {}", e))?;
+
+    // Fetch and save prelaunch appearance in the background
+    let modpack_id_clone = modpack_id;
+    let instance_id_clone = instance_id.clone();
+    tokio::spawn(async move {
+        if let Err(e) = crate::core::prelaunch_appearance::fetch_and_save_prelaunch_appearance(
+            modpack_id_clone,
+            instance_id_clone,
+        ).await {
+            log::warn!("Failed to fetch prelaunch appearance during instance creation: {}", e);
+        }
+    });
 
     Ok(instance)
 }

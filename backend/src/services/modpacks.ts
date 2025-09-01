@@ -188,6 +188,7 @@ type ModpackDetails = {
     publisher: { id: string; publisherName: string; verified: boolean; partnered: boolean; isHostingPartner: boolean } | null;
     categories: CategoryInModpack[];
     isPasswordProtected: boolean;
+    prelaunchAppearance?: any;
 };
 
 export const getModpackById = async (modpackId: string): Promise<ModpackDetails | null> => {
@@ -237,6 +238,7 @@ export const getModpackById = async (modpackId: string): Promise<ModpackDetails 
             } : null,
             categories: formattedCategories,
             isPasswordProtected: modpack.isPasswordProtected(),
+            prelaunchAppearance: modpack.prelaunchAppearance,
         };
     } catch (error: any) {
         console.error(`[SERVICE_MODPACKS] Error in getModpackById for ID ${modpackId}:`, error);
