@@ -335,39 +335,43 @@ async fn fetch_prelaunch_appearance_from_api(modpack_id: &str) -> std::result::R
     let url = format!("{}/explore/modpacks/{}/prelaunch-appearance", API_ENDPOINT, modpack_id);
     log::info!("Fetching prelaunch appearance from API: {}", url);
 
-    let response = reqwest::get(&url)
-        .await
-        .map_err(|e| format!("Failed to fetch prelaunch appearance: {}", e))?;
+    match reqwest::get(&url).await {
+        Ok(response) => {
+            if response.status().is_success() {
+                let response_text = response
+                    .text()
+                    .await
+                    .map_err(|e| format!("Failed to read response: {}", e))?;
 
-    if !response.status().is_success() {
-        if response.status() == 404 {
-            log::info!("Prelaunch appearance not found for modpack: {}", modpack_id);
-            return Ok(None);
+                #[derive(Deserialize)]
+                struct ApiResponse {
+                    data: Option<ApiData>,
+                }
+
+                #[derive(Deserialize)]
+                struct ApiData {
+                    attributes: Option<PreLaunchAppearance>,
+                }
+
+                let api_response: ApiResponse = serde_json::from_str(&response_text)
+                    .map_err(|e| format!("Failed to parse API response: {}", e))?;
+
+                match api_response.data {
+                    Some(data) => Ok(data.attributes),
+                    None => Ok(None),
+                }
+            } else if response.status() == 404 {
+                log::info!("Prelaunch appearance not found for modpack: {}", modpack_id);
+                Ok(None)
+            } else {
+                log::warn!("API returned error for modpack {}: {}", modpack_id, response.status());
+                Ok(None) // Return None instead of error to allow offline mode
+            }
         }
-        return Err(format!("API returned error: {}", response.status()));
-    }
-
-    let response_text = response
-        .text()
-        .await
-        .map_err(|e| format!("Failed to read response: {}", e))?;
-
-    #[derive(Deserialize)]
-    struct ApiResponse {
-        data: Option<ApiData>,
-    }
-
-    #[derive(Deserialize)]
-    struct ApiData {
-        attributes: Option<PreLaunchAppearance>,
-    }
-
-    let api_response: ApiResponse = serde_json::from_str(&response_text)
-        .map_err(|e| format!("Failed to parse API response: {}", e))?;
-
-    match api_response.data {
-        Some(data) => Ok(data.attributes),
-        None => Ok(None),
+        Err(e) => {
+            log::warn!("Network error fetching prelaunch appearance for modpack {}: {}", modpack_id, e);
+            Ok(None) // Return None instead of error to allow offline mode
+        }
     }
 }
 
@@ -409,12 +413,13 @@ pub async fn fetch_and_save_prelaunch_appearance(modpack_id: String, instance_id
             Ok(true)
         }
         Ok(None) => {
-            log::info!("No prelaunch appearance available for modpack: {}", modpack_id);
+            log::info!("No prelaunch appearance available for modpack: {} (could be offline mode)", modpack_id);
             Ok(false)
         }
         Err(e) => {
-            log::error!("Failed to fetch prelaunch appearance: {}", e);
-            Err(e)
+            // This should not happen anymore since we handle errors in fetch_prelaunch_appearance_from_api
+            log::error!("Unexpected error fetching prelaunch appearance: {}", e);
+            Ok(false) // Return false instead of error to continue in offline mode
         }
     }
 }
