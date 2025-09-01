@@ -9,6 +9,7 @@ import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { useTasksContext } from "@/stores/TasksContext"
 import { toast } from "sonner"
 import { PasswordDialog } from "./ModpackPasswordDialog"
+import { useNavigate } from "react-router-dom"
 
 interface InstallButtonProps {
     modpackId: string;
@@ -30,6 +31,8 @@ export const InstallButton = ({
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState<boolean>(false)
     const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState<boolean>(false)
     const [isInstalling, setIsInstalling] = useState<boolean>(false)
+
+    const navigate = useNavigate();
 
     // Para almacenar temporalmente la acción pendiente que requiere contraseña
     const [pendingAction, setPendingAction] = useState<{
@@ -125,6 +128,8 @@ export const InstallButton = ({
             toast.success("Creando instancia...", {
                 description: `Tu instancia "${instanceName}" del modpack "${modpackName}" está siendo instalada. Verifica el progreso en el Task Manager.`,
             });
+
+            navigate("/my-instances"); // Navegar a "My Instances" después de iniciar la creación
 
         } catch (err) {
             console.error("Error al crear la instancia:", err);

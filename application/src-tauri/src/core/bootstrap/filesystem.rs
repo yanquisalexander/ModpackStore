@@ -77,7 +77,12 @@ pub fn extract_natives(
     );
 
     let os_info = get_os_info()?;
-    log::info!("Detectado OS: {}, Arch: {}, Classifier: {}", os_info.name, os_info.arch, os_info.classifier);
+    log::info!(
+        "Detectado OS: {}, Arch: {}, Classifier: {}",
+        os_info.name,
+        os_info.arch,
+        os_info.classifier
+    );
 
     let libraries = version_details["libraries"].as_array().ok_or_else(|| {
         log::error!("No se encontraron bibliotecas en el manifiesto de versión");
@@ -138,19 +143,33 @@ pub fn extract_natives(
         };
         emit_status_with_stage(instance, "instance-extracting-natives-progress", &stage);
 
-        match extract_single_native_library_enhanced(library, libraries_dir, natives_dir, &os_info, instance) {
+        match extract_single_native_library_enhanced(
+            library,
+            libraries_dir,
+            natives_dir,
+            &os_info,
+            instance,
+        ) {
             Ok(extracted_files) => {
                 successfully_extracted += 1;
-                log::info!("Biblioteca nativa extraída correctamente: {} archivos extraídos", extracted_files);
+                log::info!(
+                    "Biblioteca nativa extraída correctamente: {} archivos extraídos",
+                    extracted_files
+                );
             }
             Err(e) => {
-                let library_name = library.get("name")
+                let library_name = library
+                    .get("name")
                     .and_then(|n| n.as_str())
                     .unwrap_or("desconocido");
-                
-                log::error!("Error procesando biblioteca nativa '{}': {}", library_name, e);
+
+                log::error!(
+                    "Error procesando biblioteca nativa '{}': {}",
+                    library_name,
+                    e
+                );
                 failed_extractions.push((library_name.to_string(), e.clone()));
-                
+
                 emit_status(
                     instance,
                     "instance-native-extraction-error",
@@ -159,7 +178,11 @@ pub fn extract_natives(
 
                 // Enhanced fallback error reporting - report the library details but continue
                 if let Some(downloads) = library.get("downloads") {
-                    log::warn!("Información de descarga para '{}': {}", library_name, downloads);
+                    log::warn!(
+                        "Información de descarga para '{}': {}",
+                        library_name,
+                        downloads
+                    );
                 }
                 if let Some(url) = library.get("url").and_then(|u| u.as_str()) {
                     log::warn!("URL del repositorio para '{}': {}", library_name, url);
@@ -180,12 +203,15 @@ pub fn extract_natives(
         for (name, error) in &failed_extractions {
             log::warn!("  - {}: {}", name, error);
         }
-        
+
         // Don't fail the whole process, just warn about missing libraries
         emit_status(
             instance,
-            "instance-native-extraction-warnings", 
-            &format!("Extracción completada con {} advertencias (ver logs)", failed_extractions.len()),
+            "instance-native-extraction-warnings",
+            &format!(
+                "Extracción completada con {} advertencias (ver logs)",
+                failed_extractions.len()
+            ),
         );
     } else {
         emit_status(
@@ -263,22 +289,26 @@ fn is_native_library_enhanced(library: &Value, os_info: &OsInfo) -> bool {
     if let Some(name) = library.get("name").and_then(|n| n.as_str()) {
         // Check for common native library patterns
         let native_patterns = [
-            "lwjgl",      // LWJGL libraries like org.lwjgl.tinyfd
-            "jinput",     // JInput libraries
-            "jutils",     // JUtils libraries  
-            "joml",       // Java OpenGL Math Library (sometimes has natives)
-            "natives",    // General natives pattern
-            "platform",   // Platform-specific libraries
+            "lwjgl",    // LWJGL libraries like org.lwjgl.tinyfd
+            "jinput",   // JInput libraries
+            "jutils",   // JUtils libraries
+            "joml",     // Java OpenGL Math Library (sometimes has natives)
+            "natives",  // General natives pattern
+            "platform", // Platform-specific libraries
         ];
 
         let name_lower = name.to_lowercase();
-        
+
         // Check if library name contains common native patterns
         for pattern in &native_patterns {
             if name_lower.contains(pattern) {
                 // Additional verification: check if there's classifier or download info suggesting natives
                 if has_native_artifacts(library, os_info) {
-                    log::debug!("Detected native library via pattern '{}': {}", pattern, name);
+                    log::debug!(
+                        "Detected native library via pattern '{}': {}",
+                        pattern,
+                        name
+                    );
                     return should_include_library(library, os_info);
                 }
             }
@@ -293,8 +323,12 @@ fn is_native_library_enhanced(library: &Value, os_info: &OsInfo) -> bool {
         ];
 
         for classifier in &os_classifiers {
-            if name_lower.contains(classifier) {
-                log::debug!("Detected native library via OS classifier '{}': {}", classifier, name);
+            if name_lower.contains(*classifier) {
+                log::debug!(
+                    "Detected native library via OS classifier '{}': {}",
+                    classifier,
+                    name
+                );
                 return should_include_library(library, os_info);
             }
         }
@@ -313,9 +347,14 @@ fn is_native_library_enhanced(library: &Value, os_info: &OsInfo) -> bool {
 
             for classifier in &possible_classifiers {
                 if classifiers.get(classifier).is_some() {
-                    log::debug!("Detected native library via download classifier '{}': {}", 
-                              classifier, 
-                              library.get("name").and_then(|n| n.as_str()).unwrap_or("unknown"));
+                    log::debug!(
+                        "Detected native library via download classifier '{}': {}",
+                        classifier,
+                        library
+                            .get("name")
+                            .and_then(|n| n.as_str())
+                            .unwrap_or("unknown")
+                    );
                     return should_include_library(library, os_info);
                 }
             }
@@ -332,9 +371,10 @@ fn has_native_artifacts(library: &Value, os_info: &OsInfo) -> bool {
         if let Some(classifiers) = downloads.get("classifiers") {
             // Look for any native classifier that might be relevant
             for (key, _) in classifiers.as_object().unwrap_or(&serde_json::Map::new()) {
-                if key.contains("native") || 
-                   key.contains(&os_info.name) || 
-                   key.contains(&os_info.classifier) {
+                if key.contains("native")
+                    || key.contains(&os_info.name)
+                    || key.contains(&os_info.classifier)
+                {
                     return true;
                 }
             }
@@ -453,7 +493,8 @@ fn extract_single_native_library_enhanced(
     os_info: &OsInfo,
     instance: &MinecraftInstance,
 ) -> Result<usize, String> {
-    let library_name = library.get("name")
+    let library_name = library
+        .get("name")
         .and_then(|n| n.as_str())
         .unwrap_or("unknown");
 
@@ -462,17 +503,28 @@ fn extract_single_native_library_enhanced(
         Ok(path) => path,
         Err(e) => {
             // Enhanced error reporting with fallback information
-            log::warn!("No se pudo determinar la ruta para '{}': {}", library_name, e);
-            
+            log::warn!(
+                "No se pudo determinar la ruta para '{}': {}",
+                library_name,
+                e
+            );
+
             // Try to provide helpful information about the library
             if let Some(downloads) = library.get("downloads") {
-                log::info!("Información de descarga disponible para '{}': {}", library_name, downloads);
+                log::info!(
+                    "Información de descarga disponible para '{}': {}",
+                    library_name,
+                    downloads
+                );
             }
             if let Some(url) = library.get("url").and_then(|u| u.as_str()) {
                 log::info!("URL del repositorio para '{}': {}", library_name, url);
             }
-            
-            return Err(format!("No se pudo resolver la ruta de descarga para '{}': {}", library_name, e));
+
+            return Err(format!(
+                "No se pudo resolver la ruta de descarga para '{}': {}",
+                library_name, e
+            ));
         }
     };
 
@@ -484,12 +536,20 @@ fn extract_single_native_library_enhanced(
         ));
     }
 
-    let metadata = fs::metadata(&library_path)
-        .map_err(|e| format!("Error obteniendo metadata del archivo {}: {}", library_path.display(), e))?;
+    let metadata = fs::metadata(&library_path).map_err(|e| {
+        format!(
+            "Error obteniendo metadata del archivo {}: {}",
+            library_path.display(),
+            e
+        )
+    })?;
 
     if metadata.len() == 0 {
-        return Err(format!("Archivo de biblioteca nativa está vacío: {} (biblioteca: {})", 
-                          library_path.display(), library_name));
+        return Err(format!(
+            "Archivo de biblioteca nativa está vacío: {} (biblioteca: {})",
+            library_path.display(),
+            library_name
+        ));
     }
 
     log::info!(
@@ -516,11 +576,16 @@ fn extract_single_native_library_enhanced(
     );
 
     // Extract with duplicate detection
-    let extracted_files = extract_jar_file_enhanced(&library_path, natives_dir, &exclude_patterns, library_name)?;
+    let extracted_files =
+        extract_jar_file_enhanced(&library_path, natives_dir, &exclude_patterns, library_name)?;
 
-    log::info!("Extracción completada para '{}': {} archivos extraídos desde {}", 
-              library_name, extracted_files, library_path.display());
-    
+    log::info!(
+        "Extracción completada para '{}': {} archivos extraídos desde {}",
+        library_name,
+        extracted_files,
+        library_path.display()
+    );
+
     Ok(extracted_files)
 }
 
@@ -561,7 +626,8 @@ fn get_native_library_path_enhanced(
     libraries_dir: &Path,
     os_info: &OsInfo,
 ) -> Result<PathBuf, String> {
-    let library_name = library.get("name")
+    let library_name = library
+        .get("name")
         .and_then(|n| n.as_str())
         .unwrap_or("unknown");
 
@@ -570,7 +636,8 @@ fn get_native_library_path_enhanced(
         // Try various classifier patterns
         let possible_classifiers = vec![
             // Standard natives pattern with arch replacement
-            library.get("natives")
+            library
+                .get("natives")
                 .and_then(|n| n.get(&os_info.name))
                 .and_then(|n| n.as_str())
                 .map(|template| template.replace("${arch}", &os_info.arch)),
@@ -586,7 +653,11 @@ fn get_native_library_path_enhanced(
                 if let Some(classifier_info) = classifiers.get(&classifier) {
                     if let Some(path) = classifier_info.get("path").and_then(|p| p.as_str()) {
                         let full_path = libraries_dir.join(path);
-                        log::debug!("Found native library path via classifier '{}': {}", classifier, full_path.display());
+                        log::debug!(
+                            "Found native library path via classifier '{}': {}",
+                            classifier,
+                            full_path.display()
+                        );
                         return Ok(full_path);
                     }
                 }
@@ -610,16 +681,16 @@ fn get_native_library_path_enhanced(
             let group_id = parts[0];
             let artifact_id = parts[1];
             let version = parts[2];
-            
+
             // Try to find a classifier that suggests it's a native library
             let classifier = if parts.len() > 3 {
-                Some(parts[3])
+                Some(parts[3].to_string())
             } else {
                 // Check if any part of the name suggests a native classifier
                 if name.contains(&os_info.classifier) {
-                    Some(&os_info.classifier[8..]) // Remove "natives-" prefix
+                    Some(os_info.classifier[8..].to_string()) // Remove "natives-" prefix
                 } else if name.contains(&format!("{}-native", os_info.name)) {
-                    Some(&format!("{}-native", os_info.name))
+                    Some(format!("{}-native", os_info.name))
                 } else {
                     None
                 }
@@ -635,13 +706,19 @@ fn get_native_library_path_enhanced(
 
             let maven_path = format!("{}/{}/{}/{}", group_path, artifact_id, version, jar_name);
             let full_path = libraries_dir.join(&maven_path);
-            
-            log::debug!("Constructed Maven path for native library: {}", full_path.display());
+
+            log::debug!(
+                "Constructed Maven path for native library: {}",
+                full_path.display()
+            );
             return Ok(full_path);
         }
     }
 
-    Err(format!("No se pudo resolver la ruta para la biblioteca nativa '{}'", library_name))
+    Err(format!(
+        "No se pudo resolver la ruta para la biblioteca nativa '{}'",
+        library_name
+    ))
 }
 
 fn get_exclusion_patterns(library: &Value) -> Vec<String> {
@@ -676,7 +753,7 @@ fn get_exclusion_patterns_enhanced(library: &Value) -> Vec<String> {
                     .as_array()
                     .unwrap_or(&Vec::new())
                     .iter()
-                    .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                    .filter_map(|v| v.as_str().map(|s| s.to_string())),
             );
         }
     }
@@ -689,18 +766,18 @@ fn get_exclusion_patterns_enhanced(library: &Value) -> Vec<String> {
             "*.xml".to_string(),
             "*.md".to_string(),
             "*.properties".to_string(),
-            "*.class".to_string(),    // Don't extract Java class files
-            "*.java".to_string(),     // Don't extract Java source files
-            "LICENSE*".to_string(),   // Don't extract license files
-            "NOTICE*".to_string(),    // Don't extract notice files
+            "*.class".to_string(),  // Don't extract Java class files
+            "*.java".to_string(),   // Don't extract Java source files
+            "LICENSE*".to_string(), // Don't extract license files
+            "NOTICE*".to_string(),  // Don't extract notice files
         ]);
     }
 
     // Always exclude certain patterns regardless of library specification
     patterns.extend([
-        "module-info.class".to_string(),  // Java 9+ module info
-        "*.jar".to_string(),              // Don't extract nested JARs
-        "*.zip".to_string(),              // Don't extract nested ZIPs
+        "module-info.class".to_string(), // Java 9+ module info
+        "*.jar".to_string(),             // Don't extract nested JARs
+        "*.zip".to_string(),             // Don't extract nested ZIPs
     ]);
 
     patterns
@@ -859,8 +936,10 @@ fn extract_jar_file_enhanced(
                 // Compare file sizes to determine if it's actually the same file
                 if let Ok(existing_metadata) = fs::metadata(&output_path) {
                     if existing_metadata.len() == file.size() {
-                        log::debug!("Archivo duplicado detectado (mismo tamaño), saltando: {}", 
-                                  file_name_only.to_string_lossy());
+                        log::debug!(
+                            "Archivo duplicado detectado (mismo tamaño), saltando: {}",
+                            file_name_only.to_string_lossy()
+                        );
                         duplicate_count += 1;
                         continue;
                     } else {
@@ -872,22 +951,22 @@ fn extract_jar_file_enhanced(
 
             // Extract the file
             match fs::File::create(&output_path) {
-                Ok(mut output_file) => {
-                    match io::copy(&mut file, &mut output_file) {
-                        Ok(bytes_copied) => {
-                            extracted_count += 1;
-                            log::debug!("Extraído '{}': {} -> {} ({} bytes)", 
-                                      library_name,
-                                      full_path_in_zip.display(), 
-                                      output_path.display(),
-                                      bytes_copied);
-                        }
-                        Err(e) => {
-                            error_count += 1;
-                            log::error!("Error escribiendo archivo {}: {}", output_path.display(), e);
-                        }
+                Ok(mut output_file) => match io::copy(&mut file, &mut output_file) {
+                    Ok(bytes_copied) => {
+                        extracted_count += 1;
+                        log::debug!(
+                            "Extraído '{}': {} -> {} ({} bytes)",
+                            library_name,
+                            full_path_in_zip.display(),
+                            output_path.display(),
+                            bytes_copied
+                        );
                     }
-                }
+                    Err(e) => {
+                        error_count += 1;
+                        log::error!("Error escribiendo archivo {}: {}", output_path.display(), e);
+                    }
+                },
                 Err(e) => {
                     error_count += 1;
                     log::error!("Error creando archivo {}: {}", output_path.display(), e);
@@ -895,7 +974,10 @@ fn extract_jar_file_enhanced(
             }
         } else {
             skipped_count += 1;
-            log::debug!("Saltado (sin nombre de archivo): {}", full_path_in_zip.display());
+            log::debug!(
+                "Saltado (sin nombre de archivo): {}",
+                full_path_in_zip.display()
+            );
         }
     }
 
@@ -909,7 +991,10 @@ fn extract_jar_file_enhanced(
     );
 
     if error_count > 0 {
-        return Err(format!("Se produjeron {} errores durante la extracción de '{}'", error_count, library_name));
+        return Err(format!(
+            "Se produjeron {} errores durante la extracción de '{}'",
+            error_count, library_name
+        ));
     }
 
     Ok(extracted_count)
