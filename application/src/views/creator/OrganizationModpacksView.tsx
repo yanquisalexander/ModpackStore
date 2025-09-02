@@ -7,8 +7,9 @@ import { Modpack } from "@/types/modpacks";
 import { Button } from "@/components/ui/button";
 import CreateModpackDialog from "@/components/creator/dialogs/CreateModpackDialog";
 import EditModpackDialog from "../../components/creator/dialogs/EditModpackDialog";
+import ImportCurseForgeDialog from "@/components/creator/dialogs/ImportCurseForgeDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { LucideEdit, LucideHistory, LucideTrash2 } from "lucide-react";
+import { LucideEdit, LucideHistory, LucideTrash2, LucidePackage } from "lucide-react";
 import { toast } from "sonner";
 import { useParams } from "react-router-dom";
 import { ApiErrorPayload } from "@/types/ApiResponses";
@@ -123,6 +124,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
     const [deletingModpack, setDeletingModpack] = useState<Modpack | null>(null);
     const [isVersionsDialogOpen, setIsVersionsDialogOpen] = useState(false);
     const [selectedModpack, setSelectedModpack] = useState<Modpack | null>(null);
+    const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
 
     const fetchModpacks = useCallback(async () => {
         setIsLoading(true);
@@ -157,6 +159,12 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
         setIsEditDialogOpen(false);
         setEditingModpack(null);
         fetchModpacks();
+    };
+
+    const handleImportSuccess = (result: any) => {
+        setIsImportDialogOpen(false);
+        fetchModpacks();
+        toast.success(`Modpack "${result.modpack.name}" importado exitosamente`);
     };
 
     const openEditDialog = (modpack: Modpack) => {
@@ -209,7 +217,17 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
         <div className="container mx-auto p-4">
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Modpacks de {team?.publisherName}</h1>
-                <Button onClick={() => setIsCreateDialogOpen(true)}>Crear nuevo Modpack</Button>
+                <div className="flex gap-2">
+                    <Button 
+                        variant="outline" 
+                        onClick={() => setIsImportDialogOpen(true)}
+                        className="flex items-center gap-2"
+                    >
+                        <LucidePackage className="h-4 w-4" />
+                        Importar desde CurseForge
+                    </Button>
+                    <Button onClick={() => setIsCreateDialogOpen(true)}>Crear nuevo Modpack</Button>
+                </div>
             </div>
             {isLoading && <p className="text-center py-8">Cargando modpacks...</p>}
             {error && <p className="text-red-500 text-center py-8">{error}</p>}
@@ -274,6 +292,13 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                     </AlertDialogContent>
                 </AlertDialog>
             )}
+            
+            <ImportCurseForgeDialog
+                isOpen={isImportDialogOpen}
+                onClose={() => setIsImportDialogOpen(false)}
+                onSuccess={handleImportSuccess}
+                publisherId={team?.id}
+            />
         </div>
     );
 };
