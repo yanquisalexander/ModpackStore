@@ -23,6 +23,8 @@
       "icons/icon.ico"
     ],
     "windows": {
+      "certificateThumbprint": "4211DD22E92904001788B6E7AE9D2485D3DEEC86",
+      "digestAlgorithm": "sha256",
       "nsis": {
         "installMode": "currentUser",
         "sidebarImage": "./resources/installer_bg.bmp"
@@ -36,7 +38,7 @@
   },
   "productName": "Modpack Store",
   "mainBinaryName": "ModpackStore",
-  "version": "0.1.0",
+  "version": "0.1.0beta1",
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {
     "updater": {
