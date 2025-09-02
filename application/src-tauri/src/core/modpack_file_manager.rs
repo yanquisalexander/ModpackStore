@@ -746,10 +746,6 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         })),
     );
 
-    // Emitir con stage
-
-    emit_status(&instance, "instance-launch-start", &"");
-
     // Fetch current manifest
     let manifest = match fetch_modpack_manifest(modpack_id, version_id).await {
         Ok(manifest) => manifest,
@@ -773,7 +769,8 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
                 );
             });
 
-            return Err(e);
+            log::warn!("No se pudo obtener el manifest (offline o error de red): {}. Permitimos continuar el lanzamiento sin validación de assets.", e);
+            return Ok(0);
         }
     };
 

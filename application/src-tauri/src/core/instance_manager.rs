@@ -106,6 +106,21 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
         .find(|i| i.instanceId == instance_id)
         .ok_or_else(|| format!("Instance with ID {} not found", instance_id))?;
 
+    // Emit instance launching status
+
+    if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
+        if let Some(app_handle) = guard.as_ref() {
+            let _ = app_handle.emit(
+                "instance-launch-start",
+                serde_json::json!({
+                    "id": instance.instanceId,
+                    "status": "launching",
+                    "message": "Iniciando instancia..."
+                }),
+            );
+        }
+    }
+
     // Handle modpack instances with special logic
     if let (Some(modpack_id), Some(version_id)) = (&instance.modpackId, &instance.modpackVersionId)
     {

@@ -29,11 +29,11 @@ import { Slider } from "@/components/ui/slider";
 import { ConfigSection } from '@/components/configuration/ConfigSection';
 
 // Types
-import type { 
-    ConfigDefinition, 
-    ConfigSchema, 
-    ConfigState, 
-    ConfigurationDialogProps 
+import type {
+    ConfigDefinition,
+    ConfigSchema,
+    ConfigState,
+    ConfigurationDialogProps
 } from '@/types/configuration';
 
 export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProps) => {
@@ -128,16 +128,16 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
     const handleRestoreDefaults = useCallback((section: string) => {
         const sectionConfigs = getConfigsForSection(section);
         const defaultValues: Record<string, any> = {};
-        
+
         sectionConfigs.forEach(([key, def]) => {
             defaultValues[key] = def.default;
         });
-        
+
         setConfig(prev => ({
             ...prev,
             values: { ...prev.values, ...defaultValues }
         }));
-        
+
         toast.success(`Valores por defecto restaurados para ${section.charAt(0).toUpperCase() + section.slice(1)}`);
     }, [getConfigsForSection]);
 
@@ -306,14 +306,14 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
     return (
         <AnimatePresence>
             <motion.div
-                className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden"
+                className="fixed inset-0 z-[999] py-6  flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
             >
                 <motion.div
-                    className="w-full h-full max-w-3xl flex flex-col overflow-hidden mx-4"
+                    className="w-full h-[calc(100%-36px)] max-w-3xl flex flex-col overflow-hidden mx-4"
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: 20, opacity: 0 }}
