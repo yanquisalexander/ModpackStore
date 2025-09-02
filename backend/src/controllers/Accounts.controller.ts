@@ -1,6 +1,7 @@
 // /controllers/AccountsController.ts
 import { Context } from 'hono';
 import { AuthService } from '@/services/auth.service';
+import { TwitchService } from '@/services/twitch.service';
 import { APIError } from '@/lib/APIError';
 import { AuthVariables } from "@/middlewares/auth.middleware";
 
@@ -63,5 +64,69 @@ export class AccountsController {
         const newTokens = await AuthService.refreshAuthTokens(refresh_token);
 
         return c.json(newTokens);
+    }
+
+    /**
+     * Handles Twitch OAuth callback and links account to user
+     */
+    static async callbackTwitch(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
+        const code = c.req.query('code');
+        const authenticatedUser = c.get('user');
+
+        if (!code) {
+            throw new APIError(400, 'Authorization code is required.', 'MISSING_CODE');
+        }
+
+        if (!authenticatedUser) {
+            throw new APIError(401, 'User must be authenticated to link Twitch account.', 'USER_NOT_AUTHENTICATED');
+        }
+
+        console.log(`[ACCOUNTS] Linking Twitch account for user ID: ${authenticatedUser.id}`);
+        await TwitchService.linkTwitchToUser(authenticatedUser, code);
+
+        return c.json({ 
+            success: true, 
+            message: 'Twitch account linked successfully' 
+        });
+    }
+
+    /**
+     * Unlink Twitch account from user
+     */
+    static async unlinkTwitch(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
+        const authenticatedUser = c.get('user');
+
+        if (!authenticatedUser) {
+            throw new APIError(401, 'User must be authenticated.', 'USER_NOT_AUTHENTICATED');
+        }
+
+        if (!authenticatedUser.hasTwitchLinked()) {
+            throw new APIError(400, 'No Twitch account is linked to this user.', 'TWITCH_NOT_LINKED');
+        }
+
+        console.log(`[ACCOUNTS] Unlinking Twitch account for user ID: ${authenticatedUser.id}`);
+        await TwitchService.unlinkTwitchFromUser(authenticatedUser);
+
+        return c.json({ 
+            success: true, 
+            message: 'Twitch account unlinked successfully' 
+        });
+    }
+
+    /**
+     * Get Twitch link status for current user
+     */
+    static async getTwitchStatus(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
+        const authenticatedUser = c.get('user');
+
+        if (!authenticatedUser) {
+            throw new APIError(401, 'User must be authenticated.', 'USER_NOT_AUTHENTICATED');
+        }
+
+        return c.json({
+            linked: authenticatedUser.hasTwitchLinked(),
+            twitchId: authenticatedUser.twitchId,
+            twitchUsername: null // We could store this if needed
+        });
     }
 }

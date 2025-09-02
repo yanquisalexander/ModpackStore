@@ -145,6 +145,13 @@ export class Modpack extends BaseEntity {
     @Column({ name: "price", type: "decimal", precision: 10, scale: 2, default: "0" })
     price: string;
 
+    // Twitch subscription control fields
+    @Column({ name: "requires_twitch_subscription", type: "boolean", default: false })
+    requiresTwitchSubscription: boolean;
+
+    @Column({ name: "twitch_creator_ids", type: "text", array: true, nullable: true })
+    twitchCreatorIds?: string[] | null;
+
     @CreateDateColumn({ name: "created_at" })
     createdAt: Date;
 
@@ -238,5 +245,15 @@ export class Modpack extends BaseEntity {
     // Método para validar contraseña
     validatePassword(inputPassword: string): boolean {
         return this.password === inputPassword;
+    }
+
+    // Method to check if modpack requires Twitch subscription
+    requiresTwitchSub(): boolean {
+        return this.requiresTwitchSubscription && this.twitchCreatorIds && this.twitchCreatorIds.length > 0;
+    }
+
+    // Method to get required Twitch creator IDs
+    getRequiredTwitchCreatorIds(): string[] {
+        return this.twitchCreatorIds || [];
     }
 }

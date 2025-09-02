@@ -20,9 +20,15 @@ const STORAGE_PATH: &str = "auth_store.json";
 const STORAGE_KEY_TOKENS: &str = "auth_tokens";
 const CLIENT_ID: &str = "943184136976334879";
 const REDIRECT_URI: &str = "http://localhost:1957/callback";
+
+// Twitch OAuth constants
+const TWITCH_CLIENT_ID: &str = "YOUR_TWITCH_CLIENT_ID"; // This should be set from environment
+const TWITCH_REDIRECT_URI: &str = "http://localhost:1958/callback"; // Different port for Twitch
+
 const CALLBACK_TIMEOUT_SECS: u64 = 120;
 const POLL_INTERVAL_SECS: u64 = 1;
 const SERVER_ADDR: ([u8; 4], u16) = ([127, 0, 0, 1], 1957);
+const TWITCH_SERVER_ADDR: ([u8; 4], u16) = ([127, 0, 0, 1], 1958);
 
 // --- Tipos y Estructuras ---
 type AuthResult<T> = Result<T, String>;
@@ -265,6 +271,35 @@ mod api {
 
             Ok(())
         }
+
+        pub async fn link_twitch_account(&self, code: &str) -> AuthResult<()> {
+            // First, get current auth tokens to authenticate the request
+            let tokens = storage::load_tokens(&GLOBAL_APP_HANDLE.lock().unwrap().as_ref().unwrap().clone()).await
+                .map_err(|e| format!("Error loading auth tokens: {}", e))?
+                .ok_or("No authentication tokens found")?;
+
+            let twitch_endpoint = format!("{}/auth/twitch/callback?code={}", API_ENDPOINT, code);
+
+            let response = self
+                .client
+                .get(&twitch_endpoint)
+                .bearer_auth(&tokens.access_token)
+                .send()
+                .await
+                .map_err(|e| format!("Error contacting API: {}", e))?;
+
+            if !response.status().is_success() {
+                let raw_body = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Could not get response body".into());
+                eprintln!("Twitch linking error response: {}", raw_body);
+                
+                return Err(format!("Failed to link Twitch account: {}", raw_body));
+            }
+
+            Ok(())
+        }
     }
 }
 
@@ -390,6 +425,50 @@ async fn start_oauth_server(auth_state: Arc<AuthState>) -> AuthResult<()> {
     Ok(())
 }
 
+async fn start_twitch_oauth_server(auth_state: Arc<AuthState>) -> AuthResult<()> {
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+
+    let app_state_mutex = Arc::new(Mutex::new(AppState {
+        auth_state: Arc::clone(&auth_state),
+        server_tx: Some(shutdown_tx),
+    }));
+
+    let addr = SocketAddr::from(TWITCH_SERVER_ADDR);
+    let app_state_clone = app_state_mutex.clone();
+
+    let make_svc = make_service_fn(move |_conn| {
+        let app_state = app_state_clone.clone();
+        async move {
+            Ok::<_, Infallible>(service_fn(move |req| {
+                handle_twitch_callback(req, app_state.clone())
+            }))
+        }
+    });
+
+    let server = Server::bind(&addr)
+        .serve(make_svc)
+        .with_graceful_shutdown(async {
+            shutdown_rx.await.ok();
+            println!("Twitch callback server shutting down.");
+        });
+
+    tokio::spawn(async move {
+        println!("Twitch callback server listening on http://{}", addr);
+        if let Err(e) = server.await {
+            eprintln!("Twitch server error: {}", e);
+            events::emit_auth_error(format!("Twitch server error: {}", e));
+        }
+    });
+
+    // Start polling task to process the code
+    let auth_state_clone = Arc::clone(&auth_state);
+    tokio::spawn(async move {
+        poll_for_twitch_auth_code(auth_state_clone, app_state_mutex).await;
+    });
+
+    Ok(())
+}
+
 async fn poll_for_auth_code(auth_state: Arc<AuthState>, app_state_mutex: Arc<Mutex<AppState>>) {
     for i in 0..CALLBACK_TIMEOUT_SECS {
         let code_option = {
@@ -500,6 +579,34 @@ pub async fn start_discord_auth(auth_state: State<'_, Arc<AuthState>>) -> AuthRe
         if let Err(e) = tauri_plugin_opener::open_url(discord_url, None::<String>) {
             eprintln!("Error al abrir URL: {}", e);
             events::emit_auth_error("Error al abrir URL de autenticación".to_string());
+        }
+    });
+
+    events::emit_auth_step_changed(AuthStep::WaitingCallback);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn start_twitch_auth(auth_state: State<'_, Arc<AuthState>>) -> AuthResult<()> {
+    events::emit_auth_step_changed(AuthStep::StartingAuth);
+
+    // Clear previous state
+    auth_state.clear_all().await;
+
+    // Start OAuth server on different port for Twitch
+    start_twitch_oauth_server(Arc::clone(auth_state.inner())).await?;
+
+    // Open Twitch authorization URL
+    let twitch_url = format!(
+        "https://id.twitch.tv/oauth2/authorize?client_id={}&response_type=code&scope=user:read:subscriptions&redirect_uri={}",
+        TWITCH_CLIENT_ID, TWITCH_REDIRECT_URI
+    );
+
+    println!("Opening Twitch authorization URL: {}", twitch_url);
+    std::thread::spawn(move || {
+        if let Err(e) = tauri_plugin_opener::open_url(twitch_url, None::<String>) {
+            eprintln!("Error opening Twitch URL: {}", e);
+            events::emit_auth_error("Error opening Twitch authorization URL".to_string());
         }
     });
 
@@ -631,6 +738,141 @@ async fn handle_callback(
         }
     }
 }
+
+async fn handle_twitch_callback(
+    req: Request<Body>,
+    app_state_mutex: Arc<Mutex<AppState>>,
+) -> Result<Response<Body>, Infallible> {
+    let uri = req.uri();
+
+    if uri.path() != "/callback" {
+        let mut response = Response::new(Body::from("Not Found"));
+        *response.status_mut() = HyperStatusCode::NOT_FOUND;
+        return Ok(response);
+    }
+
+    // Extract authorization code
+    let code = uri.query().unwrap_or("").split('&').find_map(|pair| {
+        let mut parts = pair.splitn(2, '=');
+        if parts.next() == Some("code") {
+            parts.next().map(|v| v.to_string())
+        } else {
+            None
+        }
+    });
+
+    match code {
+        Some(code_str) => {
+            // Save code and shutdown server
+            let mut state = app_state_mutex.lock().await;
+            let mut auth_code_guard = state.auth_state.auth_code.lock().await;
+            *auth_code_guard = Some(code_str);
+            drop(auth_code_guard);
+
+            if let Some(tx) = state.server_tx.take() {
+                let _ = tx.send(());
+            }
+
+            // Success response
+            let mut response = Response::new(Body::from(TWITCH_SUCCESS_HTML));
+            response.headers_mut().insert(
+                CONTENT_TYPE,
+                HeaderValue::from_static("text/html; charset=utf-8"),
+            );
+            Ok(response)
+        }
+        None => {
+            eprintln!("Twitch OAuth Callback Error: No code received");
+            let mut response =
+                Response::new(Body::from("Error: No authorization code received"));
+            *response.status_mut() = HyperStatusCode::BAD_REQUEST;
+            Ok(response)
+        }
+    }
+}
+
+async fn poll_for_twitch_auth_code(auth_state: Arc<AuthState>, app_state_mutex: Arc<Mutex<AppState>>) {
+    for i in 0..CALLBACK_TIMEOUT_SECS {
+        let auth_code_guard = auth_state.auth_code.lock().await;
+        if let Some(code) = auth_code_guard.clone() {
+            drop(auth_code_guard);
+            println!("Twitch authorization code received: {}", &code[..std::cmp::min(code.len(), 10)]);
+
+            events::emit_auth_step_changed(AuthStep::ProcessingCallback);
+            
+            match process_twitch_auth_code(&code, &auth_state).await {
+                Ok(()) => {
+                    events::emit_auth_step_changed(AuthStep::RequestingSession);
+                    println!("Twitch account linked successfully");
+                    // Emit success event for frontend
+                    events::emit_event("twitch-auth-success", Some(json!({"success": true})));
+                }
+                Err(e) => {
+                    eprintln!("Error processing Twitch auth code: {}", e);
+                    events::emit_auth_error(format!("Error linking Twitch account: {}", e));
+                }
+            }
+            return;
+        }
+        drop(auth_code_guard);
+
+        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
+    }
+
+    eprintln!("Timeout waiting for Twitch authorization code");
+    events::emit_auth_error("Timeout waiting for Twitch authorization".to_string());
+}
+
+async fn process_twitch_auth_code(code: &str, auth_state: &Arc<AuthState>) -> AuthResult<()> {
+    let api_client = api::ApiClient::new();
+    
+    // Send the Twitch code to backend to complete the linking
+    match api_client.link_twitch_account(code).await {
+        Ok(_) => {
+            println!("Twitch account linked successfully via backend");
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("Error linking Twitch account: {}", e);
+            Err(format!("Failed to link Twitch account: {}", e))
+        }
+    }
+}
+
+// Twitch success HTML page
+const TWITCH_SUCCESS_HTML: &str = r#"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Modpack Store - Twitch Linked</title>
+    <style>
+        @import url(https://fonts.googleapis.com/css2?family=Montserrat&display=swap);
+        body {
+            margin: 3em;
+            max-width: 600px;
+            background-color: #f9f9f9;
+            color: #333;
+            font-family: Montserrat, sans-serif;
+        }
+        .container {
+            background-color: #fff;
+            padding: 2em;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        h1 { color: #9146ff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Twitch Account Linked Successfully!</h1>
+        <p>You can now close this window and go back to the Modpack Store Launcher.</p>
+        <p>Your Twitch account has been linked and you can now access Twitch subscriber-only content.</p>
+    </div>
+</body>
+</html>
+"#;
 
 // Success HTML page (sin cambios)
 const SUCCESS_HTML: &str = r#"
