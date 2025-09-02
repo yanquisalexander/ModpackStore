@@ -3,6 +3,9 @@ import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
 import { LucideExternalLink, LucideUnlink, LucideTwitch } from 'lucide-react';
+import { useAuthentication } from '@/stores/AuthContext';
+import { API_ENDPOINT } from "@/consts";
+import { listen } from "@tauri-apps/api/event";
 
 interface TwitchStatus {
   linked: boolean;
@@ -14,13 +17,21 @@ export const TwitchLinkingComponent = () => {
   const [twitchStatus, setTwitchStatus] = useState<TwitchStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
+  const { sessionTokens } = useAuthentication();
 
   // Fetch current Twitch status
   const fetchTwitchStatus = async () => {
     try {
-      const response = await fetch('/api/v1/auth/twitch/status', {
+      const token = sessionTokens?.accessToken;
+      if (!token) {
+        // Not authenticated locally — Twitch cannot be linked
+        setTwitchStatus({ linked: false });
+        return;
+      }
+
+      const response = await fetch(`${API_ENDPOINT}/auth/twitch/status`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
@@ -29,9 +40,11 @@ export const TwitchLinkingComponent = () => {
         setTwitchStatus(status);
       } else {
         console.error('Failed to fetch Twitch status');
+        setTwitchStatus({ linked: false });
       }
     } catch (error) {
       console.error('Error fetching Twitch status:', error);
+      setTwitchStatus({ linked: false });
     }
   };
 
@@ -41,7 +54,7 @@ export const TwitchLinkingComponent = () => {
     try {
       await invoke('start_twitch_auth');
       toast.success('Twitch authorization started. Please complete the process in your browser.');
-      
+
       // Poll for completion or listen for events
       // The Rust backend will emit events when the linking is complete
     } catch (error) {
@@ -56,29 +69,31 @@ export const TwitchLinkingComponent = () => {
   const handleUnlinkTwitch = async () => {
     setUnlinking(true);
     try {
-      const response = await fetch('/api/v1/auth/twitch/unlink', {
+      const token = sessionTokens?.accessToken;
+      if (!token) throw new Error('Not authenticated');
+
+      const response = await fetch(`${API_ENDPOINT}/auth/twitch/unlink`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
       });
 
       if (response.ok) {
         setTwitchStatus({ linked: false });
-        toast.success('Twitch account unlinked successfully');
+        toast.success('Tu cuenta de Twitch ha sido desvinculada con éxito');
       } else {
         const errorData = await response.json();
-        toast.error(errorData.message || 'Failed to unlink Twitch account');
+        toast.error(errorData.message || 'No se pudo desvincular la cuenta de Twitch');
       }
     } catch (error) {
       console.error('Error unlinking Twitch:', error);
-      toast.error('Failed to unlink Twitch account');
+      toast.error('No se pudo desvincular la cuenta de Twitch');
     } finally {
       setUnlinking(false);
     }
   };
-
   useEffect(() => {
     fetchTwitchStatus();
 
@@ -88,22 +103,35 @@ export const TwitchLinkingComponent = () => {
       fetchTwitchStatus(); // Refresh status
     };
 
+    // listen returns a Promise<UnlistenFn>, keep the promise and call the returned unlisten function in cleanup
+    const unlistenPromise = listen('twitch-auth-success', handleTwitchAuthSuccess);
+
     // Add event listener for Twitch auth events (you might need to adjust this based on your event system)
-    window.addEventListener('twitch-auth-success', handleTwitchAuthSuccess);
 
     return () => {
-      window.removeEventListener('twitch-auth-success', handleTwitchAuthSuccess);
+      unlistenPromise
+        .then((unlisten) => {
+          try {
+            unlisten();
+          } catch (err) {
+            console.error('Error during unlisten:', err);
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to subscribe/listen to twitch-auth-success event:', err);
+        });
     };
-  }, []);
+    // Re-run when tokens change so component reflects current authenticated user
+  }, [sessionTokens]);
 
   if (!twitchStatus) {
     return (
       <div className="bg-neutral-800 rounded-lg p-6">
         <div className="flex items-center space-x-3 mb-4">
           <LucideTwitch className="text-purple-400" size={24} />
-          <h3 className="text-lg font-semibold text-white">Twitch Integration</h3>
+          <h3 className="text-lg font-semibold text-white">Integración de Twitch</h3>
         </div>
-        <div className="text-neutral-400">Loading Twitch status...</div>
+        <div className="text-neutral-400">Cargando estado de Twitch...</div>
       </div>
     );
   }
@@ -112,24 +140,24 @@ export const TwitchLinkingComponent = () => {
     <div className="bg-neutral-800 rounded-lg p-6">
       <div className="flex items-center space-x-3 mb-4">
         <LucideTwitch className="text-purple-400" size={24} />
-        <h3 className="text-lg font-semibold text-white">Twitch Integration</h3>
+        <h3 className="text-lg font-semibold text-white">Integración de Twitch</h3>
       </div>
 
       {twitchStatus.linked ? (
         <div>
           <div className="flex items-center space-x-2 mb-4">
             <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-            <span className="text-green-400 font-medium">Connected</span>
+            <span className="text-green-400 font-medium">Conectado</span>
           </div>
-          
+
           {twitchStatus.twitchId && (
             <div className="text-sm text-neutral-400 mb-4">
-              Twitch ID: {twitchStatus.twitchId}
+              ID de Twitch: {twitchStatus.twitchId}
             </div>
           )}
 
           <p className="text-neutral-300 text-sm mb-4">
-            Your Twitch account is connected. You can now access subscriber-only modpacks from creators you're subscribed to.
+            Tu cuenta de Twitch está conectada. Ahora puedes acceder a modpacks exclusivos para suscriptores de los creadores a los que estés suscrito.
           </p>
 
           <Button
@@ -140,26 +168,26 @@ export const TwitchLinkingComponent = () => {
             className="flex items-center space-x-2"
           >
             <LucideUnlink size={16} />
-            <span>{unlinking ? 'Unlinking...' : 'Unlink Twitch'}</span>
+            <span>{unlinking ? 'Desvinculando...' : 'Desvincular Twitch'}</span>
           </Button>
         </div>
       ) : (
         <div>
           <div className="flex items-center space-x-2 mb-4">
             <div className="w-2 h-2 bg-neutral-500 rounded-full"></div>
-            <span className="text-neutral-400 font-medium">Not Connected</span>
+            <span className="text-neutral-400 font-medium">No conectado</span>
           </div>
 
           <p className="text-neutral-300 text-sm mb-4">
-            Link your Twitch account to access exclusive subscriber-only modpacks from your favorite creators.
+            Vincula tu cuenta de Twitch para acceder a modpacks exclusivos para suscriptores de tus creadores favoritos.
           </p>
 
           <div className="space-y-2 mb-4">
-            <div className="text-xs text-neutral-400">Benefits of linking your Twitch account:</div>
+            <div className="text-xs text-neutral-400">Beneficios de vincular tu cuenta de Twitch:</div>
             <ul className="text-xs text-neutral-300 space-y-1 ml-4">
-              <li>• Access subscriber-only modpacks</li>
-              <li>• Support your favorite creators</li>
-              <li>• Exclusive content and early access</li>
+              <li>• Acceder a modpacks solo para suscriptores</li>
+              <li>• Apoyar a tus creadores favoritos</li>
+              <li>• Contenido exclusivo y acceso anticipado</li>
             </ul>
           </div>
 
@@ -170,7 +198,7 @@ export const TwitchLinkingComponent = () => {
             size="sm"
           >
             <LucideExternalLink size={16} />
-            <span>{loading ? 'Connecting...' : 'Link Twitch Account'}</span>
+            <span>{loading ? 'Conectando...' : 'Vincular cuenta de Twitch'}</span>
           </Button>
         </div>
       )}

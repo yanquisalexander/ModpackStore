@@ -1,17 +1,131 @@
-import { getModpackById } from "@/services/getModpacks"
-import { useGlobalContext } from "@/stores/GlobalContext"
-import { LucideLoader, LucideVerified, LucideVolume2, LucideVolumeX, LucideChevronDown } from "lucide-react"
-import { useEffect, useState, useRef } from "react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { motion, useScroll, useTransform } from "motion/react"
-import { TauriCommandReturns } from "@/types/TauriCommandReturns"
-import { invoke } from "@tauri-apps/api/core"
-import { InstallButton } from "../components/install-modpacks/ModpackInstallButton" // Importamos el componente de instalación
-import { TwitchRequirements } from "@/components/TwitchRequirements"
-import { ModpackDataOverview } from "@/types/ApiResponses"
-import { getModpackVersions, ModpackVersionPublic, getLatestVersion, getNonArchivedVersions } from "@/services/getModpackVersions"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useAuthentication } from "@/stores/AuthContext"
+import { useGlobalContext } from "@/stores/GlobalContext";
+import {
+    LucideLoader,
+    LucideVerified,
+    LucideVolume2,
+    LucideVolumeX,
+    LucideChevronDown,
+    LucideFolder,
+    LucideFile,
+    LucideChevronRight,
+    LucideFileJson,
+    LucideFileText,
+    LucideFileArchive,
+    LucideFileImage
+} from "lucide-react";
+import { useEffect, useState, useRef, useMemo } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { motion, useScroll, useTransform } from "framer-motion";
+import { TauriCommandReturns } from "@/types/TauriCommandReturns";
+import { invoke } from "@tauri-apps/api/core";
+import { InstallButton } from "../components/install-modpacks/ModpackInstallButton";
+import { TwitchRequirements } from "@/components/TwitchRequirements";
+import { ModpackDataOverview } from "@/types/ApiResponses";
+import { getModpackVersions, ModpackVersionPublic, getLatestVersion, getNonArchivedVersions } from "@/services/getModpackVersions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useAuthentication } from "@/stores/AuthContext";
+import { getModpackById } from "@/services/getModpacks";
+
+// --- Helper Components & Types for File Tree ---
+
+// Types for our tree structure
+interface FileNodeData {
+    type: 'file';
+    data: ModpackVersionPublic['files'][0];
+}
+
+interface FolderNodeData {
+    type: 'folder';
+    children: { [key: string]: TreeNode };
+}
+
+type TreeNode = FileNodeData | FolderNodeData;
+
+// Helper function to get a specific icon based on file extension
+const getFileIcon = (fileName: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    switch (extension) {
+        case 'json':
+            return <LucideFileJson className="size-4 mr-2 text-yellow-400 flex-shrink-0" />;
+        case 'jar':
+        case 'zip':
+            return <LucideFileArchive className="size-4 mr-2 text-orange-400 flex-shrink-0" />;
+        case 'txt':
+        case 'md':
+        case 'cfg':
+        case 'properties':
+            return <LucideFileText className="size-4 mr-2 text-blue-400 flex-shrink-0" />;
+        case 'png':
+        case 'jpg':
+        case 'jpeg':
+        case 'gif':
+        case 'webp':
+            return <LucideFileImage className="size-4 mr-2 text-purple-400 flex-shrink-0" />;
+        default:
+            return <LucideFile className="size-4 mr-2 text-gray-400 flex-shrink-0" />;
+    }
+};
+
+// Recursive component to render a node in the file tree
+const FileTreeNode = ({ name, node, expandedFolders, setExpandedFolders, path }: {
+    name: string;
+    node: TreeNode;
+    expandedFolders: { [key: string]: boolean };
+    setExpandedFolders: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>;
+    path: string;
+}) => {
+    if (node.type === 'folder') {
+        const isExpanded = expandedFolders[path];
+        const toggleExpand = () => {
+            setExpandedFolders(prev => ({ ...prev, [path]: !isExpanded }));
+        };
+
+        return (
+            <div>
+                <div onClick={toggleExpand} className="flex items-center cursor-pointer hover:bg-white/5 p-1 rounded transition-colors">
+                    {isExpanded
+                        ? <LucideChevronDown className="size-4 mr-2 text-white/70 flex-shrink-0" />
+                        : <LucideChevronRight className="size-4 mr-2 text-white/70 flex-shrink-0" />
+                    }
+                    <LucideFolder className="size-4 mr-2 text-sky-400 flex-shrink-0" />
+                    <span className="text-white/90">{name}</span>
+                </div>
+                {isExpanded && (
+                    <div className="pl-6 border-l border-white/10 ml-2">
+                        {Object.entries(node.children)
+                            .sort(([aName, aNode], [bName, bNode]) => {
+                                // Sort folders before files, then alphabetically
+                                if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
+                                if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
+                                return aName.localeCompare(bName);
+                            })
+                            .map(([childName, childNode]) => (
+                                <FileTreeNode
+                                    key={childName}
+                                    name={childName}
+                                    node={childNode}
+                                    expandedFolders={expandedFolders}
+                                    setExpandedFolders={setExpandedFolders}
+                                    path={`${path}/${childName}`}
+                                />
+                            ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // It's a file
+    return (
+        <div className="flex items-center p-1 ml-4">
+            <div className='w-4 mr-2'></div> {/* Indent spacer */}
+            {getFileIcon(name)}
+            <span className="text-white/80">{name}</span>
+        </div>
+    );
+};
+
+// --- Main Component ---
 
 export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     const { session } = useAuthentication();
@@ -21,66 +135,108 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
         error: false,
         errorMessage: "",
         modpackData: null as ModpackDataOverview | null,
-    })
+    });
 
-    const [isMuted, setIsMuted] = useState(true)
-    const [showVideo, setShowVideo] = useState(false)
-    const [videoLoaded, setVideoLoaded] = useState(false)
-    const videoRef = useRef<HTMLVideoElement>(null)
-    const bannerContainerRef = useRef<HTMLDivElement>(null)
-    const [localInstancesOfModpack, setLocalInstancesOfModpack] = useState<TauriCommandReturns["get_instances_by_modpack_id"]>([])
+    const [isMuted, setIsMuted] = useState(true);
+    const [showVideo, setShowVideo] = useState(false);
+    const [videoLoaded, setVideoLoaded] = useState(false);
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const bannerContainerRef = useRef<HTMLDivElement>(null);
+    const [localInstancesOfModpack, setLocalInstancesOfModpack] = useState<TauriCommandReturns["get_instances_by_modpack_id"]>([]);
 
     // Version management state
-    const [versions, setVersions] = useState<ModpackVersionPublic[]>([])
-    const [selectedVersionId, setSelectedVersionId] = useState<string>("latest")
-    const [versionsLoading, setVersionsLoading] = useState(true)
+    const [versions, setVersions] = useState<ModpackVersionPublic[]>([]);
+    const [selectedVersionId, setSelectedVersionId] = useState<string>("latest");
+    const [versionsLoading, setVersionsLoading] = useState(true);
 
-    const { titleBarState, setTitleBarState } = useGlobalContext()
-    const { scrollY } = useScroll()
+    // State for the file tree view
+    const [expandedFolders, setExpandedFolders] = useState<{ [key: string]: boolean }>({});
+
+    const { titleBarState, setTitleBarState } = useGlobalContext();
+    const { scrollY } = useScroll();
 
     // Transformaciones basadas en el scroll para el efecto parallax
-    const bannerY = useTransform(scrollY, [0, 500], [0, 150])
-    const bannerScale = useTransform(scrollY, [0, 300], [1.05, 1.15])
-    const bannerOpacity = useTransform(scrollY, [0, 300], [1, 0.3])
+    const bannerY = useTransform(scrollY, [0, 500], [0, 150]);
+    const bannerScale = useTransform(scrollY, [0, 300], [1.05, 1.15]);
+    const bannerOpacity = useTransform(scrollY, [0, 300], [1, 0.3]);
 
     // Helper functions for version management
     const getSelectedVersion = (): ModpackVersionPublic | null => {
         if (selectedVersionId === "latest") {
-            return getLatestVersion(versions)
+            return getLatestVersion(versions);
         }
-        return versions.find(v => v.id === selectedVersionId) || null
-    }
+        return versions.find(v => v.id === selectedVersionId) || null;
+    };
+
+    const selectedVersion = getSelectedVersion();
+
+    const fileTree = useMemo(() => {
+        if (!selectedVersion || !selectedVersion.files) return {};
+
+        const buildFileTree = (files: typeof selectedVersion.files): { [key: string]: TreeNode } => {
+            const tree: { [key: string]: TreeNode } = {};
+            files.forEach(fileData => {
+                const pathParts = fileData.path.split('/');
+                let currentLevel: any = tree;
+
+                pathParts.forEach((part, index) => {
+                    if (index === pathParts.length - 1) {
+                        currentLevel[part] = { type: 'file', data: fileData };
+                    } else {
+                        if (!currentLevel[part]) {
+                            currentLevel[part] = { type: 'folder', children: {} };
+                        }
+                        currentLevel = currentLevel[part].children;
+                    }
+                });
+            });
+            return tree;
+        };
+
+        return buildFileTree(selectedVersion.files);
+    }, [selectedVersion]);
+
+    useEffect(() => {
+        // Expand top-level folders by default when the tree changes
+        const initialExpansionState: { [key: string]: boolean } = {};
+        Object.keys(fileTree).forEach(key => {
+            if (fileTree[key].type === 'folder') {
+                initialExpansionState[key] = true;
+            }
+        });
+        setExpandedFolders(initialExpansionState);
+    }, [fileTree]);
 
     const extractImportantFixes = (changelog: string): string[] => {
         // Extract items that look like fixes from the changelog
-        const lines = changelog?.split('\n') || []
-        const fixes: string[] = []
+        const lines = changelog?.split('\n') || [];
+        const fixes: string[] = [];
 
         for (const line of lines) {
-            const trimmed = line.trim()
+            const trimmed = line.trim();
             // Look for lines that start with - or * and contain fix-related keywords
             if ((trimmed.startsWith('-') || trimmed.startsWith('*')) &&
                 (trimmed.toLowerCase().includes('fix') ||
                     trimmed.toLowerCase().includes('corregido') ||
                     trimmed.toLowerCase().includes('solucionado') ||
                     trimmed.toLowerCase().includes('arreglo'))) {
-                fixes.push(trimmed.replace(/^[-*]\s*/, ''))
+                fixes.push(trimmed.replace(/^[-*]\s*/, ''));
             }
         }
 
         // If no specific fixes found, look for general improvement items
         if (fixes.length === 0) {
             for (const line of lines) {
-                const trimmed = line.trim()
+                const trimmed = line.trim();
                 if ((trimmed.startsWith('-') || trimmed.startsWith('*')) && trimmed.length > 10) {
-                    fixes.push(trimmed.replace(/^[-*]\s*/, ''))
-                    if (fixes.length >= 3) break // Limit to 3 items
+                    fixes.push(trimmed.replace(/^[-*]\s*/, ''));
+                    if (fixes.length >= 3) break; // Limit to 3 items
                 }
             }
         }
 
-        return fixes.slice(0, 5) // Limit to 5 most important fixes
-    }
+        return fixes.slice(0, 5); // Limit to 5 most important fixes
+    };
 
     useEffect(() => {
         setTitleBarState({
@@ -92,10 +248,8 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
             title: pageState.modpackData?.name || "Modpack Overview",
             icon: pageState.modpackData?.iconUrl || "/images/modpack-fallback.webp",
             customIconClassName: "rounded-sm",
-        })
-    }, [pageState.modpackData])
-
-
+        });
+    }, [pageState.modpackData]);
 
     useEffect(() => {
         const fetchLocalInstances = async () => {
@@ -151,45 +305,45 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     useEffect(() => {
         const fetchModpack = async () => {
             try {
-                const modpack = await getModpackById(modpackId)
+                const modpack = await getModpackById(modpackId);
                 setPageState({
                     loading: false,
                     error: false,
                     errorMessage: "",
                     modpackData: modpack as unknown as ModpackDataOverview
-                })
+                });
             } catch (err: any) {
                 setPageState({
                     loading: false,
                     error: true,
                     errorMessage: err?.message || "Failed to load modpack",
                     modpackData: null
-                })
+                });
             }
-        }
+        };
 
         const fetchVersions = async () => {
             try {
-                setVersionsLoading(true)
-                const fetchedVersions = await getModpackVersions(modpackId)
-                const nonArchivedVersions = getNonArchivedVersions(fetchedVersions)
-                setVersions(nonArchivedVersions)
+                setVersionsLoading(true);
+                const fetchedVersions = await getModpackVersions(modpackId);
+                const nonArchivedVersions = getNonArchivedVersions(fetchedVersions);
+                setVersions(nonArchivedVersions);
 
                 // Set default selection to latest if available
                 if (nonArchivedVersions.length > 0) {
-                    setSelectedVersionId("latest")
+                    setSelectedVersionId("latest");
                 }
             } catch (err) {
-                console.error("Failed to fetch versions:", err)
-                setVersions([])
+                console.error("Failed to fetch versions:", err);
+                setVersions([]);
             } finally {
-                setVersionsLoading(false)
+                setVersionsLoading(false);
             }
-        }
+        };
 
-        fetchModpack()
-        fetchVersions()
-    }, [modpackId])
+        fetchModpack();
+        fetchVersions();
+    }, [modpackId]);
 
     const toggleMute = () => {
         if (videoRef.current) {
@@ -222,14 +376,14 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
         // Back again to banner image
         setShowVideo(false);
         setVideoLoaded(false);
-    }
+    };
 
     if (pageState.loading) {
         return (
             <div className="flex items-center justify-center min-h-screen w-full">
                 <LucideLoader className="size-10 animate-spin text-white" />
             </div>
-        )
+        );
     }
 
     if (pageState.error) {
@@ -238,7 +392,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                 <p className="text-lg font-semibold">Error:</p>
                 <p>{pageState.errorMessage}</p>
             </div>
-        )
+        );
     }
 
     if (!pageState.modpackData) {
@@ -247,23 +401,22 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                 <p className="text-lg font-semibold">Error:</p>
                 <p>Modpack no encontrado.</p>
             </div>
-        )
+        );
     }
 
-    const { modpackData } = pageState
-    const { showUserAsPublisher } = modpackData
+    const { modpackData } = pageState;
+    const { showUserAsPublisher } = modpackData;
 
     // Creamos una copia del publisher para mostrar el usuario si es necesario
-    let displayPublisher = { ...modpackData.publisher } as NonNullable<ModpackDataOverview["publisher"]>
-    console.log("Publisher data:", displayPublisher)
-    const originalPublisherName = displayPublisher.publisherName
+    let displayPublisher = { ...modpackData.publisher } as NonNullable<ModpackDataOverview["publisher"]>;
+    const originalPublisherName = displayPublisher.publisherName;
 
     // Si debemos mostrar el usuario como publisher, cambiamos el nombre
     if (showUserAsPublisher && modpackData.creatorUser) {
         displayPublisher = {
             ...displayPublisher,
             publisherName: modpackData.creatorUser.username || "Desconocido",
-        }
+        };
     }
 
     const hasVideo = modpackData.trailerUrl && modpackData.trailerUrl.length > 0;
@@ -414,7 +567,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                             <Tabs defaultValue="overview" className="w-full pb-16">
                                 <TabsList className="w-full justify-start bg-black/40 backdrop-blur-md">
                                     <TabsTrigger value="overview">Descripción</TabsTrigger>
-                                    <TabsTrigger value="mods">Mods</TabsTrigger>
+                                    <TabsTrigger value="files">Archivos de Modpack</TabsTrigger>
                                     <TabsTrigger value="changelog">Changelog</TabsTrigger>
                                     <TabsTrigger value="versions">Versiones</TabsTrigger>
                                 </TabsList>
@@ -426,42 +579,32 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                     </p>
                                 </TabsContent>
 
-                                <TabsContent value="mods" className="mt-6">
-                                    {(() => {
-                                        const selectedVersion = getSelectedVersion();
-                                        if (!selectedVersion || !selectedVersion.files || selectedVersion.files.length === 0) {
-                                            return <p className="text-white/80">No hay archivos disponibles para esta versión.</p>;
-                                        }
-
-                                        const groupedFiles = selectedVersion.files.reduce((acc, file) => {
-                                            const type = file.file.type;
-                                            if (!acc[type]) acc[type] = [];
-                                            acc[type].push(file);
-                                            return acc;
-                                        }, {} as Record<string, typeof selectedVersion.files>);
-
-                                        return (
-                                            <div className="space-y-6">
-                                                {Object.entries(groupedFiles).map(([type, files]) => (
-                                                    <div key={type} className="bg-black/20 rounded-lg p-4">
-                                                        <h3 className="text-lg font-semibold text-white capitalize mb-3">{type}</h3>
-                                                        <div className="space-y-2">
-                                                            {files.map((file, index) => {
-                                                                const fileName = file.path.split('/').pop() || file.path;
-                                                                return (
-                                                                    <div key={index} className="flex items-center justify-between bg-black/40 rounded p-2">
-                                                                        <span className="text-white/90 text-sm">{fileName}</span>
-                                                                        <span className="text-white/60 text-xs">{file.path}</span>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
+                                <TabsContent value="files" className="mt-6">
+                                    {selectedVersion && selectedVersion.files && selectedVersion.files.length > 0 ? (
+                                        <div className="bg-black/20 rounded-lg p-4 font-mono text-sm space-y-1 border border-white/10">
+                                            {Object.entries(fileTree)
+                                                .sort(([aName, aNode], [bName, bNode]) => {
+                                                    // Sort folders before files, then alphabetically
+                                                    if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
+                                                    if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
+                                                    return aName.localeCompare(bName);
+                                                })
+                                                .map(([name, node]) => (
+                                                    <FileTreeNode
+                                                        key={name}
+                                                        name={name}
+                                                        node={node}
+                                                        expandedFolders={expandedFolders}
+                                                        setExpandedFolders={setExpandedFolders}
+                                                        path={name}
+                                                    />
                                                 ))}
-                                            </div>
-                                        );
-                                    })()}
+                                        </div>
+                                    ) : (
+                                        <p className="text-white/80">No hay archivos disponibles para esta versión.</p>
+                                    )}
                                 </TabsContent>
+
 
                                 <TabsContent value="changelog" className="mt-6">
                                     <div className="space-y-4">
@@ -501,7 +644,6 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                         ) : (
                                             <>
                                                 {(() => {
-                                                    const selectedVersion = getSelectedVersion()
                                                     if (!selectedVersion) {
                                                         return (
                                                             <p className="text-white/80">No hay changelog disponible para esta versión.</p>
@@ -531,7 +673,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                                                 : 'Fecha no disponible'
                                                                             }
                                                                         </p>
-                                                                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${selectedVersion.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
                                                                             {selectedVersion.status === 'published' ? 'Publicado' : selectedVersion.status}
                                                                         </span>
                                                                     </div>
@@ -561,7 +703,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                                 <h4 className="text-white font-medium mb-3">Changelog Completo</h4>
                                                                 <div className="prose prose-invert max-w-none">
                                                                     <pre className="whitespace-pre-wrap text-sm text-white/80 bg-black/30 p-4 rounded border border-white/10 overflow-x-auto">
-                                                                        {selectedVersion.changelog}
+                                                                        {selectedVersion.changelog || "No hay changelog para esta versión."}
                                                                     </pre>
                                                                 </div>
                                                             </div>
@@ -689,5 +831,5 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                 </motion.main>
             </div>
         </div>
-    )
-}
+    );
+};

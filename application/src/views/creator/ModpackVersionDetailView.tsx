@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,13 +6,33 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { LucideEdit2, LucideSave, LucideUpload, LucideFile, LucideTrash2, LucideSend, LucidePackage, LucideImage, LucideSettings, LucidePalette, LucideFolder } from 'lucide-react';
+import {
+    LucideEdit2,
+    LucideSave,
+    LucideUpload,
+    LucideFile,
+    LucideTrash2,
+    LucideSend,
+    LucidePackage,
+    LucideImage,
+    LucideSettings,
+    LucidePalette,
+    LucideFolder,
+    LucideChevronDown,
+    LucideChevronRight,
+    LucideFileJson,
+    LucideFileText,
+    LucideFileArchive,
+    LucideFileImage
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { API_ENDPOINT } from '@/consts';
 import { useAuthentication } from '@/stores/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { handleApiError } from '@/lib/utils';
+
+// --- Interfaces & Types ---
 
 interface ModpackVersion {
     id: string;
@@ -38,10 +58,119 @@ interface ModpackVersionFile {
     file: {
         type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras';
     };
+    size?: number;
 }
 
+// --- Helper Components & Types for File Tree ---
+
+interface FileNodeData {
+    type: 'file';
+    data: ModpackVersionFile;
+}
+
+interface FolderNodeData {
+    type: 'folder';
+    children: { [key: string]: TreeNode };
+}
+
+type TreeNode = FileNodeData | FolderNodeData;
+
+const getFileIcon = (fileName: string) => {
+    const extension = fileName.split('.').pop()?.toLowerCase();
+    switch (extension) {
+        case 'json':
+            return <LucideFileJson className="h-4 w-4 mr-2 text-yellow-500 flex-shrink-0" />;
+        case 'jar':
+        case 'zip':
+            return <LucideFileArchive className="h-4 w-4 mr-2 text-orange-500 flex-shrink-0" />;
+        case 'txt':
+        case 'md':
+        case 'cfg':
+        case 'properties':
+            return <LucideFileText className="h-4 w-4 mr-2 text-blue-500 flex-shrink-0" />;
+        case 'png':
+        case 'jpg':
+        case 'jpeg':
+        case 'gif':
+        case 'webp':
+            return <LucideFileImage className="h-4 w-4 mr-2 text-purple-500 flex-shrink-0" />;
+        default:
+            return <LucideFile className="h-4 w-4 mr-2 text-gray-500 flex-shrink-0" />;
+    }
+};
+
+const FileTreeNode: React.FC<{
+    name: string;
+    node: TreeNode;
+    expandedFolders: { [key: string]: boolean };
+    setExpandedFolders: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>;
+    path: string;
+    versionStatus: string;
+    onDelete: (fileHash: string, fileType: string) => void;
+}> = ({ name, node, expandedFolders, setExpandedFolders, path, versionStatus, onDelete }) => {
+    if (node.type === 'folder') {
+        const isExpanded = expandedFolders[path];
+        const toggleExpand = () => setExpandedFolders(prev => ({ ...prev, [path]: !isExpanded }));
+
+        return (
+            <div>
+                <div onClick={toggleExpand} className="flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded transition-colors">
+                    {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" />}
+                    <LucideFolder className="h-4 w-4 mr-2 text-sky-600 flex-shrink-0" />
+                    <span className="text-gray-800 font-medium">{name}</span>
+                </div>
+                {isExpanded && (
+                    <div className="pl-6 border-l border-gray-200 ml-2">
+                        {Object.entries(node.children)
+                            .sort(([aName, aNode], [bName, bNode]) => {
+                                if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
+                                if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
+                                return aName.localeCompare(bName);
+                            })
+                            .map(([childName, childNode]) => (
+                                <FileTreeNode
+                                    key={childName}
+                                    name={childName}
+                                    node={childNode}
+                                    expandedFolders={expandedFolders}
+                                    setExpandedFolders={setExpandedFolders}
+                                    path={`${path}/${childName}`}
+                                    versionStatus={versionStatus}
+                                    onDelete={onDelete}
+                                />
+                            ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
+    // It's a file
+    const fileData = node.data;
+    return (
+        <div className="flex items-center justify-between p-1 ml-4 group hover:bg-gray-100 rounded">
+            <div className="flex items-center min-w-0">
+                <div className="w-4 mr-2 flex-shrink-0"></div> {/* Indent spacer */}
+                {getFileIcon(name)}
+                <span className="text-gray-700 truncate" title={fileData.path}>{name}</span>
+            </div>
+            {versionStatus !== 'published' && (
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onDelete(fileData.fileHash, fileData.file.type)}
+                    className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                >
+                    <LucideTrash2 className="h-4 w-4" />
+                </Button>
+            )}
+        </div>
+    );
+};
+
+// --- Main Component ---
+
 const ModpackVersionDetailView: React.FC = () => {
-    console.log('Rendering ModpackVersionDetailView');
     const { orgId: publisherId, modpackId, versionId } = useParams<{
         orgId: string;
         modpackId: string;
@@ -79,6 +208,7 @@ const ModpackVersionDetailView: React.FC = () => {
                 fileHash: string;
                 path: string;
                 size: number;
+                type: string;
             }>;
         }>;
         selectedFiles: string[];
@@ -90,6 +220,9 @@ const ModpackVersionDetailView: React.FC = () => {
         selectedFiles: [],
         loading: false
     });
+
+    // State for reuse dialog file tree expansion
+    const [reuseExpandedFolders, setReuseExpandedFolders] = useState<{ [key: string]: boolean }>({});
 
     useEffect(() => {
         if (publisherId && modpackId && versionId) {
@@ -111,7 +244,6 @@ const ModpackVersionDetailView: React.FC = () => {
             }
 
             const data = await res.json();
-            console.log('Version details fetched successfully:', data);
             setVersion(data.version);
             setChangelog(data.version.changelog || '');
         } catch (error) {
@@ -184,7 +316,6 @@ const ModpackVersionDetailView: React.FC = () => {
     const handleFileUpload = async (file: File, type: string) => {
         if (!file) return;
 
-        // Validar que sea un archivo ZIP
         if (!file.name.toLowerCase().endsWith('.zip')) {
             toast.error('Solo se permiten archivos ZIP');
             return;
@@ -204,16 +335,13 @@ const ModpackVersionDetailView: React.FC = () => {
             });
 
             xhr.addEventListener('load', () => {
-                // Try to parse a JSON error body from the API so we can show useful messages
                 const isSuccess = xhr.status >= 200 && xhr.status < 300;
                 let parsed: any = null;
                 try {
                     if (xhr.responseText) {
                         parsed = JSON.parse(xhr.responseText);
                     }
-                } catch (e) {
-                    // ignore parse errors, we'll fallback to statusText
-                }
+                } catch (e) { /* ignore parse errors */ }
 
                 if (isSuccess) {
                     setUploadDialog(prev => ({ ...prev, progress: 100 }));
@@ -221,26 +349,18 @@ const ModpackVersionDetailView: React.FC = () => {
                     fetchVersionDetails();
                     resolve();
                 } else {
-                    // Build a helpful message from the API error structure if present
                     let message = `Error ${xhr.status}`;
                     if (parsed && parsed.errors && Array.isArray(parsed.errors) && parsed.errors.length > 0) {
-                        // Prefer the 'detail' field, fall back to title/code
                         message = parsed.errors.map((err: any) => err.detail || err.title || err.code || JSON.stringify(err)).join('; ');
                     } else if (xhr.statusText) {
                         message = `${message}: ${xhr.statusText}`;
                     }
-
                     reject(new Error(message));
                 }
             });
 
-            xhr.addEventListener('error', () => {
-                reject(new Error('Error de red al subir el archivo'));
-            });
-
-            xhr.addEventListener('abort', () => {
-                reject(new Error('Subida cancelada'));
-            });
+            xhr.addEventListener('error', () => reject(new Error('Error de red al subir el archivo')));
+            xhr.addEventListener('abort', () => reject(new Error('Subida cancelada')));
 
             const formData = new FormData();
             formData.append('file', file);
@@ -255,6 +375,31 @@ const ModpackVersionDetailView: React.FC = () => {
             setUploadingFile(false);
             setUploadDialog(prev => ({ ...prev, open: false, file: null, progress: 0 }));
         });
+    };
+
+    const deleteFile = async (fileHash: string, fileType: string) => {
+        try {
+            const res = await fetch(
+                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileType}/${fileHash}`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                    },
+                }
+            );
+
+            if (!res.ok) {
+                await handleApiError(res);
+                return;
+            }
+
+            toast.success('Archivo eliminado correctamente');
+            fetchVersionDetails();
+        } catch (error) {
+            console.error('Error deleting file:', error);
+            toast.error(error instanceof Error ? error.message : 'Error al eliminar el archivo');
+        }
     };
 
     const openUploadDialog = (type: string) => {
@@ -279,7 +424,6 @@ const ModpackVersionDetailView: React.FC = () => {
         }
     };
 
-    // New functions for file reuse
     const fetchPreviousFiles = async (type: string) => {
         setReuseDialog(prev => ({ ...prev, loading: true }));
         try {
@@ -365,6 +509,44 @@ const ModpackVersionDetailView: React.FC = () => {
         }));
     };
 
+    const toggleFolderSelection = (folderPath: string, fileHashes: string[]) => {
+        const allSelected = fileHashes.every(hash => reuseDialog.selectedFiles.includes(hash));
+        setReuseDialog(prev => ({
+            ...prev,
+            selectedFiles: allSelected
+                ? prev.selectedFiles.filter(hash => !fileHashes.includes(hash))
+                : [...new Set([...prev.selectedFiles, ...fileHashes])]
+        }));
+    };
+
+    const buildReuseFileTree = (files: Array<{ fileHash: string; path: string; size: number; type: string }>): { [key: string]: TreeNode } => {
+        const tree: { [key: string]: TreeNode } = {};
+        files.forEach(fileData => {
+            const pathParts = fileData.path.split('/');
+            let currentLevel: any = tree;
+            pathParts.forEach((part, index) => {
+                if (index === pathParts.length - 1) {
+                    // Convert to ModpackVersionFile format for the tree
+                    const modpackFile: ModpackVersionFile = {
+                        fileHash: fileData.fileHash,
+                        path: fileData.path,
+                        file: {
+                            type: fileData.type as 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras'
+                        },
+                        size: fileData.size
+                    };
+                    currentLevel[part] = { type: 'file', data: modpackFile };
+                } else {
+                    if (!currentLevel[part]) {
+                        currentLevel[part] = { type: 'folder', children: {} };
+                    }
+                    currentLevel = currentLevel[part].children;
+                }
+            });
+        });
+        return tree;
+    };
+
     const confirmFileReuse = async () => {
         if (reuseDialog.selectedFiles.length === 0) {
             toast.error('Selecciona al menos un archivo para reutilizar');
@@ -406,40 +588,13 @@ const ModpackVersionDetailView: React.FC = () => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
-    const handleDragOver = (e: React.DragEvent) => {
-        e.preventDefault();
-    };
+    const handleDragOver = (e: React.DragEvent) => e.preventDefault();
 
     const handleDrop = async (e: React.DragEvent, type: string) => {
         e.preventDefault();
-
         const files = e.dataTransfer.files;
         if (files.length > 0) {
             await handleFileUpload(files[0], type);
-        }
-    };
-
-    const deleteFile = async (fileHash: string, fileType: string) => {
-        try {
-            const res = await fetch(
-                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileType}/${fileHash}`,
-                {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${sessionTokens?.accessToken}`,
-                    },
-                }
-            );
-
-            if (!res.ok) {
-                throw new Error('Error al eliminar el archivo');
-            }
-
-            toast.success('Archivo eliminado correctamente');
-            fetchVersionDetails(); // Recargar los detalles
-        } catch (error) {
-            console.error('Error deleting file:', error);
-            toast.error('Error al eliminar el archivo');
         }
     };
 
@@ -449,8 +604,44 @@ const ModpackVersionDetailView: React.FC = () => {
         type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras';
         files: ModpackVersionFile[];
         icon: React.ReactNode;
-    }> = ({ title, description, type, files, icon }) => {
+        versionStatus: string;
+        onDeleteFile: (fileHash: string, fileType: string) => void;
+    }> = ({ title, description, type, files, icon, versionStatus, onDeleteFile }) => {
+        const [expandedFolders, setExpandedFolders] = useState<{ [key: string]: boolean }>({});
+
         const filteredFiles = files.filter(file => file.file.type === type);
+
+        const fileTree = useMemo(() => {
+            const buildFileTree = (filesToProcess: ModpackVersionFile[]): { [key: string]: TreeNode } => {
+                const tree: { [key: string]: TreeNode } = {};
+                filesToProcess.forEach(fileData => {
+                    const pathParts = fileData.path.split('/');
+                    let currentLevel: any = tree;
+                    pathParts.forEach((part, index) => {
+                        if (index === pathParts.length - 1) {
+                            currentLevel[part] = { type: 'file', data: fileData };
+                        } else {
+                            if (!currentLevel[part]) {
+                                currentLevel[part] = { type: 'folder', children: {} };
+                            }
+                            currentLevel = currentLevel[part].children;
+                        }
+                    });
+                });
+                return tree;
+            };
+            return buildFileTree(filteredFiles);
+        }, [filteredFiles]);
+
+        useEffect(() => {
+            const initialExpansionState: { [key: string]: boolean } = {};
+            Object.keys(fileTree).forEach(key => {
+                if (fileTree[key].type === 'folder') {
+                    initialExpansionState[key] = true;
+                }
+            });
+            setExpandedFolders(initialExpansionState);
+        }, [fileTree]);
 
         return (
             <Card
@@ -460,10 +651,9 @@ const ModpackVersionDetailView: React.FC = () => {
             >
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
-                        {icon}
-                        {title}
-                        {version && version.status !== 'published' && (
-                            <span className="text-xs text-gray-400 ml-auto">
+                        {icon} {title}
+                        {versionStatus !== 'published' && (
+                            <span className="text-xs text-gray-400 ml-auto font-normal">
                                 Arrastra ZIP aquí
                             </span>
                         )}
@@ -472,80 +662,154 @@ const ModpackVersionDetailView: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
-
-                        {version && version.status !== 'published' && (
+                        {versionStatus !== 'published' && (
                             <div className="flex flex-col items-center space-y-2">
                                 <div className="flex gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => openUploadDialog(type)}
-                                        disabled={uploadingFile}
-                                    >
+                                    <Button variant="outline" size="sm" onClick={() => openUploadDialog(type)} disabled={uploadingFile}>
                                         <LucideUpload className="h-4 w-4 mr-2" />
                                         {uploadingFile ? 'Subiendo...' : 'Subir ZIP'}
                                     </Button>
-                                    <Button
-                                        variant="secondary"
-                                        size="sm"
-                                        onClick={() => openReuseDialog(type)}
-                                        disabled={uploadingFile}
-                                    >
-                                        <LucidePackage className="h-4 w-4 mr-2" />
-                                        Reutilizar
+                                    <Button variant="secondary" size="sm" onClick={() => openReuseDialog(type)} disabled={uploadingFile}>
+                                        <LucidePackage className="h-4 w-4 mr-2" /> Reutilizar
                                     </Button>
                                 </div>
-                                {filteredFiles.length > 0 && (
-                                    <span className="text-xs text-green-600 mt-1">
-                                        ✓ Archivos cargados desde versiones anteriores o subidos
-                                    </span>
-                                )}
-                                {filteredFiles.length === 0 && (
-                                    <span className="text-xs text-gray-500 mt-1">
-                                        Sube nuevos archivos o reutiliza de versiones anteriores
-                                    </span>
-                                )}
                             </div>
                         )}
-
-                        {filteredFiles.length > 0 && (
-                            <div className="space-y-2 max-h-40 overflow-y-scroll overflow-x-hidden">
-                                <h4 className="text-sm font-medium text-gray-700">Archivos:</h4>
-                                {filteredFiles.map((file) => (
-                                    <div
-                                        key={file.fileHash}
-                                        className="flex items-center justify-between p-2 bg-gray-50 rounded-md"
-                                    >
-                                        <div className="flex items-center space-x-2">
-                                            <LucideFile className="h-4 w-4 text-gray-500" />
-                                            <div>
-                                                <p className="text-sm font-medium text-gray-900">
-                                                    {file.path.split('/').pop()}
-                                                </p>
-                                                <p className="text-xs text-gray-500">
-                                                    Hash: {file.fileHash.substring(0, 8)}...
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <div className="flex space-x-2">
-                                            {version && version.status !== 'published' && (
-                                                <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() => deleteFile(file.fileHash, file.file.type)}
-                                                    className="text-red-600 hover:text-red-700"
-                                                >
-                                                    <LucideTrash2 className="h-4 w-4" />
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
+                        {filteredFiles.length > 0 ? (
+                            <div className="space-y-1 mt-4 max-h-60 overflow-y-auto font-mono text-xs border-t pt-4">
+                                {Object.entries(fileTree)
+                                    .sort(([aName, aNode], [bName, bNode]) => {
+                                        if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
+                                        if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
+                                        return aName.localeCompare(bName);
+                                    })
+                                    .map(([name, node]) => (
+                                        <FileTreeNode
+                                            key={name}
+                                            name={name}
+                                            node={node}
+                                            expandedFolders={expandedFolders}
+                                            setExpandedFolders={setExpandedFolders}
+                                            path={name}
+                                            versionStatus={versionStatus}
+                                            onDelete={onDeleteFile}
+                                        />
+                                    ))
+                                }
                             </div>
+                        ) : (
+                            versionStatus !== 'published' && (
+                                <p className="text-xs text-center text-gray-500 mt-2">
+                                    Sube nuevos archivos o reutiliza de versiones anteriores.
+                                </p>
+                            )
                         )}
                     </div>
                 </CardContent>
             </Card>
+        );
+    };
+
+    const SelectableFileTreeNode: React.FC<{
+        name: string;
+        node: TreeNode;
+        expandedFolders: { [key: string]: boolean };
+        setExpandedFolders: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>;
+        path: string;
+        selectedFiles: string[];
+        onToggleSelection: (fileHash: string) => void;
+        onToggleFolderSelection: (folderPath: string, fileHashes: string[]) => void;
+    }> = ({ name, node, expandedFolders, setExpandedFolders, path, selectedFiles, onToggleSelection, onToggleFolderSelection }) => {
+        if (node.type === 'folder') {
+            const isExpanded = expandedFolders[path];
+            const toggleExpand = () => setExpandedFolders(prev => ({ ...prev, [path]: !isExpanded }));
+
+            // Get all file hashes in this folder recursively
+            const getAllFileHashes = (folderNode: FolderNodeData): string[] => {
+                const hashes: string[] = [];
+                Object.values(folderNode.children).forEach(child => {
+                    if (child.type === 'file') {
+                        hashes.push(child.data.fileHash);
+                    } else {
+                        hashes.push(...getAllFileHashes(child));
+                    }
+                });
+                return hashes;
+            };
+
+            const folderFileHashes = getAllFileHashes(node);
+            const allSelected = folderFileHashes.length > 0 && folderFileHashes.every(hash => selectedFiles.includes(hash));
+            const someSelected = folderFileHashes.some(hash => selectedFiles.includes(hash));
+
+            const handleFolderCheckboxChange = () => {
+                onToggleFolderSelection(path, folderFileHashes);
+            };
+
+            return (
+                <div>
+                    <div className="flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded transition-colors">
+                        <input
+                            type="checkbox"
+                            checked={allSelected}
+                            ref={(el) => {
+                                if (el) el.indeterminate = someSelected && !allSelected;
+                            }}
+                            onChange={handleFolderCheckboxChange}
+                            className="mr-2 rounded border-gray-300"
+                        />
+                        {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" />}
+                        <LucideFolder className="h-4 w-4 mr-2 text-sky-600 flex-shrink-0" />
+                        <span className="text-gray-800 font-medium">{name}</span>
+                        <span className="text-xs text-gray-500 ml-2">({folderFileHashes.length} archivos)</span>
+                    </div>
+                    {isExpanded && (
+                        <div className="pl-6 border-l border-gray-200 ml-2">
+                            {Object.entries(node.children)
+                                .sort(([aName, aNode], [bName, bNode]) => {
+                                    if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
+                                    if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
+                                    return aName.localeCompare(bName);
+                                })
+                                .map(([childName, childNode]) => (
+                                    <SelectableFileTreeNode
+                                        key={childName}
+                                        name={childName}
+                                        node={childNode}
+                                        expandedFolders={expandedFolders}
+                                        setExpandedFolders={setExpandedFolders}
+                                        path={`${path}/${childName}`}
+                                        selectedFiles={selectedFiles}
+                                        onToggleSelection={onToggleSelection}
+                                        onToggleFolderSelection={onToggleFolderSelection}
+                                    />
+                                ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // It's a file
+        const fileData = node.data;
+        const isSelected = selectedFiles.includes(fileData.fileHash);
+
+        return (
+            <div className="flex items-center justify-between p-1 ml-4 group hover:bg-gray-100 rounded">
+                <div className="flex items-center min-w-0 flex-1">
+                    <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggleSelection(fileData.fileHash)}
+                        className="mr-2 rounded border-gray-300 flex-shrink-0"
+                    />
+                    <div className="w-4 mr-2 flex-shrink-0"></div> {/* Indent spacer */}
+                    {getFileIcon(name)}
+                    <span className="text-gray-700 truncate" title={fileData.path}>{name}</span>
+                </div>
+                <div className="text-xs text-gray-500 flex-shrink-0 ml-2">
+                    {formatFileSize(fileData.size || 0)}
+                </div>
+            </div>
         );
     };
 
@@ -659,7 +923,7 @@ const ModpackVersionDetailView: React.FC = () => {
                         </DialogDescription>
                     </DialogHeader>
 
-                    <div className="flex-1 overflow-y-auto">
+                    <div className="flex-1 overflow-y-auto p-1">
                         {reuseDialog.loading ? (
                             <div className="flex items-center justify-center py-8">
                                 <div className="text-center">
@@ -706,33 +970,29 @@ const ModpackVersionDetailView: React.FC = () => {
                                                     )}
                                                 </div>
                                             </div>
-                                            <div className="space-y-2 max-h-48 overflow-y-auto">
-                                                {version.files.map((file) => (
-                                                    <div
-                                                        key={file.fileHash}
-                                                        className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${reuseDialog.selectedFiles.includes(file.fileHash)
-                                                                ? 'bg-blue-50 border border-blue-200'
-                                                                : 'bg-gray-50 hover:bg-gray-100'
-                                                            }`}
-                                                        onClick={() => toggleFileSelection(file.fileHash)}
-                                                    >
-                                                        <div className="flex items-center space-x-3">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={reuseDialog.selectedFiles.includes(file.fileHash)}
-                                                                onChange={() => toggleFileSelection(file.fileHash)}
-                                                                className="rounded border-gray-300"
+                                            <div className="space-y-2 max-h-96 overflow-y-auto font-mono text-xs border-t pt-4">
+                                                {(() => {
+                                                    const fileTree = buildReuseFileTree(version.files);
+                                                    return Object.entries(fileTree)
+                                                        .sort(([aName, aNode], [bName, bNode]) => {
+                                                            if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
+                                                            if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
+                                                            return aName.localeCompare(bName);
+                                                        })
+                                                        .map(([name, node]) => (
+                                                            <SelectableFileTreeNode
+                                                                key={name}
+                                                                name={name}
+                                                                node={node}
+                                                                expandedFolders={reuseExpandedFolders}
+                                                                setExpandedFolders={setReuseExpandedFolders}
+                                                                path={name}
+                                                                selectedFiles={reuseDialog.selectedFiles}
+                                                                onToggleSelection={toggleFileSelection}
+                                                                onToggleFolderSelection={toggleFolderSelection}
                                                             />
-                                                            <LucideFile className="h-4 w-4 text-gray-500" />
-                                                            <div>
-                                                                <p className="text-sm font-medium text-gray-900">{file.path}</p>
-                                                                <p className="text-xs text-gray-500">
-                                                                    {formatFileSize(file.size)} • {file.fileHash.substring(0, 8)}...
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                                                        ));
+                                                })()}
                                             </div>
                                         </div>
                                     );
@@ -741,7 +1001,7 @@ const ModpackVersionDetailView: React.FC = () => {
                         )}
                     </div>
 
-                    <DialogFooter className="flex justify-between">
+                    <DialogFooter className="flex-wrap justify-between items-center gap-2 pt-4 border-t">
                         <div className="flex items-center space-x-4">
                             <div className="text-sm text-gray-600">
                                 {reuseDialog.selectedFiles.length} archivo(s) seleccionado(s)
@@ -753,20 +1013,12 @@ const ModpackVersionDetailView: React.FC = () => {
                                 return (
                                     <>
                                         {!allSelected && (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={selectAllFiles}
-                                            >
+                                            <Button variant="outline" size="sm" onClick={selectAllFiles}>
                                                 Seleccionar todo
                                             </Button>
                                         )}
                                         {!noneSelected && (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={deselectAllFiles}
-                                            >
+                                            <Button variant="outline" size="sm" onClick={deselectAllFiles}>
                                                 Deseleccionar todo
                                             </Button>
                                         )}
@@ -796,15 +1048,12 @@ const ModpackVersionDetailView: React.FC = () => {
                 <div className="max-w-6xl mx-auto px-4 py-8">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-8">
-                        <div className="flex items-center space-x-4">
-
-                            <div>
-                                <h1 className="text-3xl font-bold text-zinc-50">{version.modpack.name}</h1>
-                                <p className="text-zinc-300">Versión {version.version}</p>
-                            </div>
+                        <div>
+                            <h1 className="text-3xl font-bold text-zinc-800">{version.modpack.name}</h1>
+                            <p className="text-zinc-500">Versión {version.version}</p>
                         </div>
                         <div className="flex items-center space-x-4">
-                            {version && version.status !== 'published' && (
+                            {version.status !== 'published' && (
                                 <Button
                                     onClick={publishVersion}
                                     disabled={publishing}
@@ -843,24 +1092,26 @@ const ModpackVersionDetailView: React.FC = () => {
                                         </div>
                                         <div>
                                             <label className="text-sm font-medium text-gray-500">Forge</label>
-                                            <p className="text-lg">{version.forgeVersion || 'No especificado'}</p>
+                                            <p className="text-lg">{version.forgeVersion || 'N/A'}</p>
                                         </div>
                                         <div>
                                             <label className="text-sm font-medium text-gray-500">Estado</label>
-                                            <p className="text-lg capitalize">{version?.status || 'Desconocido'}</p>
+                                            <p className="text-lg capitalize">{version.status || 'Desconocido'}</p>
                                         </div>
                                     </div>
                                     <Separator />
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-500">Creado</label>
-                                        <p>{new Date(version.createdAt).toLocaleDateString()}</p>
-                                    </div>
-                                    {version.releaseDate && (
+                                    <div className='grid grid-cols-2 gap-4'>
                                         <div>
-                                            <label className="text-sm font-medium text-gray-500">Publicado</label>
-                                            <p>{new Date(version.releaseDate).toLocaleDateString()}</p>
+                                            <label className="text-sm font-medium text-gray-500">Creado</label>
+                                            <p>{new Date(version.createdAt).toLocaleString()}</p>
                                         </div>
-                                    )}
+                                        {version.releaseDate && (
+                                            <div>
+                                                <label className="text-sm font-medium text-gray-500">Publicado</label>
+                                                <p>{new Date(version.releaseDate).toLocaleString()}</p>
+                                            </div>
+                                        )}
+                                    </div>
                                 </CardContent>
                             </Card>
 
@@ -874,7 +1125,7 @@ const ModpackVersionDetailView: React.FC = () => {
                                                 Describe los cambios en esta versión
                                             </CardDescription>
                                         </div>
-                                        {!editingChangelog && version?.status !== 'published' ? (
+                                        {!editingChangelog && version.status !== 'published' ? (
                                             <Button
                                                 variant="outline"
                                                 size="sm"
@@ -912,12 +1163,12 @@ const ModpackVersionDetailView: React.FC = () => {
                                             value={changelog}
                                             onChange={(e) => setChangelog(e.target.value)}
                                             placeholder="Describe los cambios en esta versión..."
-                                            rows={6}
+                                            rows={8}
                                             className="w-full"
                                         />
                                     ) : (
-                                        <div className="prose max-w-none">
-                                            <pre className="whitespace-pre-wrap text-sm text-zinc-200 bg-zinc-800 p-4 rounded-md">
+                                        <div className="prose max-w-none text-sm p-4 bg-gray-50 rounded-md border max-h-60 overflow-auto">
+                                            <pre className="whitespace-pre-wrap font-sans text-gray-800">
                                                 {version.changelog || 'No hay changelog disponible.'}
                                             </pre>
                                         </div>
@@ -926,51 +1177,52 @@ const ModpackVersionDetailView: React.FC = () => {
                             </Card>
                         </div>
 
-                        {/* Sidebar */}
+                        {/* Sidebar with File Sections */}
                         <div className="space-y-6">
-                            {/* Mods Section */}
                             <FileSection
                                 title="Mods"
-                                description="Archivos .jar de mods que se instalarán en la carpeta mods"
+                                description="Archivos para la carpeta /mods"
                                 type="mods"
                                 files={version.files || []}
                                 icon={<LucidePackage className="h-5 w-5" />}
+                                versionStatus={version.status}
+                                onDeleteFile={deleteFile}
                             />
-
-                            {/* Resource Packs Section */}
                             <FileSection
                                 title="Resource Packs"
-                                description="Packs de recursos que se instalarán en la carpeta resourcepacks"
+                                description="Archivos para la carpeta /resourcepacks"
                                 type="resourcepacks"
                                 files={version.files || []}
                                 icon={<LucideImage className="h-5 w-5" />}
+                                versionStatus={version.status}
+                                onDeleteFile={deleteFile}
                             />
-
-                            {/* Config Section */}
                             <FileSection
                                 title="Config"
-                                description="Archivos de configuración que se instalarán en la carpeta config"
+                                description="Archivos para la carpeta /config"
                                 type="config"
                                 files={version.files || []}
                                 icon={<LucideSettings className="h-5 w-5" />}
+                                versionStatus={version.status}
+                                onDeleteFile={deleteFile}
                             />
-
-                            {/* Shader Packs Section */}
                             <FileSection
                                 title="Shader Packs"
-                                description="Packs de shaders que se instalarán en la carpeta shaderpacks"
+                                description="Archivos para la carpeta /shaderpacks"
                                 type="shaderpacks"
                                 files={version.files || []}
                                 icon={<LucidePalette className="h-5 w-5" />}
+                                versionStatus={version.status}
+                                onDeleteFile={deleteFile}
                             />
-
-                            {/* Extras Section */}
                             <FileSection
                                 title="Extras"
-                                description="Archivos adicionales que se descomprimirán en .minecraft"
+                                description="Archivos para la raíz de .minecraft"
                                 type="extras"
                                 files={version.files || []}
                                 icon={<LucideFolder className="h-5 w-5" />}
+                                versionStatus={version.status}
+                                onDeleteFile={deleteFile}
                             />
                         </div>
                     </div>

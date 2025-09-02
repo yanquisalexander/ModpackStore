@@ -22,7 +22,7 @@ const CLIENT_ID: &str = "943184136976334879";
 const REDIRECT_URI: &str = "http://localhost:1957/callback";
 
 // Twitch OAuth constants
-const TWITCH_CLIENT_ID: &str = "YOUR_TWITCH_CLIENT_ID"; // This should be set from environment
+const TWITCH_CLIENT_ID: &str = "c8q2u0v3rqfks639ub8ybx54o623u0"; // This should be set from environment
 const TWITCH_REDIRECT_URI: &str = "http://localhost:1958/callback"; // Different port for Twitch
 
 const CALLBACK_TIMEOUT_SECS: u64 = 120;
@@ -820,6 +820,20 @@ async fn poll_for_twitch_auth_code(
                     println!("Twitch account linked successfully");
                     // Emit success event for frontend
                     events::emit_event("twitch-auth-success", Some(json!({"success": true})));
+
+                    // focus the Modpack Store window
+                    let app_handle = {
+                        let binding = GLOBAL_APP_HANDLE.lock().unwrap();
+                        binding
+                            .as_ref()
+                            .ok_or("AppHandle no inicializado")
+                            .unwrap()
+                            .clone()
+                    };
+
+                    if let Some(main_window) = app_handle.get_webview_window("main") {
+                        let _ = main_window.set_focus();
+                    }
                 }
                 Err(e) => {
                     eprintln!("Error processing Twitch auth code: {}", e);

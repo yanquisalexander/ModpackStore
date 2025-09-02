@@ -13,6 +13,10 @@ interface UserSession {
   username: string;
   email: string;
   avatarUrl?: string;
+  discordId: string;
+  twitchId?: string;
+  createdAt: string;
+  patreonId: string;
   role: 'user' | 'admin' | 'superadmin';
   publisherMemberships: null | {
     createdAt: string;
@@ -70,7 +74,7 @@ interface AuthContextType {
 
 const enhanceSession = (session: UserSession | null): UserSession | null => {
   if (!session) return null;
-  
+
   // Add helper methods to session object
   return {
     ...session,

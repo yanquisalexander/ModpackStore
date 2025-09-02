@@ -1,9 +1,23 @@
 import { useAuthentication } from "@/stores/AuthContext";
 import { TwitchLinkingComponent } from "@/components/TwitchLinkingComponent";
 import { LucideUser, LucideMail, LucideCalendar, LucideShield } from "lucide-react";
+import { useEffect } from "react";
+import { useGlobalContext } from "@/stores/GlobalContext";
 
 export const ProfileView = () => {
   const { session } = useAuthentication();
+  const { setTitleBarState, titleBarState } = useGlobalContext();
+
+  useEffect(() => {
+    setTitleBarState({
+      ...titleBarState,
+      title: "Mi Perfil",
+      canGoBack: true,
+      icon: LucideUser,
+      opaque: true,
+      customIconClassName: "text-white"
+    });
+  }, []);
 
   if (!session) {
     return (
@@ -74,7 +88,7 @@ export const ProfileView = () => {
             {/* Integrations Section */}
             <div className="space-y-6">
               <h2 className="text-xl font-semibold text-white">Account Integrations</h2>
-              
+
               {/* Discord Integration Status */}
               <div className="bg-neutral-800 rounded-lg p-6">
                 <div className="flex items-center space-x-3 mb-4">
@@ -126,7 +140,7 @@ export const ProfileView = () => {
           <div className="space-y-6">
             <div className="bg-neutral-800 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-white mb-4">Quick Stats</h3>
-              
+
               <div className="space-y-3">
                 <div>
                   <div className="text-sm text-neutral-400">Publisher Status</div>

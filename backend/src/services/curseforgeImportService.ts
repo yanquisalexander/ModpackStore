@@ -167,10 +167,6 @@ export class CurseForgeImportService {
             throw new Error('Modpack name cannot exceed 100 characters');
         }
 
-        // Validate version format
-        if (!/^\d+\.\d+(\.\d+)?/.test(manifest.version)) {
-            throw new Error('Version must follow semantic versioning (e.g., 1.0.0)');
-        }
 
         // Validate Minecraft version format
         if (!/^\d+\.\d+(\.\d+)?/.test(manifest.minecraft.version)) {
@@ -310,6 +306,8 @@ export class CurseForgeImportService {
                     stats.failed++;
                     return;
                 }
+
+                console.log(`Downloading mod: ${fileInfo.fileName} (${modFile.projectID}/${modFile.fileID})`);
 
                 const downloadUrl = await this.apiClient.getDownloadUrl(modFile.projectID, modFile.fileID);
                 if (!downloadUrl) {
