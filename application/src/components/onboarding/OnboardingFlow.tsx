@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { OnboardingStep, OnboardingStepProps } from '@/types/onboarding';
 import { RAMConfigurationStep } from './RAMConfigurationStep';
 import { toast } from 'sonner';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { LucidePackage } from 'lucide-react';
