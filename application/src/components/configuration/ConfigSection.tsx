@@ -4,29 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { RotateCcw } from 'lucide-react';
-
-interface ConfigDefinition {
-    type: 'string' | 'integer' | 'float' | 'boolean' | 'path' | 'enum' | 'slider';
-    default: any;
-    description: string;
-    ui_section: string;
-    client?: boolean;
-    min?: number;
-    max?: number;
-    step?: number;
-    choices?: any[];
-    validator?: string;
-}
-
-interface ConfigSectionProps {
-    title: string;
-    description?: string;
-    configs: [string, ConfigDefinition][];
-    values: Record<string, any>;
-    onConfigChange: (key: string, value: any) => void;
-    onRestoreDefaults: () => void;
-    renderConfigControl: (key: string, def: ConfigDefinition) => React.ReactNode;
-}
+import type { ConfigDefinition, ConfigSectionProps } from '@/types/configuration';
 
 export const ConfigSection: React.FC<ConfigSectionProps> = ({
     title,

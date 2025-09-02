@@ -28,37 +28,13 @@ import { Slider } from "@/components/ui/slider";
 // Configuration components
 import { ConfigSection } from '@/components/configuration/ConfigSection';
 
-// Tipos optimizados
-interface ConfigurationDialogProps {
-    isOpen: boolean;
-    onClose: () => void;
-}
-
-interface ConfigDefinition {
-    type: 'string' | 'integer' | 'float' | 'boolean' | 'path' | 'enum' | 'slider';
-    default: any;
-    description: string;
-    ui_section: string;
-    client?: boolean;
-    min?: number;
-    max?: number;
-    step?: number;
-    choices?: any[];
-    validator?: string;
-}
-
-interface ConfigSchema {
-    [key: string]: ConfigDefinition;
-}
-
-interface ConfigState {
-    values: Record<string, any>;
-    schema: ConfigSchema;
-    sections: string[];
-    loading: boolean;
-    saving: boolean;
-    gitHash: string;
-}
+// Types
+import type { 
+    ConfigDefinition, 
+    ConfigSchema, 
+    ConfigState, 
+    ConfigurationDialogProps 
+} from '@/types/configuration';
 
 export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProps) => {
     const { isAuthenticated } = useAuthentication();
