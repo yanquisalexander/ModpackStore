@@ -5,7 +5,7 @@ import { z } from "zod";
 export const userSchema = z.object({
     id: z.string().uuid().optional(),
     email: z.string().email(),
-    avatarUrl: z.string().url().optional(),
+    avatarUrl: z.string().url().optional().nullable(),
     username: z.string().min(3).max(20),
     discordId: z.string().optional(),
     discordAccessToken: z.string().optional(),
@@ -16,6 +16,10 @@ export const userSchema = z.object({
     patreonId: z.string().optional(),
     patreonAccessToken: z.string().optional(),
     patreonRefreshToken: z.string().optional(),
+
+    // New fields
+    provider: z.string().max(50).optional(),
+    lastLoginAt: z.date().optional(),
 
     // Database fields
     createdAt: z.date().optional(),

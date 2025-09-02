@@ -7,10 +7,8 @@ import { Strategy as PatreonStrategy } from '@oauth-everything/passport-patreon'
 import type { Profile } from 'passport'
 import chalk from 'chalk'
 
-import { User } from '@/models/User.model'
-import { client as db } from '@/db/client'
-import { UsersTable } from '@/db/schema'
-import { Session } from '@/models/Session.model'
+import { User } from '@/entities/User'
+import { Session } from '@/entities/Session'
 
 const SCOPES = {
     DISCORD: ['identify', 'email', 'connections', 'guilds', 'guilds.join'],
@@ -68,7 +66,7 @@ class Passport {
                 const session = await Session.findBySessionId(payload.sessionId)
                 if (!session) return done(null, false, { message: 'Invalid session' })
 
-                const user = await User.findById(payload.sub)
+                const user = await User.findOne({ where: { id: payload.sub } })
                 if (!user) return done(null, false, { message: 'User not found' })
 
                 const [isPatron] = await Promise.all([

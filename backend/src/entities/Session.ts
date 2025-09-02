@@ -25,4 +25,9 @@ export class Session extends BaseEntity {
     @ManyToOne(() => User, user => user.sessions)
     @JoinColumn({ name: "user_id" })
     user: User;
+
+    // Static finder methods
+    static async findBySessionId(sessionId: number): Promise<Session | null> {
+        return await Session.findOne({ where: { id: sessionId } });
+    }
 }
