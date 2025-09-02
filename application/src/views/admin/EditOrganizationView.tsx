@@ -13,7 +13,7 @@ interface EditOrganizationViewProps {
 
 const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) => {
     console.log({ params }); // Debugging line to check params structure
-    const { publisherId } = params; // Corrected to params.publisherId based on standard naming, or params.id
+    const publisherId = params.id; // Get publisherId from params.id
     const { session, isAuthenticated, sessionTokens, loading: authLoading } = useAuthentication();
     const navigate = useNavigate();
 
@@ -32,8 +32,8 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
             setOrganizationToEdit(data);
         } catch (err) {
             console.error("Error fetching organization details:", err);
-            setError(err instanceof Error ? err.message : 'Failed to fetch organization details.');
-            toast.error(err instanceof Error ? err.message : 'Failed to load organization data.');
+            setError(err instanceof Error ? err.message : 'Error al cargar los detalles de la organización.');
+            toast.error(err instanceof Error ? err.message : 'Error al cargar los datos de la organización.');
         } finally {
             setIsLoadingData(false);
         }
@@ -48,17 +48,17 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
 
     const handleSubmit = async (data: UpdatePublisherData) => {
         if (!sessionTokens?.access_token || !publisherId) {
-            toast.error("Authentication token or Organization ID not found.");
+            toast.error("Token de autenticación o ID de organización no encontrado.");
             return;
         }
         setIsSubmitting(true);
         try {
             await updatePublisher(publisherId, data, sessionTokens.access_token);
-            toast.success('Organization updated successfully!');
+            toast.success('¡Organización actualizada exitosamente!');
             navigate('/admin/organizations');
         } catch (err) {
             console.error("Error updating organization:", err);
-            toast.error(err instanceof Error ? err.message : 'Failed to update organization.');
+            toast.error(err instanceof Error ? err.message : 'Error al actualizar la organización.');
             setIsSubmitting(false);
         }
     };
@@ -74,8 +74,8 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
     if (!isAuthenticated) {
         return (
             <div className="container mx-auto p-4 text-center">
-                <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-                <p>Please <Button variant="link" onClick={() => navigate('/login')}>login</Button> to access this page.</p>
+                <h1 className="text-2xl font-bold mb-4">Acceso Denegado</h1>
+                <p>Por favor <Button variant="link" onClick={() => navigate('/login')}>inicia sesión</Button> para acceder a esta página.</p>
             </div>
         );
     }
@@ -83,8 +83,8 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
     if (!session?.admin) {
         return (
             <div className="container mx-auto p-4 text-center">
-                <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-                <p>You do not have administrative privileges to perform this action.</p>
+                <h1 className="text-2xl font-bold mb-4">Acceso Denegado</h1>
+                <p>No tienes privilegios administrativos para realizar esta acción.</p>
             </div>
         );
     }
@@ -96,7 +96,7 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
                 <p>{error}</p>
                 <Link to="/admin/organizations">
                     <Button variant="outline" className="mt-4">
-                        <LucideChevronLeft className="mr-2 h-4 w-4" /> Back to List
+                        <LucideChevronLeft className="mr-2 h-4 w-4" /> Volver a la Lista
                     </Button>
                 </Link>
             </div>
@@ -106,11 +106,11 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
     if (!organizationToEdit) {
         return (
             <div className="container mx-auto p-4 text-center">
-                <h1 className="text-2xl font-bold mb-4">Organization Not Found</h1>
-                <p>The requested organization could not be loaded or does not exist.</p>
+                <h1 className="text-2xl font-bold mb-4">Organización No Encontrada</h1>
+                <p>La organización solicitada no pudo ser cargada o no existe.</p>
                 <Link to="/admin/organizations">
                     <Button variant="outline" className="mt-4">
-                        <LucideChevronLeft className="mr-2 h-4 w-4" /> Back to List
+                        <LucideChevronLeft className="mr-2 h-4 w-4" /> Volver a la Lista
                     </Button>
                 </Link>
             </div>
@@ -120,19 +120,20 @@ const EditOrganizationView: React.FC<EditOrganizationViewProps> = ({ params }) =
     return (
         <div className="container mx-auto p-4">
             <header className="mb-6 flex justify-between items-center">
-                <h1 className="text-3xl font-bold">Edit Organization</h1>
+                <h1 className="text-3xl font-bold">Editar Organización</h1>
                 <Link to="/admin/organizations">
                     <Button variant="outline">
-                        <LucideChevronLeft className="mr-2 h-4 w-4" /> Back to List
+                        <LucideChevronLeft className="mr-2 h-4 w-4" /> Volver a la Lista
                     </Button>
                 </Link>
             </header>
             <div className="bg-card shadow-sm rounded-lg p-6">
                 <OrganizationForm
-                    organizationToEdit={organizationToEdit}
+                    initialData={organizationToEdit}
                     onSubmit={handleSubmit}
                     isSubmitting={isSubmitting}
                     onCancel={() => navigate('/admin/organizations')}
+                    isEdit={true}
                 />
             </div>
         </div>

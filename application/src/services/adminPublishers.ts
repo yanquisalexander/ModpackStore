@@ -130,3 +130,74 @@ export async function deletePublisher(publisherId: string, token: string): Promi
         }
     }
 }
+
+// Member management functions
+
+export interface PublisherMemberData {
+    id: number;
+    userId: string;
+    publisherId: string;
+    role: string;
+    createdAt: string;
+    updatedAt: string;
+    user?: {
+        id: string;
+        username: string;
+        email: string;
+    };
+}
+
+export async function addMember(publisherId: string, userId: string, role: string, token: string): Promise<void> {
+    const response = await fetch(`${API_ENDPOINT}/admin/publishers/${publisherId}/members`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ userId, role }),
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(`API request failed with status ${response.status}: ${errorData.message || 'Unknown error'}`);
+    }
+}
+
+export async function removeMember(publisherId: string, userId: string, token: string): Promise<void> {
+    const response = await fetch(`${API_ENDPOINT}/admin/publishers/${publisherId}/members/${userId}`, {
+        method: 'DELETE',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+    });
+    
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
+        throw new Error(`API request failed with status ${response.status}: ${errorData.message || 'Unknown error'}`);
+    }
+}
+
+export async function getPublisherMembers(publisherId: string, token: string): Promise<PublisherMemberData[]> {
+    const response = await fetch(`${API_ENDPOINT}/admin/publishers/${publisherId}/members`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+    });
+    const json = await handleResponse<{ data: any[] }>(response);
+    return json.data.map(item => item.attributes);
+}
+
+export async function getPublisherModpacks(publisherId: string, token: string, limit = 20, offset = 0): Promise<{ modpacks: any[], total: number }> {
+    const response = await fetch(`${API_ENDPOINT}/admin/publishers/${publisherId}/modpacks?limit=${limit}&offset=${offset}`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+        },
+    });
+    const json = await handleResponse<{ data: any[], meta: { total: number } }>(response);
+    return {
+        modpacks: json.data.map(item => item.attributes),
+        total: json.meta.total
+    };
+}

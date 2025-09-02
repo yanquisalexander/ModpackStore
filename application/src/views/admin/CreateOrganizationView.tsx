@@ -14,17 +14,17 @@ export const CreateOrganizationView: React.FC = () => {
 
     const handleSubmit = async (data: NewPublisherData) => {
         if (!sessionTokens?.access_token) {
-            toast.error("Authentication token not found. Please log in again.");
+            toast.error("Token de autenticación no encontrado. Por favor, inicia sesión nuevamente.");
             return;
         }
         setIsSubmitting(true);
         try {
             await createPublisher(data, sessionTokens.access_token);
-            toast.success('Organization created successfully!');
+            toast.success('¡Organización creada exitosamente!');
             navigate('/admin/organizations');
         } catch (err) {
-            console.error("Error creating organization:", err);
-            toast.error(err instanceof Error ? err.message : 'Failed to create organization.');
+            console.error("Error al crear la organización:", err);
+            toast.error(err instanceof Error ? err.message : 'Error al crear la organización.');
             setIsSubmitting(false); // Only set to false on error, success navigates away
         }
         // No need to set isSubmitting to false on success as the component will unmount
@@ -41,8 +41,8 @@ export const CreateOrganizationView: React.FC = () => {
     if (!isAuthenticated) {
         return (
             <div className="container mx-auto p-4 text-center">
-                <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-                <p>Please <Button variant="link" onClick={() => navigate('/login')}>login</Button> to access this page.</p>
+                <h1 className="text-2xl font-bold mb-4">Acceso Denegado</h1>
+                <p>Por favor <Button variant="link" onClick={() => navigate('/login')}>inicia sesión</Button> para acceder a esta página.</p>
             </div>
         );
     }
@@ -50,8 +50,8 @@ export const CreateOrganizationView: React.FC = () => {
     if (!session?.admin) {
         return (
             <div className="container mx-auto p-4 text-center">
-                <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-                <p>You do not have administrative privileges to perform this action.</p>
+                <h1 className="text-2xl font-bold mb-4">Acceso Denegado</h1>
+                <p>No tienes privilegios administrativos para realizar esta acción.</p>
             </div>
         );
     }
@@ -59,10 +59,10 @@ export const CreateOrganizationView: React.FC = () => {
     return (
         <div className="container mx-auto p-4">
             <header className="mb-6 flex justify-between items-center">
-                <h1 className="text-3xl font-bold">Create New Organization</h1>
+                <h1 className="text-3xl font-bold">Crear Nueva Organización</h1>
                 <Link to="/admin/organizations">
                     <Button variant="outline">
-                        <LucideChevronLeft className="mr-2 h-4 w-4" /> Back to List
+                        <LucideChevronLeft className="mr-2 h-4 w-4" /> Volver a la Lista
                     </Button>
                 </Link>
             </header>
