@@ -1,7 +1,7 @@
-use crate::config::{get_config_manager};
+use crate::config::get_config_manager;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sysinfo::{System, SystemExt};
+use sysinfo::System;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct OnboardingStatus {
@@ -23,11 +23,13 @@ pub fn get_onboarding_status() -> Result<OnboardingStatus, String> {
     match get_config_manager().lock() {
         Ok(config_result) => match &*config_result {
             Ok(config) => {
-                let first_run_at = config.get("firstRunAt")
+                let first_run_at = config
+                    .get("firstRunAt")
                     .and_then(Value::as_str)
                     .map(String::from);
-                
-                let ram_allocation = config.get("ramAllocation")
+
+                let ram_allocation = config
+                    .get("ramAllocation")
                     .and_then(Value::as_u64)
                     .map(|v| v as u32);
 
@@ -54,10 +56,10 @@ pub fn get_system_memory() -> Result<SystemMemoryInfo, String> {
     // Calcular valores recomendados
     // Recomendado: mínimo de 4GB o 30% de la RAM
     let recommended_mb = std::cmp::min(4096, (total_mb as f64 * 0.3) as u32);
-    
+
     // Mínimo: 2GB
     let min_mb = 2048;
-    
+
     // Máximo: mínimo de la mitad de la RAM física o 12GB
     let max_mb = std::cmp::min((total_mb / 2) as u32, 12288);
 
@@ -73,21 +75,29 @@ pub fn get_system_memory() -> Result<SystemMemoryInfo, String> {
 #[tauri::command]
 pub fn complete_onboarding(ram_allocation: u32) -> Result<(), String> {
     match get_config_manager().lock() {
-        Ok(config_result) => match &*config_result {
-            Ok(mut config) => {
+        Ok(mut config_result) => match &mut *config_result {
+            Ok(config) => {
                 // Obtener la fecha actual como timestamp ISO
                 let now = chrono::Utc::now().to_rfc3339();
-                
+
                 // Guardar firstRunAt y ramAllocation
-                config.set("firstRunAt", now).map_err(|e| format!("Error al establecer firstRunAt: {}", e))?;
-                config.set("ramAllocation", ram_allocation).map_err(|e| format!("Error al establecer ramAllocation: {}", e))?;
-                
+                config
+                    .set("firstRunAt", now)
+                    .map_err(|e| format!("Error al establecer firstRunAt: {}", e))?;
+                config
+                    .set("ramAllocation", ram_allocation)
+                    .map_err(|e| format!("Error al establecer ramAllocation: {}", e))?;
+
                 // También guardar en el campo legacy 'memory' para compatibilidad
-                config.set("memory", ram_allocation).map_err(|e| format!("Error al establecer memory: {}", e))?;
-                
+                config
+                    .set("memory", ram_allocation)
+                    .map_err(|e| format!("Error al establecer memory: {}", e))?;
+
                 // Guardar la configuración
-                config.save().map_err(|e| format!("Error al guardar configuración: {}", e))?;
-                
+                config
+                    .save()
+                    .map_err(|e| format!("Error al guardar configuración: {}", e))?;
+
                 Ok(())
             }
             Err(e) => Err(e.clone()),
@@ -101,7 +111,7 @@ pub fn complete_onboarding(ram_allocation: u32) -> Result<(), String> {
 pub fn skip_onboarding() -> Result<(), String> {
     // Obtener los valores recomendados del sistema
     let system_memory = get_system_memory()?;
-    
+
     // Usar el valor recomendado para completar el onboarding
     complete_onboarding(system_memory.recommended_mb)
 }

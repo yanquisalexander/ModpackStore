@@ -140,6 +140,8 @@ fn validate_type(value: &Value, expected_type: &ConfigValueType) -> Result<(), V
         ConfigValueType::Path => value.is_string(),
         ConfigValueType::Enum => true, // Se valida por separado con choices
         ConfigValueType::List => value.is_array(),
+        // Slider suele ser un valor numérico (enteros o flotantes)
+        ConfigValueType::Slider => value.is_number(),
     };
 
     if !valid {

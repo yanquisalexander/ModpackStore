@@ -1,5 +1,7 @@
 import React from 'react';
 import { OnboardingStepProps } from '@/types/onboarding';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 
 interface OnboardingStepWrapperProps {
   title: string;
@@ -23,36 +25,39 @@ export const OnboardingStepWrapper: React.FC<OnboardingStepWrapperProps> = ({
   nextDisabled = false,
 }) => {
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900 text-white p-8">
-      <div className="max-w-2xl w-full mx-auto">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-4">{title}</h1>
-          {description && (
-            <p className="text-xl text-gray-300">{description}</p>
-          )}
+    <div className="max-w-4xl mx-auto pb-6 min-h-screen flex items-center">
+      <div className="grid md:grid-cols-3 gap-6 w-full">
+        {/* Left panel: info card */}
+        <div className="md:col-span-1">
+          <Card>
+            <CardContent className="p-6">
+              <h2 className="text-2xl font-bold mb-2">{title}</h2>
+              {description && (
+                <p className="text-sm text-muted-foreground">{description}</p>
+              )}
+            </CardContent>
+          </Card>
         </div>
-        
-        <div className="bg-black/20 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-white/10">
-          {children}
-        </div>
-        
-        <div className="flex justify-between items-center mt-8">
-          {onSkip && (
-            <button
-              onClick={onSkip}
-              className="px-6 py-3 text-gray-300 hover:text-white transition-colors"
-            >
-              {skipButtonText}
-            </button>
-          )}
-          
-          <button
-            onClick={onNext}
-            disabled={nextDisabled}
-            className="ml-auto px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors"
-          >
-            {nextButtonText}
-          </button>
+
+        {/* Right panel: step content */}
+        <div className="md:col-span-2">
+          <Card>
+            <CardContent className="p-6">
+              {children}
+
+              <div className="flex justify-between items-center mt-6">
+                {onSkip ? (
+                  <Button variant="ghost" onClick={onSkip}>
+                    {skipButtonText}
+                  </Button>
+                ) : <div />}
+
+                <Button onClick={onNext} disabled={nextDisabled}>
+                  {nextButtonText}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

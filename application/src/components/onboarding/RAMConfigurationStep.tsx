@@ -61,7 +61,7 @@ export const RAMConfigurationStep: React.FC<OnboardingStepProps> = ({
       <OnboardingStepWrapper
         title="Configuración de Memoria"
         description="Detectando memoria del sistema..."
-        onNext={() => {}}
+        onNext={() => { }}
         nextDisabled={true}
       >
         <div className="flex items-center justify-center py-12">
@@ -117,7 +117,7 @@ export const RAMConfigurationStep: React.FC<OnboardingStepProps> = ({
             <label className="text-lg font-medium">Memoria para Minecraft</label>
             <span className="text-2xl font-bold text-blue-400">{formatMemory(selectedRAM)}</span>
           </div>
-          
+
           <Slider
             value={[selectedRAM]}
             onValueChange={(value) => setSelectedRAM(value[0])}
@@ -126,7 +126,7 @@ export const RAMConfigurationStep: React.FC<OnboardingStepProps> = ({
             step={256}
             className="w-full"
           />
-          
+
           <div className="flex justify-between text-sm text-gray-400">
             <span>Mínimo: {formatMemory(memoryInfo.min_mb)}</span>
             <span>Máximo: {formatMemory(memoryInfo.max_mb)}</span>

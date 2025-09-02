@@ -14,6 +14,7 @@ pub enum ConfigValueType {
     Path,
     Enum,
     List,
+    Slider,
 }
 
 /// Define una entrada de configuración

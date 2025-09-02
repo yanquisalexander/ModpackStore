@@ -16,7 +16,7 @@ javaDir:
   validator: directory_exists
 
 memory:
-  type: integer
+  type: slider
   default: 2048
   min: 1024
   max: 16384

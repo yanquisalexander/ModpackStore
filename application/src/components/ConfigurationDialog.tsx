@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from "sonner";
 import { useAuthentication } from '@/stores/AuthContext';
@@ -18,73 +18,111 @@ import {
 // shadcn/ui components
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Slider } from "@/components/ui/slider";
 
-// Tipos
+// Tipos optimizados
 interface ConfigurationDialogProps {
     isOpen: boolean;
     onClose: () => void;
 }
 
-// Tipos para el esquema de configuración
-interface ConfigSchema {
-    [key: string]: ConfigDefinition;
-}
-
 interface ConfigDefinition {
-    type: string;
+    type: 'string' | 'integer' | 'float' | 'boolean' | 'path' | 'enum' | 'slider';
     default: any;
     description: string;
     ui_section: string;
     client?: boolean;
     min?: number;
     max?: number;
+    step?: number;
     choices?: any[];
     validator?: string;
+}
+
+interface ConfigSchema {
+    [key: string]: ConfigDefinition;
+}
+
+interface ConfigState {
+    values: Record<string, any>;
+    schema: ConfigSchema;
+    sections: string[];
+    loading: boolean;
+    saving: boolean;
+    gitHash: string;
 }
 
 export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProps) => {
     const { isAuthenticated } = useAuthentication();
 
-    // Estado para los valores de configuración
-    const [configValues, setConfigValues] = useState<Record<string, any>>({});
-    const [configSchema, setConfigSchema] = useState<ConfigSchema>({});
+    // Estado consolidado
+    const [config, setConfig] = useState<ConfigState>({
+        values: {},
+        schema: {},
+        sections: [],
+        loading: true,
+        saving: false,
+        gitHash: 'Loading...'
+    });
 
-    // UI States
-    const [loading, setLoading] = useState<boolean>(true);
     const [activeTab, setActiveTab] = useState<string>("");
-    const [sections, setSections] = useState<string[]>([]);
-    const [saving, setSaving] = useState<boolean>(false);
-    const [gitHash, setGitHash] = useState<string>('Loading...');
 
-    // Cargar configuración y git hash cuando se abre el diálogo
+    // Cargar configuración optimizada
+    const loadConfig = useCallback(async () => {
+        try {
+            setConfig(prev => ({ ...prev, loading: true }));
+
+            // Cargar en paralelo
+            const [schema, values, gitHash] = await Promise.all([
+                invoke<ConfigSchema>('get_schema'),
+                invoke<Record<string, any>>('get_config'),
+                invoke<string>('get_git_hash').catch(() => 'Error fetching hash')
+            ]);
+
+            // Extraer secciones
+            const sections = Array.from(
+                new Set(
+                    Object.values(schema)
+                        .map(def => def.ui_section)
+                        .filter(section => section && section !== "internal")
+                )
+            );
+
+            setConfig({
+                values,
+                schema,
+                sections,
+                loading: false,
+                saving: false,
+                gitHash
+            });
+
+            // Establecer primera sección como activa si no hay una seleccionada
+            if (sections.length > 0 && !activeTab) {
+                setActiveTab(sections[0]);
+            }
+
+        } catch (error) {
+            console.error("Failed to load config:", error);
+            toast.error("Error al cargar la configuración");
+            setConfig(prev => ({ ...prev, loading: false }));
+        }
+    }, [activeTab]);
+
+    // Efectos optimizados
     useEffect(() => {
         if (isOpen) {
             trackSectionView("configuration");
             loadConfig();
-            invoke<string>('get_git_hash')
-                .then(setGitHash)
-                .catch(err => {
-                    console.error("Failed to get git hash:", err);
-                    setGitHash('Error fetching hash');
-                });
         }
-    }, [isOpen]);
+    }, [isOpen, loadConfig]);
 
-    // Cargar configuración cuando se abre el diálogo
-    useEffect(() => {
-        if (isOpen) {
-            trackSectionView("configuration");
-            loadConfig();
-        }
-    }, [isOpen]);
-
-    // Detectar tecla Escape
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape' && isOpen) {
@@ -93,112 +131,90 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
         };
 
         if (isOpen) {
-            window.addEventListener('keydown', handleKeyDown);
+            document.addEventListener('keydown', handleKeyDown);
+            return () => document.removeEventListener('keydown', handleKeyDown);
         }
-
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown);
-        };
     }, [isOpen, onClose]);
 
-    // Cargar configuración y esquema
-    async function loadConfig() {
-        try {
-            setLoading(true);
+    // Obtener configuraciones para sección (memoizado)
+    const getConfigsForSection = useMemo(() => {
+        return (section: string): [string, ConfigDefinition][] => {
+            return Object.entries(config.schema)
+                .filter(([_, def]) => def.ui_section === section)
+                .sort(([a], [b]) => a.localeCompare(b));
+        };
+    }, [config.schema]);
 
-            // Cargar esquema
-            const schema = await invoke<ConfigSchema>('get_schema');
-            setConfigSchema(schema);
-
-            // Extraer secciones del esquema
-            const uniqueSections = extractSections(schema);
-            setSections(uniqueSections);
-
-            // Establecer la primera sección como activa
-            if (uniqueSections.length > 0 && !activeTab) {
-                setActiveTab(uniqueSections[0]);
-            }
-
-            // Cargar valores actuales
-            const config = await invoke<Record<string, any>>('get_config');
-            setConfigValues(config);
-
-            setLoading(false);
-        } catch (error) {
-            console.error("Failed to load config:", error);
-            toast.error("Error al cargar la configuración", {
-                description: "No se pudo cargar la configuración. Intenta nuevamente.",
-            });
-            setLoading(false);
-        }
-    }
-
-    // Extraer secciones únicas del esquema
-    const extractSections = (schema: ConfigSchema): string[] => {
-        const sections = new Set<string>();
-
-        Object.values(schema).forEach(def => {
-            if (def.ui_section && def.ui_section !== "internal") {
-                sections.add(def.ui_section);
-            }
-        });
-
-        return Array.from(sections);
-    };
-
-    // Obtener las definiciones de configuración para una sección
-    const getConfigsForSection = (section: string): [string, ConfigDefinition][] => {
-        return Object.entries(configSchema)
-            .filter(([_, def]) => def.ui_section === section)
-            .sort(([a], [b]) => a.localeCompare(b));
-    };
-
-    // Manejar cambios en los valores de configuración
-    const handleConfigChange = (key: string, value: any) => {
-        setConfigValues(prev => ({
+    // Manejar cambios de configuración
+    const handleConfigChange = useCallback((key: string, value: any) => {
+        setConfig(prev => ({
             ...prev,
-            [key]: value
+            values: { ...prev.values, [key]: value }
         }));
-    };
+    }, []);
 
-    // Guardar la configuración
-    const handleSaveConfig = async () => {
+    // Seleccionar directorio
+    const selectDirectory = useCallback(async (key: string, currentPath: string) => {
         try {
-            setSaving(true);
+            const selected = await open({
+                directory: true,
+                multiple: false,
+                defaultPath: currentPath,
+                title: `Seleccionar ${config.schema[key]?.description || "directorio"}`
+            });
 
-            // Guardar cada valor de configuración
-            for (const [key, value] of Object.entries(configValues)) {
-                await invoke('set_config', { key, value });
+            if (selected && !Array.isArray(selected)) {
+                handleConfigChange(key, selected);
             }
+        } catch (error) {
+            console.error("Error al seleccionar directorio:", error);
+            toast.error("Error al seleccionar directorio");
+        }
+    }, [config.schema, handleConfigChange]);
 
-            // Continuación del código desde donde se cortó en paste-3.txt, manteniendo el diseño original
+    // Guardar configuración optimizada
+    const handleSaveConfig = useCallback(async () => {
+        try {
+            setConfig(prev => ({ ...prev, saving: true }));
+
+            // Usar Promise.all para guardar en paralelo
+            await Promise.all(
+                Object.entries(config.values).map(([key, value]) =>
+                    invoke('set_config', { key, value })
+                )
+            );
+
             toast.success("Configuración guardada", {
                 description: "Los cambios han sido guardados correctamente.",
                 richColors: true,
             });
 
-            setSaving(false);
+            setConfig(prev => ({ ...prev, saving: false }));
             onClose();
         } catch (error) {
             console.error("Error al guardar configuración:", error);
             toast.error("Error al guardar", {
                 description: "No se pudo guardar la configuración. Intenta nuevamente.",
             });
-            setSaving(false);
+            setConfig(prev => ({ ...prev, saving: false }));
         }
-    };
+    }, [config.values, onClose]);
 
-    // Renderizar un control de configuración según su tipo
-    const renderConfigControl = (key: string, def: ConfigDefinition) => {
-        const value = configValues[key];
+    // Renderizar controles optimizado
+    const renderConfigControl = useCallback((key: string, def: ConfigDefinition) => {
+        const value = config.values[key] ?? def.default;
+
+        const commonInputProps = {
+            className: "bg-neutral-800 border-neutral-700 text-white"
+        };
 
         switch (def.type) {
             case "string":
                 return (
                     <Input
-                        value={value || def.default}
+                        {...commonInputProps}
+                        value={value || ''}
                         onChange={(e) => handleConfigChange(key, e.target.value)}
-                        className="bg-neutral-800 border-neutral-700 text-white"
                     />
                 );
 
@@ -206,13 +222,37 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
             case "float":
                 return (
                     <Input
+                        {...commonInputProps}
                         type="number"
                         value={value || def.default}
                         min={def.min}
                         max={def.max}
-                        onChange={(e) => handleConfigChange(key, parseFloat(e.target.value))}
-                        className="bg-neutral-800 border-neutral-700 text-white"
+                        step={def.type === "float" ? (def.step || 0.1) : 1}
+                        onChange={(e) => handleConfigChange(key,
+                            def.type === "integer"
+                                ? parseInt(e.target.value) || def.default
+                                : parseFloat(e.target.value) || def.default
+                        )}
                     />
+                );
+
+            case "slider":
+                return (
+                    <div className="space-y-2">
+                        <div className="flex justify-between text-sm text-neutral-400">
+                            <span>{def.min}</span>
+                            <span className="text-white font-medium">{value}</span>
+                            <span>{def.max}</span>
+                        </div>
+                        <Slider
+                            value={[value || def.default]}
+                            onValueChange={(val) => handleConfigChange(key, val[0])}
+                            min={def.min || 0}
+                            max={def.max || 100}
+                            step={def.step || 1}
+                            className="w-full"
+                        />
+                    </div>
                 );
 
             case "boolean":
@@ -227,15 +267,15 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                 return (
                     <div className="flex gap-2">
                         <Input
-                            value={value || def.default}
+                            {...commonInputProps}
+                            value={value || ''}
                             onChange={(e) => handleConfigChange(key, e.target.value)}
-                            className="bg-neutral-800 border-neutral-700 text-white"
                             readOnly={def.validator !== undefined}
                         />
                         <Button
                             variant="outline"
                             onClick={() => selectDirectory(key, value)}
-                            className="border-neutral-700 hover:bg-neutral-800 hover:text-white"
+                            className="border-neutral-700 hover:bg-neutral-800 hover:text-white shrink-0"
                         >
                             <LucideFolder className="h-4 w-4 mr-2" />
                             Examinar
@@ -249,11 +289,10 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                         value={value || def.default}
                         onValueChange={(val) => handleConfigChange(key, val)}
                     >
-
                         <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
                             <SelectValue placeholder={def.description} />
                         </SelectTrigger>
-                        <SelectContent className="bg-neutral-800 border-neutral-700 text-white z-9999">
+                        <SelectContent className="bg-neutral-800 border-neutral-700 text-white z-[9999]">
                             {def.choices?.map((choice, idx) => (
                                 <SelectItem key={idx} value={choice}>
                                     {choice}
@@ -266,139 +305,129 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
             default:
                 return (
                     <Input
-                        value={String(value) || String(def.default)}
+                        {...commonInputProps}
+                        value={String(value) || ''}
                         onChange={(e) => handleConfigChange(key, e.target.value)}
-                        className="bg-neutral-800 border-neutral-700 text-white"
                     />
                 );
         }
-    };
+    }, [config.values, handleConfigChange, selectDirectory]);
 
-    // Seleccionar un directorio
-    const selectDirectory = async (key: string, currentPath: string) => {
-        try {
-            const selected = await open({
-                directory: true,
-                multiple: false,
-                defaultPath: currentPath,
-                title: `Seleccionar ${configSchema[key]?.description || "directorio"}`
-            });
+    // Componente de configuración individual
+    const ConfigItem = useCallback(({ configKey, def, showSeparator }: {
+        configKey: string;
+        def: ConfigDefinition;
+        showSeparator: boolean;
+    }) => (
+        <div key={configKey}>
+            {def.type === "boolean" ? (
+                <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                        <Label className="text-base font-medium text-white">
+                            {def.description}
+                        </Label>
+                    </div>
+                    {renderConfigControl(configKey, def)}
+                </div>
+            ) : (
+                <div className="space-y-2">
+                    <Label htmlFor={configKey} className="text-sm font-medium text-white">
+                        {def.description}
+                    </Label>
+                    {renderConfigControl(configKey, def)}
+                    {def.type === "slider" && (
+                        <p className="text-xs text-neutral-400">
+                            Rango: {def.min} - {def.max}
+                        </p>
+                    )}
+                </div>
+            )}
+            {showSeparator && <Separator className="bg-neutral-800 my-4" />}
+        </div>
+    ), [renderConfigControl]);
 
-            if (selected && !Array.isArray(selected)) {
-                handleConfigChange(key, selected);
-            }
-        } catch (error) {
-            console.error("Error al seleccionar directorio:", error);
-            toast.error("Error al seleccionar directorio");
-        }
-    };
+    if (!isOpen) return null;
 
     return (
         <AnimatePresence>
-            {isOpen && (
+            <motion.div
+                className="fixed inset-0 z-[999] flex items-center justify-center bg-black/75 overflow-hidden"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+            >
                 <motion.div
-                    className="fixed inset-0 z-[999] flex items-center justify-center bg-black bg-opacity-75 overflow-hidden"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.2 }}
+                    className="w-full h-full flex flex-col overflow-hidden"
+                    initial={{ y: 20, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: 20, opacity: 0 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 >
-                    <motion.div
-                        className="w-full h-full flex flex-col overflow-hidden"
-                        initial={{ y: 20, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        exit={{ y: 20, opacity: 0 }}
-                        transition={{
-                            type: "spring",
-                            stiffness: 300,
-                            damping: 30
-                        }}
-                    >
-                        {/* Header Bar */}
-                        <div className="bg-neutral-900 border-b border-neutral-800 p-4 flex justify-between items-center">
-                            <div className="flex items-center gap-2">
-                                <LucideSettings className="h-5 w-5 text-blue-500" />
-                                <h2 className="text-xl font-semibold text-white">Configuración</h2>
-                            </div>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={onClose}
-                                className="rounded-full hover:bg-neutral-800"
-                            >
-                                <LucideX className="h-5 w-5 text-neutral-400" />
-                            </Button>
+                    {/* Header */}
+                    <header className="bg-neutral-900 border-b border-neutral-800 p-4 flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                            <LucideSettings className="h-5 w-5 text-blue-500" />
+                            <h2 className="text-xl font-semibold text-white">Configuración</h2>
                         </div>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={onClose}
+                            className="rounded-full hover:bg-neutral-800"
+                        >
+                            <LucideX className="h-5 w-5 text-neutral-400" />
+                        </Button>
+                    </header>
 
-                        {/* Content */}
-                        <div className="flex-1 overflow-y-auto bg-neutral-950 p-4">
-                            {loading ? (
-                                <div className="flex items-center justify-center h-full w-full text-white">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <LucideLoader className="h-8 w-8 animate-spin text-blue-500" />
-                                        <p className="text-lg">Cargando configuración...</p>
-                                    </div>
+                    {/* Content */}
+                    <main className="flex-1 overflow-y-auto bg-neutral-950 p-4">
+                        {config.loading ? (
+                            <div className="flex items-center justify-center h-full">
+                                <div className="flex flex-col items-center gap-2">
+                                    <LucideLoader className="h-8 w-8 animate-spin text-blue-500" />
+                                    <p className="text-lg text-white">Cargando configuración...</p>
                                 </div>
-                            ) : (
-                                <div className="max-w-4xl mx-auto">
-                                    <Card className="bg-neutral-950/50 border-neutral-800">
-                                        <CardHeader>
-                                            <CardTitle className="text-2xl font-semibold text-white">
-                                                Configuración
-                                            </CardTitle>
-                                            <CardDescription className="text-neutral-400">
-                                                Personaliza los ajustes del launcher según tus preferencias
-                                            </CardDescription>
-                                        </CardHeader>
+                            </div>
+                        ) : (
+                            <div className="max-w-4xl mx-auto">
+                                <Card className="bg-neutral-950/50 border-neutral-800">
+                                    <CardHeader>
+                                        <CardTitle className="text-2xl font-semibold text-white">
+                                            Configuración
+                                        </CardTitle>
+                                        <CardDescription className="text-neutral-400">
+                                            Personaliza los ajustes del launcher según tus preferencias
+                                        </CardDescription>
+                                    </CardHeader>
 
+                                    {config.sections.length > 0 && (
+                                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                                            <TabsList className="bg-neutral-900 border-b border-neutral-800 mx-4">
+                                                {config.sections.map((section) => (
+                                                    <TabsTrigger key={section} value={section}>
+                                                        {section.charAt(0).toUpperCase() + section.slice(1)}
+                                                    </TabsTrigger>
+                                                ))}
+                                            </TabsList>
 
-                                        {sections.length > 0 && (
-                                            <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                                                <TabsList className="bg-neutral-900 border-b border-neutral-800 mx-4">
-                                                    {sections.map((section) => (
-                                                        <TabsTrigger key={section} value={section}>
-                                                            {section.charAt(0).toUpperCase() + section.slice(1)}
-                                                        </TabsTrigger>
-                                                    ))}
-                                                </TabsList>
+                                            <CardContent className="pt-6">
+                                                {config.sections.map((section) => {
+                                                    const sectionConfigs = getConfigsForSection(section);
 
-                                                <CardContent className="pt-6">
-                                                    {sections.map((section) => (
+                                                    return (
                                                         <TabsContent key={section} value={section} className="space-y-6">
                                                             <div className="space-y-4">
-                                                                {getConfigsForSection(section).map(([key, def], index, array) => (
-                                                                    <div key={key}>
-                                                                        {def.type === "boolean" ? (
-                                                                            <div className="flex items-center justify-between">
-                                                                                <div className="space-y-0.5">
-                                                                                    <Label className="text-base font-medium text-white">
-                                                                                        {def.description}
-                                                                                    </Label>
-                                                                                    <p className="text-sm text-neutral-400">
-                                                                                        {/* Descripción adicional si hay */}
-                                                                                    </p>
-                                                                                </div>
-                                                                                {renderConfigControl(key, def)}
-                                                                            </div>
-                                                                        ) : (
-                                                                            <div className="space-y-2">
-                                                                                <Label htmlFor={key} className="text-sm font-medium text-white">
-                                                                                    {def.description}
-                                                                                </Label>
-                                                                                {renderConfigControl(key, def)}
-                                                                                <p className="text-xs text-neutral-400">
-                                                                                    {/* Descripción adicional si la hay */}
-                                                                                </p>
-                                                                            </div>
-                                                                        )}
-
-                                                                        {index < array.length - 1 && (
-                                                                            <Separator className="bg-neutral-800 my-4" />
-                                                                        )}
-                                                                    </div>
+                                                                {sectionConfigs.map(([key, def], index, array) => (
+                                                                    <ConfigItem
+                                                                        key={key}
+                                                                        configKey={key}
+                                                                        def={def}
+                                                                        showSeparator={index < array.length - 1}
+                                                                    />
                                                                 ))}
 
-                                                                {/* Usuarios autenticados con opciones adicionales */}
+                                                                {/* Opciones adicionales para usuarios autenticados */}
                                                                 {isAuthenticated && section === "gameplay" && (
                                                                     <>
                                                                         <Separator className="bg-neutral-800" />
@@ -417,8 +446,8 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                                                                     </>
                                                                 )}
 
-                                                                {/* Área para futuras opciones si la sección es gameplay */}
-                                                                {section === "gameplay" && (
+                                                                {/* Placeholder para futuras opciones */}
+                                                                {section === "gameplay" && sectionConfigs.length === 0 && (
                                                                     <div className="h-32 flex items-center justify-center rounded-md border border-dashed border-neutral-700 bg-neutral-900/50">
                                                                         <p className="text-sm text-neutral-400">
                                                                             Más opciones estarán disponibles en futuras versiones
@@ -427,50 +456,51 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                                                                 )}
                                                             </div>
                                                         </TabsContent>
-                                                    ))}
-                                                </CardContent>
-                                            </Tabs>
-                                        )}
-                                    </Card>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Footer */}
-                        <div className="bg-neutral-900 border-t border-neutral-800 p-4 flex justify-between items-center">
-                            <div className="text-xs text-neutral-500">
-                                Commit: {gitHash}
-                            </div>
-                            <div className="flex gap-2">
-                                <Button
-                                    variant="outline"
-                                    onClick={onClose}
-                                    className="border-neutral-700 hover:bg-neutral-800 text-white"
-                                >
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    onClick={handleSaveConfig}
-                                    disabled={loading || saving}
-                                    className="bg-blue-600 hover:bg-blue-500 text-white font-medium"
-                                >
-                                    {saving ? (
-                                        <>
-                                            <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
-                                            Guardando...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <LucideSave className="h-4 w-4 mr-2" />
-                                            Guardar cambios
-                                        </>
+                                                    );
+                                                })}
+                                            </CardContent>
+                                        </Tabs>
                                     )}
-                                </Button>
+                                </Card>
                             </div>
+                        )}
+                    </main>
+
+                    {/* Footer */}
+                    <footer className="bg-neutral-900 border-t border-neutral-800 p-4 flex justify-between items-center">
+                        <div className="text-xs text-neutral-500">
+                            Commit: {config.gitHash}
                         </div>
-                    </motion.div>
+                        <div className="flex gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={onClose}
+                                className="border-neutral-700 hover:bg-neutral-800 text-white"
+                                disabled={config.saving}
+                            >
+                                Cancelar
+                            </Button>
+                            <Button
+                                onClick={handleSaveConfig}
+                                disabled={config.loading || config.saving}
+                                className="bg-blue-600 hover:bg-blue-500 text-white font-medium"
+                            >
+                                {config.saving ? (
+                                    <>
+                                        <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
+                                        Guardando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <LucideSave className="h-4 w-4 mr-2" />
+                                        Guardar cambios
+                                    </>
+                                )}
+                            </Button>
+                        </div>
+                    </footer>
                 </motion.div>
-            )}
+            </motion.div>
         </AnimatePresence>
     );
 };
