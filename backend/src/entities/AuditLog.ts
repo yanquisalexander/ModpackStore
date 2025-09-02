@@ -11,6 +11,12 @@ export enum AuditAction {
     MODPACK_CREATED = 'modpack_created',
     MODPACK_UPDATED = 'modpack_updated',
     MODPACK_DELETED = 'modpack_deleted',
+    PUBLISHER_CREATED = 'publisher_created',
+    PUBLISHER_UPDATED = 'publisher_updated',
+    PUBLISHER_DELETED = 'publisher_deleted',
+    PUBLISHER_MEMBER_ADDED = 'publisher_member_added',
+    PUBLISHER_MEMBER_REMOVED = 'publisher_member_removed',
+    PUBLISHER_MEMBER_ROLE_UPDATED = 'publisher_member_role_updated',
     ADMIN_ACCESS = 'admin_access',
     AUDIT_LOG_VIEWED = 'audit_log_viewed'
 }

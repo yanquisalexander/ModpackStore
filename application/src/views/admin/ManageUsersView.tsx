@@ -151,34 +151,34 @@ const UserForm: React.FC<{
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
                 <label htmlFor="username" className="block text-sm font-medium mb-1">
-                    Username
+                    Nombre de Usuario
                 </label>
                 <Input
                     id="username"
                     value={formData.username}
                     onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
-                    placeholder="Enter username"
+                    placeholder="Ingresa el nombre de usuario"
                     required
                 />
             </div>
 
             <div>
                 <label htmlFor="email" className="block text-sm font-medium mb-1">
-                    Email
+                    Correo Electrónico
                 </label>
                 <Input
                     id="email"
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                    placeholder="Enter email"
+                    placeholder="Ingresa el correo electrónico"
                     required
                 />
             </div>
 
             <div>
                 <label htmlFor="role" className="block text-sm font-medium mb-1">
-                    Role
+                    Rol
                 </label>
                 <Select
                     value={formData.role}
@@ -190,32 +190,32 @@ const UserForm: React.FC<{
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="user">User</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="superadmin">Super Admin</SelectItem>
+                        <SelectItem value="user">Usuario</SelectItem>
+                        <SelectItem value="admin">Administrador</SelectItem>
+                        <SelectItem value="superadmin">Super Administrador</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
 
             <div>
                 <label htmlFor="avatarUrl" className="block text-sm font-medium mb-1">
-                    Avatar URL (Optional)
+                    URL del Avatar (Opcional)
                 </label>
                 <Input
                     id="avatarUrl"
                     value={formData.avatarUrl}
                     onChange={(e) => setFormData(prev => ({ ...prev, avatarUrl: e.target.value }))}
-                    placeholder="Enter avatar URL"
+                    placeholder="Ingresa la URL del avatar"
                 />
             </div>
 
             <DialogFooter>
                 <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
-                    Cancel
+                    Cancelar
                 </Button>
                 <Button type="submit" disabled={isLoading}>
                     {isLoading && <LucideLoader className="mr-2 h-4 w-4 animate-spin" />}
-                    {user ? 'Update User' : 'Create User'}
+                    {user ? 'Actualizar Usuario' : 'Crear Usuario'}
                 </Button>
             </DialogFooter>
         </form>
@@ -232,9 +232,18 @@ const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
         }
     };
 
+    const getRoleLabel = (role: string) => {
+        switch (role) {
+            case 'superadmin': return 'SUPER ADMIN';
+            case 'admin': return 'ADMIN';
+            case 'user': return 'USUARIO';
+            default: return role.toUpperCase();
+        }
+    };
+
     return (
         <Badge variant={getBadgeVariant(role) as any}>
-            {role.toUpperCase()}
+            {getRoleLabel(role)}
         </Badge>
     );
 };
@@ -407,17 +416,17 @@ export const ManageUsersView: React.FC = () => {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center justify-between">
-                        <span>User Management</span>
+                        <span>Gestión de Usuarios</span>
                         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                             <DialogTrigger asChild>
                                 <Button>
                                     <LucideUserPlus className="mr-2 h-4 w-4" />
-                                    Create User
+                                    Crear Usuario
                                 </Button>
                             </DialogTrigger>
                             <DialogContent>
                                 <DialogHeader>
-                                    <DialogTitle>Create New User</DialogTitle>
+                                    <DialogTitle>Crear Nuevo Usuario</DialogTitle>
                                 </DialogHeader>
                                 <UserForm
                                     onSubmit={handleCreateUser}
@@ -436,7 +445,7 @@ export const ManageUsersView: React.FC = () => {
                             <div className="relative">
                                 <LucideSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                 <Input
-                                    placeholder="Search by username or email..."
+                                    placeholder="Buscar por nombre de usuario o correo..."
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                     className="pl-10"
@@ -446,13 +455,13 @@ export const ManageUsersView: React.FC = () => {
 
                         <Select value={roleFilter} onValueChange={setRoleFilter}>
                             <SelectTrigger className="w-full sm:w-48">
-                                <SelectValue placeholder="Filter by role" />
+                                <SelectValue placeholder="Filtrar por rol" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="all">All Roles</SelectItem>
-                                <SelectItem value="user">User</SelectItem>
-                                <SelectItem value="admin">Admin</SelectItem>
-                                <SelectItem value="superadmin">Super Admin</SelectItem>
+                                <SelectItem value="all">Todos los Roles</SelectItem>
+                                <SelectItem value="user">Usuario</SelectItem>
+                                <SelectItem value="admin">Administrador</SelectItem>
+                                <SelectItem value="superadmin">Super Administrador</SelectItem>
                             </SelectContent>
                         </Select>
 
@@ -473,11 +482,11 @@ export const ManageUsersView: React.FC = () => {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Username</TableHead>
-                                    <TableHead>Email</TableHead>
-                                    <TableHead>Role</TableHead>
-                                    <TableHead>Created</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
+                                    <TableHead>Nombre de Usuario</TableHead>
+                                    <TableHead>Correo Electrónico</TableHead>
+                                    <TableHead>Rol</TableHead>
+                                    <TableHead>Creado</TableHead>
+                                    <TableHead className="text-right">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -485,13 +494,13 @@ export const ManageUsersView: React.FC = () => {
                                     <TableRow>
                                         <TableCell colSpan={5} className="text-center py-8">
                                             <LucideLoader className="h-6 w-6 animate-spin mx-auto" />
-                                            <p className="mt-2 text-muted-foreground">Loading users...</p>
+                                            <p className="mt-2 text-muted-foreground">Cargando usuarios...</p>
                                         </TableCell>
                                     </TableRow>
                                 ) : usersData.users.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                                            No users found
+                                            No se encontraron usuarios
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -546,7 +555,7 @@ export const ManageUsersView: React.FC = () => {
                     {usersData.totalPages > 1 && (
                         <div className="flex items-center justify-between">
                             <p className="text-sm text-muted-foreground">
-                                Showing {((currentPage - 1) * 20) + 1} to {Math.min(currentPage * 20, usersData.total)} of {usersData.total} users
+                                Mostrando {((currentPage - 1) * 20) + 1} a {Math.min(currentPage * 20, usersData.total)} de {usersData.total} usuarios
                             </p>
                             <div className="flex gap-2">
                                 <Button
@@ -555,7 +564,7 @@ export const ManageUsersView: React.FC = () => {
                                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                     disabled={currentPage === 1}
                                 >
-                                    Previous
+                                    Anterior
                                 </Button>
                                 <Button
                                     variant="outline"
@@ -563,7 +572,7 @@ export const ManageUsersView: React.FC = () => {
                                     onClick={() => setCurrentPage(p => Math.min(usersData.totalPages, p + 1))}
                                     disabled={currentPage === usersData.totalPages}
                                 >
-                                    Next
+                                    Siguiente
                                 </Button>
                             </div>
                         </div>
@@ -575,7 +584,7 @@ export const ManageUsersView: React.FC = () => {
             <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>Edit User</DialogTitle>
+                        <DialogTitle>Editar Usuario</DialogTitle>
                     </DialogHeader>
                     {editingUser && (
                         <UserForm

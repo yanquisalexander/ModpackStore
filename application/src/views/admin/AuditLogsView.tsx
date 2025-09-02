@@ -212,7 +212,7 @@ export const AuditLogsView: React.FC = () => {
             <div className="container mx-auto p-4 text-center">
                 <Alert>
                     <AlertDescription>
-                        You do not have permission to access this page.
+                        No tienes permisos para acceder a esta página.
                     </AlertDescription>
                 </Alert>
             </div>
@@ -226,10 +226,10 @@ export const AuditLogsView: React.FC = () => {
                     <CardTitle className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <LucideActivity className="h-6 w-6" />
-                            <span>Audit Logs</span>
+                            <span>Registros de Auditoría</span>
                         </div>
                         <Button variant="outline" onClick={resetFilters}>
-                            Clear Filters
+                            Limpiar Filtros
                         </Button>
                     </CardTitle>
                 </CardHeader>
@@ -238,11 +238,11 @@ export const AuditLogsView: React.FC = () => {
                     {/* Filters */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                         <div>
-                            <label className="block text-sm font-medium mb-1">User ID</label>
+                            <label className="block text-sm font-medium mb-1">ID de Usuario</label>
                             <div className="relative">
                                 <LucideUser className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                 <Input
-                                    placeholder="Filter by user ID..."
+                                    placeholder="Filtrar por ID de usuario..."
                                     value={userIdFilter}
                                     onChange={(e) => setUserIdFilter(e.target.value)}
                                     className="pl-10"
@@ -251,13 +251,13 @@ export const AuditLogsView: React.FC = () => {
                         </div>
                         
                         <div>
-                            <label className="block text-sm font-medium mb-1">Action</label>
+                            <label className="block text-sm font-medium mb-1">Acción</label>
                             <Select value={actionFilter} onValueChange={setActionFilter}>
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Filter by action" />
+                                    <SelectValue placeholder="Filtrar por acción" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Actions</SelectItem>
+                                    <SelectItem value="all">Todas las Acciones</SelectItem>
                                     {availableActions.map((action) => (
                                         <SelectItem key={action} value={action}>
                                             {action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
@@ -268,7 +268,7 @@ export const AuditLogsView: React.FC = () => {
                         </div>
                         
                         <div>
-                            <label className="block text-sm font-medium mb-1">Start Date</label>
+                            <label className="block text-sm font-medium mb-1">Fecha de Inicio</label>
                             <Input
                                 type="date"
                                 value={startDate}
@@ -277,7 +277,7 @@ export const AuditLogsView: React.FC = () => {
                         </div>
                         
                         <div>
-                            <label className="block text-sm font-medium mb-1">End Date</label>
+                            <label className="block text-sm font-medium mb-1">Fecha de Fin</label>
                             <Input
                                 type="date"
                                 value={endDate}
@@ -304,12 +304,12 @@ export const AuditLogsView: React.FC = () => {
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Timestamp</TableHead>
-                                    <TableHead>Action</TableHead>
-                                    <TableHead>User</TableHead>
-                                    <TableHead>Target</TableHead>
-                                    <TableHead>IP Address</TableHead>
-                                    <TableHead>Details</TableHead>
+                                    <TableHead>Fecha y Hora</TableHead>
+                                    <TableHead>Acción</TableHead>
+                                    <TableHead>Usuario</TableHead>
+                                    <TableHead>Objetivo</TableHead>
+                                    <TableHead>Dirección IP</TableHead>
+                                    <TableHead>Detalles</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -317,13 +317,13 @@ export const AuditLogsView: React.FC = () => {
                                     <TableRow>
                                         <TableCell colSpan={6} className="text-center py-8">
                                             <LucideLoader className="h-6 w-6 animate-spin mx-auto" />
-                                            <p className="mt-2 text-muted-foreground">Loading audit logs...</p>
+                                            <p className="mt-2 text-muted-foreground">Cargando registros de auditoría...</p>
                                         </TableCell>
                                     </TableRow>
                                 ) : logsData.logs.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                                            No audit logs found
+                                            No se encontraron registros de auditoría
                                         </TableCell>
                                     </TableRow>
                                 ) : (
@@ -347,7 +347,7 @@ export const AuditLogsView: React.FC = () => {
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    <span className="text-muted-foreground">Unknown</span>
+                                                    <span className="text-muted-foreground">Desconocido</span>
                                                 )}
                                             </TableCell>
                                             <TableCell>
@@ -382,7 +382,7 @@ export const AuditLogsView: React.FC = () => {
                     {logsData.totalPages > 1 && (
                         <div className="flex items-center justify-between">
                             <p className="text-sm text-muted-foreground">
-                                Showing {((currentPage - 1) * 20) + 1} to {Math.min(currentPage * 20, logsData.total)} of {logsData.total} audit logs
+                                Mostrando {((currentPage - 1) * 20) + 1} a {Math.min(currentPage * 20, logsData.total)} de {logsData.total} registros de auditoría
                             </p>
                             <div className="flex gap-2">
                                 <Button
@@ -391,10 +391,10 @@ export const AuditLogsView: React.FC = () => {
                                     onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                     disabled={currentPage === 1}
                                 >
-                                    Previous
+                                    Anterior
                                 </Button>
                                 <span className="flex items-center px-3 text-sm">
-                                    Page {currentPage} of {logsData.totalPages}
+                                    Página {currentPage} de {logsData.totalPages}
                                 </span>
                                 <Button
                                     variant="outline"
@@ -402,7 +402,7 @@ export const AuditLogsView: React.FC = () => {
                                     onClick={() => setCurrentPage(p => Math.min(logsData.totalPages, p + 1))}
                                     disabled={currentPage === logsData.totalPages}
                                 >
-                                    Next
+                                    Siguiente
                                 </Button>
                             </div>
                         </div>
