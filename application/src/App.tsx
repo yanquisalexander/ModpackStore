@@ -25,6 +25,8 @@ import { CreatorsLayout } from "./components/layouts/CreatorsLayout";
 import { AdminLayout } from "./components/admin/AdminLayout";
 import { ConfigurationDialog } from "./components/ConfigurationDialog";
 import { useConfigDialog } from "./stores/ConfigDialogContext";
+import { OnboardingFlow } from "./components/onboarding";
+import { useOnboarding } from "./hooks/useOnboarding";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
@@ -48,6 +50,7 @@ function App() {
   const { loading: authLoading, isAuthenticated, session } = useAuthentication();
   const { isConnected, isLoading: connectionLoading, hasInternetAccess } = useConnection();
   const { isConfigOpen, closeConfigDialog } = useConfigDialog();
+  const { onboardingStatus, loading: onboardingLoading, isFirstRun, refreshStatus } = useOnboarding();
   const navigate = useNavigate();
   const hasLaunched = useRef(false);
 
@@ -89,8 +92,13 @@ function App() {
     return () => window.removeEventListener("navigate-to-instance", handler);
   }, [navigate]);
 
-  if (authLoading || connectionLoading) {
+  if (authLoading || connectionLoading || onboardingLoading) {
     return <LoadingScreen />;
+  }
+
+  // Show onboarding for first-time users
+  if (isFirstRun) {
+    return <OnboardingFlow onComplete={refreshStatus} />;
   }
 
   // CAMBIO 1: Lógica de renderizado unificada
