@@ -12,8 +12,8 @@ export class AuditController {
                 page: query.page ? parseInt(query.page) : 1,
                 limit: query.limit ? Math.min(parseInt(query.limit), 100) : 20,
                 userId: query.userId,
-                action: query.action && Object.values(AuditAction).includes(query.action as AuditAction) 
-                    ? query.action as AuditAction 
+                action: query.action && Object.values(AuditAction).includes(query.action as AuditAction)
+                    ? query.action as AuditAction
                     : undefined,
                 startDate: query.startDate ? new Date(query.startDate) : undefined,
                 endDate: query.endDate ? new Date(query.endDate) : undefined

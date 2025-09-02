@@ -274,7 +274,16 @@ mod api {
 
         pub async fn link_twitch_account(&self, code: &str) -> AuthResult<()> {
             // First, get current auth tokens to authenticate the request
-            let tokens = storage::load_tokens(&GLOBAL_APP_HANDLE.lock().unwrap().as_ref().unwrap().clone()).await
+            // Clone the AppHandle out of the global mutex first so the MutexGuard
+            // is dropped before we hit any .await (avoids holding a non-Send guard
+            // across awaits).
+            let app_handle = {
+                let binding = GLOBAL_APP_HANDLE.lock().unwrap();
+                binding.as_ref().ok_or("AppHandle no inicializado")?.clone()
+            };
+
+            let tokens = storage::load_tokens(&app_handle)
+                .await
                 .map_err(|e| format!("Error loading auth tokens: {}", e))?
                 .ok_or("No authentication tokens found")?;
 
@@ -294,7 +303,7 @@ mod api {
                     .await
                     .unwrap_or_else(|_| "Could not get response body".into());
                 eprintln!("Twitch linking error response: {}", raw_body);
-                
+
                 return Err(format!("Failed to link Twitch account: {}", raw_body));
             }
 
@@ -783,23 +792,28 @@ async fn handle_twitch_callback(
         }
         None => {
             eprintln!("Twitch OAuth Callback Error: No code received");
-            let mut response =
-                Response::new(Body::from("Error: No authorization code received"));
+            let mut response = Response::new(Body::from("Error: No authorization code received"));
             *response.status_mut() = HyperStatusCode::BAD_REQUEST;
             Ok(response)
         }
     }
 }
 
-async fn poll_for_twitch_auth_code(auth_state: Arc<AuthState>, app_state_mutex: Arc<Mutex<AppState>>) {
+async fn poll_for_twitch_auth_code(
+    auth_state: Arc<AuthState>,
+    app_state_mutex: Arc<Mutex<AppState>>,
+) {
     for i in 0..CALLBACK_TIMEOUT_SECS {
         let auth_code_guard = auth_state.auth_code.lock().await;
         if let Some(code) = auth_code_guard.clone() {
             drop(auth_code_guard);
-            println!("Twitch authorization code received: {}", &code[..std::cmp::min(code.len(), 10)]);
+            println!(
+                "Twitch authorization code received: {}",
+                &code[..std::cmp::min(code.len(), 10)]
+            );
 
             events::emit_auth_step_changed(AuthStep::ProcessingCallback);
-            
+
             match process_twitch_auth_code(&code, &auth_state).await {
                 Ok(()) => {
                     events::emit_auth_step_changed(AuthStep::RequestingSession);
@@ -825,7 +839,7 @@ async fn poll_for_twitch_auth_code(auth_state: Arc<AuthState>, app_state_mutex: 
 
 async fn process_twitch_auth_code(code: &str, auth_state: &Arc<AuthState>) -> AuthResult<()> {
     let api_client = api::ApiClient::new();
-    
+
     // Send the Twitch code to backend to complete the linking
     match api_client.link_twitch_account(code).await {
         Ok(_) => {

@@ -12,6 +12,7 @@ import { ModpackVersionFile } from '@/entities/ModpackVersionFile';
 import { CurseForgeManifest, CurseForgeImportResult } from '@/types/curseforge';
 import { ModpackStatus, ModpackVersionStatus } from '@/types/enums';
 import { In } from 'typeorm';
+import { AppDataSource } from '@/db/data-source';
 
 const TEMP_IMPORT_DIR = path.join(__dirname, '../../tmp/curseforge-imports');
 if (!fs.existsSync(TEMP_IMPORT_DIR)) fs.mkdirSync(TEMP_IMPORT_DIR, { recursive: true });
@@ -39,18 +40,18 @@ export class CurseForgeImportService {
         const importId = crypto.randomUUID();
         const workDir = path.join(TEMP_IMPORT_DIR, importId);
         const errors: string[] = [];
-        
+
         try {
             fs.mkdirSync(workDir, { recursive: true });
 
             // Extract ZIP and parse manifest
             const { manifest, overrideFiles } = await this.extractAndParseZip(zipBuffer, workDir);
-            
+
             // Create modpack and version entities
             const { modpack, version } = await this.createModpackEntities(
-                manifest, 
-                publisherId, 
-                createdBy, 
+                manifest,
+                publisherId,
+                createdBy,
                 options.slug
             );
 
@@ -87,14 +88,14 @@ export class CurseForgeImportService {
             if (fs.existsSync(workDir)) {
                 fs.rmSync(workDir, { recursive: true, force: true });
             }
-            
+
             // Add error details
             if (error instanceof Error) {
                 errors.push(error.message);
             } else {
                 errors.push('Unknown error occurred during import');
             }
-            
+
             throw error;
         }
     }
@@ -107,7 +108,7 @@ export class CurseForgeImportService {
         workDir: string
     ): Promise<{ manifest: CurseForgeManifest; overrideFiles: Array<{ path: string; content: Buffer }> }> {
         const zip = await JSZip.loadAsync(zipBuffer);
-        
+
         // Find and parse manifest.json
         const manifestFile = zip.file('manifest.json');
         if (!manifestFile) {
@@ -116,7 +117,7 @@ export class CurseForgeImportService {
 
         const manifestContent = await manifestFile.async('text');
         let manifest: CurseForgeManifest;
-        
+
         try {
             manifest = JSON.parse(manifestContent);
         } catch (error) {
@@ -148,7 +149,7 @@ export class CurseForgeImportService {
         if (!manifest.name || !manifest.version) {
             throw new Error('Manifest must have name and version');
         }
-        
+
         if (!manifest.minecraft?.version) {
             throw new Error('Manifest must specify Minecraft version');
         }
@@ -203,7 +204,7 @@ export class CurseForgeImportService {
     ): Promise<{ modpack: Modpack; version: ModpackVersion }> {
         // Generate slug from name if not provided
         let slug = customSlug || this.generateSlug(manifest.name);
-        
+
         // Check if slug already exists and generate alternative if needed
         let slugAttempt = 0;
         const originalSlug = slug;
@@ -227,7 +228,7 @@ export class CurseForgeImportService {
         await modpack.save();
 
         // Extract forge version from modLoaders
-        const forgeLoader = manifest.minecraft.modLoaders.find(loader => 
+        const forgeLoader = manifest.minecraft.modLoaders.find(loader =>
             loader.primary && loader.id.startsWith('forge-')
         );
         const forgeVersion = forgeLoader?.id.replace('forge-', '') || undefined;
@@ -296,10 +297,10 @@ export class CurseForgeImportService {
         concurrency: number
     ): Promise<{ downloaded: number; failed: number }> {
         const stats = { downloaded: 0, failed: 0 };
-        
+
         // Create semaphore for concurrency control
         const semaphore = new Semaphore(concurrency);
-        
+
         const downloadPromises = modFiles.map(async (modFile) => {
             await semaphore.acquire();
             try {
@@ -327,7 +328,7 @@ export class CurseForgeImportService {
                 // Store mod file
                 const hash = crypto.createHash('sha1').update(modContent).digest('hex');
                 const modPath = `mods/${fileInfo.fileName}`;
-                
+
                 await this.storeModpackFile(
                     modContent,
                     hash,
@@ -362,7 +363,7 @@ export class CurseForgeImportService {
             const hash = crypto.createHash('sha1').update(file.content).digest('hex');
             const fileType = this.determineOverrideFileType(file.path);
             const adjustedPath = fileType === 'extras' ? file.path : `${fileType}/${file.path}`;
-            
+
             return {
                 content: file.content,
                 hash,
@@ -373,7 +374,7 @@ export class CurseForgeImportService {
 
         // Group by type and process
         const groupedFiles = this.groupBy(fileEntries, 'type');
-        
+
         for (const [fileType, files] of Object.entries(groupedFiles)) {
             await this.batchStoreFiles(files, fileType as any, modpackId, versionId);
         }
@@ -392,7 +393,7 @@ export class CurseForgeImportService {
     ): Promise<void> {
         // Check if file already exists
         let modpackFile = await ModpackFile.findOne({ where: { hash } });
-        
+
         if (!modpackFile) {
             // Upload to R2
             const getHashKey = (hash: string) => path.posix.join('resources', 'files', hash.slice(0, 2), hash.slice(2, 4), hash);
@@ -408,7 +409,17 @@ export class CurseForgeImportService {
             modpackFile.size = content.length;
             modpackFile.type = fileType as any;
             modpackFile.mimeType = 'application/octet-stream';
-            await modpackFile.save();
+            try {
+                await modpackFile.save();
+            } catch (err: any) {
+                // If concurrent insert caused unique constraint, reload the existing record
+                if (err?.code === '23505' || err?.message?.includes('duplicate key') || err?.message?.includes('llave duplicada')) {
+                    modpackFile = await ModpackFile.findOne({ where: { hash } });
+                    if (!modpackFile) throw err; // rethrow if not found
+                } else {
+                    throw err;
+                }
+            }
         }
 
         // Create ModpackVersionFile association
@@ -416,7 +427,7 @@ export class CurseForgeImportService {
         versionFile.modpackVersionId = versionId;
         versionFile.fileHash = hash;
         versionFile.path = filePath;
-        
+
         try {
             await versionFile.save();
         } catch (error: any) {
@@ -453,17 +464,40 @@ export class CurseForgeImportService {
 
             await batchUploadToR2(uploads, 5);
 
-            // Create ModpackFile entities
-            const modpackFiles = newFiles.map(f => {
-                const file = new ModpackFile();
-                file.hash = f.hash;
-                file.size = f.content.length;
-                file.type = fileType as any;
-                file.mimeType = 'application/octet-stream';
-                return file;
-            });
+            // Create ModpackFile entities and insert with ON CONFLICT DO NOTHING to avoid races
+            const modpackFiles = newFiles.map(f => ({
+                hash: f.hash,
+                size: f.content.length,
+                type: fileType as any,
+                mimeType: 'application/octet-stream'
+            }));
 
-            await ModpackFile.save(modpackFiles);
+            try {
+                await AppDataSource.createQueryBuilder()
+                    .insert()
+                    .into(ModpackFile)
+                    .values(modpackFiles)
+                    .orIgnore()
+                    .execute();
+            } catch (err) {
+                // Fallback: if bulk insert fails for unexpected reasons, try per-item insert with individual error handling
+                for (const f of modpackFiles) {
+                    try {
+                        await AppDataSource.createQueryBuilder()
+                            .insert()
+                            .into(ModpackFile)
+                            .values(f)
+                            .orIgnore()
+                            .execute();
+                    } catch (innerErr) {
+                        // ignore duplicate/key errors, rethrow others
+                        const msg = (innerErr as any)?.message || '';
+                        if (!msg.includes('duplicate key') && !msg.includes('llave duplicada')) {
+                            throw innerErr;
+                        }
+                    }
+                }
+            }
         }
 
         // Create version file associations
@@ -496,11 +530,11 @@ export class CurseForgeImportService {
      */
     private determineOverrideFileType(filePath: string): 'config' | 'resourcepacks' | 'shaderpacks' | 'extras' {
         const lowerPath = filePath.toLowerCase();
-        
+
         if (lowerPath.startsWith('config/')) return 'config';
         if (lowerPath.startsWith('resourcepacks/')) return 'resourcepacks';
         if (lowerPath.startsWith('shaderpacks/')) return 'shaderpacks';
-        
+
         return 'extras';
     }
 

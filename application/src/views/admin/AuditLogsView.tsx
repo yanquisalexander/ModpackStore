@@ -7,9 +7,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
-import { 
-    LucideLoader, 
-    LucideSearch, 
+import {
+    LucideLoader,
+    LucideSearch,
     LucideRefreshCw,
     LucideCalendar,
     LucideUser,
@@ -127,7 +127,7 @@ export const AuditLogsView: React.FC = () => {
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    
+
     const { toast } = useToast();
     const { session, sessionTokens } = useAuthentication();
 
@@ -139,7 +139,7 @@ export const AuditLogsView: React.FC = () => {
 
         setIsLoading(true);
         setError(null);
-        
+
         try {
             const data = await AuditAPI.fetchLogs({
                 page: currentPage,
@@ -149,7 +149,7 @@ export const AuditLogsView: React.FC = () => {
                 startDate: startDate || undefined,
                 endDate: endDate || undefined
             }, sessionTokens.accessToken);
-            
+
             setLogsData(data);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load audit logs');
@@ -198,7 +198,7 @@ export const AuditLogsView: React.FC = () => {
 
     const formatDetails = (details: Record<string, any> | null) => {
         if (!details) return null;
-        
+
         return Object.entries(details).map(([key, value]) => (
             <div key={key} className="text-xs">
                 <span className="font-medium">{key}:</span> {JSON.stringify(value)}
@@ -233,7 +233,7 @@ export const AuditLogsView: React.FC = () => {
                         </Button>
                     </CardTitle>
                 </CardHeader>
-                
+
                 <CardContent className="space-y-4">
                     {/* Filters */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -249,7 +249,7 @@ export const AuditLogsView: React.FC = () => {
                                 />
                             </div>
                         </div>
-                        
+
                         <div>
                             <label className="block text-sm font-medium mb-1">Acción</label>
                             <Select value={actionFilter} onValueChange={setActionFilter}>
@@ -266,7 +266,7 @@ export const AuditLogsView: React.FC = () => {
                                 </SelectContent>
                             </Select>
                         </div>
-                        
+
                         <div>
                             <label className="block text-sm font-medium mb-1">Fecha de Inicio</label>
                             <Input
@@ -275,7 +275,7 @@ export const AuditLogsView: React.FC = () => {
                                 onChange={(e) => setStartDate(e.target.value)}
                             />
                         </div>
-                        
+
                         <div>
                             <label className="block text-sm font-medium mb-1">Fecha de Fin</label>
                             <Input
@@ -284,7 +284,7 @@ export const AuditLogsView: React.FC = () => {
                                 onChange={(e) => setEndDate(e.target.value)}
                             />
                         </div>
-                        
+
                         <div className="flex items-end">
                             <Button variant="outline" onClick={loadLogs} disabled={isLoading} className="w-full">
                                 <LucideRefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
