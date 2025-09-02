@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { OnboardingStepProps, SystemMemoryInfo } from '@/types/onboarding';
 import { OnboardingStepWrapper } from './OnboardingStepWrapper';
 import { Slider } from '@/components/ui/slider';
@@ -16,13 +15,15 @@ export const RAMConfigurationStep: React.FC<OnboardingStepProps> = ({
   useEffect(() => {
     const loadSystemMemory = async () => {
       try {
+        // Try to use real Tauri invoke first
+        const { invoke } = await import('@tauri-apps/api/core');
         const systemMemory = await invoke<SystemMemoryInfo>('get_system_memory');
         setMemoryInfo(systemMemory);
         setSelectedRAM(systemMemory.recommended_mb);
       } catch (error) {
         console.error('Error loading system memory:', error);
         toast.error('Error al obtener información de memoria del sistema');
-        // Use default values if system info fails
+        // Fallback to reasonable defaults if system info fails
         setMemoryInfo({
           total_mb: 8192,
           recommended_mb: 4096,

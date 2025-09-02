@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { OnboardingStep } from '@/types/onboarding';
 import { RAMConfigurationStep } from './RAMConfigurationStep';
 import { toast } from 'sonner';
@@ -37,6 +36,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
   const handleSkip = async () => {
     setCompletingOnboarding(true);
     try {
+      // Try to use real Tauri invoke first
+      const { invoke } = await import('@tauri-apps/api/core');
       await invoke('skip_onboarding');
       toast.success('Configuración inicial completada', {
         description: 'Se usarán los valores recomendados por el sistema.',
@@ -55,6 +56,8 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
   const completeOnboarding = async (ramAllocation: number) => {
     setCompletingOnboarding(true);
     try {
+      // Try to use real Tauri invoke first
+      const { invoke } = await import('@tauri-apps/api/core');
       await invoke('complete_onboarding', { ramAllocation });
       toast.success('¡Configuración completada!', {
         description: `Memoria asignada: ${ramAllocation >= 1024 ? `${(ramAllocation / 1024).toFixed(1)} GB` : `${ramAllocation} MB`}`,

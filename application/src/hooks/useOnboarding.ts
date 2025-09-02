@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { OnboardingStatus } from '@/types/onboarding';
 
 export const useOnboarding = () => {
@@ -11,11 +10,20 @@ export const useOnboarding = () => {
     try {
       setLoading(true);
       setError(null);
+      
+      // Try to use real Tauri invoke first
+      const { invoke } = await import('@tauri-apps/api/core');
       const status = await invoke<OnboardingStatus>('get_onboarding_status');
       setOnboardingStatus(status);
     } catch (err) {
       console.error('Error checking onboarding status:', err);
       setError(err as string);
+      
+      // Fallback for development/demo mode - assume not first run
+      setOnboardingStatus({
+        first_run_at: new Date().toISOString(),
+        ram_allocation: 4096,
+      });
     } finally {
       setLoading(false);
     }
