@@ -9,11 +9,13 @@ import {
     LucideActivity, 
     LucideSettings, 
     LucideShield,
+    LucideBuilding2,
     LucideChevronRight
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { ManageUsersView } from '@/views/admin/ManageUsersView';
 import { AuditLogsView } from '@/views/admin/AuditLogsView';
+import { ManagePublishersView } from '@/views/admin/ManagePublishersView';
 
 interface AdminLayoutProps {
     children?: React.ReactNode;
@@ -23,21 +25,27 @@ interface AdminLayoutProps {
 const adminNavItems = [
     {
         path: '/admin/users',
-        label: 'User Management',
+        label: 'Gestión de Usuarios',
         icon: LucideUsers,
-        description: 'Manage users, roles, and permissions'
+        description: 'Administrar usuarios, roles y permisos'
+    },
+    {
+        path: '/admin/publishers',
+        label: 'Gestión de Publishers',
+        icon: LucideBuilding2,
+        description: 'Administrar organizaciones y sus miembros'
     },
     {
         path: '/admin/audit',
-        label: 'Audit Logs',
+        label: 'Registros de Auditoría',
         icon: LucideActivity,
-        description: 'View system activity and security logs'
+        description: 'Ver actividad del sistema y registros de seguridad'
     },
     {
         path: '/admin/settings',
-        label: 'Settings',
+        label: 'Configuración',
         icon: LucideSettings,
-        description: 'System configuration and preferences',
+        description: 'Configuración del sistema y preferencias',
         disabled: true // Not implemented yet
     }
 ];
@@ -55,13 +63,13 @@ const AdminSidebar: React.FC = () => {
                     <div className="space-y-2">
                         <div className="flex items-center gap-2">
                             <LucideShield className="h-5 w-5 text-primary" />
-                            <h2 className="font-semibold">Admin Panel</h2>
+                            <h2 className="font-semibold">Panel de Administración</h2>
                             <Badge variant="secondary" className="text-xs">
                                 {session?.role?.toUpperCase()}
                             </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                            Administrative tools and system management
+                            Herramientas administrativas y gestión del sistema
                         </p>
                     </div>
 
@@ -132,7 +140,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
             <div className="flex items-center justify-center min-h-screen">
                 <div className="text-center">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                    <p className="mt-2 text-muted-foreground">Loading...</p>
+                    <p className="mt-2 text-muted-foreground">Cargando...</p>
                 </div>
             </div>
         );
@@ -145,12 +153,12 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                 <Card>
                     <CardContent className="p-8">
                         <LucideShield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                        <h1 className="text-2xl font-bold mb-2">Access Denied</h1>
+                        <h1 className="text-2xl font-bold mb-2">Acceso Denegado</h1>
                         <p className="text-muted-foreground mb-4">
-                            You don't have permission to access the admin panel.
+                            No tienes permisos para acceder al panel de administración.
                         </p>
                         <Button asChild>
-                            <Link to="/">Return to Home</Link>
+                            <Link to="/">Volver al Inicio</Link>
                         </Button>
                     </CardContent>
                 </Card>
@@ -171,6 +179,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                     {children || (
                         <Routes>
                             <Route path="/users" element={<ManageUsersView />} />
+                            <Route path="/publishers" element={<ManagePublishersView />} />
                             <Route path="/audit" element={<AuditLogsView />} />
                             <Route path="*" element={<ManageUsersView />} /> {/* Default to users */}
                         </Routes>
