@@ -136,4 +136,97 @@ export class AdminPublishersController {
             throw new APIError(statusCode, error.name || (statusCode === 404 ? 'Not Found' : 'Delete Publisher Error'), error.message || "Error deleting publisher", error.errorCode);
         }
     }
+
+    static async addMember(c: Context): Promise<Response> {
+        try {
+            const user = c.get('user') as { id: string } | undefined;
+            if (!user || !user.id) {
+                throw new APIError(401, 'Unauthorized', 'Admin privileges required.');
+            }
+            const adminUserId = user.id;
+            const publisherId = c.req.param('publisherId');
+            if (!publisherId) {
+                throw new APIError(400, 'Bad Request', 'Publisher ID is missing from path.');
+            }
+
+            const body = await c.req.json();
+            const { userId, role } = body;
+            
+            if (!userId || !role) {
+                throw new APIError(400, 'Bad Request', 'User ID and role are required.');
+            }
+
+            await AdminPublishersService.addMember(publisherId, userId, role, adminUserId);
+            return c.body(null, 201);
+        } catch (error: any) {
+            console.error("[CONTROLLER_ADMIN_PUBLISHER] Error adding member:", error);
+            if (error instanceof APIError) throw error;
+            throw new APIError(500, 'Add Member Error', error.message || "Error adding member");
+        }
+    }
+
+    static async removeMember(c: Context): Promise<Response> {
+        try {
+            const user = c.get('user') as { id: string } | undefined;
+            if (!user || !user.id) {
+                throw new APIError(401, 'Unauthorized', 'Admin privileges required.');
+            }
+            const adminUserId = user.id;
+            const publisherId = c.req.param('publisherId');
+            const userId = c.req.param('userId');
+            
+            if (!publisherId || !userId) {
+                throw new APIError(400, 'Bad Request', 'Publisher ID and User ID are required.');
+            }
+
+            await AdminPublishersService.removeMember(publisherId, userId, adminUserId);
+            return c.body(null, 204);
+        } catch (error: any) {
+            console.error("[CONTROLLER_ADMIN_PUBLISHER] Error removing member:", error);
+            if (error instanceof APIError) throw error;
+            throw new APIError(500, 'Remove Member Error', error.message || "Error removing member");
+        }
+    }
+
+    static async getMembers(c: Context): Promise<Response> {
+        try {
+            const publisherId = c.req.param('publisherId');
+            if (!publisherId) {
+                throw new APIError(400, 'Bad Request', 'Publisher ID is missing from path.');
+            }
+
+            const members = await AdminPublishersService.getPublisherMembers(publisherId);
+            return c.json(serializeCollection('publisher-member', members), 200);
+        } catch (error: any) {
+            console.error("[CONTROLLER_ADMIN_PUBLISHER] Error getting members:", error);
+            if (error instanceof APIError) throw error;
+            throw new APIError(500, 'Get Members Error', error.message || "Error getting members");
+        }
+    }
+
+    static async getModpacks(c: Context): Promise<Response> {
+        try {
+            const publisherId = c.req.param('publisherId');
+            if (!publisherId) {
+                throw new APIError(400, 'Bad Request', 'Publisher ID is missing from path.');
+            }
+
+            const limit = parseInt(c.req.query('limit') || '20');
+            const offset = parseInt(c.req.query('offset') || '0');
+
+            const result = await AdminPublishersService.getPublisherModpacks(publisherId, limit, offset);
+            return c.json({
+                data: serializeCollection('modpack', result.modpacks),
+                meta: {
+                    total: result.total,
+                    limit,
+                    offset
+                }
+            }, 200);
+        } catch (error: any) {
+            console.error("[CONTROLLER_ADMIN_PUBLISHER] Error getting modpacks:", error);
+            if (error instanceof APIError) throw error;
+            throw new APIError(500, 'Get Modpacks Error', error.message || "Error getting modpacks");
+        }
+    }
 }

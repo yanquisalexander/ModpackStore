@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthentication } from '@/stores/AuthContext';
 import { listPublishers, deletePublisher, PublisherData } from '@/services/adminPublishers';
 import { Button } from '@/components/ui/button';
@@ -21,7 +21,7 @@ const ManageOrganizationsView: React.FC = () => {
             const data = await listPublishers(sessionTokens.access_token);
             setOrganizations(data);
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to fetch organizations');
+            setError(err instanceof Error ? err.message : 'Error al cargar las organizaciones');
             console.error(err);
         } finally {
             setIsLoading(false);
@@ -36,13 +36,13 @@ const ManageOrganizationsView: React.FC = () => {
 
     const handleDelete = async (orgId: string) => {
         if (!sessionTokens?.access_token) return;
-        if (window.confirm('Are you sure you want to delete this organization? This action cannot be undone.')) {
+        if (window.confirm('¿Estás seguro de que quieres eliminar esta organización? Esta acción no se puede deshacer.')) {
             setIsLoading(true); // Indicate loading for the delete and re-fetch operation
             try {
                 await deletePublisher(orgId, sessionTokens.access_token);
                 await fetchOrganizations(); // Re-fetch the list after deletion
             } catch (err) {
-                setError(err instanceof Error ? err.message : 'Failed to delete organization');
+                setError(err instanceof Error ? err.message : 'Error al eliminar la organización');
                 console.error(err);
                 setIsLoading(false); // Ensure loading is false if delete fails
             }
@@ -64,8 +64,8 @@ const ManageOrganizationsView: React.FC = () => {
         // useEffect(() => { if (!isAuthenticated) navigate('/login'); }, [isAuthenticated, navigate]);
         return (
             <div className="container mx-auto p-4 text-center">
-                <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-                <p>Please <Button variant="link" onClick={() => navigate('/login')}>login</Button> to access this page.</p>
+                <h1 className="text-2xl font-bold mb-4">Acceso Denegado</h1>
+                <p>Por favor <Button variant="link" onClick={() => navigate('/login')}>inicia sesión</Button> para acceder a esta página.</p>
             </div>
         );
     }
@@ -73,8 +73,8 @@ const ManageOrganizationsView: React.FC = () => {
     if (!session?.admin) {
         return (
             <div className="container mx-auto p-4 text-center">
-                <h1 className="text-2xl font-bold mb-4">Access Denied</h1>
-                <p>You do not have administrative privileges to view this page.</p>
+                <h1 className="text-2xl font-bold mb-4">Acceso Denegado</h1>
+                <p>No tienes privilegios administrativos para ver esta página.</p>
             </div>
         );
     }
@@ -82,9 +82,9 @@ const ManageOrganizationsView: React.FC = () => {
     return (
         <div className="container mx-auto p-4">
             <header className="mb-6 flex justify-between items-center">
-                <h1 className="text-3xl font-bold">Manage Organizations</h1>
+                <h1 className="text-3xl font-bold">Gestionar Organizaciones</h1>
                 <Button onClick={() => navigate('/admin/organizations/new')}>
-                    <LucidePlus className="mr-2 h-4 w-4" /> Create New Organization
+                    <LucidePlus className="mr-2 h-4 w-4" /> Crear Nueva Organización
                 </Button>
             </header>
 
@@ -102,7 +102,7 @@ const ManageOrganizationsView: React.FC = () => {
 
             {!isLoading && !error && !organizations.length && (
                 <div className="text-center py-10">
-                    <p>No organizations found.</p>
+                    <p>No se encontraron organizaciones.</p>
                 </div>
             )}
 
@@ -115,16 +115,16 @@ const ManageOrganizationsView: React.FC = () => {
                                     <h2 className="text-xl font-semibold text-card-foreground">{org.publisherName}</h2>
                                     <div className="text-sm text-muted-foreground space-x-2">
                                         <span>ID: {org.id}</span>
-                                        <span>Status:
-                                            {org.banned ? <span className="font-semibold text-destructive"> Banned</span> : <span className="font-semibold text-green-600"> Active</span>}
+                                        <span>Estado:
+                                            {org.banned ? <span className="font-semibold text-destructive"> Baneado</span> : <span className="font-semibold text-green-600"> Activo</span>}
                                         </span>
-                                        {org.verified && <span className="text-blue-500 font-medium">Verified</span>}
-                                        {org.partnered && <span className="text-purple-500 font-medium">Partnered</span>}
+                                        {org.verified && <span className="text-blue-500 font-medium">Verificado</span>}
+                                        {org.partnered && <span className="text-purple-500 font-medium">Asociado</span>}
                                     </div>
                                 </div>
                                 <div className="flex space-x-2 flex-shrink-0">
                                     <Button variant="outline" size="sm" onClick={() => navigate(`/admin/organizations/edit/${org.id}`)}>
-                                        <LucideEdit className="mr-2 h-3.5 w-3.5" /> Edit
+                                        <LucideEdit className="mr-2 h-3.5 w-3.5" /> Editar
                                     </Button>
                                     <Button
                                         variant="destructive"
@@ -132,7 +132,7 @@ const ManageOrganizationsView: React.FC = () => {
                                         onClick={() => handleDelete(org.id)}
                                         disabled={isLoading} // Disable button while any operation is in progress
                                     >
-                                        <LucideTrash className="mr-2 h-3.5 w-3.5" /> Delete
+                                        <LucideTrash className="mr-2 h-3.5 w-3.5" /> Eliminar
                                     </Button>
                                 </div>
                             </li>
