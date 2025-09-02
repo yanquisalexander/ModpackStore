@@ -19,44 +19,22 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 
-// Tipos optimizados
-interface ConfigurationDialogProps {
-    isOpen: boolean;
-    onClose: () => void;
-}
+// Configuration components
+import { ConfigSection } from '@/components/configuration/ConfigSection';
 
-interface ConfigDefinition {
-    type: 'string' | 'integer' | 'float' | 'boolean' | 'path' | 'enum' | 'slider';
-    default: any;
-    description: string;
-    ui_section: string;
-    client?: boolean;
-    min?: number;
-    max?: number;
-    step?: number;
-    choices?: any[];
-    validator?: string;
-}
-
-interface ConfigSchema {
-    [key: string]: ConfigDefinition;
-}
-
-interface ConfigState {
-    values: Record<string, any>;
-    schema: ConfigSchema;
-    sections: string[];
-    loading: boolean;
-    saving: boolean;
-    gitHash: string;
-}
+// Types
+import type { 
+    ConfigDefinition, 
+    ConfigSchema, 
+    ConfigState, 
+    ConfigurationDialogProps 
+} from '@/types/configuration';
 
 export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProps) => {
     const { isAuthenticated } = useAuthentication();
@@ -70,8 +48,6 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
         saving: false,
         gitHash: 'Loading...'
     });
-
-    const [activeTab, setActiveTab] = useState<string>("");
 
     // Cargar configuración optimizada
     const loadConfig = useCallback(async () => {
@@ -103,17 +79,12 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                 gitHash
             });
 
-            // Establecer primera sección como activa si no hay una seleccionada
-            if (sections.length > 0 && !activeTab) {
-                setActiveTab(sections[0]);
-            }
-
         } catch (error) {
             console.error("Failed to load config:", error);
             toast.error("Error al cargar la configuración");
             setConfig(prev => ({ ...prev, loading: false }));
         }
-    }, [activeTab]);
+    }, []);
 
     // Efectos optimizados
     useEffect(() => {
@@ -152,6 +123,23 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
             values: { ...prev.values, [key]: value }
         }));
     }, []);
+
+    // Restaurar valores por defecto para una sección
+    const handleRestoreDefaults = useCallback((section: string) => {
+        const sectionConfigs = getConfigsForSection(section);
+        const defaultValues: Record<string, any> = {};
+        
+        sectionConfigs.forEach(([key, def]) => {
+            defaultValues[key] = def.default;
+        });
+        
+        setConfig(prev => ({
+            ...prev,
+            values: { ...prev.values, ...defaultValues }
+        }));
+        
+        toast.success(`Valores por defecto restaurados para ${section.charAt(0).toUpperCase() + section.slice(1)}`);
+    }, [getConfigsForSection]);
 
     // Seleccionar directorio
     const selectDirectory = useCallback(async (key: string, currentPath: string) => {
@@ -205,7 +193,7 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
         const value = config.values[key] ?? def.default;
 
         const commonInputProps = {
-            className: "bg-neutral-800 border-neutral-700 text-white"
+            className: "bg-background border-input"
         };
 
         switch (def.type) {
@@ -239,9 +227,9 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
             case "slider":
                 return (
                     <div className="space-y-2">
-                        <div className="flex justify-between text-sm text-neutral-400">
+                        <div className="flex justify-between text-sm text-muted-foreground">
                             <span>{def.min}</span>
-                            <span className="text-white font-medium">{value}</span>
+                            <span className="font-medium text-foreground">{value}</span>
                             <span>{def.max}</span>
                         </div>
                         <Slider
@@ -275,7 +263,7 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                         <Button
                             variant="outline"
                             onClick={() => selectDirectory(key, value)}
-                            className="border-neutral-700 hover:bg-neutral-800 hover:text-white shrink-0"
+                            className="shrink-0"
                         >
                             <LucideFolder className="h-4 w-4 mr-2" />
                             Examinar
@@ -289,10 +277,10 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                         value={value || def.default}
                         onValueChange={(val) => handleConfigChange(key, val)}
                     >
-                        <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
+                        <SelectTrigger className="bg-background border-input">
                             <SelectValue placeholder={def.description} />
                         </SelectTrigger>
-                        <SelectContent className="bg-neutral-800 border-neutral-700 text-white z-[9999]">
+                        <SelectContent className="z-[9999]">
                             {def.choices?.map((choice, idx) => (
                                 <SelectItem key={idx} value={choice}>
                                     {choice}
@@ -313,169 +301,128 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
         }
     }, [config.values, handleConfigChange, selectDirectory]);
 
-    // Componente de configuración individual
-    const ConfigItem = useCallback(({ configKey, def, showSeparator }: {
-        configKey: string;
-        def: ConfigDefinition;
-        showSeparator: boolean;
-    }) => (
-        <div key={configKey}>
-            {def.type === "boolean" ? (
-                <div className="flex items-center justify-between">
-                    <div className="space-y-0.5">
-                        <Label className="text-base font-medium text-white">
-                            {def.description}
-                        </Label>
-                    </div>
-                    {renderConfigControl(configKey, def)}
-                </div>
-            ) : (
-                <div className="space-y-2">
-                    <Label htmlFor={configKey} className="text-sm font-medium text-white">
-                        {def.description}
-                    </Label>
-                    {renderConfigControl(configKey, def)}
-                    {def.type === "slider" && (
-                        <p className="text-xs text-neutral-400">
-                            Rango: {def.min} - {def.max}
-                        </p>
-                    )}
-                </div>
-            )}
-            {showSeparator && <Separator className="bg-neutral-800 my-4" />}
-        </div>
-    ), [renderConfigControl]);
-
     if (!isOpen) return null;
 
     return (
         <AnimatePresence>
             <motion.div
-                className="fixed inset-0 z-[999] flex items-center justify-center bg-black/75 overflow-hidden"
+                className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.2 }}
             >
                 <motion.div
-                    className="w-full h-full flex flex-col overflow-hidden"
+                    className="w-full h-full max-w-3xl flex flex-col overflow-hidden mx-4"
                     initial={{ y: 20, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     exit={{ y: 20, opacity: 0 }}
                     transition={{ type: "spring", stiffness: 300, damping: 30 }}
                 >
                     {/* Header */}
-                    <header className="bg-neutral-900 border-b border-neutral-800 p-4 flex justify-between items-center">
+                    <header className="bg-card border-b p-4 flex justify-between items-center rounded-t-xl">
                         <div className="flex items-center gap-2">
-                            <LucideSettings className="h-5 w-5 text-blue-500" />
-                            <h2 className="text-xl font-semibold text-white">Configuración</h2>
+                            <LucideSettings className="h-5 w-5 text-primary" />
+                            <h2 className="text-xl font-semibold">Configuración</h2>
                         </div>
                         <Button
                             variant="ghost"
                             size="icon"
                             onClick={onClose}
-                            className="rounded-full hover:bg-neutral-800"
+                            className="rounded-full"
                         >
-                            <LucideX className="h-5 w-5 text-neutral-400" />
+                            <LucideX className="h-5 w-5" />
                         </Button>
                     </header>
 
                     {/* Content */}
-                    <main className="flex-1 overflow-y-auto bg-neutral-950 p-4">
+                    <main className="flex-1 overflow-y-auto bg-background p-6">
                         {config.loading ? (
                             <div className="flex items-center justify-center h-full">
                                 <div className="flex flex-col items-center gap-2">
-                                    <LucideLoader className="h-8 w-8 animate-spin text-blue-500" />
-                                    <p className="text-lg text-white">Cargando configuración...</p>
+                                    <LucideLoader className="h-8 w-8 animate-spin text-primary" />
+                                    <p className="text-lg">Cargando configuración...</p>
                                 </div>
                             </div>
                         ) : (
-                            <div className="max-w-4xl mx-auto">
-                                <Card className="bg-neutral-950/50 border-neutral-800">
+                            <div className="space-y-6">
+                                {/* Header Card */}
+                                <Card>
                                     <CardHeader>
-                                        <CardTitle className="text-2xl font-semibold text-white">
+                                        <CardTitle className="text-2xl font-semibold">
                                             Configuración
                                         </CardTitle>
-                                        <CardDescription className="text-neutral-400">
+                                        <CardDescription>
                                             Personaliza los ajustes del launcher según tus preferencias
                                         </CardDescription>
                                     </CardHeader>
-
-                                    {config.sections.length > 0 && (
-                                        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-                                            <TabsList className="bg-neutral-900 border-b border-neutral-800 mx-4">
-                                                {config.sections.map((section) => (
-                                                    <TabsTrigger key={section} value={section}>
-                                                        {section.charAt(0).toUpperCase() + section.slice(1)}
-                                                    </TabsTrigger>
-                                                ))}
-                                            </TabsList>
-
-                                            <CardContent className="pt-6">
-                                                {config.sections.map((section) => {
-                                                    const sectionConfigs = getConfigsForSection(section);
-
-                                                    return (
-                                                        <TabsContent key={section} value={section} className="space-y-6">
-                                                            <div className="space-y-4">
-                                                                {sectionConfigs.map(([key, def], index, array) => (
-                                                                    <ConfigItem
-                                                                        key={key}
-                                                                        configKey={key}
-                                                                        def={def}
-                                                                        showSeparator={index < array.length - 1}
-                                                                    />
-                                                                ))}
-
-                                                                {/* Opciones adicionales para usuarios autenticados */}
-                                                                {isAuthenticated && section === "gameplay" && (
-                                                                    <>
-                                                                        <Separator className="bg-neutral-800" />
-                                                                        <div className="space-y-4">
-                                                                            <div className="flex items-center justify-between">
-                                                                                <div className="space-y-0.5">
-                                                                                    <Label className="text-base font-medium text-white">
-                                                                                        Opciones avanzadas
-                                                                                    </Label>
-                                                                                    <p className="text-sm text-neutral-400">
-                                                                                        Opciones adicionales para usuarios autenticados
-                                                                                    </p>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </>
-                                                                )}
-
-                                                                {/* Placeholder para futuras opciones */}
-                                                                {section === "gameplay" && sectionConfigs.length === 0 && (
-                                                                    <div className="h-32 flex items-center justify-center rounded-md border border-dashed border-neutral-700 bg-neutral-900/50">
-                                                                        <p className="text-sm text-neutral-400">
-                                                                            Más opciones estarán disponibles en futuras versiones
-                                                                        </p>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </TabsContent>
-                                                    );
-                                                })}
-                                            </CardContent>
-                                        </Tabs>
-                                    )}
                                 </Card>
+
+                                {/* Configuration Sections */}
+                                {config.sections.length > 0 && config.sections.map((section) => {
+                                    const sectionConfigs = getConfigsForSection(section);
+                                    const getSectionDescription = (sectionName: string) => {
+                                        switch (sectionName) {
+                                            case 'general':
+                                                return 'Configuraciones generales del launcher';
+                                            case 'gameplay':
+                                                return 'Configuraciones relacionadas con el gameplay';
+                                            case 'minecraft':
+                                                return 'Configuraciones específicas de Minecraft';
+                                            case 'account':
+                                                return 'Configuraciones de cuenta y autenticación';
+                                            default:
+                                                return `Configuraciones de ${sectionName}`;
+                                        }
+                                    };
+
+                                    return (
+                                        <ConfigSection
+                                            key={section}
+                                            title={section}
+                                            description={getSectionDescription(section)}
+                                            configs={sectionConfigs}
+                                            values={config.values}
+                                            onConfigChange={handleConfigChange}
+                                            onRestoreDefaults={() => handleRestoreDefaults(section)}
+                                            renderConfigControl={renderConfigControl}
+                                        />
+                                    );
+                                })}
+
+                                {/* Advanced options for authenticated users */}
+                                {isAuthenticated && (
+                                    <Card>
+                                        <CardHeader>
+                                            <CardTitle className="text-lg font-semibold">
+                                                Opciones Avanzadas
+                                            </CardTitle>
+                                            <CardDescription>
+                                                Opciones adicionales para usuarios autenticados
+                                            </CardDescription>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <div className="h-32 flex items-center justify-center rounded-md border border-dashed border-muted bg-muted/50">
+                                                <p className="text-sm text-muted-foreground">
+                                                    Próximamente disponibles más opciones avanzadas
+                                                </p>
+                                            </div>
+                                        </CardContent>
+                                    </Card>
+                                )}
                             </div>
                         )}
                     </main>
 
                     {/* Footer */}
-                    <footer className="bg-neutral-900 border-t border-neutral-800 p-4 flex justify-between items-center">
-                        <div className="text-xs text-neutral-500">
+                    <footer className="bg-card border-t p-4 flex justify-between items-center rounded-b-xl">
+                        <div className="text-xs text-muted-foreground">
                             Commit: {config.gitHash}
                         </div>
                         <div className="flex gap-2">
                             <Button
                                 variant="outline"
                                 onClick={onClose}
-                                className="border-neutral-700 hover:bg-neutral-800 text-white"
                                 disabled={config.saving}
                             >
                                 Cancelar
@@ -483,7 +430,6 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                             <Button
                                 onClick={handleSaveConfig}
                                 disabled={config.loading || config.saving}
-                                className="bg-blue-600 hover:bg-blue-500 text-white font-medium"
                             >
                                 {config.saving ? (
                                     <>
