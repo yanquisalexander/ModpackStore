@@ -26,6 +26,8 @@ export interface ModpackDataOverview {
     creatorUser?: CreatorUser;
     publisher?: Publisher;
     isPasswordProtected?: boolean;
+    requiresTwitchSubscription?: boolean;
+    twitchCreatorIds?: string[];
 }
 
 export interface CreatorUser {
@@ -39,6 +41,9 @@ export interface CreatorUser {
     patreonId?: null;
     patreonAccessToken?: null;
     patreonRefreshToken?: null;
+    twitchId?: string;
+    twitchAccessToken?: string;
+    twitchRefreshToken?: string;
     createdAt?: Date;
     updatedAt?: Date;
 }
