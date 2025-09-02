@@ -38,6 +38,7 @@ export class CurseForgeImportService {
     ): Promise<CurseForgeImportResult> {
         const importId = crypto.randomUUID();
         const workDir = path.join(TEMP_IMPORT_DIR, importId);
+        const errors: string[] = [];
         
         try {
             fs.mkdirSync(workDir, { recursive: true });
@@ -63,6 +64,11 @@ export class CurseForgeImportService {
                 options.parallelDownloads || 5
             );
 
+            // Add failed mod names to errors if any
+            if (stats.failedMods > 0) {
+                errors.push(`${stats.failedMods} mods could not be downloaded from CurseForge`);
+            }
+
             // Cleanup
             fs.rmSync(workDir, { recursive: true, force: true });
 
@@ -73,7 +79,7 @@ export class CurseForgeImportService {
                     version: version.version
                 },
                 stats,
-                errors: []
+                errors
             };
 
         } catch (error) {
@@ -81,6 +87,14 @@ export class CurseForgeImportService {
             if (fs.existsSync(workDir)) {
                 fs.rmSync(workDir, { recursive: true, force: true });
             }
+            
+            // Add error details
+            if (error instanceof Error) {
+                errors.push(error.message);
+            } else {
+                errors.push('Unknown error occurred during import');
+            }
+            
             throw error;
         }
     }
@@ -146,6 +160,36 @@ export class CurseForgeImportService {
         if (manifest.manifestType !== 'minecraftModpack') {
             throw new Error('Only Minecraft modpack manifests are supported');
         }
+
+        // Validate name length and characters
+        if (manifest.name.length > 100) {
+            throw new Error('Modpack name cannot exceed 100 characters');
+        }
+
+        // Validate version format
+        if (!/^\d+\.\d+(\.\d+)?/.test(manifest.version)) {
+            throw new Error('Version must follow semantic versioning (e.g., 1.0.0)');
+        }
+
+        // Validate Minecraft version format
+        if (!/^\d+\.\d+(\.\d+)?/.test(manifest.minecraft.version)) {
+            throw new Error('Minecraft version must be valid (e.g., 1.19.2)');
+        }
+
+        // Check for reasonable file count
+        if (manifest.files.length > 500) {
+            throw new Error('Too many mods in modpack (maximum 500 supported)');
+        }
+
+        // Validate file entries
+        for (const file of manifest.files) {
+            if (!file.projectID || !file.fileID) {
+                throw new Error('All mod files must have valid projectID and fileID');
+            }
+            if (file.projectID <= 0 || file.fileID <= 0) {
+                throw new Error('ProjectID and fileID must be positive numbers');
+            }
+        }
     }
 
     /**
@@ -158,12 +202,17 @@ export class CurseForgeImportService {
         customSlug?: string
     ): Promise<{ modpack: Modpack; version: ModpackVersion }> {
         // Generate slug from name if not provided
-        const slug = customSlug || this.generateSlug(manifest.name);
+        let slug = customSlug || this.generateSlug(manifest.name);
         
-        // Check if slug already exists
-        const existingModpack = await Modpack.findOne({ where: { slug } });
-        if (existingModpack) {
-            throw new Error(`Modpack with slug '${slug}' already exists`);
+        // Check if slug already exists and generate alternative if needed
+        let slugAttempt = 0;
+        const originalSlug = slug;
+        while (await Modpack.findOne({ where: { slug } })) {
+            slugAttempt++;
+            slug = `${originalSlug}-${slugAttempt}`;
+            if (slugAttempt > 10) {
+                throw new Error(`Unable to generate unique slug for modpack '${manifest.name}'`);
+            }
         }
 
         // Create modpack
@@ -171,7 +220,7 @@ export class CurseForgeImportService {
         modpack.name = manifest.name;
         modpack.slug = slug;
         modpack.description = `Imported from CurseForge by ${manifest.author}`;
-        modpack.shortDescription = `Minecraft ${manifest.minecraft.version} modpack`;
+        modpack.shortDescription = `Minecraft ${manifest.minecraft.version} modpack with ${manifest.files.length} mods`;
         modpack.publisherId = publisherId;
         modpack.creatorUserId = createdBy;
         modpack.status = ModpackStatus.DRAFT;
@@ -188,7 +237,7 @@ export class CurseForgeImportService {
         version.version = manifest.version;
         version.mcVersion = manifest.minecraft.version;
         version.forgeVersion = forgeVersion;
-        version.changelog = `Imported from CurseForge. Original author: ${manifest.author}`;
+        version.changelog = `Imported from CurseForge. Original author: ${manifest.author}. Contains ${manifest.files.length} mods.`;
         version.modpackId = modpack.id;
         version.createdBy = createdBy;
         version.status = ModpackVersionStatus.DRAFT;
@@ -461,10 +510,20 @@ export class CurseForgeImportService {
     private generateSlug(name: string): string {
         return name
             .toLowerCase()
+            // Remove special characters except spaces and hyphens
             .replace(/[^a-z0-9\s-]/g, '')
-            .replace(/\s+/g, '-')
+            // Replace multiple spaces with single space
+            .replace(/\s+/g, ' ')
+            // Trim spaces
+            .trim()
+            // Replace spaces with hyphens
+            .replace(/\s/g, '-')
+            // Remove multiple consecutive hyphens
             .replace(/-+/g, '-')
-            .trim();
+            // Remove leading/trailing hyphens
+            .replace(/^-|-$/g, '')
+            // Ensure minimum length
+            || 'imported-modpack';
     }
 
     /**
