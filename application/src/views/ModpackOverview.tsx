@@ -7,11 +7,14 @@ import { motion, useScroll, useTransform } from "motion/react"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { invoke } from "@tauri-apps/api/core"
 import { InstallButton } from "../components/install-modpacks/ModpackInstallButton" // Importamos el componente de instalación
+import { TwitchRequirements } from "@/components/TwitchRequirements"
 import { ModpackDataOverview } from "@/types/ApiResponses"
 import { getModpackVersions, ModpackVersionPublic, getLatestVersion, getNonArchivedVersions } from "@/services/getModpackVersions"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAuthentication } from "@/stores/AuthContext"
 
 export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
+    const { session } = useAuthentication();
 
     const [pageState, setPageState] = useState({
         loading: true,
@@ -377,6 +380,18 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                     </div>
                                 </div>
                             </div>
+
+                            {/* Twitch subscription requirements */}
+                            {modpackData.requiresTwitchSubscription && (
+                                <div className="mt-4">
+                                    <TwitchRequirements
+                                        requiresTwitchSubscription={modpackData.requiresTwitchSubscription}
+                                        requiredTwitchChannels={modpackData.twitchCreatorIds || []}
+                                        userHasTwitchLinked={Boolean(session?.twitchId)}
+                                        userCanAccess={true} // This should be determined by actual access check
+                                    />
+                                </div>
+                            )}
 
                             {/* Botón de instalación */}
                             <div className="mt-2 md:mt-0">
