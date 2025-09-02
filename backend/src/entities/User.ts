@@ -7,6 +7,7 @@ import { UserPurchase } from "./UserPurchase";
 import { WalletTransaction } from "./WalletTransaction";
 import { Publisher } from "./Publisher";
 import { PublisherMemberRole, UserRole } from "@/types/enums";
+import { sign } from "jsonwebtoken";
 
 @Entity({ name: "users" })
 export class User extends BaseEntity {
@@ -20,27 +21,27 @@ export class User extends BaseEntity {
     email: string;
 
     @Column({ name: "avatar_url", type: "text", nullable: true })
-    avatarUrl?: string;
+    avatarUrl?: string | null;
 
     // Discord fields
-    @Column({ name: "discord_id", type: "text", nullable: true })
-    discordId?: string;
+    @Column({ name: "discord_id", type: "text", nullable: true, unique: true })
+    discordId?: string | null;
 
     @Column({ name: "discord_access_token", type: "text", nullable: true })
-    discordAccessToken?: string;
+    discordAccessToken?: string | null;
 
     @Column({ name: "discord_refresh_token", type: "text", nullable: true })
-    discordRefreshToken?: string;
+    discordRefreshToken?: string | null;
 
     // Patreon fields
     @Column({ name: "patreon_id", type: "text", nullable: true })
-    patreonId?: string;
+    patreonId?: string | null;
 
     @Column({ name: "patreon_access_token", type: "text", nullable: true })
-    patreonAccessToken?: string;
+    patreonAccessToken?: string | null;
 
     @Column({ name: "patreon_refresh_token", type: "text", nullable: true })
-    patreonRefreshToken?: string;
+    patreonRefreshToken?: string | null;
 
     @Column({ 
         name: "role", 
@@ -49,6 +50,12 @@ export class User extends BaseEntity {
         default: UserRole.USER 
     })
     role: UserRole;
+
+    @Column({ name: "provider", type: "varchar", length: 50, nullable: true })
+    provider?: string | null;
+
+    @Column({ name: "last_login_at", type: "timestamp", nullable: true })
+    lastLoginAt?: Date | null;
 
     @CreateDateColumn({ name: "created_at" })
     createdAt: Date;
@@ -96,5 +103,62 @@ export class User extends BaseEntity {
 
     hasRole(role: UserRole): boolean {
         return this.role === role;
+    }
+
+    // Business logic methods
+    isPatron(): boolean {
+        return !!(this.patreonId && this.patreonAccessToken);
+    }
+
+    // Static finder methods
+    static async findByIdWithRelations(id: string): Promise<User | null> {
+        return await User.findOne({
+            where: { id },
+            relations: ["publisherMemberships", "publisherMemberships.publisher"]
+        });
+    }
+
+    // Token generation method
+    async generateTokens(session: Session): Promise<{ accessToken: string; refreshToken: string }> {
+        const secret = process.env.JWT_SECRET;
+        if (!secret) {
+            throw new Error("JWT_SECRET is not configured");
+        }
+
+        const payload = {
+            sub: this.id,
+            sessionId: session.id,
+        };
+
+        try {
+            const accessToken = sign(payload, secret, {
+                expiresIn: '4h',
+                issuer: 'ModpackStore',
+            });
+
+            const refreshToken = sign(payload, secret, {
+                expiresIn: '30d',
+                issuer: 'ModpackStore',
+            });
+
+            return { accessToken, refreshToken };
+        } catch (error) {
+            throw new Error(`Failed to generate tokens: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    // Public JSON serialization (excludes sensitive data)
+    toPublicJson() {
+        return {
+            id: this.id,
+            username: this.username,
+            email: this.email,
+            avatarUrl: this.avatarUrl,
+            role: this.role,
+            createdAt: this.createdAt,
+            updatedAt: this.updatedAt,
+            discordId: this.discordId,
+            patreonId: this.patreonId,
+        };
     }
 }

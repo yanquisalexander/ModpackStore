@@ -1,15 +1,22 @@
 import "dotenv/config";
 import axios from "axios";
 import jwt from "jsonwebtoken";
-import { User, TokenPayload } from "@/models/User.model";
-import { Session } from "@/models/Session.model";
+import { User } from "@/entities/User";
+import { Session } from "@/entities/Session";
+import { UserService } from "@/services/user.service";
 import { exchangeCodeForToken, getDiscordUser } from '@/services/discord';
 import { DISCORD_GUILD_ID, IS_BETA_PROGRAM } from "@/consts";
-import { APIError } from "@/lib/APIError"; // 1. Importar APIError
+import { APIError } from "@/lib/APIError";
 import { UserRole } from "@/types/enums";
 
 // Asumimos que JWT_SECRET se valida al iniciar la app
 const JWT_SECRET = process.env.JWT_SECRET!;
+
+// JWT Token payload interface
+export interface TokenPayload extends jwt.JwtPayload {
+    sub: string;
+    sessionId: number;
+}
 
 // Define un tipo más claro para el perfil público del usuario
 interface UserPublicProfile {
@@ -42,7 +49,13 @@ export class AuthService {
         // 2. Simplifica la lógica de creación/actualización del usuario.
         const user = await this.findOrCreateUser(discordApiUser, discordToken);
 
-        const session = await Session.create({ userId: user.id, deviceInfo: {}, locationInfo: {} });
+        const session = Session.create({ 
+            userId: user.id, 
+            deviceInfo: {}, 
+            locationInfo: {} 
+        });
+        await session.save();
+        
         const jwtTokens = await user.generateTokens(session);
 
         return {
@@ -70,8 +83,8 @@ export class AuthService {
         }
 
         const { sub: userId, sessionId } = decoded;
-        const user = await User.findById(userId);
-        const session = await Session.findById(sessionId);
+        const user = await User.findOne({ where: { id: userId } });
+        const session = await Session.findOne({ where: { id: sessionId } });
 
         if (!user || !session || session.userId !== user.id) {
             throw new APIError(401, 'Invalid session or user.', 'INVALID_SESSION');
@@ -95,14 +108,13 @@ export class AuthService {
             throw new APIError(400, 'User ID is required.', 'MISSING_USER_ID');
         }
 
-        const userWithRelations = await User.getCompleteUser(userId);
+        const userWithRelations = await User.findByIdWithRelations(userId);
         if (!userWithRelations) {
             throw new APIError(404, 'User not found.', 'USER_NOT_FOUND');
         }
 
-        // Crea una instancia para usar sus métodos, como toPublicJson()
-        const userInstance = new User(userWithRelations);
-        const publicUserProfile = userInstance.toPublicJson();
+        // Use the public JSON method from the entity
+        const publicUserProfile = userWithRelations.toPublicJson();
 
         return {
             ...publicUserProfile,
@@ -142,35 +154,42 @@ export class AuthService {
 
     /**
      * Encuentra un usuario por su ID de Discord o crea uno nuevo si no existe.
+     * Optimizado con upsert usando TypeORM.
      * @private
      */
     private static async findOrCreateUser(discordApiUser: any, discordToken: any): Promise<User> {
-        const userPayload = {
-            discordAccessToken: discordToken.access_token,
-            discordRefreshToken: discordToken.refresh_token,
-            avatarUrl: discordApiUser.avatar ? `https://cdn.discordapp.com/avatars/${discordApiUser.id}/${discordApiUser.avatar}.png` : null,
-            username: discordApiUser.username,
-            email: discordApiUser.email,
-        };
-
-        let user = await User.findByDiscordId(discordApiUser.id);
-
-        if (!user) {
-            // Si el usuario no existe, créalo.
-            user = await User.create({
+        try {
+            // 1. Crear/actualizar usuario usando el servicio optimizado
+            const user = await UserService.upsertDiscordUser({
+                discordId: discordApiUser.id,
                 username: discordApiUser.username,
                 email: discordApiUser.email,
-                admin: false
+                avatar: discordApiUser.avatar,
+                provider: "discord"
             });
-        } else {
-            // Si el usuario existe, actualízalo.
-            user = await User.update(user.id, userPayload);
-        }
 
-        if (!user) {
+            // 2. Actualizar tokens de Discord si existen
+            if (discordToken.access_token && discordToken.refresh_token) {
+                await UserService.updateDiscordTokens(
+                    user.id,
+                    discordToken.access_token,
+                    discordToken.refresh_token
+                );
+            }
+
+            console.log(`[AuthService] Successfully processed Discord user: ${user.id}`);
+            return user;
+
+        } catch (error) {
+            console.error('[AuthService] Error in findOrCreateUser:', error);
+            
+            // Re-throw APIErrors as is
+            if (error instanceof APIError) {
+                throw error;
+            }
+            
+            // Wrap other errors
             throw new APIError(500, 'Failed to create or update user.', 'USER_UPSERT_FAILED');
         }
-
-        return user;
     }
 }
