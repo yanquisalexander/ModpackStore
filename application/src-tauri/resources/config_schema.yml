@@ -63,3 +63,17 @@ showSnapshots:
   default: false
   description: "Mostrar versiones de Minecraft Snapshot"
   ui_section: gameplay
+
+firstRunAt:
+  type: string
+  default: null
+  description: "Timestamp de la primera ejecución de la aplicación"
+  ui_section: internal
+
+ramAllocation:
+  type: integer
+  default: 2048
+  min: 1024
+  max: 16384
+  description: "Memoria RAM asignada para Minecraft en MB (configurada durante el onboarding)"
+  ui_section: gameplay

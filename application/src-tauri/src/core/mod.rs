@@ -13,5 +13,6 @@ pub mod minecraft_instance;
 pub mod models;
 pub mod modpack_file_manager;
 pub mod network_utilities;
+pub mod onboarding;
 pub mod prelaunch_appearance;
 pub mod tasks_manager;
