@@ -136,4 +136,9 @@ authRoutes.post('/refresh', AccountsController.refreshTokens);
 // authRoutes.get('/me', requireAuth, AccountsController.getCurrentUser);
 authRoutes.get('/me', requireAuth, AccountsController.getCurrentUser);
 
+// Twitch OAuth routes
+authRoutes.get('/twitch/callback', requireAuth, AccountsController.callbackTwitch);
+authRoutes.post('/twitch/unlink', requireAuth, AccountsController.unlinkTwitch);
+authRoutes.get('/twitch/status', requireAuth, AccountsController.getTwitchStatus);
+
 export default authRoutes;

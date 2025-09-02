@@ -43,6 +43,16 @@ export class User extends BaseEntity {
     @Column({ name: "patreon_refresh_token", type: "text", nullable: true })
     patreonRefreshToken?: string | null;
 
+    // Twitch fields
+    @Column({ name: "twitch_id", type: "text", nullable: true, unique: true })
+    twitchId?: string | null;
+
+    @Column({ name: "twitch_access_token", type: "text", nullable: true })
+    twitchAccessToken?: string | null;
+
+    @Column({ name: "twitch_refresh_token", type: "text", nullable: true })
+    twitchRefreshToken?: string | null;
+
     @Column({ 
         name: "role", 
         type: "enum", 
@@ -110,6 +120,11 @@ export class User extends BaseEntity {
         return !!(this.patreonId && this.patreonAccessToken);
     }
 
+    // Check if user has Twitch linked
+    hasTwitchLinked(): boolean {
+        return !!(this.twitchId && this.twitchAccessToken);
+    }
+
     // Static finder methods
     static async findByIdWithRelations(id: string): Promise<User | null> {
         return await User.findOne({
@@ -159,6 +174,7 @@ export class User extends BaseEntity {
             updatedAt: this.updatedAt,
             discordId: this.discordId,
             patreonId: this.patreonId,
+            twitchId: this.twitchId,
         };
     }
 }
