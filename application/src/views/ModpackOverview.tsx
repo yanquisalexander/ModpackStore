@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform } from "motion/react";
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
 import { invoke } from "@tauri-apps/api/core";
 import { InstallButton } from "../components/install-modpacks/ModpackInstallButton";
