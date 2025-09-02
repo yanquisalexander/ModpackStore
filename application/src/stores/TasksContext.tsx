@@ -5,9 +5,9 @@ import { toast } from "sonner";
 
 export type TaskStatus = "Pending" | "Running" | "Completed" | "Failed" | "Cancelled";
 
-export type BootstrapStep = 
+export type BootstrapStep =
     | "CreatingDirectories"
-    | "DownloadingManifest" 
+    | "DownloadingManifest"
     | "DownloadingVersionJson"
     | "DownloadingClientJar"
     | "CheckingJavaVersion"
@@ -60,7 +60,6 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     const hasRunningTasks = tasks.some((task) => task.status === "Running");
     const taskCount = tasks.length;
 
-    // Filtrar tareas en "Running" y que tengan un instanceId en su data, y solo devolver un array de id de instancia
     const instancesBootstraping = tasks.filter(
         (task) => task.status === "Running" && task.data?.instanceId
     ).map((task) => task.data.instanceId);
@@ -91,22 +90,17 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
             const idx = newTasks.findIndex((t) => t.id === taskUpdate.id);
 
             if (idx !== -1) {
-                // Update existing task - merge only defined fields
                 const existingTask = newTasks[idx];
                 newTasks[idx] = {
                     ...existingTask,
                     ...taskUpdate,
-                    // Ensure progress is within bounds
                     progress: Math.max(0, Math.min(100, taskUpdate.progress))
                 };
-                console.log(`Updated task: ${taskUpdate.id}`, newTasks[idx]);
             } else {
-                // Add new task
                 newTasks.push({
                     ...taskUpdate,
                     progress: Math.max(0, Math.min(100, taskUpdate.progress))
                 });
-                console.log(`Added new task: ${taskUpdate.id}`, taskUpdate);
             }
 
             return newTasks;
@@ -131,7 +125,6 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
             }
         } catch (error) {
             console.error("Failed to sync tasks from backend:", error);
-            // Try to trigger resync from backend side as fallback
             try {
                 const resyncSuccess = await invoke("resync_tasks_command");
                 if (resyncSuccess) {
@@ -145,23 +138,20 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
         }
     }, []);
 
-    // Función para verificar si un modpack está siendo instalado
     const isModpackInstalling = useCallback((modpackId: string) => {
-        const result = tasks.some(
+        return tasks.some(
             (task) =>
                 task.status === "Running" &&
                 (task.data?.type === "modpack_instance_creation" || task.data?.type === "modpack_update") &&
                 task.data?.modpackId === modpackId
         );
-        return result;
     }, [tasks]);
 
-    // Helper function to display bootstrap errors with better messaging
     const displayBootstrapError = useCallback((error: BootstrapError, instanceName: string) => {
         const stepMessages: Record<BootstrapStep, string> = {
             CreatingDirectories: "creando directorios",
             DownloadingManifest: "descargando manifiesto de versión",
-            DownloadingVersionJson: "descargando configuración de versión", 
+            DownloadingVersionJson: "descargando configuración de versión",
             DownloadingClientJar: "descargando cliente de Minecraft",
             CheckingJavaVersion: "verificando versión de Java",
             InstallingJava: "instalando Java",
@@ -193,6 +183,13 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
             } : undefined
         });
     }, []);
+    
+    // Refs to hold the latest values of state without causing effect to re-run
+    const lastSyncTimeRef = useRef(lastSyncTime);
+    lastSyncTimeRef.current = lastSyncTime;
+
+    const hasRunningTasksRef = useRef(hasRunningTasks);
+    hasRunningTasksRef.current = hasRunningTasks;
 
     useEffect(() => {
         let mounted = true;
@@ -200,32 +197,26 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
         // Initial sync when component mounts
         syncTasks();
 
-        // Set up event listeners with better error handling
+        // Set up event listeners
         const setupListeners = async () => {
             try {
                 const unlisten1 = await listen<TaskInfo>("task-created", (event) => {
                     if (!mounted) return;
-                    console.log("Nueva tarea creada:", event.payload);
                     updateTaskSafely(event.payload);
                 });
 
                 const unlisten2 = await listen<TaskInfo>("task-updated", (event) => {
                     if (!mounted) return;
-                    console.log("Tarea actualizada:", event.payload);
                     updateTaskSafely(event.payload);
                 });
 
                 const unlisten3 = await listen<string>("task-removed", (event) => {
                     if (!mounted) return;
-                    console.log("Tarea removida:", event.payload);
                     setTasks((prev) => prev.filter((task) => task.id !== event.payload));
                 });
 
-                // Listen for bootstrap errors to show enhanced error messages
                 const unlisten4 = await listen<any>("bootstrap-error", (event) => {
                     if (!mounted) return;
-                    console.log("Bootstrap error received:", event.payload);
-                    
                     const { name: instanceName, error } = event.payload;
                     if (error && instanceName) {
                         displayBootstrapError(error, instanceName);
@@ -240,7 +231,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
 
         setupListeners();
 
-        // Set up visibility change handler for sync when user returns to tab
+        // Set up visibility change handler for sync
         const handleVisibilityChange = () => {
             if (!document.hidden && mounted) {
                 console.log("Window became visible, syncing tasks");
@@ -253,9 +244,9 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
         // Set up periodic sync to prevent desynchronization
         const syncInterval = setInterval(() => {
             if (mounted) {
-                const timeSinceLastSync = Date.now() - lastSyncTime;
-                // Sync every 30 seconds if there are running tasks, or every 5 minutes otherwise
-                const syncIntervalMs = hasRunningTasks ? 30000 : 300000;
+                // Use refs to get current values without re-triggering the effect
+                const timeSinceLastSync = Date.now() - lastSyncTimeRef.current;
+                const syncIntervalMs = hasRunningTasksRef.current ? 30000 : 300000;
 
                 if (timeSinceLastSync >= syncIntervalMs) {
                     console.log("Periodic task sync triggered");
@@ -279,7 +270,8 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
             });
             unlistenRef.current = [];
         };
-    }, [syncTasks, updateTaskSafely, lastSyncTime, hasRunningTasks, displayBootstrapError]);
+    // The dependency array is now stable, so this effect runs only on mount
+    }, [syncTasks, updateTaskSafely, displayBootstrapError]);
 
     return (
         <TasksContext.Provider value={{

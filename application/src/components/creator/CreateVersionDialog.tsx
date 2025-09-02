@@ -21,26 +21,13 @@ interface Props {
     };
 }
 
-interface MinecraftVersion {
-    id: string;
-    type: string;
-    url: string;
-    time: string;
-    releaseTime: string;
-}
-
-interface ForgeVersion {
-    version: string;
-    mcVersion: string;
-}
-
 export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, modpack }) => {
     const { sessionTokens } = useAuthentication();
     const [loading, setLoading] = useState(false);
     const [formData, setFormData] = useState({
         versionName: '',
         mcVersion: '',
-        forgeVersion: '',
+        forgeVersion: 'none',
         changelog: ''
     });
 
@@ -55,14 +42,14 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        
+
         if (!formData.versionName.trim() || !formData.mcVersion) {
             toast.error('El nombre de la versión y la versión de Minecraft son requeridos');
             return;
         }
 
         setLoading(true);
-        
+
         try {
             const response = await fetch(
                 `${API_ENDPOINT}/creators/publishers/${modpack.publisherId}/modpacks/${modpack.id}/versions`,
@@ -75,7 +62,7 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                     body: JSON.stringify({
                         versionName: formData.versionName.trim(),
                         mcVersion: formData.mcVersion,
-                        forgeVersion: formData.forgeVersion || null,
+                        forgeVersion: formData.forgeVersion === 'none' ? null : formData.forgeVersion || null,
                         changelog: formData.changelog.trim() || null
                     }),
                 }
@@ -88,15 +75,15 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
 
             const data = await response.json();
             toast.success('Versión creada exitosamente');
-            
+
             // Reset form
             setFormData({
                 versionName: '',
                 mcVersion: '',
-                forgeVersion: '',
+                forgeVersion: 'none',
                 changelog: ''
             });
-            
+
             onSuccess(data.version?.id || 'new-version');
             onClose();
         } catch (error) {
@@ -112,7 +99,7 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
             setFormData({
                 versionName: '',
                 mcVersion: '',
-                forgeVersion: '',
+                forgeVersion: 'none',
                 changelog: ''
             });
             onClose();
@@ -152,8 +139,8 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                         <label className="text-sm font-medium text-gray-700 block mb-1">
                             Versión de Minecraft *
                         </label>
-                        <Select 
-                            value={formData.mcVersion} 
+                        <Select
+                            value={formData.mcVersion}
                             onValueChange={(value) => setFormData(prev => ({ ...prev, mcVersion: value }))}
                             disabled={loading}
                             required
@@ -176,8 +163,8 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                         <label className="text-sm font-medium text-gray-700 block mb-1">
                             Versión de Forge (Opcional)
                         </label>
-                        <Select 
-                            value={formData.forgeVersion} 
+                        <Select
+                            value={formData.forgeVersion}
                             onValueChange={(value) => setFormData(prev => ({ ...prev, forgeVersion: value }))}
                             disabled={loading}
                         >
@@ -185,7 +172,7 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                                 <SelectValue placeholder="Seleccionar versión de Forge (opcional)" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">Sin Forge (Vanilla)</SelectItem>
+                                <SelectItem value="none">Sin Forge (Vanilla)</SelectItem>
                                 {forgeVersions.map((version) => (
                                     <SelectItem key={version} value={version}>
                                         Forge {version}
@@ -212,7 +199,7 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                     {/* Info Box */}
                     <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
                         <p className="text-sm text-blue-800">
-                            <strong>Siguiente paso:</strong> Después de crear la versión, podrás subir archivos 
+                            <strong>Siguiente paso:</strong> Después de crear la versión, podrás subir archivos
                             o reutilizar archivos de versiones anteriores en cada categoría (mods, resourcepacks, config, etc.).
                         </p>
                     </div>

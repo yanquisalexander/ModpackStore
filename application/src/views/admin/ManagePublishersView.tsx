@@ -13,8 +13,6 @@ import {
     LucideLoader,
     LucideTrash,
     LucideEdit,
-    LucideUserPlus,
-    LucideSearch,
     LucideRefreshCw,
     LucideBuilding2,
     LucideUsers,
@@ -61,13 +59,6 @@ interface PublisherMember {
     };
 }
 
-interface PaginatedPublishers {
-    publishers: Publisher[];
-    total: number;
-    page: number;
-    totalPages: number;
-}
-
 interface PublisherFormData {
     publisherName: string;
     description: string;
@@ -91,7 +82,7 @@ class AdminPublishersAPI {
         partnered?: boolean;
         sortBy?: string;
         sortOrder?: string;
-    } = {}) {
+    } = {}, accessToken: string): Promise<any> {
         const params = new URLSearchParams();
         Object.entries(options).forEach(([key, value]) => {
             if (value !== undefined) {
@@ -100,7 +91,10 @@ class AdminPublishersAPI {
         });
 
         const response = await fetch(`${this.baseUrl}?${params}`, {
-            credentials: 'include',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
         });
 
         if (!response.ok) {
@@ -110,9 +104,12 @@ class AdminPublishersAPI {
         return response.json();
     }
 
-    static async getPublisher(id: string) {
+    static async getPublisher(id: string, accessToken: string): Promise<any> {
         const response = await fetch(`${this.baseUrl}/${id}`, {
-            credentials: 'include',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
         });
 
         if (!response.ok) {
@@ -122,13 +119,13 @@ class AdminPublishersAPI {
         return response.json();
     }
 
-    static async createPublisher(data: PublisherFormData) {
+    static async createPublisher(data: PublisherFormData, accessToken: string): Promise<any> {
         const response = await fetch(this.baseUrl, {
             method: 'POST',
             headers: {
+                'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
-            credentials: 'include',
             body: JSON.stringify(data),
         });
 
@@ -145,13 +142,13 @@ class AdminPublishersAPI {
         partnered: boolean;
         banned: boolean;
         isHostingPartner: boolean;
-    }>) {
+    }>, accessToken: string): Promise<any> {
         const response = await fetch(`${this.baseUrl}/${id}`, {
             method: 'PUT',
             headers: {
+                'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
-            credentials: 'include',
             body: JSON.stringify(data),
         });
 
@@ -163,10 +160,12 @@ class AdminPublishersAPI {
         return response.json();
     }
 
-    static async deletePublisher(id: string) {
+    static async deletePublisher(id: string, accessToken: string): Promise<void> {
         const response = await fetch(`${this.baseUrl}/${id}`, {
             method: 'DELETE',
-            credentials: 'include',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
         });
 
         if (!response.ok) {
@@ -175,9 +174,12 @@ class AdminPublishersAPI {
         }
     }
 
-    static async getPublisherMembers(publisherId: string, page = 1, limit = 20) {
+    static async getPublisherMembers(publisherId: string, page = 1, limit = 20, accessToken: string): Promise<any> {
         const response = await fetch(`${this.baseUrl}/${publisherId}/members?page=${page}&limit=${limit}`, {
-            credentials: 'include',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
         });
 
         if (!response.ok) {
@@ -187,13 +189,13 @@ class AdminPublishersAPI {
         return response.json();
     }
 
-    static async addMember(publisherId: string, userId: string, role: string) {
+    static async addMember(publisherId: string, userId: string, role: string, accessToken: string): Promise<any> {
         const response = await fetch(`${this.baseUrl}/${publisherId}/members`, {
             method: 'POST',
             headers: {
+                'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
-            credentials: 'include',
             body: JSON.stringify({ userId, role }),
         });
 
@@ -205,10 +207,12 @@ class AdminPublishersAPI {
         return response.json();
     }
 
-    static async removeMember(publisherId: string, userId: string) {
+    static async removeMember(publisherId: string, userId: string, accessToken: string): Promise<void> {
         const response = await fetch(`${this.baseUrl}/${publisherId}/members/${userId}`, {
             method: 'DELETE',
-            credentials: 'include',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
         });
 
         if (!response.ok) {
@@ -217,13 +221,13 @@ class AdminPublishersAPI {
         }
     }
 
-    static async updateMemberRole(publisherId: string, userId: string, role: string) {
+    static async updateMemberRole(publisherId: string, userId: string, role: string, accessToken: string): Promise<any> {
         const response = await fetch(`${this.baseUrl}/${publisherId}/members/${userId}`, {
             method: 'PUT',
             headers: {
+                'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
-            credentials: 'include',
             body: JSON.stringify({ role }),
         });
 
@@ -373,7 +377,7 @@ const PublisherForm: React.FC<{
     );
 };
 
-const PublisherDetails: React.FC<{ 
+const PublisherDetails: React.FC<{
     publisher: Publisher;
     onEdit: () => void;
     onDelete: () => void;
@@ -381,15 +385,21 @@ const PublisherDetails: React.FC<{
 }> = ({ publisher, onEdit, onDelete, onToggleStatus }) => {
     const [members, setMembers] = useState<PublisherMember[]>([]);
     const [membersLoading, setMembersLoading] = useState(false);
+    const { sessionTokens } = useAuthentication();
 
     useEffect(() => {
         loadMembers();
     }, [publisher.id]);
 
     const loadMembers = async () => {
+        if (!sessionTokens?.accessToken) {
+            console.error('No access token available');
+            return;
+        }
+
         setMembersLoading(true);
         try {
-            const result = await AdminPublishersAPI.getPublisherMembers(publisher.id);
+            const result = await AdminPublishersAPI.getPublisherMembers(publisher.id, 1, 20, sessionTokens.accessToken);
             setMembers(result.data || []);
         } catch (error) {
             console.error('Error loading members:', error);
@@ -494,8 +504,8 @@ const PublisherDetails: React.FC<{
                                                 <TableCell>
                                                     <div className="flex items-center gap-2">
                                                         {member.user?.avatarUrl && (
-                                                            <img 
-                                                                src={member.user.avatarUrl} 
+                                                            <img
+                                                                src={member.user.avatarUrl}
                                                                 alt={member.user.username}
                                                                 className="w-6 h-6 rounded-full"
                                                             />
@@ -616,7 +626,7 @@ const PublisherDetails: React.FC<{
 };
 
 export const ManagePublishersView: React.FC = () => {
-    const { session } = useAuthentication();
+    const { session, sessionTokens } = useAuthentication();
     const { toast } = useToast();
 
     // State
@@ -624,7 +634,7 @@ export const ManagePublishersView: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedPublisher, setSelectedPublisher] = useState<Publisher | null>(null);
-    
+
     // Dialog states
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [showEditDialog, setShowEditDialog] = useState(false);
@@ -643,10 +653,17 @@ export const ManagePublishersView: React.FC = () => {
     const limit = 10;
 
     useEffect(() => {
-        loadPublishers();
-    }, [currentPage, search, verifiedFilter, partneredFilter]);
+        if (sessionTokens?.accessToken) {
+            loadPublishers();
+        }
+    }, [currentPage, search, verifiedFilter, partneredFilter, sessionTokens?.accessToken]);
 
     const loadPublishers = async () => {
+        if (!sessionTokens?.accessToken) {
+            setError('No access token available');
+            return;
+        }
+
         setLoading(true);
         setError(null);
         try {
@@ -661,8 +678,8 @@ export const ManagePublishersView: React.FC = () => {
             if (verifiedFilter !== 'all') options.verified = verifiedFilter === 'true';
             if (partneredFilter !== 'all') options.partnered = partneredFilter === 'true';
 
-            const result = await AdminPublishersAPI.getPublishers(options);
-            
+            const result = await AdminPublishersAPI.getPublishers(options, sessionTokens.accessToken);
+
             setPublishers(result.data || []);
             setTotal(result.meta?.total || 0);
             setTotalPages(result.meta?.totalPages || 1);
@@ -679,9 +696,18 @@ export const ManagePublishersView: React.FC = () => {
     };
 
     const handleCreatePublisher = async (data: PublisherFormData) => {
+        if (!sessionTokens?.accessToken) {
+            toast({
+                title: 'Error',
+                description: 'No access token available',
+                variant: 'destructive'
+            });
+            return;
+        }
+
         setOperationLoading(true);
         try {
-            await AdminPublishersAPI.createPublisher(data);
+            await AdminPublishersAPI.createPublisher(data, sessionTokens.accessToken);
             toast({
                 title: "Éxito",
                 description: "Publisher creado exitosamente",
@@ -701,10 +727,19 @@ export const ManagePublishersView: React.FC = () => {
 
     const handleEditPublisher = async (data: PublisherFormData) => {
         if (!selectedPublisher) return;
-        
+
+        if (!sessionTokens?.accessToken) {
+            toast({
+                title: 'Error',
+                description: 'No access token available',
+                variant: 'destructive'
+            });
+            return;
+        }
+
         setOperationLoading(true);
         try {
-            await AdminPublishersAPI.updatePublisher(selectedPublisher.id, data);
+            await AdminPublishersAPI.updatePublisher(selectedPublisher.id, data, sessionTokens.accessToken);
             toast({
                 title: "Éxito",
                 description: "Publisher actualizado exitosamente",
@@ -728,8 +763,17 @@ export const ManagePublishersView: React.FC = () => {
             return;
         }
 
+        if (!sessionTokens?.accessToken) {
+            toast({
+                title: 'Error',
+                description: 'No access token available',
+                variant: 'destructive'
+            });
+            return;
+        }
+
         try {
-            await AdminPublishersAPI.deletePublisher(publisher.id);
+            await AdminPublishersAPI.deletePublisher(publisher.id, sessionTokens.accessToken);
             toast({
                 title: "Éxito",
                 description: "Publisher eliminado exitosamente",
@@ -745,8 +789,17 @@ export const ManagePublishersView: React.FC = () => {
     };
 
     const handleToggleStatus = async (publisherId: string, field: 'verified' | 'partnered' | 'banned' | 'isHostingPartner', value: boolean) => {
+        if (!sessionTokens?.accessToken) {
+            toast({
+                title: 'Error',
+                description: 'No access token available',
+                variant: 'destructive'
+            });
+            return;
+        }
+
         try {
-            await AdminPublishersAPI.updatePublisher(publisherId, { [field]: value });
+            await AdminPublishersAPI.updatePublisher(publisherId, { [field]: value }, sessionTokens.accessToken);
             toast({
                 title: "Éxito",
                 description: "Estado del publisher actualizado exitosamente",
@@ -891,9 +944,10 @@ export const ManagePublishersView: React.FC = () => {
                                     {publishers.map((publisher) => (
                                         <TableRow key={publisher.id}>
                                             <TableCell>
+
                                                 <div className="flex items-center gap-3">
-                                                    <img 
-                                                        src={publisher.logoUrl} 
+                                                    <img
+                                                        src={publisher.logoUrl}
                                                         alt={publisher.publisherName}
                                                         className="w-8 h-8 rounded"
                                                         onError={(e) => {
@@ -924,8 +978,8 @@ export const ManagePublishersView: React.FC = () => {
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex gap-2">
-                                                    <Button 
-                                                        variant="outline" 
+                                                    <Button
+                                                        variant="outline"
                                                         size="sm"
                                                         onClick={() => {
                                                             setSelectedPublisher(publisher);
@@ -934,8 +988,8 @@ export const ManagePublishersView: React.FC = () => {
                                                     >
                                                         Ver
                                                     </Button>
-                                                    <Button 
-                                                        variant="outline" 
+                                                    <Button
+                                                        variant="outline"
                                                         size="sm"
                                                         onClick={() => {
                                                             setSelectedPublisher(publisher);
@@ -944,8 +998,8 @@ export const ManagePublishersView: React.FC = () => {
                                                     >
                                                         <LucideEdit className="h-4 w-4" />
                                                     </Button>
-                                                    <Button 
-                                                        variant="destructive" 
+                                                    <Button
+                                                        variant="destructive"
                                                         size="sm"
                                                         onClick={() => handleDeletePublisher(publisher)}
                                                     >

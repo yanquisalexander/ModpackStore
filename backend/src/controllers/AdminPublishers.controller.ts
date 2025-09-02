@@ -38,7 +38,7 @@ export class AdminPublishersController {
         } catch (error: any) {
             console.error("[CONTROLLER_ADMIN_PUBLISHER] Error creating publisher:", error);
             if (error instanceof APIError) throw error;
-            throw new APIError(error.statusCode || 500, error.name || 'Create Publisher Error', error.message || "Error creating publisher", error.errorCode);
+            throw new APIError(error.statusCode || 500, error.message || "Error creating publisher", error.errorCode);
         }
     }
 
@@ -51,13 +51,13 @@ export class AdminPublishersController {
                 search: query.search,
                 verified: query.verified !== undefined ? query.verified === 'true' : undefined,
                 partnered: query.partnered !== undefined ? query.partnered === 'true' : undefined,
-                sortBy: query.sortBy || 'createdAt',
-                sortOrder: query.sortOrder || 'DESC'
+                sortBy: (query.sortBy as 'publisherName' | 'createdAt' | 'verified' | 'partnered') || 'createdAt',
+                sortOrder: (query.sortOrder as 'ASC' | 'DESC') || 'DESC'
             };
 
             const result = await AdminPublishersService.listPublishers(options);
             return c.json({
-                data: result.publishers.map(publisher => serializeResource('publisher', publisher)),
+                data: result.publishers,
                 meta: {
                     total: result.total,
                     page: result.page,
@@ -76,7 +76,7 @@ export class AdminPublishersController {
         try {
             const publisherId = c.req.param('publisherId');
             if (!publisherId) { // Should be guaranteed by route, but good practice
-                 throw new APIError(400, 'Bad Request', 'Publisher ID is missing from path.');
+                throw new APIError(400, 'Bad Request', 'Publisher ID is missing from path.');
             }
 
             const publisherDetails = await AdminPublishersService.getPublisherDetails(publisherId);
@@ -130,7 +130,7 @@ export class AdminPublishersController {
             console.error("[CONTROLLER_ADMIN_PUBLISHER] Error updating publisher:", error);
             if (error instanceof APIError) throw error;
             const statusCode = error.statusCode || (error.message && error.message.includes("not found") ? 404 : 500);
-            throw new APIError(statusCode, error.name || (statusCode === 404 ? 'Not Found' : 'Update Publisher Error'), error.message || "Error updating publisher", error.errorCode);
+            throw new APIError(statusCode, error.message || "Error updating publisher", error.errorCode);
         }
     }
 
@@ -143,7 +143,7 @@ export class AdminPublishersController {
             }
             const adminUserId = user.id;
             const publisherId = c.req.param('publisherId');
-             if (!publisherId) {
+            if (!publisherId) {
                 throw new APIError(400, 'Bad Request', 'Publisher ID is missing from path.');
             }
 
@@ -152,8 +152,7 @@ export class AdminPublishersController {
         } catch (error: any) {
             console.error("[CONTROLLER_ADMIN_PUBLISHER] Error deleting publisher:", error);
             if (error instanceof APIError) throw error;
-            const statusCode = error.statusCode || (error.message && error.message.includes("not found") ? 404 : 500);
-            throw new APIError(statusCode, error.name || (statusCode === 404 ? 'Not Found' : 'Delete Publisher Error'), error.message || "Error deleting publisher", error.errorCode);
+            throw new APIError(error.statusCode || 500, error.message || "Error deleting publisher", error.errorCode);
         }
     }
 
@@ -170,7 +169,7 @@ export class AdminPublishersController {
 
             const result = await AdminPublishersService.getPublisherMembers(publisherId, page, limit);
             return c.json({
-                data: result.members.map(member => serializeResource('publisherMember', member)),
+                data: result.members,
                 meta: {
                     total: result.total,
                     page,
@@ -226,7 +225,7 @@ export class AdminPublishersController {
             const adminUserId = user.id;
             const publisherId = c.req.param('publisherId');
             const userId = c.req.param('userId');
-            
+
             if (!publisherId || !userId) {
                 throw new APIError(400, 'Bad Request', 'Publisher ID and User ID are required.');
             }
@@ -249,7 +248,7 @@ export class AdminPublishersController {
             const adminUserId = user.id;
             const publisherId = c.req.param('publisherId');
             const userId = c.req.param('userId');
-            
+
             if (!publisherId || !userId) {
                 throw new APIError(400, 'Bad Request', 'Publisher ID and User ID are required.');
             }

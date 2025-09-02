@@ -145,7 +145,7 @@ export const AuditLogsView: React.FC = () => {
                 page: currentPage,
                 limit: 20,
                 userId: userIdFilter || undefined,
-                action: actionFilter || undefined,
+                action: actionFilter === 'all' ? undefined : actionFilter || undefined,
                 startDate: startDate || undefined,
                 endDate: endDate || undefined
             }, sessionTokens.accessToken);
