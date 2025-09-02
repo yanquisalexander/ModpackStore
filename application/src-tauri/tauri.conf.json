@@ -23,8 +23,6 @@
       "icons/icon.ico"
     ],
     "windows": {
-      "certificateThumbprint": "4211DD22E92904001788B6E7AE9D2485D3DEEC86",
-      "digestAlgorithm": "sha256",
       "nsis": {
         "installMode": "currentUser",
         "sidebarImage": "./resources/installer_bg.bmp"
