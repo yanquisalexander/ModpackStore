@@ -1,6 +1,8 @@
 import { Context } from 'hono';
 import { AuditService, AuditLogQueryOptions } from '../services/audit.service';
 import { AuditAction } from '../entities/AuditLog';
+import { USER_CONTEXT_KEY } from "@/middlewares/auth.middleware";
+import { User } from "@/entities/User";
 
 export class AuditController {
     static async listAuditLogs(c: Context) {
@@ -16,9 +18,9 @@ export class AuditController {
             };
 
             const result = await AuditService.getLogs(options);
-            
+
             // Log that audit logs were viewed
-            const user = c.get('user');
+            const user = c.get(USER_CONTEXT_KEY) as User
             await AuditService.createLog({
                 action: AuditAction.AUDIT_LOG_VIEWED,
                 userId: user.id,
@@ -35,11 +37,11 @@ export class AuditController {
         try {
             const { logId } = c.req.param();
             const log = await AuditService.getLogById(logId);
-            
+
             if (!log) {
                 return c.json({ error: 'Audit log not found' }, 404);
             }
-            
+
             return c.json(log);
         } catch (err) {
             return c.json({ error: err instanceof Error ? err.message : String(err) }, 500);
