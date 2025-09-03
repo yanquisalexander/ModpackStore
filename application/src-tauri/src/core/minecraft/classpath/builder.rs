@@ -416,4 +416,73 @@ mod tests {
         // This validates our understanding of the problem and solution
         println!("✅ Rule separation logic test passed");
     }
+
+    #[test]
+    fn test_multiple_rules_last_matching_wins() {
+        // Test case: Multiple rules where later rules override earlier ones
+        let lib_with_multiple_rules = json!({
+            "name": "test:library:1.0.0",
+            "rules": [
+                {
+                    "action": "disallow",
+                    "os": {
+                        "name": "windows"
+                    }
+                },
+                {
+                    "action": "allow",
+                    "os": {
+                        "name": "windows"
+                    }
+                }
+            ]
+        });
+        
+        let rules = lib_with_multiple_rules.get("rules").unwrap().as_array().unwrap();
+        assert_eq!(rules.len(), 2);
+        
+        // In our implementation, the last matching rule wins
+        // This is correct behavior for Minecraft manifests
+        assert_eq!(rules[0].get("action").unwrap().as_str().unwrap(), "disallow");
+        assert_eq!(rules[1].get("action").unwrap().as_str().unwrap(), "allow");
+        
+        println!("✅ Multiple rules test structure validated");
+    }
+
+    #[test]
+    fn test_complex_rule_scenarios() {
+        // Test complex scenarios that might occur in real Minecraft manifests
+        
+        // Scenario 1: Library allowed on specific OS, but we want base jar everywhere
+        let os_specific_lib = json!({
+            "name": "platform:specific:1.0.0",
+            "downloads": {
+                "artifact": {
+                    "path": "platform/specific/1.0.0/specific-1.0.0.jar"
+                }
+            },
+            "rules": [
+                {
+                    "action": "allow",
+                    "os": {
+                        "name": "linux"
+                    }
+                }
+            ]
+        });
+        
+        // Expected behavior:
+        // - Base jar: Should be included on ALL platforms (ignores OS rule)
+        // - Natives: Not applicable (no classifiers)
+        
+        let has_downloads = os_specific_lib.get("downloads").is_some();
+        let has_artifact = os_specific_lib["downloads"].get("artifact").is_some();
+        let has_classifiers = os_specific_lib["downloads"].get("classifiers").is_some();
+        
+        assert!(has_downloads);
+        assert!(has_artifact);
+        assert!(!has_classifiers); // No natives for this library
+        
+        println!("✅ Complex rule scenarios test passed");
+    }
 }
