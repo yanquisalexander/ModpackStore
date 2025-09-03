@@ -363,7 +363,7 @@ impl<'a> ArgumentProcessor<'a> {
                     if let Some(rules) = arg.get("rules").and_then(|r| r.as_array()) {
                         let mut should_include = false;
                         for rule in rules {
-                            if RuleEvaluator::rule_matches_environment(rule, features) {
+                            if RuleEvaluator::should_apply_rule(rule, features).unwrap_or(false) {
                                 should_include = true;
                                 break;
                             }

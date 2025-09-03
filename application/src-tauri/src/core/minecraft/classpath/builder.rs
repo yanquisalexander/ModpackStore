@@ -43,7 +43,10 @@ impl<'a> ClasspathBuilder<'a> {
             .and_then(|v| v.as_array())
             .ok_or("No libraries found in manifest")?;
 
-        log::debug!("Processing {} libraries from manifest", libraries.len());
+        log::info!(
+            "Comenzando el procesamiento de {} bibliotecas...",
+            libraries.len()
+        );
 
         for lib in libraries {
             let lib_name = lib
@@ -51,46 +54,33 @@ impl<'a> ClasspathBuilder<'a> {
                 .and_then(|n| n.as_str())
                 .unwrap_or("unknown_library");
 
-            // === FIXED LOGIC: Separate rule evaluation for base jar vs natives ===
-            
-            // 1. ALWAYS try to include the base jar (artifact) unless explicitly disallowed by non-OS rules
-            let should_include_base = self.should_include_base_artifact(lib)?;
-            
-            if should_include_base {
-                let artifact_path = self.get_library_artifact_path(lib).unwrap_or_else(|| {
-                    log::warn!(
-                        "Artifact not found in downloads, constructing path from name: {}",
-                        lib_name
-                    );
-                    self.construct_library_path_from_name(lib_name, None)
-                });
+            // Lógica unificada: Evalúa cada biblioteca según sus reglas.
+            if self.should_include_library(lib) {
+                // --- LOG MODIFICADO ---
+                log::info!("✅ Añadida: {}", lib_name);
 
-                // Add main artifact - this should be included unless explicitly disallowed
-                if let Err(e) = self.add_library_if_exists(&artifact_path, &mut entries, &mut seen) {
-                    missing_libraries.push(format!("{}: {}", lib_name, e));
+                // Intenta añadir el artefacto principal definido en "downloads.artifact".
+                if let Some(artifact_path) = self.get_library_artifact_path(lib) {
+                    if let Err(e) =
+                        self.add_library_if_exists(&artifact_path, &mut entries, &mut seen)
+                    {
+                        missing_libraries.push(format!("{}: {}", lib_name, e));
+                    }
                 }
-                log::debug!("Added base artifact for library: {}", lib_name);
-            } else {
-                log::trace!("Skipping base artifact for library {} due to rule evaluation", lib_name);
-            }
 
-            // 2. Only include natives if they pass OS-specific rule evaluation
-            if self.should_include_natives(lib)? {
+                // Para compatibilidad con formatos antiguos...
                 if let Some(native_paths) = self.get_native_library_paths(lib) {
                     for native_path in native_paths {
                         if let Err(e) =
                             self.add_library_if_exists(&native_path, &mut entries, &mut seen)
                         {
-                            // For libraries with native components, native JARs are also required
-                            // This ensures both main and native JARs are present for libraries like LWJGL
                             missing_libraries.push(format!("{} (native): {}", lib_name, e));
-                            log::error!("Required native library missing for {}: {}", lib_name, e);
                         }
                     }
-                    log::debug!("Added native artifacts for library: {}", lib_name);
                 }
             } else {
-                log::trace!("Skipping native artifacts for library {} due to OS rule evaluation", lib_name);
+                // --- LOG MODIFICADO ---
+                log::info!("🚫 Omitida: {} (no cumple las reglas para tu SO)", lib_name);
             }
         }
 
@@ -103,75 +93,41 @@ impl<'a> ClasspathBuilder<'a> {
 
         let classpath = entries.join(self.classpath_separator());
         log::info!(
-            "Successfully built classpath with {} entries",
+            "Classpath construido exitosamente con {} entradas.",
             entries.len()
         );
-        log::debug!("Full classpath: {}", classpath);
+        log::trace!("Full classpath: {}", classpath);
 
         Ok(classpath)
     }
-
-    /// Determines if the base artifact (main jar without classifier) should be included.
-    /// Base artifacts should always be included unless explicitly disallowed by non-OS specific rules.
-    fn should_include_base_artifact(&self, lib: &Value) -> Result<bool, String> {
+    /// Determina si una biblioteca debe ser incluida evaluando su sección "rules".
+    fn should_include_library(&self, lib: &Value) -> bool {
+        // Si no hay una sección "rules", la biblioteca se incluye por defecto.
         let rules = match lib.get("rules").and_then(|r| r.as_array()) {
             Some(rules) => rules,
-            // Si no hay sección "rules", la librería se incluye por defecto.
-            None => return Ok(true),
+            None => return true,
         };
 
-        // For base artifacts, we only care about rules that explicitly disallow WITHOUT OS conditions
-        // OS-specific rules should not affect base artifacts
+        // --- CORRECCIÓN AÑADIDA ---
+        // Si el array de reglas está vacío, la biblioteca también se debe incluir.
+        if rules.is_empty() {
+            return true;
+        }
+
+        // Si hay reglas, la acción por defecto es denegar, y la última regla que coincida
+        // con el entorno actual determina el resultado.
+        let mut allowed = false;
+
         for rule in rules {
-            let action = rule
-                .get("action")
-                .and_then(|a| a.as_str())
-                .unwrap_or("allow");
-            
-            // If this is a disallow rule without OS conditions, apply it to base artifact
-            if action == "disallow" && rule.get("os").is_none() {
-                if RuleEvaluator::rule_matches_environment(rule, None) {
-                    log::debug!("Base artifact disallowed by non-OS rule");
-                    return Ok(false);
-                }
+            if let Some(allow) = RuleEvaluator::should_apply_rule(rule, None) {
+                allowed = allow;
             }
         }
 
-        // Base artifacts are included by default unless explicitly disallowed by non-OS rules
-        Ok(true)
+        allowed
     }
 
-    /// Determines if native artifacts should be included based on OS-specific rules.
-    /// Natives should only be included if OS rules allow them for the current platform.
-    fn should_include_natives(&self, lib: &Value) -> Result<bool, String> {
-        let rules = match lib.get("rules").and_then(|r| r.as_array()) {
-            Some(rules) => rules,
-            // If no rules exist, check if natives are available for current OS
-            None => {
-                // No rules means natives should be included if they exist for current OS
-                return Ok(self.get_native_library_paths(lib).is_some());
-            },
-        };
-
-        // For natives, we apply the full rule evaluation logic
-        let mut final_action_is_allow = false;
-
-        for rule in rules {
-            // Check if this rule's conditions match our environment
-            if RuleEvaluator::rule_matches_environment(rule, None) {
-                let action = rule
-                    .get("action")
-                    .and_then(|a| a.as_str())
-                    .unwrap_or("allow");
-                final_action_is_allow = action == "allow";
-            }
-        }
-
-        // Only include natives if rules explicitly allow AND we have natives for current OS
-        Ok(final_action_is_allow && self.get_native_library_paths(lib).is_some())
-    }
-
-    // --- El resto de funciones auxiliares ---
+    // --- El resto de funciones auxiliares (get_library_artifact_path, get_native_library_paths, etc.) permanecen igual ---
 
     fn get_library_artifact_path(&self, lib: &Value) -> Option<PathBuf> {
         lib.get("downloads")
@@ -245,11 +201,15 @@ impl<'a> ClasspathBuilder<'a> {
 
     fn get_os_native_classifiers(&self) -> Vec<&'static str> {
         if cfg!(windows) {
-            vec![
-                "natives-windows",
-                "natives-windows-x86_64",
-                "natives-windows-64",
-            ]
+            if cfg!(target_arch = "aarch64") {
+                vec!["natives-windows-arm64"]
+            } else {
+                vec![
+                    "natives-windows",
+                    "natives-windows-x86_64", // Some mods might use this
+                    "natives-windows-64",     // Older versions
+                ]
+            }
         } else if cfg!(target_os = "linux") {
             vec!["natives-linux"]
         } else if cfg!(target_os = "macos") {
@@ -311,178 +271,5 @@ impl<'a> ClasspathBuilder<'a> {
         } else {
             ":"
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-
-    #[test]
-    fn test_should_include_base_artifact_no_rules() {
-        let lib = json!({
-            "name": "test:library:1.0.0"
-        });
-        
-        // Base artifacts should be included when no rules exist
-        let has_rules = lib.get("rules").is_some();
-        assert!(!has_rules);
-        // Expected: should_include_base_artifact would return Ok(true)
-    }
-
-    #[test]
-    fn test_should_include_base_artifact_with_os_rules() {
-        let lib = json!({
-            "name": "test:library:1.0.0",
-            "rules": [
-                {
-                    "action": "allow",
-                    "os": {
-                        "name": "windows"
-                    }
-                }
-            ]
-        });
-        
-        // Base artifacts should be included even when OS-specific rules exist
-        let rules = lib.get("rules").unwrap().as_array().unwrap();
-        let first_rule = &rules[0];
-        
-        // This rule has OS conditions, so it shouldn't affect base artifact
-        let has_os_condition = first_rule.get("os").is_some();
-        assert!(has_os_condition);
-        // Expected: should_include_base_artifact would return Ok(true)
-    }
-
-    #[test]
-    fn test_should_include_base_artifact_explicit_disallow() {
-        let lib = json!({
-            "name": "test:library:1.0.0",
-            "rules": [
-                {
-                    "action": "disallow"
-                    // No OS condition - this should affect base artifacts
-                }
-            ]
-        });
-        
-        let rules = lib.get("rules").unwrap().as_array().unwrap();
-        let first_rule = &rules[0];
-        
-        let action = first_rule.get("action").unwrap().as_str().unwrap();
-        let has_os_condition = first_rule.get("os").is_some();
-        
-        assert_eq!(action, "disallow");
-        assert!(!has_os_condition);
-        // Expected: should_include_base_artifact would return Ok(false)
-    }
-
-    #[test]
-    fn test_rule_logic_separation() {
-        // Test that demonstrates the key insight of our fix:
-        // Base artifacts and natives should have different rule evaluation logic
-        
-        let lwjgl_lib = json!({
-            "name": "org.lwjgl:lwjgl-tinyfd:3.3.1",
-            "downloads": {
-                "artifact": {
-                    "path": "org/lwjgl/lwjgl-tinyfd/3.3.1/lwjgl-tinyfd-3.3.1.jar"
-                },
-                "classifiers": {
-                    "natives-windows": {
-                        "path": "org/lwjgl/lwjgl-tinyfd/3.3.1/lwjgl-tinyfd-3.3.1-natives-windows.jar"
-                    }
-                }
-            },
-            "rules": [
-                {
-                    "action": "allow",
-                    "os": {
-                        "name": "windows"
-                    }
-                }
-            ]
-        });
-        
-        // Validate the structure we expect
-        let rules = lwjgl_lib.get("rules").unwrap().as_array().unwrap();
-        assert!(!rules.is_empty());
-        
-        let first_rule = &rules[0];
-        assert_eq!(first_rule.get("action").unwrap().as_str().unwrap(), "allow");
-        assert!(first_rule.get("os").is_some());
-        
-        // This validates our understanding of the problem and solution
-        println!("✅ Rule separation logic test passed");
-    }
-
-    #[test]
-    fn test_multiple_rules_last_matching_wins() {
-        // Test case: Multiple rules where later rules override earlier ones
-        let lib_with_multiple_rules = json!({
-            "name": "test:library:1.0.0",
-            "rules": [
-                {
-                    "action": "disallow",
-                    "os": {
-                        "name": "windows"
-                    }
-                },
-                {
-                    "action": "allow",
-                    "os": {
-                        "name": "windows"
-                    }
-                }
-            ]
-        });
-        
-        let rules = lib_with_multiple_rules.get("rules").unwrap().as_array().unwrap();
-        assert_eq!(rules.len(), 2);
-        
-        // In our implementation, the last matching rule wins
-        // This is correct behavior for Minecraft manifests
-        assert_eq!(rules[0].get("action").unwrap().as_str().unwrap(), "disallow");
-        assert_eq!(rules[1].get("action").unwrap().as_str().unwrap(), "allow");
-        
-        println!("✅ Multiple rules test structure validated");
-    }
-
-    #[test]
-    fn test_complex_rule_scenarios() {
-        // Test complex scenarios that might occur in real Minecraft manifests
-        
-        // Scenario 1: Library allowed on specific OS, but we want base jar everywhere
-        let os_specific_lib = json!({
-            "name": "platform:specific:1.0.0",
-            "downloads": {
-                "artifact": {
-                    "path": "platform/specific/1.0.0/specific-1.0.0.jar"
-                }
-            },
-            "rules": [
-                {
-                    "action": "allow",
-                    "os": {
-                        "name": "linux"
-                    }
-                }
-            ]
-        });
-        
-        // Expected behavior:
-        // - Base jar: Should be included on ALL platforms (ignores OS rule)
-        // - Natives: Not applicable (no classifiers)
-        
-        let has_downloads = os_specific_lib.get("downloads").is_some();
-        let has_artifact = os_specific_lib["downloads"].get("artifact").is_some();
-        let has_classifiers = os_specific_lib["downloads"].get("classifiers").is_some();
-        
-        assert!(has_downloads);
-        assert!(has_artifact);
-        assert!(!has_classifiers); // No natives for this library
-        
-        println!("✅ Complex rule scenarios test passed");
     }
 }

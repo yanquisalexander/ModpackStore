@@ -75,7 +75,6 @@ impl GameLauncher for MinecraftLauncher {
         };
 
         log::info!("[MinecraftLauncher] Manifest loaded");
-        log::info!("[MinecraftLauncher] Manifest JSON: {:?}", manifest_json);
 
         // Build classpath
         let classpath_builder = ClasspathBuilder::new(&manifest_json, &paths);
@@ -126,24 +125,36 @@ impl GameLauncher for MinecraftLauncher {
         log::debug!("Working directory: {}", paths.game_dir().display());
         log::debug!("JVM arguments ({}): {:?}", jvm_args.len(), jvm_args);
         log::debug!("Game arguments ({}): {:?}", game_args.len(), game_args);
-        
+
         // Build full command string for easy debugging
         let mut full_command = vec![paths.java_path().to_string_lossy().to_string()];
         full_command.extend(jvm_args.iter().cloned());
         full_command.push(main_class.to_string());
         full_command.extend(game_args.iter().cloned());
-        
-        log::info!("[MinecraftLauncher] Full launch command: {}", full_command.join(" "));
+
+        log::info!(
+            "[MinecraftLauncher] Full launch command: {}",
+            full_command.join(" ")
+        );
 
         match command.spawn() {
             Ok(child) => {
-                log::info!("[MinecraftLauncher] Minecraft process started successfully with PID: {:?}", child.id());
+                log::info!(
+                    "[MinecraftLauncher] Minecraft process started successfully with PID: {:?}",
+                    child.id()
+                );
                 Some(child)
-            },
+            }
             Err(e) => {
                 log::error!("[MinecraftLauncher] Failed to launch Minecraft: {}", e);
-                log::error!("[MinecraftLauncher] Java path exists: {}", paths.java_path().exists());
-                log::error!("[MinecraftLauncher] Working directory exists: {}", paths.game_dir().exists());
+                log::error!(
+                    "[MinecraftLauncher] Java path exists: {}",
+                    paths.java_path().exists()
+                );
+                log::error!(
+                    "[MinecraftLauncher] Working directory exists: {}",
+                    paths.game_dir().exists()
+                );
                 None
             }
         }

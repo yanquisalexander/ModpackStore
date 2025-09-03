@@ -210,7 +210,7 @@ impl MinecraftPaths {
 
     pub fn classpath_str(&self) -> String {
         log::debug!("Building classpath string for {}", self.minecraft_version);
-        
+
         let manifest_parser = ManifestParser::new(self);
         let manifest_json = match manifest_parser.load_merged_manifest() {
             Ok(manifest) => manifest,
@@ -219,13 +219,22 @@ impl MinecraftPaths {
                 return String::new();
             }
         };
-        
+
+        // beautiful print json
+        log::debug!(
+            "Manifest JSON: {}",
+            serde_json::to_string_pretty(&manifest_json).unwrap()
+        );
+
         let classpath_builder = ClasspathBuilder::new(&manifest_json, self);
         match classpath_builder.build() {
             Ok(classpath) => {
-                log::debug!("Successfully built classpath with {} chars", classpath.len());
+                log::debug!(
+                    "Successfully built classpath with {} chars",
+                    classpath.len()
+                );
                 classpath
-            },
+            }
             Err(e) => {
                 log::error!("Failed to build classpath: {}", e);
                 String::new()
