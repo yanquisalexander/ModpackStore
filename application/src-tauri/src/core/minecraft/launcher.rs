@@ -82,14 +82,30 @@ impl GameLauncher for MinecraftLauncher {
             ArgumentProcessor::new(&manifest_json, &account, &paths, mc_memory);
         let (jvm_args, game_args) = argument_processor.process_arguments()?;
 
-        // Get main class
-        let main_class = manifest_json.get("mainClass")?.as_str()?;
+        // Get main class using enhanced detection
+        let version = manifest_json
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or(paths.minecraft_version());
+            
+        let main_class = if let Some(detected_main_class) = 
+            crate::core::minecraft::version_compatibility::VersionCompatibility::detect_main_class(&manifest_json, version) {
+            detected_main_class
+        } else {
+            // Fallback to manifest or default
+            manifest_json.get("mainClass")
+                .and_then(|v| v.as_str())
+                .unwrap_or("net.minecraft.client.main.Main")
+                .to_string()
+        };
+
+        log::info!("[MinecraftLauncher] Using main class: {}", main_class);
 
         // Build and execute command
         let mut command = Command::new(paths.java_path());
         command
             .args(&jvm_args)
-            .arg(main_class)
+            .arg(&main_class)
             .args(&game_args)
             .current_dir(paths.game_dir())
             .stdout(Stdio::piped())

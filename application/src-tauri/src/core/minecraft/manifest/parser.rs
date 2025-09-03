@@ -43,10 +43,15 @@ impl<'a> ManifestParser<'a> {
     fn apply_version_compatibility_fixes(&self, manifest: &mut Value, version: &str) {
         let generation = VersionCompatibility::detect_generation(version, Some(manifest));
 
-        // Ensure proper mainClass is set
+        // Ensure proper mainClass is set using dynamic detection
         if manifest.get("mainClass").is_none() {
-            let main_class = VersionCompatibility::get_default_main_class(&generation);
-            manifest["mainClass"] = Value::String(main_class.to_string());
+            if let Some(detected_main_class) = VersionCompatibility::detect_main_class(manifest, version) {
+                manifest["mainClass"] = Value::String(detected_main_class);
+            } else {
+                // Fallback to default
+                let main_class = VersionCompatibility::get_default_main_class(&generation);
+                manifest["mainClass"] = Value::String(main_class.to_string());
+            }
         }
 
         // Ensure proper asset index

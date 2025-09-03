@@ -90,7 +90,7 @@ impl VersionCompatibility {
     }
 
     /// Parse version string into major.minor.patch components
-    fn parse_version_number(version: &str) -> Option<(u32, u32, u32)> {
+    pub fn parse_version_number(version: &str) -> Option<(u32, u32, u32)> {
         let parts: Vec<&str> = version.split('.').collect();
         if parts.len() >= 2 {
             let major = parts[0].parse().ok()?;
@@ -178,6 +178,88 @@ impl VersionCompatibility {
         }
     }
 
+    /// Dynamically detect main class from manifest, with intelligent fallbacks
+    pub fn detect_main_class(manifest: &Value, version: &str) -> Option<String> {
+        // 1. First priority: explicit mainClass in manifest
+        if let Some(main_class) = manifest.get("mainClass").and_then(|v| v.as_str()) {
+            return Some(main_class.to_string());
+        }
+
+        // 2. Second priority: detect from manifest structure and version
+        let generation = Self::detect_generation(version, Some(manifest));
+        
+        // 3. Check if this is a Forge manifest by looking for Forge-specific indicators
+        if Self::is_forge_manifest(manifest, version) {
+            if let Some(forge_main_class) = Self::get_forge_main_class(version, &generation) {
+                return Some(forge_main_class);
+            }
+        }
+
+        // 4. Fallback to default main class for generation
+        Some(Self::get_default_main_class(&generation).to_string())
+    }
+
+    /// Check if manifest indicates a Forge installation
+    fn is_forge_manifest(manifest: &Value, version: &str) -> bool {
+        // Check for inheritsFrom (modded version)
+        if manifest.get("inheritsFrom").is_some() {
+            return true;
+        }
+
+        // Check for Forge-specific libraries
+        if let Some(libraries) = manifest.get("libraries").and_then(|v| v.as_array()) {
+            for lib in libraries {
+                if let Some(name) = lib.get("name").and_then(|v| v.as_str()) {
+                    if name.contains("forge") || name.contains("minecraftforge") || 
+                       name.contains("net.minecraftforge") || name.contains("cpw.mods") {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Check version ID for Forge indicators
+        if let Some(id) = manifest.get("id").and_then(|v| v.as_str()) {
+            if id.contains("forge") || id.contains("Forge") {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    /// Get Forge-specific main class based on version
+    fn get_forge_main_class(version: &str, generation: &VersionGeneration) -> Option<String> {
+        match generation {
+            VersionGeneration::PreClassic => {
+                // Very old Forge (if it exists for these versions)
+                Some("net.minecraft.client.Minecraft".to_string())
+            }
+            VersionGeneration::Legacy => {
+                // Forge 1.6-1.12.2 era - check specific version ranges
+                if let Some((_, minor, _)) = Self::parse_version_number(version) {
+                    match minor {
+                        6..=7 => {
+                            // Forge 1.6-1.7.10: uses FML client handler
+                            Some("cpw.mods.fml.client.FMLClientHandler".to_string())
+                        }
+                        8..=12 => {
+                            // Forge 1.8-1.12.2: uses standard main class
+                            Some("net.minecraft.client.main.Main".to_string())
+                        }
+                        _ => Some("net.minecraft.client.main.Main".to_string())
+                    }
+                } else {
+                    Some("net.minecraft.client.main.Main".to_string())
+                }
+            }
+            VersionGeneration::Modern | VersionGeneration::Future => {
+                // Modern Forge 1.13+ uses standard main class
+                Some("net.minecraft.client.main.Main".to_string())
+            }
+        }
+    }
+
     /// Check if a version requires specific JVM arguments
     pub fn get_version_specific_jvm_args(version: &str) -> Vec<String> {
         let generation = Self::detect_from_version_string(version);
@@ -208,6 +290,139 @@ impl VersionCompatibility {
         // Log4j fix is needed for versions that use log4j 2.x
         let generation = Self::detect_from_version_string(version);
         !matches!(generation, VersionGeneration::PreClassic)
+    }
+
+    /// Enhanced version-specific JVM arguments with Forge compatibility
+    pub fn get_enhanced_jvm_args(version: &str, manifest: Option<&Value>) -> Vec<String> {
+        let generation = Self::detect_from_version_string(version);
+        let mut args = Self::get_version_specific_jvm_args(version);
+
+        // Add Forge-specific arguments if needed
+        if let Some(manifest) = manifest {
+            if Self::is_forge_version(manifest, version) {
+                args.extend(Self::get_forge_specific_jvm_args(version, &generation));
+            }
+        }
+
+        // Add security and performance arguments
+        args.extend(Self::get_security_jvm_args(version));
+        args.extend(Self::get_performance_jvm_args(&generation));
+
+        args
+    }
+
+    /// Check if this is a Forge version
+    fn is_forge_version(manifest: &Value, _version: &str) -> bool {
+        // Check for inheritsFrom
+        if manifest.get("inheritsFrom").is_some() {
+            return true;
+        }
+
+        // Check for Forge libraries
+        if let Some(libraries) = manifest.get("libraries").and_then(|v| v.as_array()) {
+            for lib in libraries {
+                if let Some(name) = lib.get("name").and_then(|v| v.as_str()) {
+                    if name.contains("minecraftforge") || name.contains("net.minecraftforge") ||
+                       name.contains("cpw.mods") {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        false
+    }
+
+    /// Get Forge-specific JVM arguments
+    fn get_forge_specific_jvm_args(version: &str, generation: &VersionGeneration) -> Vec<String> {
+        let mut args = Vec::new();
+
+        match generation {
+            VersionGeneration::Legacy => {
+                if let Some((_, minor, _)) = Self::parse_version_number(version) {
+                    match minor {
+                        6..=7 => {
+                            // Forge 1.6-1.7.10 specific arguments
+                            args.push("-Dfml.ignoreInvalidMinecraftCertificates=true".to_string());
+                            args.push("-Dfml.ignorePatchDiscrepancies=true".to_string());
+                        }
+                        8..=12 => {
+                            // Forge 1.8-1.12.2 arguments
+                            args.push("-Djava.net.preferIPv4Stack=true".to_string());
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            VersionGeneration::Modern | VersionGeneration::Future => {
+                // Modern Forge arguments
+                args.push("-Dforge.logging.markers=REGISTRIES".to_string());
+                args.push("-Dforge.logging.console.level=debug".to_string());
+            }
+            _ => {}
+        }
+
+        args
+    }
+
+    /// Get security-related JVM arguments
+    fn get_security_jvm_args(version: &str) -> Vec<String> {
+        let mut args = Vec::new();
+
+        // Log4j vulnerability protection
+        if Self::supports_log4j_fix(version) {
+            args.push("-Dlog4j2.formatMsgNoLookups=true".to_string());
+        }
+
+        // Additional security arguments for modern versions
+        let generation = Self::detect_from_version_string(version);
+        if matches!(generation, VersionGeneration::Modern | VersionGeneration::Future) {
+            args.push("-Djava.security.manager=allow".to_string());
+        }
+
+        args
+    }
+
+    /// Get performance-related JVM arguments
+    fn get_performance_jvm_args(generation: &VersionGeneration) -> Vec<String> {
+        let mut args = Vec::new();
+
+        match generation {
+            VersionGeneration::PreClassic => {
+                args.push("-Djava.util.Arrays.useLegacyMergeSort=true".to_string());
+            }
+            VersionGeneration::Legacy => {
+                args.push("-XX:+UseConcMarkSweepGC".to_string());
+                args.push("-XX:+CMSIncrementalMode".to_string());
+            }
+            VersionGeneration::Modern | VersionGeneration::Future => {
+                args.push("-XX:+UseG1GC".to_string());
+                args.push("-XX:+ParallelRefProcEnabled".to_string());
+                args.push("-XX:MaxGCPauseMillis=200".to_string());
+            }
+        }
+
+        args
+    }
+
+    /// Validate if a version string represents a supported Minecraft version
+    pub fn is_supported_version(version: &str) -> bool {
+        // Check if we can parse the version
+        if Self::parse_version_number(version).is_some() {
+            return true;
+        }
+
+        // Check for known format patterns
+        if version.starts_with('b') || version.starts_with('a') {
+            return true; // Beta/Alpha versions
+        }
+
+        // Check for snapshot formats
+        if version.contains('-') || (version.len() >= 5 && version.chars().nth(2) == Some('w')) {
+            return true;
+        }
+
+        false
     }
 }
 
@@ -269,5 +484,99 @@ mod tests {
         assert_eq!(VersionCompatibility::get_asset_index_name("1.6.4", None), "1.6");
         assert_eq!(VersionCompatibility::get_asset_index_name("1.8.9", None), "1.7.10");
         assert_eq!(VersionCompatibility::get_asset_index_name("1.16.5", None), "1.16.5");
+    }
+
+    #[test]
+    fn test_main_class_detection_vanilla() {
+        // Test vanilla Minecraft versions
+        let vanilla_1_12 = json!({
+            "id": "1.12.2",
+            "minecraftArguments": "--username ${auth_player_name}"
+        });
+        
+        let main_class = VersionCompatibility::detect_main_class(&vanilla_1_12, "1.12.2");
+        assert_eq!(main_class, Some("net.minecraft.client.main.Main".to_string()));
+
+        let vanilla_1_16 = json!({
+            "id": "1.16.5",
+            "arguments": {
+                "game": ["--username", "${auth_player_name}"],
+                "jvm": ["-Xmx2G"]
+            }
+        });
+        
+        let main_class = VersionCompatibility::detect_main_class(&vanilla_1_16, "1.16.5");
+        assert_eq!(main_class, Some("net.minecraft.client.main.Main".to_string()));
+    }
+
+    #[test]
+    fn test_main_class_detection_forge() {
+        // Test Forge 1.7.10 (legacy FML)
+        let forge_1_7_10 = json!({
+            "id": "1.7.10-Forge10.13.4.1558-1.7.10",
+            "inheritsFrom": "1.7.10",
+            "libraries": [
+                {
+                    "name": "net.minecraftforge:forge:1.7.10-10.13.4.1558-1.7.10"
+                }
+            ]
+        });
+        
+        let main_class = VersionCompatibility::detect_main_class(&forge_1_7_10, "1.7.10");
+        assert_eq!(main_class, Some("cpw.mods.fml.client.FMLClientHandler".to_string()));
+
+        // Test Forge 1.12.2 (modern FML)
+        let forge_1_12_2 = json!({
+            "id": "1.12.2-forge-14.23.5.2860",
+            "inheritsFrom": "1.12.2",
+            "libraries": [
+                {
+                    "name": "net.minecraftforge:forge:1.12.2-14.23.5.2860"
+                }
+            ]
+        });
+        
+        let main_class = VersionCompatibility::detect_main_class(&forge_1_12_2, "1.12.2");
+        assert_eq!(main_class, Some("net.minecraft.client.main.Main".to_string()));
+    }
+
+    #[test]
+    fn test_target_versions_compatibility() {
+        // Test specific target versions mentioned in requirements
+        let target_versions = vec!["1.7.10", "1.12.2", "1.16.5", "1.18.2"];
+        
+        for version in target_versions {
+            // All target versions should be supported
+            assert!(VersionCompatibility::is_supported_version(version));
+            
+            // All should have valid generation detection
+            let generation = VersionCompatibility::detect_from_version_string(version);
+            assert!(!matches!(generation, VersionGeneration::PreClassic));
+            
+            // All should have appropriate main classes
+            let main_class = VersionCompatibility::get_default_main_class(&generation);
+            assert!(!main_class.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_enhanced_jvm_args() {
+        // Test enhanced JVM args for Forge
+        use serde_json::json;
+        
+        let forge_manifest = json!({
+            "id": "1.12.2-forge-14.23.5.2860",
+            "inheritsFrom": "1.12.2",
+            "libraries": [
+                {
+                    "name": "net.minecraftforge:forge:1.12.2-14.23.5.2860"
+                }
+            ]
+        });
+        
+        let args = VersionCompatibility::get_enhanced_jvm_args("1.12.2", Some(&forge_manifest));
+        
+        // Should include log4j fix
+        assert!(args.iter().any(|arg| arg.contains("log4j2.formatMsgNoLookups")));
     }
 }
