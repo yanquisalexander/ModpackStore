@@ -66,24 +66,48 @@ impl GameLauncher for MinecraftLauncher {
         log::info!("[MinecraftLauncher] Java path: {:?}", paths.java_path());
         // Load and merge manifests if needed
         let manifest_parser = ManifestParser::new(&paths);
-        let manifest_json = manifest_parser.load_merged_manifest()?;
+        let manifest_json = match manifest_parser.load_merged_manifest() {
+            Ok(manifest) => manifest,
+            Err(e) => {
+                log::error!("[MinecraftLauncher] Failed to load manifest: {}", e);
+                return None;
+            }
+        };
 
         log::info!("[MinecraftLauncher] Manifest loaded");
         log::info!("[MinecraftLauncher] Manifest JSON: {:?}", manifest_json);
 
         // Build classpath
         let classpath_builder = ClasspathBuilder::new(&manifest_json, &paths);
-        let classpath_str = classpath_builder.build()?;
+        let classpath_str = match classpath_builder.build() {
+            Ok(classpath) => classpath,
+            Err(e) => {
+                log::error!("[MinecraftLauncher] Failed to build classpath: {}", e);
+                return None;
+            }
+        };
 
         log::info!("[MinecraftLauncher] Classpath: {}", classpath_str);
 
         // Process arguments
         let argument_processor =
             ArgumentProcessor::new(&manifest_json, &account, &paths, mc_memory);
-        let (jvm_args, game_args) = argument_processor.process_arguments()?;
+        let (jvm_args, game_args) = match argument_processor.process_arguments() {
+            Ok(args) => args,
+            Err(e) => {
+                log::error!("[MinecraftLauncher] Failed to process arguments: {}", e);
+                return None;
+            }
+        };
 
         // Get main class
-        let main_class = manifest_json.get("mainClass")?.as_str()?;
+        let main_class = match manifest_json.get("mainClass").and_then(|v| v.as_str()) {
+            Some(class) => class,
+            None => {
+                log::error!("[MinecraftLauncher] No mainClass found in manifest");
+                return None;
+            }
+        };
 
         // Build and execute command
         let mut command = Command::new(paths.java_path());
@@ -95,12 +119,31 @@ impl GameLauncher for MinecraftLauncher {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
+        // Log the complete launch command for debugging
         log::info!("Launching Minecraft with command: {:?}", command);
+        log::debug!("Java executable: {}", paths.java_path().display());
+        log::debug!("Main class: {}", main_class);
+        log::debug!("Working directory: {}", paths.game_dir().display());
+        log::debug!("JVM arguments ({}): {:?}", jvm_args.len(), jvm_args);
+        log::debug!("Game arguments ({}): {:?}", game_args.len(), game_args);
+        
+        // Build full command string for easy debugging
+        let mut full_command = vec![paths.java_path().to_string_lossy().to_string()];
+        full_command.extend(jvm_args.iter().cloned());
+        full_command.push(main_class.to_string());
+        full_command.extend(game_args.iter().cloned());
+        
+        log::info!("[MinecraftLauncher] Full launch command: {}", full_command.join(" "));
 
         match command.spawn() {
-            Ok(child) => Some(child),
+            Ok(child) => {
+                log::info!("[MinecraftLauncher] Minecraft process started successfully with PID: {:?}", child.id());
+                Some(child)
+            },
             Err(e) => {
-                log::error!("Failed to launch Minecraft: {}", e);
+                log::error!("[MinecraftLauncher] Failed to launch Minecraft: {}", e);
+                log::error!("[MinecraftLauncher] Java path exists: {}", paths.java_path().exists());
+                log::error!("[MinecraftLauncher] Working directory exists: {}", paths.game_dir().exists());
                 None
             }
         }
