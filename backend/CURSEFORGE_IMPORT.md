@@ -75,6 +75,7 @@ Content-Type: multipart/form-data
 - **config/**: Archivos de configuración del modpack
 - **resourcepacks/**: Paquetes de recursos incluidos
 - **shaderpacks/**: Paquetes de shaders
+- **datapacks/**: Paquetes de datos (datapacks) para Minecraft
 - **extras/**: Otros archivos no clasificados
 
 ## Configuración Requerida

@@ -8,7 +8,7 @@ import { ModpackFile, ModpackFileType } from "@/entities/ModpackFile";
 import { ModpackVersionFile } from "@/entities/ModpackVersionFile";
 import { In } from "typeorm";
 
-export const ALLOWED_FILE_TYPES = ['mods', 'resourcepacks', 'config', 'shaderpacks', 'extras'];
+export const ALLOWED_FILE_TYPES = ['mods', 'resourcepacks', 'config', 'shaderpacks', 'datapacks', 'extras'];
 
 const TEMP_UPLOAD_DIR = path.join(__dirname, "../../tmp/uploads");
 if (!fs.existsSync(TEMP_UPLOAD_DIR)) fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true });
