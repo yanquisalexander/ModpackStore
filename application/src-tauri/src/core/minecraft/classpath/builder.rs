@@ -1,5 +1,5 @@
-use crate::core::minecraft::paths::MinecraftPaths;
 use crate::core::minecraft::arguments::rules::RuleEvaluator;
+use crate::core::minecraft::paths::MinecraftPaths;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::path::{Path, MAIN_SEPARATOR};
@@ -35,7 +35,9 @@ impl<'a> ClasspathBuilder<'a> {
         }
 
         // Process libraries
-        let libraries = self.manifest.get("libraries")
+        let libraries = self
+            .manifest
+            .get("libraries")
             .and_then(|v| v.as_array())
             .ok_or_else(|| {
                 let error_msg = "No libraries found in manifest";
@@ -46,9 +48,11 @@ impl<'a> ClasspathBuilder<'a> {
         log::debug!("Processing {} libraries from manifest", libraries.len());
 
         for (index, lib) in libraries.iter().enumerate() {
-            let lib_name = lib.get("name")
+            let lib_name = lib
+                .get("name")
                 .and_then(|n| n.as_str())
-                .unwrap_or(&format!("library_{}", index));
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| format!("library_{}", index));
 
             log::debug!("Processing library {}: {}", index + 1, lib_name);
 
@@ -91,13 +95,19 @@ impl<'a> ClasspathBuilder<'a> {
         }
 
         if !missing_libraries.is_empty() {
-            let error_msg = format!("Missing required libraries:\n{}", missing_libraries.join("\n"));
+            let error_msg = format!(
+                "Missing required libraries:\n{}",
+                missing_libraries.join("\n")
+            );
             log::error!("{}", error_msg);
             return Err(error_msg);
         }
 
         let classpath = entries.join(self.classpath_separator());
-        log::info!("Successfully built classpath with {} entries", entries.len());
+        log::info!(
+            "Successfully built classpath with {} entries",
+            entries.len()
+        );
         log::debug!("Full classpath: {}", classpath);
 
         Ok(classpath)
@@ -130,10 +140,11 @@ impl<'a> ClasspathBuilder<'a> {
             .and_then(|a| a.get("path"))
             .and_then(Value::as_str)
         {
-            return Some(self
-                .paths
-                .libraries_dir()
-                .join(path_val.replace('/', &MAIN_SEPARATOR.to_string())));
+            return Some(
+                self.paths
+                    .libraries_dir()
+                    .join(path_val.replace('/', &MAIN_SEPARATOR.to_string())),
+            );
         }
 
         // Fallback to constructing path from name
@@ -154,7 +165,7 @@ impl<'a> ClasspathBuilder<'a> {
 
         // Get the appropriate native classifier for current OS
         let os_classifiers = self.get_os_native_classifiers();
-        
+
         for classifier in os_classifiers {
             if let Some(info) = classifiers.get(classifier) {
                 if let Some(path_val) = info.get("path").and_then(Value::as_str) {
@@ -177,9 +188,17 @@ impl<'a> ClasspathBuilder<'a> {
     fn get_os_native_classifiers(&self) -> Vec<&'static str> {
         if cfg!(windows) {
             if cfg!(target_arch = "x86_64") {
-                vec!["natives-windows", "natives-windows-64", "natives-windows-x86_64"]
+                vec![
+                    "natives-windows",
+                    "natives-windows-64",
+                    "natives-windows-x86_64",
+                ]
             } else {
-                vec!["natives-windows", "natives-windows-32", "natives-windows-x86"]
+                vec![
+                    "natives-windows",
+                    "natives-windows-32",
+                    "natives-windows-x86",
+                ]
             }
         } else if cfg!(target_os = "linux") {
             if cfg!(target_arch = "x86_64") {
@@ -205,13 +224,13 @@ impl<'a> ClasspathBuilder<'a> {
             let artifact = parts[1];
             let version = parts[2];
             let classifier = if parts.len() > 3 { parts[3] } else { "" };
-            
+
             let filename = if classifier.is_empty() {
                 format!("{}-{}.jar", artifact, version)
             } else {
                 format!("{}-{}-{}.jar", artifact, version, classifier)
             };
-            
+
             self.paths
                 .libraries_dir()
                 .join(&group)

@@ -8,8 +8,14 @@ impl ManifestMerger {
         let mut result = vanilla.clone();
 
         log::debug!("Starting manifest merge process");
-        log::debug!("Vanilla manifest has mainClass: {}", vanilla.get("mainClass").is_some());
-        log::debug!("Forge manifest has mainClass: {}", forge.get("mainClass").is_some());
+        log::debug!(
+            "Vanilla manifest has mainClass: {}",
+            vanilla.get("mainClass").is_some()
+        );
+        log::debug!(
+            "Forge manifest has mainClass: {}",
+            forge.get("mainClass").is_some()
+        );
 
         // Merge mainClass - Forge always takes precedence
         if let Some(mc) = forge.get("mainClass") {
@@ -24,16 +30,25 @@ impl ManifestMerger {
         Self::merge_legacy_arguments(&mut result, &vanilla, &forge);
 
         log::debug!("Manifest merge completed");
-        log::debug!("Final merged manifest has mainClass: {}", result.get("mainClass").is_some());
-        log::debug!("Final merged manifest libraries count: {}", 
-                   result.get("libraries").and_then(|l| l.as_array()).map(|a| a.len()).unwrap_or(0));
+        log::debug!(
+            "Final merged manifest has mainClass: {}",
+            result.get("mainClass").is_some()
+        );
+        log::debug!(
+            "Final merged manifest libraries count: {}",
+            result
+                .get("libraries")
+                .and_then(|l| l.as_array())
+                .map(|a| a.len())
+                .unwrap_or(0)
+        );
 
         result
     }
 
     fn merge_basic_properties(result: &mut Value, vanilla: &Value, forge: &Value) {
         // Merge basic properties, preferring Forge when available
-        
+
         // Merge releaseTime and time fields
         if let Some(release_time) = forge.get("releaseTime") {
             result["releaseTime"] = release_time.clone();
@@ -42,7 +57,7 @@ impl ManifestMerger {
             result["time"] = time.clone();
         }
 
-        // Merge type field  
+        // Merge type field
         if let Some(type_val) = forge.get("type") {
             result["type"] = type_val.clone();
         }
@@ -63,7 +78,9 @@ impl ManifestMerger {
         // Merge downloads section if present
         if let Some(downloads) = forge.get("downloads") {
             if let Some(existing_downloads) = result.get_mut("downloads") {
-                if let (Some(existing_obj), Some(forge_obj)) = (existing_downloads.as_object_mut(), downloads.as_object()) {
+                if let (Some(existing_obj), Some(forge_obj)) =
+                    (existing_downloads.as_object_mut(), downloads.as_object())
+                {
                     for (key, value) in forge_obj {
                         existing_obj.insert(key.clone(), value.clone());
                     }
@@ -83,7 +100,7 @@ impl ManifestMerger {
 
     fn merge_libraries(result: &mut Value, vanilla: &Value, forge: &Value) {
         log::debug!("Starting library merge process");
-        
+
         // Use a map to handle duplicates easily. Key is `group:artifact:classifier`
         let mut merged_libs: BTreeMap<String, Value> = BTreeMap::new();
         let mut vanilla_count = 0;
@@ -94,7 +111,7 @@ impl ManifestMerger {
         if let Some(arr) = vanilla.get("libraries").and_then(Value::as_array) {
             vanilla_count = arr.len();
             log::debug!("Processing {} vanilla libraries", vanilla_count);
-            
+
             for lib in arr {
                 if let Some((name, ga, version, _, classifier)) = Self::extract_lib_info(lib) {
                     let key = Self::build_lib_key(&ga, &classifier);
@@ -110,7 +127,7 @@ impl ManifestMerger {
         if let Some(arr) = forge.get("libraries").and_then(Value::as_array) {
             forge_count = arr.len();
             log::debug!("Processing {} forge libraries", forge_count);
-            
+
             for forge_lib in arr {
                 if let Some((name, ga, fver, _, classifier)) = Self::extract_lib_info(forge_lib) {
                     let key = Self::build_lib_key(&ga, &classifier);
@@ -123,8 +140,12 @@ impl ManifestMerger {
                                 // If we prefer Forge, replace the existing entry
                                 *vanilla_lib = forge_lib.clone();
                                 conflicts_resolved += 1;
-                                log::debug!("Conflict resolved - using Forge version of {}: {} -> {:?}", 
-                                           ga, vver.unwrap_or("unknown".to_string()), fver);
+                                log::debug!(
+                                    "Conflict resolved - using Forge version of {}: {} -> {:?}",
+                                    ga,
+                                    vver.unwrap_or("unknown".to_string()),
+                                    fver
+                                );
                             } else {
                                 log::debug!("Conflict resolved - keeping vanilla version of {}: {:?} over {:?}", 
                                            ga, vver, fver);
@@ -143,22 +164,22 @@ impl ManifestMerger {
 
         let final_count = merged_libs.len();
         result["libraries"] = Value::Array(merged_libs.into_values().collect());
-        
+
         log::info!("Library merge completed: {} vanilla + {} forge = {} final libraries ({} conflicts resolved)", 
                   vanilla_count, forge_count, final_count, conflicts_resolved);
     }
 
     fn merge_arguments(result: &mut Value, vanilla: &Value, forge: &Value) {
         log::debug!("Starting arguments merge process");
-        
+
         let mut args_map = Map::default();
         let mut total_args = 0;
-        
+
         for kind in &["game", "jvm"] {
             let mut list = Vec::new();
             let mut vanilla_args = 0;
             let mut forge_args = 0;
-            
+
             // Add vanilla arguments first
             if let Some(v) = vanilla
                 .get("arguments")
@@ -168,7 +189,7 @@ impl ManifestMerger {
                 vanilla_args = v.len();
                 list.extend_from_slice(v);
             }
-            
+
             // Add forge arguments
             if let Some(f) = forge
                 .get("arguments")
@@ -178,18 +199,26 @@ impl ManifestMerger {
                 forge_args = f.len();
                 list.extend_from_slice(f);
             }
-            
+
             if !list.is_empty() {
                 args_map.insert(kind.to_string(), Value::Array(list));
                 total_args += vanilla_args + forge_args;
-                log::debug!("Merged {} arguments: {} vanilla + {} forge = {} total", 
-                           kind, vanilla_args, forge_args, vanilla_args + forge_args);
+                log::debug!(
+                    "Merged {} arguments: {} vanilla + {} forge = {} total",
+                    kind,
+                    vanilla_args,
+                    forge_args,
+                    vanilla_args + forge_args
+                );
             }
         }
-        
+
         if !args_map.is_empty() {
             result["arguments"] = Value::Object(args_map);
-            log::debug!("Arguments merge completed with {} total arguments", total_args);
+            log::debug!(
+                "Arguments merge completed with {} total arguments",
+                total_args
+            );
         } else {
             log::debug!("No modern arguments found to merge");
         }
@@ -197,12 +226,12 @@ impl ManifestMerger {
 
     fn merge_legacy_arguments(result: &mut Value, vanilla: &Value, forge: &Value) {
         log::debug!("Starting legacy arguments merge process");
-        
+
         // Enhanced logic to be more robust and avoid panics
         let mut kv = HashMap::new();
         let mut vanilla_processed = false;
         let mut forge_processed = false;
-        
+
         for (source_name, src) in [
             ("vanilla", vanilla.get("minecraftArguments")),
             ("forge", forge.get("minecraftArguments")),
@@ -210,7 +239,7 @@ impl ManifestMerger {
             if let Some(Value::String(s)) = src {
                 log::debug!("Processing {} legacy arguments: {}", source_name, s);
                 let args: Vec<&str> = s.split_whitespace().collect();
-                
+
                 // Parse arguments in pairs safely
                 let mut i = 0;
                 while i < args.len() {
@@ -236,7 +265,7 @@ impl ManifestMerger {
                         break;
                     }
                 }
-                
+
                 if source_name == "vanilla" {
                     vanilla_processed = true;
                 } else {
@@ -248,17 +277,29 @@ impl ManifestMerger {
         if !kv.is_empty() {
             let merged_legacy = kv
                 .iter()
-                .map(|(k, v)| if v.is_empty() { k.clone() } else { format!("{} {}", k, v) })
+                .map(|(k, v)| {
+                    if v.is_empty() {
+                        k.clone()
+                    } else {
+                        format!("{} {}", k, v)
+                    }
+                })
                 .collect::<Vec<_>>()
                 .join(" ");
-            
-            result["minecraftArguments"] = Value::String(merged_legacy);
-            
-            log::debug!("Legacy arguments merge completed: {} pairs from {} sources", 
-                       kv.len(), 
-                       if vanilla_processed && forge_processed { "both" } 
-                       else if vanilla_processed { "vanilla only" } 
-                       else { "forge only" });
+
+            result["minecraftArguments"] = Value::String(merged_legacy.clone());
+
+            log::debug!(
+                "Legacy arguments merge completed: {} pairs from {} sources",
+                kv.len(),
+                if vanilla_processed && forge_processed {
+                    "both"
+                } else if vanilla_processed {
+                    "vanilla only"
+                } else {
+                    "forge only"
+                }
+            );
             log::debug!("Merged legacy arguments: {}", merged_legacy);
         } else {
             log::debug!("No legacy arguments found to merge");
