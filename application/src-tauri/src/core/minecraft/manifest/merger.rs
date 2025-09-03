@@ -111,30 +111,43 @@ impl ManifestMerger {
                     let key = Self::build_lib_key(&ga, &fver, &classifier);
 
                     if let Some(existing_lib) = merged_libs.get_mut(&key) {
-                        // Ya existía → conflicto
+                        // Library already exists → check if it's a real conflict
                         if let Some((_, _, vver, _, _)) = Self::extract_lib_info(existing_lib) {
-                            if Self::prefer_forge(&ga, &vver, &fver) {
-                                *existing_lib = forge_lib.clone();
+                            // Check if versions are identical
+                            if vver == fver {
+                                // Same version - keep existing, but count as duplicate resolution
                                 log::debug!(
-                                    "Conflict resolved - replaced Vanilla {} {:?} with Forge {:?}",
+                                    "Duplicate library found - {} version {:?} (keeping existing)",
                                     ga,
-                                    vver,
-                                    fver
+                                    vver
                                 );
+                                conflicts_resolved += 1;
                             } else {
-                                log::debug!(
-                                    "Conflict resolved - kept Vanilla {} {:?} over Forge {:?}",
-                                    ga,
-                                    vver,
-                                    fver
-                                );
+                                // Different versions - real conflict
+                                if Self::prefer_forge(&ga, &vver, &fver) {
+                                    *existing_lib = forge_lib.clone();
+                                    log::info!(
+                                        "Version conflict resolved - replaced Vanilla {} {:?} with Forge {:?}",
+                                        ga,
+                                        vver,
+                                        fver
+                                    );
+                                } else {
+                                    log::info!(
+                                        "Version conflict resolved - kept Vanilla {} {:?} over Forge {:?}",
+                                        ga,
+                                        vver,
+                                        fver
+                                    );
+                                }
+                                conflicts_resolved += 1;
                             }
                         } else {
                             // Si no se pudo extraer versión, Forge pisa
                             *existing_lib = forge_lib.clone();
                             log::debug!("Conflict resolved (no version info) - using Forge {}", ga);
+                            conflicts_resolved += 1;
                         }
-                        conflicts_resolved += 1;
                     } else {
                         // No había, agregar normalmente
                         merged_libs.insert(key, forge_lib.clone());
@@ -304,23 +317,30 @@ impl ManifestMerger {
             name.clone()
         };
         let version = parts.get(2).map(|s| s.to_string());
-        let classifier = lib
-            .get("downloads")
-            .and_then(|d| d.get("artifact"))
-            .and_then(|a| a.get("classifier"))
-            .or_else(|| lib.get("classifier"))
-            .and_then(Value::as_str)
-            .map(String::from);
+        
+        // Extract classifier from multiple possible locations:
+        // 1. From the name field itself (4th part after splitting by ':')
+        // 2. From downloads.artifact.classifier 
+        // 3. From direct classifier field
+        let classifier = parts.get(3).map(String::from)
+            .or_else(|| lib
+                .get("downloads")
+                .and_then(|d| d.get("artifact"))
+                .and_then(|a| a.get("classifier"))
+                .and_then(Value::as_str)
+                .map(String::from))
+            .or_else(|| lib.get("classifier")
+                .and_then(Value::as_str)
+                .map(String::from));
+        
         let url = lib.get("url").and_then(Value::as_str).map(String::from);
         Some((name, ga, version, url, classifier))
     }
 
-    fn build_lib_key(ga: &str, version: &Option<String>, classifier: &Option<String>) -> String {
-        let mut key = if let Some(v) = version {
-            format!("{}:{}", ga, v)
-        } else {
-            ga.to_string()
-        };
+    fn build_lib_key(ga: &str, _version: &Option<String>, classifier: &Option<String>) -> String {
+        // Build key based on GA + classifier only (NOT version)
+        // This allows proper conflict detection when same library has different versions
+        let mut key = ga.to_string();
         if let Some(c) = classifier {
             key.push(':');
             key.push_str(c);
@@ -374,5 +394,104 @@ impl ManifestMerger {
             }
         }
         new_parts.len() > old_parts.len()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn test_build_lib_key_without_version() {
+        // Test that library key does NOT include version
+        assert_eq!(
+            ManifestMerger::build_lib_key("commons-io:commons-io", &Some("2.5".to_string()), &None),
+            "commons-io:commons-io"
+        );
+        
+        // Test with classifier
+        assert_eq!(
+            ManifestMerger::build_lib_key("org.lwjgl:lwjgl", &Some("3.2.1".to_string()), &Some("natives-windows".to_string())),
+            "org.lwjgl:lwjgl:natives-windows"
+        );
+    }
+
+    #[test]
+    fn test_extract_lib_info_with_classifier_in_name() {
+        let lib = json!({
+            "name": "org.lwjgl:lwjgl:3.2.1:natives-windows",
+            "downloads": {
+                "artifact": {
+                    "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/3.2.1/lwjgl-3.2.1-natives-windows.jar"
+                }
+            }
+        });
+
+        let result = ManifestMerger::extract_lib_info(&lib);
+        assert!(result.is_some());
+        
+        let (name, ga, version, _url, classifier) = result.unwrap();
+        assert_eq!(name, "org.lwjgl:lwjgl:3.2.1:natives-windows");
+        assert_eq!(ga, "org.lwjgl:lwjgl");
+        assert_eq!(version, Some("3.2.1".to_string()));
+        assert_eq!(classifier, Some("natives-windows".to_string()));
+    }
+
+    #[test]
+    fn test_library_merge_conflict_detection() {
+        let vanilla = json!({
+            "libraries": [
+                {
+                    "name": "commons-io:commons-io:2.5",
+                    "downloads": {
+                        "artifact": {
+                            "url": "https://libraries.minecraft.net/commons-io/commons-io/2.5/commons-io-2.5.jar"
+                        }
+                    }
+                },
+                {
+                    "name": "org.lwjgl:lwjgl:3.2.1",
+                    "downloads": {
+                        "artifact": {
+                            "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/3.2.1/lwjgl-3.2.1.jar"
+                        }
+                    }
+                }
+            ]
+        });
+
+        let forge = json!({
+            "libraries": [
+                {
+                    "name": "commons-io:commons-io:2.6",
+                    "downloads": {
+                        "artifact": {
+                            "url": "https://files.minecraftforge.net/maven/commons-io/commons-io/2.6/commons-io-2.6.jar"
+                        }
+                    }
+                },
+                {
+                    "name": "net.minecraftforge:forge:1.19.2-43.2.0",
+                    "downloads": {
+                        "artifact": {
+                            "url": "https://files.minecraftforge.net/maven/net/minecraftforge/forge/1.19.2-43.2.0/forge-1.19.2-43.2.0.jar"
+                        }
+                    }
+                }
+            ]
+        });
+
+        let result = ManifestMerger::merge(vanilla, forge);
+        
+        // Should have 3 libraries: commons-io (forge version), lwjgl (vanilla), forge (new)
+        let libraries = result.get("libraries").unwrap().as_array().unwrap();
+        assert_eq!(libraries.len(), 3);
+        
+        // Verify commons-io has the forge version (2.6)
+        let commons_io = libraries.iter()
+            .find(|lib| lib.get("name").unwrap().as_str().unwrap().contains("commons-io"))
+            .unwrap();
+        assert_eq!(commons_io.get("name").unwrap().as_str().unwrap(), "commons-io:commons-io:2.6");
     }
 }
