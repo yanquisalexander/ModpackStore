@@ -469,8 +469,8 @@ fn extract_single_native_library(
         metadata.len()
     );
 
-    // Get exclusion patterns
-    let exclude_patterns = get_exclusion_patterns(library);
+    // Get exclusion patterns with enhanced defaults
+    let exclude_patterns = get_exclusion_patterns_enhanced(library);
 
     emit_status(
         instance,
