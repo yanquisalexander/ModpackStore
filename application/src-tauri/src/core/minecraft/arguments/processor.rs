@@ -28,14 +28,19 @@ impl<'a> ArgumentProcessor<'a> {
         }
     }
 
-    pub fn process_arguments(&self) -> Option<(Vec<String>, Vec<String>)> {
+    pub fn process_arguments(&self) -> Result<(Vec<String>, Vec<String>), String> {
         let placeholders = self.create_placeholders();
         let features = self.create_features_map();
 
         let jvm_args = self.process_jvm_arguments(&placeholders)?;
         let game_args = self.process_game_arguments(&placeholders, &features)?;
 
-        Some((jvm_args, game_args))
+        log::debug!("Successfully processed arguments - JVM: {} args, Game: {} args", 
+                   jvm_args.len(), game_args.len());
+        log::debug!("JVM arguments: {:?}", jvm_args);
+        log::debug!("Game arguments: {:?}", game_args);
+
+        Ok((jvm_args, game_args))
     }
 
     fn get_screen_resolution(app_handle: &tauri::AppHandle) -> (u32, u32) {
@@ -49,37 +54,11 @@ impl<'a> ArgumentProcessor<'a> {
 
     fn create_placeholders(&self) -> HashMap<String, String> {
         let mut placeholders = HashMap::new();
+        
+        // Basic authentication and player info
         placeholders.insert(
             "auth_player_name".to_string(),
             self.account.username().to_string(),
-        );
-        placeholders.insert(
-            "version_name".to_string(),
-            self.paths.minecraft_version().to_string(),
-        );
-        placeholders.insert(
-            "game_directory".to_string(),
-            self.paths.game_dir().to_string_lossy().to_string(),
-        );
-        placeholders.insert(
-            "assets_root".to_string(),
-            self.paths.assets_dir().to_string_lossy().to_string(),
-        );
-
-        let binding = crate::GLOBAL_APP_HANDLE.lock().unwrap();
-        let app_handle = binding.as_ref().unwrap();
-        let (width, height) = Self::get_screen_resolution(app_handle);
-        placeholders.insert("resolution_width".to_string(), width.to_string());
-        placeholders.insert("resolution_height".to_string(), height.to_string());
-
-        placeholders.insert(
-            "assets_index_name".to_string(),
-            self.manifest
-                .get("assets")
-                .and_then(|v| v.as_str())
-                .or_else(|| self.manifest.get("assetIndex")?.get("id")?.as_str())
-                .unwrap_or("legacy")
-                .to_string(),
         );
         placeholders.insert("auth_uuid".to_string(), self.account.uuid().to_string());
         placeholders.insert(
@@ -95,26 +74,87 @@ impl<'a> ArgumentProcessor<'a> {
             }
             .to_string(),
         );
+
+        // Version and game info
+        placeholders.insert(
+            "version_name".to_string(),
+            self.paths.minecraft_version().to_string(),
+        );
         placeholders.insert("version_type".to_string(), "release".to_string());
+
+        // Directory paths
+        placeholders.insert(
+            "game_directory".to_string(),
+            self.paths.game_dir().to_string_lossy().to_string(),
+        );
+        placeholders.insert(
+            "assets_root".to_string(),
+            self.paths.assets_dir().to_string_lossy().to_string(),
+        );
         placeholders.insert(
             "natives_directory".to_string(),
             self.paths.natives_dir().to_string_lossy().to_string(),
         );
-
         placeholders.insert(
             "library_directory".to_string(),
             self.paths.libraries_dir().to_string_lossy().to_string(),
         );
+
+        // Assets info - try multiple ways to get asset index
+        let assets_index = self.manifest
+            .get("assets")
+            .and_then(|v| v.as_str())
+            .or_else(|| self.manifest.get("assetIndex")?.get("id")?.as_str())
+            .or_else(|| {
+                // Fallback for very old versions
+                let version = self.paths.minecraft_version();
+                if version.starts_with("1.6") || version.starts_with("1.5") || version.starts_with("1.4") {
+                    Some("legacy")
+                } else if version.starts_with("1.7") {
+                    Some("1.7.10") 
+                } else {
+                    Some("legacy")
+                }
+            })
+            .unwrap_or("legacy");
+            
+        placeholders.insert("assets_index_name".to_string(), assets_index.to_string());
+
+        // Screen resolution
+        let (width, height) = if let Ok(binding) = crate::GLOBAL_APP_HANDLE.lock() {
+            if let Some(app_handle) = binding.as_ref() {
+                Self::get_screen_resolution(app_handle)
+            } else {
+                (800, 600) // fallback
+            }
+        } else {
+            (800, 600) // fallback
+        };
+        
+        placeholders.insert("resolution_width".to_string(), width.to_string());
+        placeholders.insert("resolution_height".to_string(), height.to_string());
+
+        // System info
         placeholders.insert(
             "classpath_separator".to_string(),
             if cfg!(windows) { ";" } else { ":" }.to_string(),
         );
 
+        // Launcher info
         placeholders.insert("launcher_name".to_string(), "modpackstore".to_string());
         placeholders.insert("launcher_version".to_string(), "1.0.0".to_string());
 
-        placeholders.insert("classpath".to_string(), self.paths.classpath_str());
+        // Classpath - this is crucial for the launcher
+        let classpath = self.paths.classpath_str();
+        placeholders.insert("classpath".to_string(), classpath);
 
+        // Additional placeholders for newer versions
+        placeholders.insert("client_id".to_string(), "".to_string());
+        placeholders.insert("auth_xuid".to_string(), "".to_string());
+        placeholders.insert("user_properties".to_string(), "{}".to_string());
+
+        log::debug!("Created {} placeholders for argument processing", placeholders.len());
+        
         placeholders
     }
 
@@ -129,17 +169,26 @@ impl<'a> ArgumentProcessor<'a> {
         features
     }
 
-    fn process_jvm_arguments(&self, placeholders: &HashMap<String, String>) -> Option<Vec<String>> {
+    fn process_jvm_arguments(&self, placeholders: &HashMap<String, String>) -> Result<Vec<String>, String> {
         let mut jvm_args = vec![format!("-Xms512M"), format!("-Xmx{}M", self.memory)];
 
+        log::debug!("Processing JVM arguments with {}MB memory", self.memory);
+
+        // Check for modern arguments format (1.13+)
         if let Some(args_obj) = self.manifest.get("arguments").and_then(|v| v.get("jvm")) {
+            log::debug!("Using modern JVM arguments format from manifest");
             let manifest_args = self.process_arguments_list(args_obj, placeholders, None);
+            
+            // Filter out any memory arguments that conflict with ours
             let filtered_args: Vec<String> = manifest_args
                 .into_iter()
-                .filter(|arg| !jvm_args.contains(arg))
+                .filter(|arg| !arg.starts_with("-Xms") && !arg.starts_with("-Xmx"))
                 .collect();
+            
             jvm_args.extend(filtered_args);
         } else {
+            // Legacy format or no JVM arguments specified - add defaults
+            log::debug!("Using legacy/default JVM arguments");
             jvm_args.extend(vec![
                 format!("-Djava.library.path={}", self.paths.natives_dir().display()),
                 format!("-Dminecraft.launcher.brand=modpackstore"),
@@ -155,6 +204,7 @@ impl<'a> ArgumentProcessor<'a> {
                 ),
             ]);
 
+            // OS-specific arguments
             if cfg!(target_os = "macos") {
                 jvm_args.push("-XstartOnFirstThread".to_string());
             }
@@ -168,69 +218,105 @@ impl<'a> ArgumentProcessor<'a> {
             }
         }
 
-        if !jvm_args
-            .iter()
-            .any(|arg| arg == "-cp" || arg == "-classpath")
-        {
+        // Ensure classpath is always added if not present
+        if !jvm_args.iter().any(|arg| arg == "-cp" || arg == "-classpath") {
             let classpath = self.paths.classpath_str();
+            if classpath.is_empty() {
+                return Err("Classpath is empty - cannot launch Minecraft".to_string());
+            }
             jvm_args.push("-cp".to_string());
             jvm_args.push(classpath);
         }
 
-        Some(jvm_args)
+        // Replace placeholders in all arguments
+        let final_args: Vec<String> = jvm_args
+            .into_iter()
+            .map(|arg| self.replace_placeholders(&arg, placeholders))
+            .collect();
+
+        log::debug!("Final JVM arguments: {:?}", final_args);
+        Ok(final_args)
     }
 
     fn process_game_arguments(
         &self,
         placeholders: &HashMap<String, String>,
         features: &HashMap<String, bool>,
-    ) -> Option<Vec<String>> {
+    ) -> Result<Vec<String>, String> {
+        // Check for modern arguments format first (1.13+)
         if let Some(args_obj) = self.manifest.get("arguments").and_then(|v| v.get("game")) {
+            log::debug!("Using modern game arguments format from manifest");
             let mut args = self.process_arguments_list(args_obj, placeholders, Some(features));
+            
+            // Add GUI scale if not present
             if !args.contains(&"--guiScale".to_string()) {
                 args.push("--guiScale".to_string());
                 args.push("2".to_string());
             }
-            Some(args)
-        } else if let Some(min_args) = self
-            .manifest
-            .get("minecraftArguments")
-            .and_then(|v| v.as_str())
-        {
+            
+            log::debug!("Modern game arguments processed: {} args", args.len());
+            return Ok(args);
+        }
+        
+        // Check for legacy arguments format (pre-1.13)
+        if let Some(min_args) = self.manifest.get("minecraftArguments").and_then(|v| v.as_str()) {
+            log::debug!("Using legacy minecraftArguments format from manifest");
             let mut args: Vec<String> = min_args
                 .split_whitespace()
                 .map(|arg| self.replace_placeholders(arg, placeholders))
                 .collect();
+                
+            // Add GUI scale if not present
             if !args.contains(&"--guiScale".to_string()) {
                 args.push("--guiScale".to_string());
                 args.push("2".to_string());
             }
-            Some(args)
-        } else {
-            let mut arguments = vec![
-                "--username".to_string(),
-                placeholders["auth_player_name"].clone(),
-                "--version".to_string(),
-                placeholders["version_name"].clone(),
-                "--gameDir".to_string(),
-                placeholders["game_directory"].clone(),
-                "--assetsDir".to_string(),
-                placeholders["assets_root"].clone(),
-                "--assetIndex".to_string(),
-                placeholders["assets_index_name"].clone(),
-                "--uuid".to_string(),
-                placeholders["auth_uuid"].clone(),
-                "--accessToken".to_string(),
-                placeholders["auth_access_token"].clone(),
-                "--userType".to_string(),
-                placeholders["user_type"].clone(),
-            ];
-            if !arguments.contains(&"--guiScale".to_string()) {
-                arguments.push("--guiScale".to_string());
-                arguments.push("2".to_string());
-            }
-            Some(arguments)
+            
+            log::debug!("Legacy game arguments processed: {} args", args.len());
+            return Ok(args);
         }
+        
+        // Fallback to constructing basic arguments (very old versions or missing data)
+        log::debug!("No game arguments found in manifest, using fallback arguments");
+        
+        // Verify required placeholders exist
+        let required_placeholders = [
+            "auth_player_name", "version_name", "game_directory", 
+            "assets_root", "assets_index_name", "auth_uuid", 
+            "auth_access_token", "user_type"
+        ];
+        
+        for placeholder in &required_placeholders {
+            if !placeholders.contains_key(*placeholder) {
+                return Err(format!("Missing required placeholder: {}", placeholder));
+            }
+        }
+        
+        let mut arguments = vec![
+            "--username".to_string(),
+            placeholders["auth_player_name"].clone(),
+            "--version".to_string(),
+            placeholders["version_name"].clone(),
+            "--gameDir".to_string(),
+            placeholders["game_directory"].clone(),
+            "--assetsDir".to_string(),
+            placeholders["assets_root"].clone(),
+            "--assetIndex".to_string(),
+            placeholders["assets_index_name"].clone(),
+            "--uuid".to_string(),
+            placeholders["auth_uuid"].clone(),
+            "--accessToken".to_string(),
+            placeholders["auth_access_token"].clone(),
+            "--userType".to_string(),
+            placeholders["user_type"].clone(),
+        ];
+        
+        // Add GUI scale
+        arguments.push("--guiScale".to_string());
+        arguments.push("2".to_string());
+        
+        log::debug!("Fallback game arguments constructed: {} args", arguments.len());
+        Ok(arguments)
     }
 
     fn process_arguments_list(

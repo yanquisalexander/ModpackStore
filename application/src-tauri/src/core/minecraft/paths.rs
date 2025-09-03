@@ -35,18 +35,6 @@ impl MinecraftPaths {
             .join("bin")
             .join(if cfg!(windows) { "javaw.exe" } else { "java" });
 
-        let java_path = instance
-            .javaPath
-            .as_ref()
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
-                config
-                    .get_java_dir()
-                    .unwrap_or_else(|| PathBuf::from("default_java"))
-            })
-            .join("bin")
-            .join(if cfg!(windows) { "javaw.exe" } else { "java" });
-
         let game_dir = instance
             .instanceDirectory
             .as_ref()
@@ -221,9 +209,27 @@ impl MinecraftPaths {
     }
 
     pub fn classpath_str(&self) -> String {
-        let binding = ManifestParser::new(self);
-        let manifest_json = binding.load_merged_manifest().unwrap_or_default();
+        log::debug!("Building classpath string for {}", self.minecraft_version);
+        
+        let manifest_parser = ManifestParser::new(self);
+        let manifest_json = match manifest_parser.load_merged_manifest() {
+            Ok(manifest) => manifest,
+            Err(e) => {
+                log::error!("Failed to load manifest for classpath: {}", e);
+                return String::new();
+            }
+        };
+        
         let classpath_builder = ClasspathBuilder::new(&manifest_json, self);
-        classpath_builder.build().unwrap_or_default()
+        match classpath_builder.build() {
+            Ok(classpath) => {
+                log::debug!("Successfully built classpath with {} chars", classpath.len());
+                classpath
+            },
+            Err(e) => {
+                log::error!("Failed to build classpath: {}", e);
+                String::new()
+            }
+        }
     }
 }
