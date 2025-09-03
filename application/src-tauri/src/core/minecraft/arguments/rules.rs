@@ -1,85 +1,78 @@
+// src/core/minecraft/arguments/rules.rs
+
 use serde_json::Value;
 use std::collections::HashMap;
 
 pub struct RuleEvaluator;
 
 impl RuleEvaluator {
-    pub fn should_apply_rule(rule: &Value, features: Option<&HashMap<String, bool>>) -> bool {
-        let action = rule
-            .get("action")
-            .and_then(|a| a.as_str())
-            .unwrap_or("allow");
-        let mut should_apply = action == "allow";
-
-        log::debug!("Evaluating rule with action: {}", action);
-
-        // Check OS rules
+    /// Comprueba si las condiciones de una regla (OS, features) coinciden con el entorno actual.
+    /// Ignora completamente el campo "action".
+    pub fn rule_matches_environment(
+        rule: &Value,
+        features: Option<&HashMap<String, bool>>,
+    ) -> bool {
+        // Comprobar condiciones del SO
         if let Some(os_obj) = rule.get("os") {
-            let mut os_match = true;
-
-            // Check OS name
-            if let Some(os_name) = os_obj.get("name").and_then(|n| n.as_str()) {
-                let is_current_os = Self::matches_current_os(os_name);
-                log::debug!("OS rule '{}' matches current OS: {}", os_name, is_current_os);
-                if !is_current_os {
-                    os_match = false;
-                }
+            // Si las condiciones del SO no coinciden, la regla no se aplica.
+            if !Self::os_conditions_match(os_obj) {
+                return false;
             }
-
-            // Check OS architecture
-            if let Some(os_arch) = os_obj.get("arch").and_then(|a| a.as_str()) {
-                let is_current_arch = Self::matches_current_arch(os_arch);
-                log::debug!("Arch rule '{}' matches current arch: {}", os_arch, is_current_arch);
-                if !is_current_arch {
-                    os_match = false;
-                }
-            }
-
-            // Check OS version (optional)
-            if let Some(os_version) = os_obj.get("version").and_then(|v| v.as_str()) {
-                // For now, we'll be permissive with version checks
-                // In a full implementation, you'd want to check actual OS version
-                log::debug!("OS version rule '{}' - treating as match", os_version);
-            }
-
-            // Apply the rule logic
-            if action == "allow" {
-                should_apply = os_match;
-            } else if action == "disallow" {
-                should_apply = !os_match;
-            }
-
-            log::debug!("OS rule evaluation: os_match={}, action={}, should_apply={}", 
-                       os_match, action, should_apply);
         }
 
-        // Check feature rules
+        // Comprobar condiciones de features
         if let Some(feature_obj) = rule.get("features") {
-            if let Some(features_map) = features {
-                for (feature_name, feature_value) in
-                    feature_obj.as_object().unwrap_or(&serde_json::Map::new())
-                {
-                    if let Some(expected_value) = feature_value.as_bool() {
-                        let actual_value = *features_map.get(feature_name).unwrap_or(&false);
-                        log::debug!("Feature rule '{}': expected={}, actual={}", 
-                                   feature_name, expected_value, actual_value);
-                        
-                        if actual_value != expected_value {
-                            should_apply = action != "allow";
-                            log::debug!("Feature mismatch, setting should_apply={}", should_apply);
-                            break;
-                        }
-                    }
-                }
-            } else {
-                // No features provided, but rule requires features
-                should_apply = action != "allow";
-                log::debug!("No features provided for feature rule, should_apply={}", should_apply);
+            // Si las condiciones de las features no coinciden, la regla no se aplica.
+            if !Self::feature_conditions_match(feature_obj, features) {
+                return false;
             }
         }
 
-        log::debug!("Final rule evaluation result: {}", should_apply);
-        should_apply
+        // Si hemos llegado hasta aquí, es porque no había condiciones o todas coincidieron.
+        // Por lo tanto, las condiciones de la regla SÍ se aplican a nuestro entorno.
+        true
+    }
+
+    /// Función auxiliar para comprobar todas las condiciones del SO.
+    fn os_conditions_match(os_obj: &Value) -> bool {
+        if let Some(os_name) = os_obj.get("name").and_then(|n| n.as_str()) {
+            if !Self::matches_current_os(os_name) {
+                return false; // El nombre del SO no coincide
+            }
+        }
+
+        if let Some(os_arch) = os_obj.get("arch").and_then(|a| a.as_str()) {
+            if !Self::matches_current_arch(os_arch) {
+                return false; // La arquitectura no coincide
+            }
+        }
+
+        // Aquí iría la lógica para 'version' si se implementa en el futuro.
+
+        true // Todas las condiciones de SO presentes han coincidido
+    }
+
+    /// Función auxiliar para comprobar las features.
+    fn feature_conditions_match(
+        feature_obj: &Value,
+        features: Option<&HashMap<String, bool>>,
+    ) -> bool {
+        let features_map = match features {
+            Some(f) => f,
+            // La regla requiere features pero no se proporcionaron, por lo que no coincide.
+            None => return false,
+        };
+
+        for (feature_name, expected_value) in feature_obj.as_object().unwrap() {
+            if let Some(expected) = expected_value.as_bool() {
+                let actual = *features_map.get(feature_name).unwrap_or(&false);
+                if actual != expected {
+                    return false; // Una de las features no coincide
+                }
+            }
+        }
+
+        true // Todas las features requeridas coinciden
     }
 
     fn matches_current_os(os_name: &str) -> bool {
@@ -102,8 +95,8 @@ impl RuleEvaluator {
             "arm64" | "aarch64" => cfg!(target_arch = "aarch64"),
             _ => {
                 log::warn!("Unknown architecture name in rule: {}", arch_name);
-                // Default to matching for unknown architectures to be permissive
-                true
+                // Por seguridad, no coincidir si no se conoce la arquitectura.
+                false
             }
         }
     }
