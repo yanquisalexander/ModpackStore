@@ -37,3 +37,27 @@ The following improvements have been made to detect and extract native libraries
 - Libraries like `org.lwjgl.tinyfd` should be properly resolved and extracted
 - Clear logs should show what was downloaded, extracted, and any issues
 - Missing libraries should be reported but not crash the installation
+
+## Changes Made (Latest Update)
+
+### 1. Fixed Multiple Artifacts Resolution
+- **Problem**: Libraries with native components (like `org.lwjgl.tinyfd`) require both main JAR and native JAR, but system was adding them independently
+- **Solution**: Enhanced ClasspathBuilder to treat native libraries as multi-artifact entities requiring BOTH main and native JARs
+- **Result**: Eliminates `java.lang.module.FindException` errors
+
+### 2. Enhanced Path Resolution
+- **Problem**: Native library path resolution used basic fallback logic
+- **Solution**: Updated extraction to use `get_native_library_path_enhanced()` with better classifier pattern matching
+- **Result**: More reliable native library detection and extraction
+
+### 3. Improved Exclusion Pattern Enforcement
+- **Problem**: Basic exclusion patterns didn't prevent META-INF contamination consistently
+- **Solution**: All extraction functions now use `get_exclusion_patterns_enhanced()` with comprehensive defaults
+- **Result**: Clean natives directory without META-INF/, license files, or Java classes
+
+## Key Fix: Multi-Artifact Libraries
+
+For libraries like `org.lwjgl.tinyfd:3.3.1`:
+- **Before**: Native JAR added to classpath even if main JAR missing → FindException
+- **After**: Both main JAR (`tinyfd-3.3.1.jar`) AND native JAR (`tinyfd-3.3.1-natives-windows.jar`) required and added together
+- **Validation**: System now ensures complete library resolution for native components

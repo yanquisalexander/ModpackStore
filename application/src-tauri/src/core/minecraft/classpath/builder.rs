@@ -58,32 +58,66 @@ impl<'a> ClasspathBuilder<'a> {
                 continue;
             }
 
-            // Add main artifact
-            if let Some(artifact_path) = self.get_library_artifact_path(lib) {
-                match self.add_library_if_exists(&artifact_path, &mut entries, &mut seen) {
-                    Ok(added) => {
-                        if added {
-                            log::debug!("Added library artifact: {}", artifact_path.display());
-                        }
-                    }
-                    Err(e) => {
-                        missing_libraries.push(format!("{}: {}", lib_name, e));
-                    }
-                }
-            }
+            // Enhanced multi-artifact resolution: handle main + native artifacts together
+            let has_native_artifacts = self.library_has_native_artifacts(lib);
+            let main_artifact_path = self.get_library_artifact_path(lib);
+            let native_paths = self.get_native_library_paths(lib);
 
-            // Add native classifiers for current OS
-            if let Some(native_paths) = self.get_native_library_paths(lib) {
-                for native_path in native_paths {
-                    match self.add_library_if_exists(&native_path, &mut entries, &mut seen) {
+            // For libraries with native artifacts, we need BOTH main and native JARs
+            if has_native_artifacts {
+                let mut library_complete = true;
+
+                // Add main artifact (required for libraries with natives)
+                if let Some(artifact_path) = main_artifact_path {
+                    match self.add_library_if_exists(&artifact_path, &mut entries, &mut seen) {
                         Ok(added) => {
                             if added {
-                                log::debug!("Added native library: {}", native_path.display());
+                                log::debug!("Added main artifact for native library: {}", artifact_path.display());
                             }
                         }
                         Err(e) => {
-                            // Native libraries missing is often not critical, just log as warning
-                            log::warn!("Native library not found for {}: {}", lib_name, e);
+                            log::error!("Missing main artifact for native library {}: {}", lib_name, e);
+                            missing_libraries.push(format!("{} (main JAR): {}", lib_name, e));
+                            library_complete = false;
+                        }
+                    }
+                } else {
+                    log::error!("No main artifact path found for native library: {}", lib_name);
+                    missing_libraries.push(format!("{}: No main artifact path available", lib_name));
+                    library_complete = false;
+                }
+
+                // Add native classifiers (also required for native libraries)
+                if let Some(native_paths) = native_paths {
+                    for native_path in native_paths {
+                        match self.add_library_if_exists(&native_path, &mut entries, &mut seen) {
+                            Ok(added) => {
+                                if added {
+                                    log::debug!("Added native classifier: {}", native_path.display());
+                                }
+                            }
+                            Err(e) => {
+                                log::warn!("Native classifier not found for {}: {}", lib_name, e);
+                                // Native missing is less critical, but log it
+                            }
+                        }
+                    }
+                }
+
+                if library_complete {
+                    log::debug!("Successfully resolved multi-artifact library: {}", lib_name);
+                }
+            } else {
+                // Standard library processing (no native artifacts)
+                if let Some(artifact_path) = main_artifact_path {
+                    match self.add_library_if_exists(&artifact_path, &mut entries, &mut seen) {
+                        Ok(added) => {
+                            if added {
+                                log::debug!("Added library artifact: {}", artifact_path.display());
+                            }
+                        }
+                        Err(e) => {
+                            missing_libraries.push(format!("{}: {}", lib_name, e));
                         }
                     }
                 }
@@ -172,6 +206,42 @@ impl<'a> ClasspathBuilder<'a> {
         } else {
             Some(native_paths)
         }
+    }
+
+    /// Check if a library has native artifacts for the current OS
+    fn library_has_native_artifacts(&self, lib: &Value) -> bool {
+        // Check if library has classifiers with native artifacts
+        if let Some(classifiers) = lib
+            .get("downloads")
+            .and_then(|d| d.get("classifiers"))
+            .and_then(Value::as_object)
+        {
+            let os_classifiers = self.get_os_native_classifiers();
+            for classifier in os_classifiers {
+                if classifiers.contains_key(classifier) {
+                    return true;
+                }
+            }
+        }
+
+        // Check if library has natives section for current OS
+        if let Some(natives) = lib.get("natives") {
+            let os_name = if cfg!(windows) {
+                "windows"
+            } else if cfg!(target_os = "linux") {
+                "linux"
+            } else if cfg!(target_os = "macos") {
+                "osx"
+            } else {
+                "linux" // fallback
+            };
+            
+            if natives.get(os_name).is_some() {
+                return true;
+            }
+        }
+
+        false
     }
 
     fn get_os_native_classifiers(&self) -> Vec<&'static str> {

@@ -447,7 +447,7 @@ fn extract_single_native_library(
     os_info: &OsInfo,
     instance: &MinecraftInstance,
 ) -> Result<(), String> {
-    let library_path = get_native_library_path(library, libraries_dir, os_info)?;
+    let library_path = get_native_library_path_enhanced(library, libraries_dir, os_info)?;
 
     if !library_path.exists() {
         return Err(format!(
@@ -469,8 +469,8 @@ fn extract_single_native_library(
         metadata.len()
     );
 
-    // Get exclusion patterns
-    let exclude_patterns = get_exclusion_patterns(library);
+    // Get exclusion patterns with enhanced defaults
+    let exclude_patterns = get_exclusion_patterns_enhanced(library);
 
     emit_status(
         instance,
