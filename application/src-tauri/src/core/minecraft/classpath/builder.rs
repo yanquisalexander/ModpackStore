@@ -65,6 +65,7 @@ impl<'a> ClasspathBuilder<'a> {
                 self.construct_library_path_from_name(lib_name, None)
             });
 
+            // Add main artifact - required for all libraries
             if let Err(e) = self.add_library_if_exists(&artifact_path, &mut entries, &mut seen) {
                 missing_libraries.push(format!("{}: {}", lib_name, e));
             }
@@ -75,7 +76,10 @@ impl<'a> ClasspathBuilder<'a> {
                     if let Err(e) =
                         self.add_library_if_exists(&native_path, &mut entries, &mut seen)
                     {
-                        log::warn!("Optional native library not found for {}: {}", lib_name, e);
+                        // For libraries with native components, native JARs are also required
+                        // This ensures both main and native JARs are present for libraries like LWJGL
+                        missing_libraries.push(format!("{} (native): {}", lib_name, e));
+                        log::error!("Required native library missing for {}: {}", lib_name, e);
                     }
                 }
             }
