@@ -26,6 +26,12 @@ importers:
       '@oauth-everything/passport-patreon':
         specifier: ^1.0.1
         version: 1.0.1
+      '@twurple/api':
+        specifier: ^7.4.0
+        version: 7.4.0(@twurple/auth@7.4.0)
+      '@twurple/auth':
+        specifier: ^7.4.0
+        version: 7.4.0
       '@types/jsonwebtoken':
         specifier: ^9.0.9
         version: 9.0.9
@@ -292,6 +298,31 @@ packages:
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
     engines: {node: '>=12'}
+
+  '@d-fischer/cache-decorators@4.0.1':
+    resolution: {integrity: sha512-HNYLBLWs/t28GFZZeqdIBqq8f37mqDIFO6xNPof94VjpKvuP6ROqCZGafx88dk5zZUlBfViV9jD8iNNlXfc4CA==}
+
+  '@d-fischer/cross-fetch@5.0.5':
+    resolution: {integrity: sha512-symjDUPInTrkfIsZc2n2mo9hiAJLcTJsZkNICjZajEWnWpJ3s3zn50/FY8xpNUAf5w3eFuQii2wxztTGpvG1Xg==}
+
+  '@d-fischer/detect-node@3.0.1':
+    resolution: {integrity: sha512-0Rf3XwTzuTh8+oPZW9SfxTIiL+26RRJ0BRPwj5oVjZFyFKmsj9RGfN2zuTRjOuA3FCK/jYm06HOhwNK+8Pfv8w==}
+
+  '@d-fischer/logger@4.2.4':
+    resolution: {integrity: sha512-TFMZ/SVW8xyQtyJw9Rcuci4betSKy0qbQn2B5+1+72vVXeO8Qb1pYvuwF5qr0vDGundmSWq7W8r19nVPnXXSvA==}
+
+  '@d-fischer/qs@7.0.2':
+    resolution: {integrity: sha512-yAu3xDooiL+ef84Jo8nLjDjWBRk7RXk163Y6aTvRB7FauYd3spQD/dWvgT7R4CrN54Juhrrc3dMY7mc+jZGurQ==}
+    engines: {node: '>=0.6'}
+
+  '@d-fischer/rate-limiter@1.1.0':
+    resolution: {integrity: sha512-O5HgACwApyCZhp4JTEBEtbv/W3eAwEkrARFvgWnEsDmXgCMWjIHwohWoHre5BW6IYXFSHBGsuZB/EvNL3942kQ==}
+
+  '@d-fischer/shared-utils@3.6.4':
+    resolution: {integrity: sha512-BPkVLHfn2Lbyo/ENDBwtEB8JVQ+9OzkjJhUunLaxkw4k59YFlQxUUwlDBejVSFcpQT0t+D3CQlX+ySZnQj0wxw==}
+
+  '@d-fischer/typed-event-emitter@3.3.3':
+    resolution: {integrity: sha512-OvSEOa8icfdWDqcRtjSEZtgJTFOFNgTjje7zaL0+nAtu2/kZtRCSK5wUMrI/aXtCH8o0Qz2vA8UqkhWUTARFQQ==}
 
   '@discordjs/collection@2.1.1':
     resolution: {integrity: sha512-LiSusze9Tc7qF03sLCujF5iZp7K+vRNEDBZ86FT9aQAv3vxMLihUvKvpsCWiQ2DJq1tVckopKm1rxomgNUc9hg==}
@@ -1150,6 +1181,20 @@ packages:
   '@tsconfig/node16@1.0.4':
     resolution: {integrity: sha512-vxhUy4J8lyeyinH7Azl1pdd43GJhZH/tP2weN8TntQblOY+A0XbT8DJk1/oCPuOOyg/Ja757rG0CgHcWC8OfMA==}
 
+  '@twurple/api-call@7.4.0':
+    resolution: {integrity: sha512-WNxvjp/hMqZREElbvE4rHMyUIrHdGY5cbG8xbqgSM9CESFvJ1wm5BubhyANOyKd1TxABacLddbfbO//Fz9YHgA==}
+
+  '@twurple/api@7.4.0':
+    resolution: {integrity: sha512-RlXLs4ZvS8n0+iIk7YyVDwrjhlwpn+N+h7fX5Q61HoxlmzoCShmnnFo03abYw9i8Cc3deGpbQATOSVmigXM4qg==}
+    peerDependencies:
+      '@twurple/auth': 7.4.0
+
+  '@twurple/auth@7.4.0':
+    resolution: {integrity: sha512-WAQV6nJGkfY7r2BkRYhnzUpdfozLvjNsCxkyNVprl4dCWdJzccnTvqkKTdDRJc5ZJxDVaB9Drzwx9/fCp/gRDA==}
+
+  '@twurple/common@7.4.0':
+    resolution: {integrity: sha512-lX5cVkYar6jGvni6iLmMYjhxH1oPSl2v7XVeZ4C7U1GbLz/Jwk0L0uldQNGUIf9gpRHPY+TXRlk0UIpz2yo8DA==}
+
   '@types/bcrypt@5.0.2':
     resolution: {integrity: sha512-6atioO8Y75fNcbmj0G7UjI9lXN2pQ/IGJ2FWT4a/btd0Lk9lQalHLKhkgKVZ3r+spnmWUKfbMi1GEe9wyHQfNQ==}
 
@@ -1849,6 +1894,10 @@ packages:
   jws@3.2.2:
     resolution: {integrity: sha512-YHlZCB6lMTllWDtSPHz/ZXTsi8S00usEV6v1tjq8tOUZzw7DpSDWVXjXDre6ed1w/pd495ODpHZYSdkRTsa0HA==}
 
+  klona@2.0.6:
+    resolution: {integrity: sha512-dhG34DXATL5hSxJbIexCft8FChFXtmskoZYnoPWjXQuebWYCNkVeV3KkGegCK9CP1oswI/vQibS2GY7Em/sJJA==}
+    engines: {node: '>= 8'}
+
   lie@3.3.0:
     resolution: {integrity: sha512-UaiMJzeWRlEujzAuw5LokY1L5ecNQYZKfmyZ9L7wDHb/p5etKaxXhohBcrw0EYby+G/NA52vRSN4N39dxHAIwQ==}
 
@@ -2142,6 +2191,10 @@ packages:
     resolution: {integrity: sha512-NPRy+/ncIMeDlTAsuqwKIiferiawhefFJtkNSW0qZJEqMEb+qBt/77B/jGeeek+F0uOeN05CDa6HXbbIgtVX4w==}
     engines: {node: '>= 0.4'}
     hasBin: true
+
+  retry@0.13.1:
+    resolution: {integrity: sha512-XQBQ3I8W1Cge0Seh+6gjj03LbmRFWuoszgK9ooCpwYIrhhoO80pfq4cUkU5DkknwfOfFteRwlZ56PYOGYyFWdg==}
+    engines: {node: '>= 4'}
 
   rimraf@2.7.1:
     resolution: {integrity: sha512-uWjbaKIK3T1OSVptzX7Nl6PvQ3qAGtKEtVRjRuazjfL3Bx5eI409VZSqgND+4UNnmzLVdPj9FqFJNPqBZFve4w==}
@@ -2989,6 +3042,41 @@ snapshots:
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
 
+  '@d-fischer/cache-decorators@4.0.1':
+    dependencies:
+      '@d-fischer/shared-utils': 3.6.4
+      tslib: 2.8.1
+
+  '@d-fischer/cross-fetch@5.0.5':
+    dependencies:
+      node-fetch: 2.7.0
+    transitivePeerDependencies:
+      - encoding
+
+  '@d-fischer/detect-node@3.0.1': {}
+
+  '@d-fischer/logger@4.2.4':
+    dependencies:
+      '@d-fischer/detect-node': 3.0.1
+      '@d-fischer/shared-utils': 3.6.4
+      tslib: 2.8.1
+
+  '@d-fischer/qs@7.0.2': {}
+
+  '@d-fischer/rate-limiter@1.1.0':
+    dependencies:
+      '@d-fischer/logger': 4.2.4
+      '@d-fischer/shared-utils': 3.6.4
+      tslib: 2.8.1
+
+  '@d-fischer/shared-utils@3.6.4':
+    dependencies:
+      tslib: 2.8.1
+
+  '@d-fischer/typed-event-emitter@3.3.3':
+    dependencies:
+      tslib: 2.8.1
+
   '@discordjs/collection@2.1.1': {}
 
   '@discordjs/rest@2.4.3':
@@ -3731,6 +3819,50 @@ snapshots:
 
   '@tsconfig/node16@1.0.4': {}
 
+  '@twurple/api-call@7.4.0':
+    dependencies:
+      '@d-fischer/cross-fetch': 5.0.5
+      '@d-fischer/qs': 7.0.2
+      '@d-fischer/shared-utils': 3.6.4
+      '@twurple/common': 7.4.0
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - encoding
+
+  '@twurple/api@7.4.0(@twurple/auth@7.4.0)':
+    dependencies:
+      '@d-fischer/cache-decorators': 4.0.1
+      '@d-fischer/cross-fetch': 5.0.5
+      '@d-fischer/detect-node': 3.0.1
+      '@d-fischer/logger': 4.2.4
+      '@d-fischer/rate-limiter': 1.1.0
+      '@d-fischer/shared-utils': 3.6.4
+      '@d-fischer/typed-event-emitter': 3.3.3
+      '@twurple/api-call': 7.4.0
+      '@twurple/auth': 7.4.0
+      '@twurple/common': 7.4.0
+      retry: 0.13.1
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - encoding
+
+  '@twurple/auth@7.4.0':
+    dependencies:
+      '@d-fischer/logger': 4.2.4
+      '@d-fischer/shared-utils': 3.6.4
+      '@d-fischer/typed-event-emitter': 3.3.3
+      '@twurple/api-call': 7.4.0
+      '@twurple/common': 7.4.0
+      tslib: 2.8.1
+    transitivePeerDependencies:
+      - encoding
+
+  '@twurple/common@7.4.0':
+    dependencies:
+      '@d-fischer/shared-utils': 3.6.4
+      klona: 2.0.6
+      tslib: 2.8.1
+
   '@types/bcrypt@5.0.2':
     dependencies:
       '@types/node': 22.14.0
@@ -4446,6 +4578,8 @@ snapshots:
       jwa: 1.4.1
       safe-buffer: 5.2.1
 
+  klona@2.0.6: {}
+
   lie@3.3.0:
     dependencies:
       immediate: 3.0.6
@@ -4694,6 +4828,8 @@ snapshots:
       is-core-module: 2.16.1
       path-parse: 1.0.7
       supports-preserve-symlinks-flag: 1.0.0
+
+  retry@0.13.1: {}
 
   rimraf@2.7.1:
     dependencies:
