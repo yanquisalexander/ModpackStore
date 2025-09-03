@@ -45,7 +45,7 @@ export class CurseForgeImportService {
             fs.mkdirSync(workDir, { recursive: true });
 
             // Extract ZIP and parse manifest
-            const { manifest, overrideFiles } = await this.extractAndParseZip(zipBuffer, workDir);
+            const { manifest, overrideFilesByCategory } = await this.extractAndParseZip(zipBuffer, workDir);
 
             // Create modpack and version entities
             const { modpack, version } = await this.createModpackEntities(
@@ -58,7 +58,7 @@ export class CurseForgeImportService {
             // Download mods and process files
             const stats = await this.processModpackFiles(
                 manifest,
-                overrideFiles,
+                overrideFilesByCategory,
                 modpack.id,
                 version.id,
                 workDir,
@@ -106,7 +106,10 @@ export class CurseForgeImportService {
     private async extractAndParseZip(
         zipBuffer: Buffer,
         workDir: string
-    ): Promise<{ manifest: CurseForgeManifest; overrideFiles: Array<{ path: string; content: Buffer }> }> {
+    ): Promise<{ 
+        manifest: CurseForgeManifest; 
+        overrideFilesByCategory: Map<string, Array<{ path: string; content: Buffer }>>
+    }> {
         const zip = await JSZip.loadAsync(zipBuffer);
 
         // Find and parse manifest.json
@@ -127,19 +130,44 @@ export class CurseForgeImportService {
         // Validate manifest
         this.validateManifest(manifest);
 
-        // Extract override files
-        const overrideFiles: Array<{ path: string; content: Buffer }> = [];
+        // Extract override files and group them by category
+        const overrideFilesByCategory = new Map<string, Array<{ path: string; content: Buffer }>>();
         const overrideFolderName = manifest.overrides || 'overrides';
+
+        // Initialize categories
+        const categories = ['config', 'resourcepacks', 'shaderpacks', 'datapacks', 'extras'];
+        categories.forEach(category => {
+            overrideFilesByCategory.set(category, []);
+        });
 
         for (const [filePath, zipEntry] of Object.entries(zip.files)) {
             if (filePath.startsWith(overrideFolderName + '/') && !zipEntry.dir) {
                 const content = await zipEntry.async('nodebuffer');
                 const relativePath = filePath.substring(overrideFolderName.length + 1);
-                overrideFiles.push({ path: relativePath, content });
+                
+                // Determine the category based on the top-level directory
+                const category = this.determineOverrideFileType(relativePath);
+                
+                // For recognized categories, store the path relative to that category
+                // For extras, store the full relative path
+                let adjustedPath: string;
+                if (category === 'extras') {
+                    adjustedPath = relativePath;
+                } else {
+                    // Remove the category prefix from the path since we'll add it back during processing
+                    adjustedPath = relativePath.startsWith(category + '/') 
+                        ? relativePath.substring(category.length + 1)
+                        : relativePath;
+                }
+                
+                overrideFilesByCategory.get(category)!.push({ 
+                    path: adjustedPath, 
+                    content 
+                });
             }
         }
 
-        return { manifest, overrideFiles };
+        return { manifest, overrideFilesByCategory };
     }
 
     /**
@@ -248,17 +276,23 @@ export class CurseForgeImportService {
      */
     private async processModpackFiles(
         manifest: CurseForgeManifest,
-        overrideFiles: Array<{ path: string; content: Buffer }>,
+        overrideFilesByCategory: Map<string, Array<{ path: string; content: Buffer }>>,
         modpackId: string,
         versionId: string,
         workDir: string,
         concurrency: number
     ): Promise<{ totalMods: number; downloadedMods: number; failedMods: number; overrideFiles: number }> {
+        // Calculate total override files
+        let totalOverrideFiles = 0;
+        for (const [, files] of overrideFilesByCategory) {
+            totalOverrideFiles += files.length;
+        }
+
         const stats = {
             totalMods: manifest.files.length,
             downloadedMods: 0,
             failedMods: 0,
-            overrideFiles: overrideFiles.length
+            overrideFiles: totalOverrideFiles
         };
 
         // Process mods
@@ -274,9 +308,9 @@ export class CurseForgeImportService {
             stats.failedMods = modStats.failed;
         }
 
-        // Process override files
-        if (overrideFiles.length > 0) {
-            await this.processOverrideFiles(overrideFiles, modpackId, versionId);
+        // Process override files by category
+        if (totalOverrideFiles > 0) {
+            await this.processOverrideFilesByCategory(overrideFilesByCategory, modpackId, versionId);
         }
 
         return stats;
@@ -350,7 +384,40 @@ export class CurseForgeImportService {
     }
 
     /**
-     * Process override files as config/extras
+     * Process override files grouped by category (similar to manual upload)
+     */
+    private async processOverrideFilesByCategory(
+        overrideFilesByCategory: Map<string, Array<{ path: string; content: Buffer }>>,
+        modpackId: string,
+        versionId: string
+    ): Promise<void> {
+        for (const [category, files] of overrideFilesByCategory) {
+            // Skip empty categories
+            if (files.length === 0) continue;
+
+            console.log(`Processing ${files.length} files for category: ${category}`);
+
+            // Prepare file entries with proper path prefixes (consistent with manual upload)
+            const fileEntries = files.map(file => {
+                const hash = crypto.createHash('sha1').update(file.content).digest('hex');
+                // Add category prefix for path consistency with manual upload
+                const adjustedPath = category === 'extras' ? file.path : `${category}/${file.path}`;
+
+                return {
+                    content: file.content,
+                    hash,
+                    path: adjustedPath,
+                    type: category
+                };
+            });
+
+            // Process this category's files as a batch (similar to manual upload)
+            await this.batchStoreFiles(fileEntries, category, modpackId, versionId);
+        }
+    }
+
+    /**
+     * Process override files as config/extras (DEPRECATED - replaced by processOverrideFilesByCategory)
      */
     private async processOverrideFiles(
         overrideFiles: Array<{ path: string; content: Buffer }>,
@@ -526,12 +593,13 @@ export class CurseForgeImportService {
     /**
      * Determine file type for override files
      */
-    private determineOverrideFileType(filePath: string): 'config' | 'resourcepacks' | 'shaderpacks' | 'extras' {
+    private determineOverrideFileType(filePath: string): 'config' | 'resourcepacks' | 'shaderpacks' | 'datapacks' | 'extras' {
         const lowerPath = filePath.toLowerCase();
 
         if (lowerPath.startsWith('config/')) return 'config';
         if (lowerPath.startsWith('resourcepacks/')) return 'resourcepacks';
         if (lowerPath.startsWith('shaderpacks/')) return 'shaderpacks';
+        if (lowerPath.startsWith('datapacks/')) return 'datapacks';
 
         return 'extras';
     }
