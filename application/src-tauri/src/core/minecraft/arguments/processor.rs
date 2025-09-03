@@ -165,14 +165,15 @@ impl<'a> ArgumentProcessor<'a> {
     fn process_jvm_arguments(&self, placeholders: &HashMap<String, String>) -> Option<Vec<String>> {
         let mut jvm_args = vec![format!("-Xms512M"), format!("-Xmx{}M", self.memory)];
 
-        // Add version-specific JVM arguments
+        // Add enhanced version-specific JVM arguments
         let version = self
             .manifest
             .get("id")
             .and_then(|v| v.as_str())
             .unwrap_or(self.paths.minecraft_version());
-        let version_specific_args = VersionCompatibility::get_version_specific_jvm_args(version);
-        jvm_args.extend(version_specific_args);
+        
+        let enhanced_args = VersionCompatibility::get_enhanced_jvm_args(version, Some(self.manifest));
+        jvm_args.extend(enhanced_args);
 
         // Process manifest arguments based on version generation
         match self.generation {
@@ -181,14 +182,14 @@ impl<'a> ArgumentProcessor<'a> {
                     let manifest_args = self.process_arguments_list(args_obj, placeholders, None);
                     let filtered_args: Vec<String> = manifest_args
                         .into_iter()
-                        .filter(|arg| !jvm_args.contains(arg))
+                        .filter(|arg| !self.is_redundant_jvm_arg(arg, &jvm_args))
                         .collect();
                     jvm_args.extend(filtered_args);
                 }
             }
             _ => {
-                // Legacy fallback arguments
-                self.add_legacy_jvm_arguments(&mut jvm_args);
+                // Legacy fallback arguments with enhanced compatibility
+                self.add_enhanced_legacy_jvm_arguments(&mut jvm_args, version);
             }
         }
 
@@ -202,7 +203,50 @@ impl<'a> ArgumentProcessor<'a> {
             jvm_args.push(classpath);
         }
 
+        log::debug!("[ArgumentProcessor] Final JVM args: {:?}", jvm_args);
         Some(jvm_args)
+    }
+
+    /// Check if a JVM argument is redundant (already present)
+    fn is_redundant_jvm_arg(&self, new_arg: &str, existing_args: &[String]) -> bool {
+        // Check for duplicate system properties
+        if new_arg.starts_with("-D") {
+            let prop_name = new_arg.split('=').next().unwrap_or(new_arg);
+            return existing_args.iter().any(|arg| arg.starts_with(prop_name));
+        }
+
+        // Check for duplicate memory flags
+        if new_arg.starts_with("-Xms") || new_arg.starts_with("-Xmx") {
+            return existing_args.iter().any(|arg| {
+                (new_arg.starts_with("-Xms") && arg.starts_with("-Xms")) ||
+                (new_arg.starts_with("-Xmx") && arg.starts_with("-Xmx"))
+            });
+        }
+
+        // Check for duplicate flags
+        existing_args.contains(&new_arg.to_string())
+    }
+
+    /// Add enhanced legacy JVM arguments for older versions
+    fn add_enhanced_legacy_jvm_arguments(&self, jvm_args: &mut Vec<String>, version: &str) {
+        // Base legacy arguments
+        self.add_legacy_jvm_arguments(jvm_args);
+        
+        // Version-specific enhancements
+        if let Some((_, minor, _)) = VersionCompatibility::parse_version_number(version) {
+            match minor {
+                6..=7 => {
+                    // 1.6-1.7.10 specific arguments
+                    jvm_args.push("-Dfml.ignoreInvalidMinecraftCertificates=true".to_string());
+                    jvm_args.push("-Dfml.ignorePatchDiscrepancies=true".to_string());
+                }
+                8..=12 => {
+                    // 1.8-1.12.2 specific arguments  
+                    jvm_args.push("-Dminecraft.applet.TargetDirectory=.".to_string());
+                }
+                _ => {}
+            }
+        }
     }
 
     /// Add legacy JVM arguments for older versions
