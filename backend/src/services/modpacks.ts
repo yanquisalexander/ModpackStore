@@ -189,6 +189,8 @@ type ModpackDetails = {
     categories: CategoryInModpack[];
     isPasswordProtected: boolean;
     prelaunchAppearance?: any;
+    requiresTwitchSubscription: boolean;
+    twitchCreatorIds: string[];
 };
 
 export const getModpackById = async (modpackId: string): Promise<ModpackDetails | null> => {
@@ -224,6 +226,8 @@ export const getModpackById = async (modpackId: string): Promise<ModpackDetails 
             status: modpack.status,
             createdAt: modpack.createdAt,
             updatedAt: modpack.updatedAt,
+            requiresTwitchSubscription: modpack.requiresTwitchSubscription,
+            twitchCreatorIds: modpack.twitchCreatorIds ?? [],
             showUserAsPublisher: modpack.showUserAsPublisher,
             creatorUser: modpack.creatorUser ? {
                 username: modpack.creatorUser.username,
