@@ -1,6 +1,6 @@
+use super::super::version_compatibility::{VersionCompatibility, VersionGeneration};
 use serde_json::{Map, Value};
 use std::collections::{BTreeMap, HashMap};
-use super::version_compatibility::{VersionCompatibility, VersionGeneration};
 
 pub struct ManifestMerger;
 
@@ -9,7 +9,10 @@ impl ManifestMerger {
         let mut result = vanilla.clone();
 
         // Detect version generation for compatibility
-        let version = vanilla.get("id").and_then(|v| v.as_str()).unwrap_or("unknown");
+        let version = vanilla
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("unknown");
         let generation = VersionCompatibility::detect_generation(version, Some(&vanilla));
 
         if let Some(mc) = forge.get("mainClass") {
@@ -61,7 +64,13 @@ impl ManifestMerger {
     }
 
     /// Enhanced library preference logic with more sophisticated rules
-    fn prefer_forge_library(ga: &str, vver: &Option<String>, fver: &Option<String>, forge_lib: &Value, vanilla_lib: &Value) -> bool {
+    fn prefer_forge_library(
+        ga: &str,
+        vver: &Option<String>,
+        fver: &Option<String>,
+        forge_lib: &Value,
+        vanilla_lib: &Value,
+    ) -> bool {
         // Security-critical libraries: always use newer version
         if ga.contains("log4j") || ga.contains("security") || ga.contains("crypto") {
             if let (Some(v_str), Some(f_str)) = (vver, fver) {
@@ -92,15 +101,15 @@ impl ManifestMerger {
     /// Check if a version string is newer than another
     fn is_version_newer(version1: &str, version2: &str) -> bool {
         use std::cmp::Ordering;
-        
+
         let v1_parts: Vec<u32> = version1.split('.').filter_map(|p| p.parse().ok()).collect();
         let v2_parts: Vec<u32> = version2.split('.').filter_map(|p| p.parse().ok()).collect();
-        
+
         let max_len = v1_parts.len().max(v2_parts.len());
         for i in 0..max_len {
             let v1_part = v1_parts.get(i).unwrap_or(&0);
             let v2_part = v2_parts.get(i).unwrap_or(&0);
-            
+
             match v1_part.cmp(v2_part) {
                 Ordering::Greater => return true,
                 Ordering::Less => return false,
@@ -114,8 +123,8 @@ impl ManifestMerger {
     fn is_native_library(lib: &Value) -> bool {
         lib.get("downloads")
             .and_then(|d| d.get("classifiers"))
-            .is_some() ||
-        lib.get("natives").is_some()
+            .is_some()
+            || lib.get("natives").is_some()
     }
 
     /// Determine if forge native library has better platform support
@@ -123,27 +132,36 @@ impl ManifestMerger {
         // Count supported platforms
         let forge_platforms = Self::count_native_platforms(forge_lib);
         let vanilla_platforms = Self::count_native_platforms(vanilla_lib);
-        
+
         forge_platforms >= vanilla_platforms
     }
 
     /// Count the number of native platforms supported by a library
     fn count_native_platforms(lib: &Value) -> usize {
         let mut count = 0;
-        
-        if let Some(classifiers) = lib.get("downloads").and_then(|d| d.get("classifiers")).and_then(|c| c.as_object()) {
+
+        if let Some(classifiers) = lib
+            .get("downloads")
+            .and_then(|d| d.get("classifiers"))
+            .and_then(|c| c.as_object())
+        {
             count += classifiers.len();
         }
-        
+
         if let Some(natives) = lib.get("natives").and_then(|n| n.as_object()) {
             count += natives.len();
         }
-        
+
         count
     }
 
     /// Version-aware argument merging that automatically handles legacy and modern formats
-    fn merge_arguments_compatible(result: &mut Value, vanilla: &Value, forge: &Value, generation: &VersionGeneration) {
+    fn merge_arguments_compatible(
+        result: &mut Value,
+        vanilla: &Value,
+        forge: &Value,
+        generation: &VersionGeneration,
+    ) {
         match generation {
             VersionGeneration::Legacy | VersionGeneration::PreClassic => {
                 Self::merge_legacy_arguments_improved(result, vanilla, forge);
@@ -151,7 +169,9 @@ impl ManifestMerger {
             VersionGeneration::Modern | VersionGeneration::Future => {
                 Self::merge_arguments(result, vanilla, forge);
                 // Also check for legacy arguments in case of mixed format
-                if vanilla.get("minecraftArguments").is_some() || forge.get("minecraftArguments").is_some() {
+                if vanilla.get("minecraftArguments").is_some()
+                    || forge.get("minecraftArguments").is_some()
+                {
                     Self::merge_legacy_arguments_improved(result, vanilla, forge);
                 }
             }
@@ -164,7 +184,7 @@ impl ManifestMerger {
         for kind in &["game", "jvm"] {
             let mut list = Vec::new();
             let mut seen_args = std::collections::HashSet::new();
-            
+
             // Add vanilla arguments first
             if let Some(v) = vanilla
                 .get("arguments")
@@ -179,7 +199,7 @@ impl ManifestMerger {
                     }
                 }
             }
-            
+
             // Add forge arguments, avoiding duplicates
             if let Some(f) = forge
                 .get("arguments")
@@ -194,7 +214,7 @@ impl ManifestMerger {
                     }
                 }
             }
-            
+
             if !list.is_empty() {
                 args_map.insert(kind.to_string(), Value::Array(list));
             }
@@ -213,7 +233,8 @@ impl ManifestMerger {
                 if let Some(value) = obj.get("value") {
                     match value {
                         Value::String(s) => s.clone(),
-                        Value::Array(arr) => arr.iter()
+                        Value::Array(arr) => arr
+                            .iter()
                             .filter_map(|v| v.as_str())
                             .collect::<Vec<_>>()
                             .join(" "),
@@ -230,13 +251,13 @@ impl ManifestMerger {
     fn merge_legacy_arguments_improved(result: &mut Value, vanilla: &Value, forge: &Value) {
         let mut all_args = Vec::new();
         let mut seen_flags = std::collections::HashSet::new();
-        
+
         // Process vanilla arguments
         if let Some(Value::String(s)) = vanilla.get("minecraftArguments") {
             let args: Vec<&str> = s.split_whitespace().collect();
             Self::process_legacy_args(&args, &mut all_args, &mut seen_flags);
         }
-        
+
         // Process forge arguments, avoiding duplicates
         if let Some(Value::String(s)) = forge.get("minecraftArguments") {
             let args: Vec<&str> = s.split_whitespace().collect();
@@ -250,17 +271,21 @@ impl ManifestMerger {
     }
 
     /// Process legacy arguments while avoiding duplicates
-    fn process_legacy_args(args: &[&str], all_args: &mut Vec<String>, seen_flags: &mut std::collections::HashSet<String>) {
+    fn process_legacy_args(
+        args: &[&str],
+        all_args: &mut Vec<String>,
+        seen_flags: &mut std::collections::HashSet<String>,
+    ) {
         let mut i = 0;
         while i < args.len() {
             let arg = args[i];
-            
+
             // Check if this is a flag (starts with --)
             if arg.starts_with("--") {
                 if !seen_flags.contains(arg) {
                     all_args.push(arg.to_string());
                     seen_flags.insert(arg.to_string());
-                    
+
                     // If next argument exists and doesn't start with --, it's the value
                     if i + 1 < args.len() && !args[i + 1].starts_with("--") {
                         i += 1;
@@ -286,7 +311,7 @@ impl ManifestMerger {
         if let Some(forge_assets) = forge.get("assets") {
             result["assets"] = forge_assets.clone();
         }
-        
+
         // Merge assetIndex if present
         if let Some(forge_asset_index) = forge.get("assetIndex") {
             result["assetIndex"] = forge_asset_index.clone();
@@ -312,9 +337,9 @@ impl ManifestMerger {
             name.clone()
         };
         let version = parts.get(2).map(|s| s.to_string());
-        
-        // Enhanced classifier detection
-        let classifier = lib
+
+        // Enhanced classifier detection (produce Option<String> instead of Option<&Value>)
+        let classifier: Option<String> = lib
             .get("downloads")
             .and_then(|d| d.get("artifact"))
             .and_then(|a| a.get("classifier"))
@@ -324,18 +349,15 @@ impl ManifestMerger {
                 lib.get("natives")
                     .and_then(|n| n.as_object())
                     .and_then(|natives| {
-                        // Get first available native classifier
-                        for (_, classifier_name) in natives {
-                            if let Some(c) = classifier_name.as_str() {
-                                return Some(Value::String(c.to_string()));
-                            }
-                        }
-                        None
+                        // Get first available native classifier as &Value
+                        natives.values().find(|v| v.is_string())
                     })
             })
-            .and_then(Value::as_str)
-            .map(String::from);
-            
+            .and_then(|val| match val {
+                Value::String(s) => Some(s.clone()),
+                _ => None,
+            });
+
         let url = lib.get("url").and_then(Value::as_str).map(String::from);
         Some((name, ga, version, url, classifier))
     }
