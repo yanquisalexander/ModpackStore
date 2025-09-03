@@ -165,7 +165,7 @@ export class AdminPublishersService {
                 action: AuditAction.PUBLISHER_CREATED,
                 userId: createdBy,
                 targetResourceId: savedPublisher.id,
-                details: { publisherName: data.publisherName }
+                details: { publisherName: data.publisherName },
             });
 
             await queryRunner.commitTransaction();

@@ -4,10 +4,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { 
-    LucideUsers, 
-    LucideActivity, 
-    LucideSettings, 
+import {
+    LucideUsers,
+    LucideActivity,
+    LucideSettings,
     LucideShield,
     LucideBuilding2,
     LucideChevronRight
@@ -102,8 +102,8 @@ const AdminSidebar: React.FC = () => {
                                             to={item.path}
                                             className={`
                                                 flex items-center gap-3 p-3 rounded-lg transition-colors
-                                                ${isActive 
-                                                    ? 'bg-primary text-primary-foreground' 
+                                                ${isActive
+                                                    ? 'bg-primary text-primary-foreground'
                                                     : 'hover:bg-muted/50'
                                                 }
                                             `}
@@ -111,9 +111,8 @@ const AdminSidebar: React.FC = () => {
                                             <Icon className="h-4 w-4" />
                                             <div className="flex-1">
                                                 <div className="font-medium text-sm">{item.label}</div>
-                                                <div className={`text-xs ${
-                                                    isActive ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                                                }`}>
+                                                <div className={`text-xs ${isActive ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                                                    }`}>
                                                     {item.description}
                                                 </div>
                                             </div>

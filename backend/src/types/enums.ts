@@ -2,7 +2,7 @@
 
 export enum TransactionType {
     PURCHASE = 'purchase',
-    COMMISSION = 'commission', 
+    COMMISSION = 'commission',
     DEPOSIT = 'deposit',
     WITHDRAWAL = 'withdrawal'
 }
@@ -35,5 +35,6 @@ export enum PublisherMemberRole {
 export enum UserRole {
     USER = 'user',
     ADMIN = 'admin',
-    SUPERADMIN = 'superadmin'
+    SUPERADMIN = 'superadmin',
+    SYSTEM = 'system'
 }

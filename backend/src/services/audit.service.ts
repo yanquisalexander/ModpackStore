@@ -31,7 +31,8 @@ export class AuditService {
     static async createLog(data: CreateAuditLogData): Promise<AuditLog> {
         const auditLog = new AuditLog();
         auditLog.action = data.action;
-        auditLog.userId = data.userId || null;
+        // Assign relation by id so TypeORM persists the foreign key without fetching the user
+        auditLog.user = data.userId ? ({ id: data.userId } as any) : null;
         auditLog.targetUserId = data.targetUserId || null;
         auditLog.targetResourceId = data.targetResourceId || null;
         auditLog.details = data.details || null;
@@ -52,7 +53,13 @@ export class AuditService {
         } = options;
 
         const query = AuditLog.createQueryBuilder('audit_log')
-            .leftJoinAndSelect('audit_log.user', 'user')
+            .leftJoin('audit_log.user', 'user')
+            // explicitly select only the user fields we want to expose
+            .addSelect([
+                'user.id',
+                'user.username',
+                'user.avatarUrl'
+            ])
             .orderBy('audit_log.createdAt', 'DESC');
 
         if (userId) {
@@ -85,10 +92,18 @@ export class AuditService {
     }
 
     static async getLogById(id: string): Promise<AuditLog | null> {
-        return await AuditLog.findOne({
-            where: { id },
-            relations: ['user']
-        });
+        // Use QueryBuilder so we can select only the user fields we expose
+        const log = await AuditLog.createQueryBuilder('audit_log')
+            .leftJoin('audit_log.user', 'user')
+            .addSelect([
+                'user.id',
+                'user.username',
+                'user.avatarUrl'
+            ])
+            .where('audit_log.id = :id', { id })
+            .getOne();
+
+        return log;
     }
 
     // Convenience methods for common audit actions

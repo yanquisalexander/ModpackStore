@@ -9,9 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import {
     LucideLoader,
-    LucideSearch,
     LucideRefreshCw,
-    LucideCalendar,
     LucideUser,
     LucideActivity
 } from 'lucide-react';
@@ -29,9 +27,8 @@ interface AuditLog {
     userAgent: string | null;
     createdAt: string;
     user?: {
-        id: string;
         username: string;
-        email: string;
+        avatarUrl?: string | null;
     } | null;
 }
 
@@ -338,23 +335,27 @@ export const AuditLogsView: React.FC = () => {
                                             <TableCell>
                                                 <ActionBadge action={log.action} />
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="min-w-[200px]">
                                                 {log.user ? (
-                                                    <div>
-                                                        <div className="font-medium">{log.user.username}</div>
-                                                        <div className="text-xs text-muted-foreground font-mono">
-                                                            {log.user.id}
+                                                    <div className="flex items-center gap-3">
+                                                        {log.user.avatarUrl ? (
+                                                            <img src={log.user.avatarUrl} alt={log.user.username} className="size-6 rounded-full" />
+                                                        ) : (
+                                                            <div className="w-8 h-8 rounded-full bg-muted-foreground" />
+                                                        )}
+                                                        <div className="min-w-0">
+                                                            <div className="font-medium truncate">{log.user.username}</div>
                                                         </div>
                                                     </div>
                                                 ) : (
                                                     <span className="text-muted-foreground">Desconocido</span>
                                                 )}
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="min-w-[180px]">
                                                 {log.targetUserId ? (
-                                                    <div className="font-mono text-xs">{log.targetUserId}</div>
+                                                    <div className="font-mono text-xs truncate">{log.targetUserId}</div>
                                                 ) : log.targetResourceId ? (
-                                                    <div className="font-mono text-xs">{log.targetResourceId}</div>
+                                                    <div className="font-mono text-xs truncate">{log.targetResourceId}</div>
                                                 ) : (
                                                     <span className="text-muted-foreground">-</span>
                                                 )}

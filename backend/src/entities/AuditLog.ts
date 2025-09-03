@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, BaseEntity } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, BaseEntity, JoinColumn, RelationId } from "typeorm";
 import { User } from "./User";
 
 export enum AuditAction {
@@ -26,17 +26,19 @@ export class AuditLog extends BaseEntity {
     @PrimaryGeneratedColumn("uuid")
     id: string;
 
-    @Column({ 
-        name: "action", 
-        type: "enum", 
-        enum: AuditAction 
+    @Column({
+        name: "action",
+        type: "enum",
+        enum: AuditAction
     })
     action: AuditAction;
 
     @ManyToOne(() => User, { nullable: true })
+    @JoinColumn({ name: 'user_id' })
     user: User | null;
 
-    @Column({ name: "user_id", type: "uuid", nullable: true })
+    // Expose the raw FK value without redefining the column twice
+    @RelationId((audit: AuditLog) => audit.user)
     userId: string | null;
 
     @Column({ name: "target_user_id", type: "uuid", nullable: true })

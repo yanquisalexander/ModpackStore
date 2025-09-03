@@ -16,6 +16,7 @@ import swaggerSpec from './config/swaggerConfig'; // Import the generated spec
 import { serializeError } from './utils/jsonapi';
 import { APIError } from "./lib/APIError";
 import { AppDataSource } from "./db/data-source";
+import { generateSystemUser } from "./utils/system";
 
 const app = new Hono();
 app.use(logger())
@@ -23,6 +24,12 @@ const port = Number(process.env.PORT) || 3000;
 
 const initializeServices = async (): Promise<void> => {
   await AppDataSource.initialize();
+
+  /* Initialize the system user */
+  await generateSystemUser().catch((error) => {
+    console.error('Error generating system user:', error);
+  });
+
   // Initialize Passport strategies
   await Passport.setup();
   console.log('Passport setup initialized.');

@@ -23,6 +23,7 @@ export class AuditController {
 
             // Log that audit logs were viewed
             const user = c.get(USER_CONTEXT_KEY) as User
+            console.log(`User ${user.id} viewed audit logs with filters:`, options)
             await AuditService.createLog({
                 action: AuditAction.AUDIT_LOG_VIEWED,
                 userId: user.id,
