@@ -317,22 +317,27 @@ impl ManifestMerger {
             name.clone()
         };
         let version = parts.get(2).map(|s| s.to_string());
-        
+
         // Extract classifier from multiple possible locations:
         // 1. From the name field itself (4th part after splitting by ':')
-        // 2. From downloads.artifact.classifier 
+        // 2. From downloads.artifact.classifier
         // 3. From direct classifier field
-        let classifier = parts.get(3).map(String::from)
-            .or_else(|| lib
-                .get("downloads")
-                .and_then(|d| d.get("artifact"))
-                .and_then(|a| a.get("classifier"))
-                .and_then(Value::as_str)
-                .map(String::from))
-            .or_else(|| lib.get("classifier")
-                .and_then(Value::as_str)
-                .map(String::from));
-        
+        let classifier = parts
+            .get(3)
+            .map(|s| (*s).to_string())
+            .or_else(|| {
+                lib.get("downloads")
+                    .and_then(|d| d.get("artifact"))
+                    .and_then(|a| a.get("classifier"))
+                    .and_then(Value::as_str)
+                    .map(String::from)
+            })
+            .or_else(|| {
+                lib.get("classifier")
+                    .and_then(Value::as_str)
+                    .map(String::from)
+            });
+
         let url = lib.get("url").and_then(Value::as_str).map(String::from);
         Some((name, ga, version, url, classifier))
     }
@@ -409,10 +414,14 @@ mod tests {
             ManifestMerger::build_lib_key("commons-io:commons-io", &Some("2.5".to_string()), &None),
             "commons-io:commons-io"
         );
-        
+
         // Test with classifier
         assert_eq!(
-            ManifestMerger::build_lib_key("org.lwjgl:lwjgl", &Some("3.2.1".to_string()), &Some("natives-windows".to_string())),
+            ManifestMerger::build_lib_key(
+                "org.lwjgl:lwjgl",
+                &Some("3.2.1".to_string()),
+                &Some("natives-windows".to_string())
+            ),
             "org.lwjgl:lwjgl:natives-windows"
         );
     }
@@ -430,7 +439,7 @@ mod tests {
 
         let result = ManifestMerger::extract_lib_info(&lib);
         assert!(result.is_some());
-        
+
         let (name, ga, version, _url, classifier) = result.unwrap();
         assert_eq!(name, "org.lwjgl:lwjgl:3.2.1:natives-windows");
         assert_eq!(ga, "org.lwjgl:lwjgl");
@@ -483,15 +492,25 @@ mod tests {
         });
 
         let result = ManifestMerger::merge(vanilla, forge);
-        
+
         // Should have 3 libraries: commons-io (forge version), lwjgl (vanilla), forge (new)
         let libraries = result.get("libraries").unwrap().as_array().unwrap();
         assert_eq!(libraries.len(), 3);
-        
+
         // Verify commons-io has the forge version (2.6)
-        let commons_io = libraries.iter()
-            .find(|lib| lib.get("name").unwrap().as_str().unwrap().contains("commons-io"))
+        let commons_io = libraries
+            .iter()
+            .find(|lib| {
+                lib.get("name")
+                    .unwrap()
+                    .as_str()
+                    .unwrap()
+                    .contains("commons-io")
+            })
             .unwrap();
-        assert_eq!(commons_io.get("name").unwrap().as_str().unwrap(), "commons-io:commons-io:2.6");
+        assert_eq!(
+            commons_io.get("name").unwrap().as_str().unwrap(),
+            "commons-io:commons-io:2.6"
+        );
     }
 }
