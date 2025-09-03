@@ -447,7 +447,7 @@ fn extract_single_native_library(
     os_info: &OsInfo,
     instance: &MinecraftInstance,
 ) -> Result<(), String> {
-    let library_path = get_native_library_path(library, libraries_dir, os_info)?;
+    let library_path = get_native_library_path_enhanced(library, libraries_dir, os_info)?;
 
     if !library_path.exists() {
         return Err(format!(
