@@ -17,6 +17,7 @@ import {
     LucideRefreshCw
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { API_ENDPOINT } from "@/consts";
 
 // Types
@@ -264,6 +265,7 @@ export const ManageUsersView: React.FC = () => {
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [deletingUser, setDeletingUser] = useState<User | null>(null);
 
     const { toast } = useToast();
     const { session, sessionTokens } = useAuthentication();
@@ -368,10 +370,14 @@ export const ManageUsersView: React.FC = () => {
         }
     };
 
-    const handleDeleteUser = async (user: User) => {
-        if (!confirm(`Are you sure you want to delete user "${user.username}"?`)) {
-            return;
-        }
+    // Open confirm dialog for deletion
+    const handleDeleteUser = (user: User) => {
+        setDeletingUser(user);
+    };
+
+    // Perform deletion after confirmation
+    const confirmDeleteUser = async () => {
+        if (!deletingUser) return;
 
         if (!sessionTokens?.accessToken) {
             toast({
@@ -383,7 +389,8 @@ export const ManageUsersView: React.FC = () => {
         }
 
         try {
-            await AdminUsersAPI.deleteUser(user.id, sessionTokens.accessToken);
+            await AdminUsersAPI.deleteUser(deletingUser.id, sessionTokens.accessToken);
+            setDeletingUser(null);
             await loadUsers();
             toast({
                 title: 'Success',
@@ -530,6 +537,7 @@ export const ManageUsersView: React.FC = () => {
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
+                                                        disabled={user.username === "system"}
                                                         onClick={() => setEditingUser(user)}
                                                     >
                                                         <LucideEdit className="h-3 w-3" />
@@ -538,7 +546,7 @@ export const ManageUsersView: React.FC = () => {
                                                         variant="destructive"
                                                         size="sm"
                                                         onClick={() => handleDeleteUser(user)}
-                                                        disabled={user.id === session?.id}
+                                                        disabled={user.id === session?.id || user.username === "system"}
                                                     >
                                                         <LucideTrash className="h-3 w-3" />
                                                     </Button>
@@ -596,6 +604,22 @@ export const ManageUsersView: React.FC = () => {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Delete confirmation AlertDialog */}
+            <AlertDialog open={!!deletingUser} onOpenChange={(open) => { if (!open) setDeletingUser(null); }}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Eliminar Usuario</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            ¿Seguro que quieres eliminar al usuario <strong>{deletingUser?.username}</strong>? Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setDeletingUser(null)}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDeleteUser} className="bg-red-600 hover:bg-red-700">Eliminar</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };
