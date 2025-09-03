@@ -46,7 +46,7 @@ export class ModpackVersion extends BaseEntity {
     updatedAt: Date;
 
     // Relations
-    @ManyToOne(() => Modpack, modpack => modpack.versions)
+    @ManyToOne(() => Modpack, modpack => modpack.versions, { onDelete: "CASCADE" })
     @JoinColumn({ name: "modpack_id" })
     modpack: Modpack;
 
@@ -54,6 +54,6 @@ export class ModpackVersion extends BaseEntity {
     @JoinColumn({ name: "created_by" })
     createdByUser: User;
 
-    @OneToMany(() => ModpackVersionFile, modpackVersionFile => modpackVersionFile.modpackVersion)
+    @OneToMany(() => ModpackVersionFile, modpackVersionFile => modpackVersionFile.modpackVersion, { cascade: true })
     files: ModpackVersionFile[];
 }
