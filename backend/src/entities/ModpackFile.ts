@@ -1,7 +1,7 @@
 import { Entity, PrimaryColumn, Column, CreateDateColumn, OneToMany, BaseEntity } from "typeorm";
 import { ModpackVersionFile } from "./ModpackVersionFile";
 
-export type ModpackFileType = 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras';
+export type ModpackFileType = 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'datapacks' | 'extras';
 
 @Entity({ name: "modpack_files" })
 export class ModpackFile extends BaseEntity {

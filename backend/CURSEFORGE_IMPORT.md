@@ -7,7 +7,8 @@ Esta funcionalidad permite importar modpacks desde archivos ZIP exportados de Cu
 ### 1. Importación Automática Completa
 - Extrae y valida `manifest.json` del ZIP de CurseForge
 - Descarga automáticamente todos los mods listados en `files[]`
-- Procesa archivos de configuración desde la carpeta `overrides/`
+- **Procesa archivos de configuración desde la carpeta `overrides/` con detección inteligente de categorías**
+- **Replica exactamente el comportamiento de subida manual para cada categoría**
 - Crea automáticamente entidades `Modpack` y `ModpackVersion`
 
 ### 2. Optimizaciones de Rendimiento
@@ -65,9 +66,21 @@ Content-Type: multipart/form-data
 2. **Validación**: Verifica estructura del manifest y compatibilidad
 3. **Creación de Entidades**: Genera `Modpack` y `ModpackVersion` con datos del manifest
 4. **Descarga de Mods**: Usa la API de CurseForge para descargar archivos de mods
-5. **Procesamiento de Overrides**: Clasifica archivos como config/resourcepacks/shaderpacks/extras
+5. **Procesamiento de Overrides Mejorado**: 
+   - Agrupa archivos por carpetas predefinidas (`config/`, `resourcepacks/`, `shaderpacks/`, `datapacks/`)
+   - Procesa cada categoría independientemente como colecciones (similar a subida manual)
+   - Clasifica archivos sueltos y carpetas no reconocidas como `extras`
 6. **Almacenamiento**: Sube archivos a R2 y crea registros en base de datos
 7. **Limpieza**: Elimina archivos temporales y devuelve estadísticas
+
+### Mejoras en el Procesamiento de Overrides
+
+El sistema ahora replica exactamente el comportamiento de la subida manual:
+
+- **Detección de Carpetas**: Identifica automáticamente las carpetas `config/`, `resourcepacks/`, `shaderpacks/`, `datapacks/` en la raíz de `overrides/`
+- **Procesamiento por Categorías**: Cada carpeta se procesa como una colección independiente
+- **Consistencia de Rutas**: Los prefijos de rutas son idénticos entre importación y subida manual
+- **Gestión de Extras**: Archivos y carpetas no reconocidas se agrupan en la categoría `extras`
 
 ## Tipos de Archivos Soportados
 
