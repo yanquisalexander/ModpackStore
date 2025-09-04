@@ -17,6 +17,7 @@ interface InstallButtonProps {
     localInstances: TauriCommandReturns["get_instances_by_modpack_id"];
     isPasswordProtected?: boolean;
     selectedVersionId?: string; // New prop for version selection
+    disabled?: boolean; // New prop to disable the button
 }
 
 export const InstallButton = ({
@@ -24,7 +25,8 @@ export const InstallButton = ({
     modpackName,
     localInstances,
     isPasswordProtected = false,
-    selectedVersionId
+    selectedVersionId,
+    disabled = false
 }: InstallButtonProps) => {
     const [isInstallOptionsOpen, setIsInstallOptionsOpen] = useState<boolean>(false)
     const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState<boolean>(false)
@@ -147,12 +149,17 @@ export const InstallButton = ({
                 variant="default"
                 className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
                 onClick={handleInstallClick}
-                disabled={isCurrentlyInstalling}
+                disabled={isCurrentlyInstalling || disabled}
             >
                 {isCurrentlyInstalling ? (
                     <>
                         <LucideRefreshCw className="w-4 h-4 animate-spin" />
                         Instalando...
+                    </>
+                ) : disabled ? (
+                    <>
+                        <LucideDownload className="w-4 h-4" />
+                        Requiere suscripción de Twitch
                     </>
                 ) : (
                     <>

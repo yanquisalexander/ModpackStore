@@ -189,6 +189,8 @@ type ModpackDetails = {
     categories: CategoryInModpack[];
     isPasswordProtected: boolean;
     prelaunchAppearance?: any;
+    requiredTwitchChannels: string[];
+    requiresTwitchSubscription: boolean;
 };
 
 export const getModpackById = async (modpackId: string): Promise<ModpackDetails | null> => {
@@ -239,6 +241,8 @@ export const getModpackById = async (modpackId: string): Promise<ModpackDetails 
             categories: formattedCategories,
             isPasswordProtected: modpack.isPasswordProtected(),
             prelaunchAppearance: modpack.prelaunchAppearance,
+            requiredTwitchChannels: modpack.getRequiredTwitchCreatorIds(),
+            requiresTwitchSubscription: modpack.requiresTwitchSubscription,
         };
     } catch (error: any) {
         console.error(`[SERVICE_MODPACKS] Error in getModpackById for ID ${modpackId}:`, error);

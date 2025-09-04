@@ -13,7 +13,7 @@ export class ModpackAccessService {
         requiredChannels?: string[];
     }> {
         // If modpack doesn't require Twitch subscription, check other requirements
-        if (!modpack.requiresTwitchSub()) {
+        if (!modpack.requiresTwitchSub) {
             // Could add other access checks here (payment, etc.)
             return { canAccess: true };
         }
@@ -40,7 +40,7 @@ export class ModpackAccessService {
         const requiredChannelIds = modpack.getRequiredTwitchCreatorIds();
         try {
             const hasSubscription = await TwitchService.canUserAccessModpack(user, requiredChannelIds);
-            
+
             if (!hasSubscription) {
                 return {
                     canAccess: false,
@@ -70,7 +70,7 @@ export class ModpackAccessService {
         price?: string;
     } {
         return {
-            requiresTwitchSubscription: modpack.requiresTwitchSub(),
+            requiresTwitchSubscription: modpack.requiresTwitchSub,
             requiredTwitchChannels: modpack.getRequiredTwitchCreatorIds(),
             isPaid: modpack.isPaid,
             price: modpack.isPaid ? modpack.price : undefined
@@ -82,11 +82,11 @@ export class ModpackAccessService {
      */
     static async validateModpackAccess(user: User | null, modpack: Modpack): Promise<void> {
         const accessResult = await this.canUserAccessModpack(user, modpack);
-        
+
         if (!accessResult.canAccess) {
-            throw new APIError(403, accessResult.reason || 'Access denied', 'ACCESS_DENIED', {
+            throw new APIError(403, accessResult.reason || 'Access denied', JSON.stringify({
                 requiredChannels: accessResult.requiredChannels
-            });
+            }));
         }
     }
 }

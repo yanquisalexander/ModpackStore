@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
-import { LucideExternalLink, LucideUnlink, LucideTwitch } from 'lucide-react';
+import { LucideExternalLink, LucideUnlink } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from "@/consts";
 import { listen } from "@tauri-apps/api/event";
+import { MdiTwitch } from "@/icons/MdiTwitch";
 
 interface TwitchStatus {
   linked: boolean;
@@ -37,6 +38,7 @@ export const TwitchLinkingComponent = () => {
 
       if (response.ok) {
         const status = await response.json();
+        console.log('Fetched Twitch status:', status);
         setTwitchStatus(status);
       } else {
         console.error('Failed to fetch Twitch status');
@@ -128,7 +130,7 @@ export const TwitchLinkingComponent = () => {
     return (
       <div className="bg-neutral-800 rounded-lg p-6">
         <div className="flex items-center space-x-3 mb-4">
-          <LucideTwitch className="text-purple-400" size={24} />
+          <MdiTwitch className="text-[#9146FF]" />
           <h3 className="text-lg font-semibold text-white">Integración de Twitch</h3>
         </div>
         <div className="text-neutral-400">Cargando estado de Twitch...</div>
@@ -139,7 +141,7 @@ export const TwitchLinkingComponent = () => {
   return (
     <div className="bg-neutral-800 rounded-lg p-6">
       <div className="flex items-center space-x-3 mb-4">
-        <LucideTwitch className="text-purple-400" size={24} />
+        <MdiTwitch className="text-[#9146FF]" />
         <h3 className="text-lg font-semibold text-white">Integración de Twitch</h3>
       </div>
 
@@ -152,7 +154,7 @@ export const TwitchLinkingComponent = () => {
 
           {twitchStatus.twitchId && (
             <div className="text-sm text-neutral-400 mb-4">
-              ID de Twitch: {twitchStatus.twitchId}
+              ID de Twitch: {twitchStatus.twitchId} ({twitchStatus.twitchUsername || 'unknown'})
             </div>
           )}
 

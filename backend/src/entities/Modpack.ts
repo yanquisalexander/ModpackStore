@@ -248,8 +248,8 @@ export class Modpack extends BaseEntity {
     }
 
     // Method to check if modpack requires Twitch subscription
-    requiresTwitchSub(): boolean {
-        return this.requiresTwitchSubscription && this.twitchCreatorIds && this.twitchCreatorIds.length > 0;
+    get requiresTwitchSub(): boolean {
+        return this.requiresTwitchSubscription && Array.isArray(this.twitchCreatorIds) && this.twitchCreatorIds.length > 0;
     }
 
     // Method to get required Twitch creator IDs

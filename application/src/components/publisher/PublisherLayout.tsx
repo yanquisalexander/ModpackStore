@@ -10,7 +10,8 @@ import {
     LucideSettings,
     LucideBuilding2,
     LucideChevronRight,
-    LucideShield
+    LucideShield,
+    LucideHandCoins
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { useTeams } from '@/hooks/creators/useTeams';
@@ -37,6 +38,13 @@ const getPublisherNavItems = (publisherId: string) => [
         label: 'Gestión de Equipo',
         icon: LucideUsers,
         description: 'Administrar miembros del equipo'
+    },
+    {
+        path: `/publisher/${publisherId}/payments`,
+        label: 'Pagos',
+        icon: LucideHandCoins,
+        description: 'Ver y retirar pagos',
+        disabled: true
     },
     {
         path: `/publisher/${publisherId}/settings`,

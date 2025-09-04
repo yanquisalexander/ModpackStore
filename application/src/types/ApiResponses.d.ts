@@ -28,6 +28,7 @@ export interface ModpackDataOverview {
     isPasswordProtected?: boolean;
     requiresTwitchSubscription?: boolean;
     twitchCreatorIds?: string[];
+    requiredTwitchChannels?: string[];
 }
 
 export interface CreatorUser {

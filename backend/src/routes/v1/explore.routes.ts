@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { ExploreModpacksController } from '../../controllers/ExploreModpacks.controller';
-import { requireAuth } from '../../middlewares/auth.middleware';
-import { validateCanExplore } from '../../middlewares/explore.middleware';
+import { requireAuth, type AuthVariables } from '../../middlewares/auth.middleware';
 
 const app = new Hono();
 
@@ -288,6 +287,159 @@ app.get('/modpacks/:modpackId/check-update', ExploreModpacksController.checkForU
  */
 app.post('/modpacks/:modpackId/validate-password', ExploreModpacksController.validateModpackPassword);
 
+/**
+ * @openapi
+ * /explore/twitch-channels:
+ *   post:
+ *     summary: Get Twitch channel information
+ *     tags: [Explore]
+ *     description: Retrieves information about Twitch channels for displaying in the UI.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - channelIds
+ *             properties:
+ *               channelIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of Twitch channel IDs to fetch information for.
+ *     responses:
+ *       200:
+ *         description: Channel information retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id: { type: 'string' }
+ *                       username: { type: 'string' }
+ *                       displayName: { type: 'string' }
+ *                       profileImageUrl: { type: 'string', nullable: true }
+ *                       isLive: { type: 'boolean' }
+ *       400:
+ *         description: Bad Request (invalid channelIds).
+ *       500:
+ *         description: Internal Server Error.
+ */
+app.post('/twitch-channels', ExploreModpacksController.getTwitchChannelInfo);
 
+/**
+ * @openapi
+ * /explore/user-twitch-subscriptions:
+ *   post:
+ *     summary: Check user's Twitch subscriptions
+ *     tags: [Explore]
+ *     description: Checks which of the required Twitch channels the authenticated user is subscribed to.
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - channelIds
+ *             properties:
+ *               channelIds:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of Twitch channel IDs to check subscriptions for.
+ *     responses:
+ *       200:
+ *         description: Subscription check completed.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 hasAccess:
+ *                   type: boolean
+ *                   description: Whether user has access to at least one channel.
+ *                 subscribedChannels:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       id: { type: 'string' }
+ *                       username: { type: 'string' }
+ *                       displayName: { type: 'string' }
+ *                   description: List of channels the user is subscribed to.
+ *       400:
+ *         description: Bad Request.
+ *       403:
+ *         description: Forbidden (user not authenticated or no Twitch linked).
+ *       500:
+ *         description: Internal Server Error.
+ */
+app.post('/user-twitch-subscriptions', requireAuth, ExploreModpacksController.getUserTwitchSubscriptions);
+
+/**
+ * @openapi
+ * /explore/modpacks/{modpackId}/check-access:
+ *   get:
+ *     summary: Check user access to a modpack
+ *     tags: [Explore]
+ *     description: Checks if the authenticated user (or anonymous) can access a specific modpack based on all access requirements including Twitch subscriptions.
+ *     parameters:
+ *       - in: path
+ *         name: modpackId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The ID of the modpack to check access for.
+ *     responses:
+ *       200:
+ *         description: Access check result.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 canAccess:
+ *                   type: boolean
+ *                   description: Whether the user can access the modpack.
+ *                 reason:
+ *                   type: string
+ *                   nullable: true
+ *                   description: Reason for access denial if applicable.
+ *                 requiredChannels:
+ *                   type: array
+ *                   nullable: true
+ *                   items:
+ *                     type: string
+ *                   description: Required Twitch channel IDs if access is denied due to missing subscriptions.
+ *                 modpackAccessInfo:
+ *                   type: object
+ *                   properties:
+ *                     requiresTwitchSubscription:
+ *                       type: boolean
+ *                     requiredTwitchChannels:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     isPaid:
+ *                       type: boolean
+ *                     price:
+ *                       type: string
+ *                       nullable: true
+ *       404:
+ *         description: Modpack not found.
+ *       500:
+ *         description: Internal Server Error.
+ */
+app.get('/modpacks/:modpackId/check-access', requireAuth, ExploreModpacksController.checkUserModpackAccess);
 
 export default app;

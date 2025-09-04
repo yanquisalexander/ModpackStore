@@ -191,12 +191,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await invoke('init_session');
       } catch (err) {
         setError(parseError(err));
-      } finally {
-        // --- ESTA ES LA LÍNEA CLAVE ---
-        // Se asegura de que la carga termine después de que `init_session` se complete,
-        // incluso si no se emiten eventos.
-        setLoading(false);
-      }
+      } // finally removido: setLoading(false); para evitar flash de login
+
     };
 
     initAuth();

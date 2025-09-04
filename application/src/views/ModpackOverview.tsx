@@ -11,7 +11,8 @@ import {
     LucideFileJson,
     LucideFileText,
     LucideFileArchive,
-    LucideFileImage
+    LucideFileImage,
+    LucideRotateCcw
 } from "lucide-react";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,6 +26,65 @@ import { getModpackVersions, ModpackVersionPublic, getLatestVersion, getNonArchi
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthentication } from "@/stores/AuthContext";
 import { getModpackById } from "@/services/getModpacks";
+import { API_ENDPOINT } from "@/consts";
+
+// Hook personalizado para verificar el acceso del usuario a un modpack
+const useModpackAccess = (modpackId: string, requiresTwitchSubscription: boolean) => {
+    const [accessState, setAccessState] = useState<{
+        canAccess: boolean;
+        loading: boolean;
+        reason?: string;
+        requiredChannels?: string[];
+    }>({
+        canAccess: false,
+        loading: true
+    });
+    const { session, sessionTokens } = useAuthentication();
+
+    useEffect(() => {
+        if (!requiresTwitchSubscription) {
+            setAccessState({
+                canAccess: true,
+                loading: false
+            });
+            return;
+        }
+
+        const checkAccess = async () => {
+            try {
+                const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpackId}/check-access`, {
+                    method: 'GET',
+                    headers: sessionTokens ? {
+                        'Authorization': `Bearer ${sessionTokens.accessToken}`,
+                    } : {},
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to check access');
+                }
+
+                const data = await response.json();
+                setAccessState({
+                    canAccess: data.canAccess,
+                    loading: false,
+                    reason: data.reason,
+                    requiredChannels: data.requiredChannels
+                });
+            } catch (error) {
+                console.error('Error checking modpack access:', error);
+                setAccessState({
+                    canAccess: false,
+                    loading: false,
+                    reason: 'Error checking access'
+                });
+            }
+        };
+
+        checkAccess();
+    }, [modpackId, requiresTwitchSubscription, session, sessionTokens]);
+
+    return accessState;
+};
 
 // --- Helper Components & Types for File Tree ---
 
@@ -151,6 +211,9 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
 
     // State for the file tree view
     const [expandedFolders, setExpandedFolders] = useState<{ [key: string]: boolean }>({});
+
+    // Hook para verificar acceso a Twitch
+    const { canAccess: userCanAccess, loading: accessLoading } = useModpackAccess(modpackId, pageState.modpackData?.requiresTwitchSubscription || false);
 
     const { titleBarState, setTitleBarState } = useGlobalContext();
     const { scrollY } = useScroll();
@@ -534,27 +597,30 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 </div>
                             </div>
 
-                            {/* Twitch subscription requirements */}
-                            {modpackData.requiresTwitchSubscription && (
-                                <div className="mt-4">
-                                    <TwitchRequirements
-                                        requiresTwitchSubscription={modpackData.requiresTwitchSubscription}
-                                        requiredTwitchChannels={modpackData.twitchCreatorIds || []}
-                                        userHasTwitchLinked={Boolean(session?.twitchId)}
-                                        userCanAccess={true} // This should be determined by actual access check
+                            {/* Controles a la derecha: requisitos de Twitch + botón */}
+                            <div className="flex flex-col items-end gap-3 w-full md:w-auto">
+                                {modpackData.requiresTwitchSubscription && (
+                                    <div className="w-full md:max-w-sm">
+                                        <TwitchRequirements
+                                            requiresTwitchSubscription={modpackData.requiresTwitchSubscription}
+                                            requiredTwitchChannels={modpackData.requiredTwitchChannels || []}
+                                            userHasTwitchLinked={Boolean(session?.twitchId)}
+                                            modpackId={modpackId}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Botón de instalación */}
+                                <div className="w-full md:w-auto">
+                                    <InstallButton
+                                        modpackId={modpackId}
+                                        modpackName={modpackData.name!}
+                                        localInstances={localInstancesOfModpack}
+                                        isPasswordProtected={modpackData.isPasswordProtected}
+                                        selectedVersionId={selectedVersionId}
+                                        disabled={modpackData.requiresTwitchSubscription && !accessLoading && !userCanAccess}
                                     />
                                 </div>
-                            )}
-
-                            {/* Botón de instalación */}
-                            <div className="mt-2 md:mt-0">
-                                <InstallButton
-                                    modpackId={modpackId}
-                                    modpackName={modpackData.name!}
-                                    localInstances={localInstancesOfModpack}
-                                    isPasswordProtected={modpackData.isPasswordProtected}
-                                    selectedVersionId={selectedVersionId}
-                                />
                             </div>
                         </motion.div>
 
@@ -773,6 +839,15 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                                                     Seleccionada
                                                                                 </span>
                                                                             )}
+
+                                                                            {
+                                                                                isLatest && isSelected && (
+                                                                                    <span className="ml-auto self-end flex items-center gap-1 rounded-full bg-orange-100 border text-sm border-orange-700/30 text-orange-500 font-medium px-2">
+                                                                                        <LucideRotateCcw size={14} />
+                                                                                        Actualizaciones automáticas
+                                                                                    </span>
+                                                                                )
+                                                                            }
                                                                         </div>
 
                                                                         <div className="grid grid-cols-2 gap-4 text-sm text-white/80 mb-3">

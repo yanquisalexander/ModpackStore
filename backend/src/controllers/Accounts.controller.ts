@@ -84,9 +84,9 @@ export class AccountsController {
         console.log(`[ACCOUNTS] Linking Twitch account for user ID: ${authenticatedUser.id}`);
         await TwitchService.linkTwitchToUser(authenticatedUser, code);
 
-        return c.json({ 
-            success: true, 
-            message: 'Twitch account linked successfully' 
+        return c.json({
+            success: true,
+            message: 'Twitch account linked successfully'
         });
     }
 
@@ -107,9 +107,9 @@ export class AccountsController {
         console.log(`[ACCOUNTS] Unlinking Twitch account for user ID: ${authenticatedUser.id}`);
         await TwitchService.unlinkTwitchFromUser(authenticatedUser);
 
-        return c.json({ 
-            success: true, 
-            message: 'Twitch account unlinked successfully' 
+        return c.json({
+            success: true,
+            message: 'Twitch account unlinked successfully'
         });
     }
 
@@ -126,7 +126,7 @@ export class AccountsController {
         return c.json({
             linked: authenticatedUser.hasTwitchLinked(),
             twitchId: authenticatedUser.twitchId,
-            twitchUsername: null // We could store this if needed
+            twitchUsername: await authenticatedUser.getTwitchUserInfo().then(info => info?.username || 'unknown'),
         });
     }
 }

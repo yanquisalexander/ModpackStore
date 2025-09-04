@@ -8,6 +8,7 @@ import { WalletTransaction } from "./WalletTransaction";
 import { Publisher } from "./Publisher";
 import { PublisherMemberRole, UserRole } from "@/types/enums";
 import { sign } from "jsonwebtoken";
+import { TwitchService } from "@/services/twitch.service";
 
 @Entity({ name: "users" })
 export class User extends BaseEntity {
@@ -53,11 +54,11 @@ export class User extends BaseEntity {
     @Column({ name: "twitch_refresh_token", type: "text", nullable: true })
     twitchRefreshToken?: string | null;
 
-    @Column({ 
-        name: "role", 
-        type: "enum", 
-        enum: UserRole, 
-        default: UserRole.USER 
+    @Column({
+        name: "role",
+        type: "enum",
+        enum: UserRole,
+        default: UserRole.USER
     })
     role: UserRole;
 
@@ -123,6 +124,42 @@ export class User extends BaseEntity {
     // Check if user has Twitch linked
     hasTwitchLinked(): boolean {
         return !!(this.twitchId && this.twitchAccessToken);
+    }
+
+    async getTwitchUserInfo(): Promise<{ id: string; username: string } | null> {
+        if (!this.hasTwitchLinked()) return null;
+
+        try {
+            // Use TwitchService with Twurple for better API handling
+            const apiClient = await TwitchService.getUserApiClient(
+                this.id,
+                this.twitchAccessToken!,
+                this.twitchRefreshToken || undefined
+            );
+
+            // For user API client, we need to get the authenticated user's info
+            // Since we have the user ID stored, we can use it directly
+            const user = await apiClient.users.getUserById(this.twitchId!);
+
+            if (!user) {
+                // Fallback to stored data if user not found
+                return {
+                    id: this.twitchId!,
+                    username: 'unknown',
+                };
+            }
+
+            return {
+                id: user.id,
+                username: user.name,
+            };
+        } catch (error) {
+            console.error('Failed to fetch Twitch user info with Twurple:', error);
+            return {
+                id: this.twitchId!,
+                username: 'unknown',
+            };
+        }
     }
 
     // Static finder methods
