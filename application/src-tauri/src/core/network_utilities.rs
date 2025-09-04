@@ -7,7 +7,7 @@ use tauri_plugin_http::reqwest::{self, blocking};
 /// Checks if the custom API endpoint is reachable.
 #[tauri::command]
 pub async fn check_connection() -> bool {
-    let api_url = format!("{}/ping", API_ENDPOINT);
+    let api_url = format!("{}/ping", *API_ENDPOINT);
     // Performs the request and checks if the result is Ok and the status is a success (2xx).
     reqwest::get(&api_url)
         .await

@@ -250,7 +250,7 @@ async fn handle_latest_version_update(
 /// Returns true if password is valid or not required, false if invalid
 async fn check_and_validate_modpack_password(modpack_id: &str) -> Result<bool, String> {
     let client = reqwest::Client::new();
-    let url = format!("{}/explore/modpacks/{}", crate::API_ENDPOINT, modpack_id);
+    let url = format!("{}/explore/modpacks/{}", *crate::API_ENDPOINT, modpack_id);
 
     // First, get modpack info to check if it requires password
     let response = client
@@ -641,7 +641,7 @@ pub async fn check_modpack_updates(
     let client = reqwest::Client::new();
     let url = format!(
         "{}/explore/modpacks/{}/check-update?currentVersion={}",
-        API_ENDPOINT, modpack_id, current_version
+        *API_ENDPOINT, modpack_id, current_version
     );
 
     match client.get(&url).send().await {
@@ -1083,7 +1083,7 @@ async fn create_modpack_instance_struct(
 // Funciones auxiliares para API
 async fn fetch_latest_version(modpack_id: &str) -> Result<String, String> {
     let client = reqwest::Client::new();
-    let url = format!("{}/explore/modpacks/{}/latest", API_ENDPOINT, modpack_id);
+    let url = format!("{}/explore/modpacks/{}/latest", *API_ENDPOINT, modpack_id);
 
     let response = client
         .get(&url)
@@ -1108,7 +1108,7 @@ async fn fetch_latest_version(modpack_id: &str) -> Result<String, String> {
 
 async fn fetch_modpack_info(modpack_id: &str) -> Result<serde_json::Value, String> {
     let client = reqwest::Client::new();
-    let url = format!("{}/explore/modpacks/{}", API_ENDPOINT, modpack_id);
+    let url = format!("{}/explore/modpacks/{}", *API_ENDPOINT, modpack_id);
 
     let response = client
         .get(&url)
@@ -1133,7 +1133,7 @@ pub async fn fetch_modpack_manifest(
     let client = reqwest::Client::new();
     let url = format!(
         "{}/explore/modpacks/{}/versions/{}",
-        API_ENDPOINT, modpack_id, version_id
+        *API_ENDPOINT, modpack_id, version_id
     );
 
     let response = client
@@ -1203,7 +1203,7 @@ pub async fn validate_modpack_password(
     let client = reqwest::Client::new();
     let url = format!(
         "{}/explore/modpacks/{}/validate-password",
-        crate::API_ENDPOINT,
+        *crate::API_ENDPOINT,
         modpack_id
     );
 

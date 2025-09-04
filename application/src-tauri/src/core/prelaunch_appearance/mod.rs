@@ -331,8 +331,13 @@ pub async fn get_prelaunch_appearance(instance_id: String) -> Option<PreLaunchAp
 }
 
 /// Fetch prelaunch appearance from the ModpackStore API
-async fn fetch_prelaunch_appearance_from_api(modpack_id: &str) -> std::result::Result<Option<PreLaunchAppearance>, String> {
-    let url = format!("{}/explore/modpacks/{}/prelaunch-appearance", API_ENDPOINT, modpack_id);
+async fn fetch_prelaunch_appearance_from_api(
+    modpack_id: &str,
+) -> std::result::Result<Option<PreLaunchAppearance>, String> {
+    let url = format!(
+        "{}/explore/modpacks/{}/prelaunch-appearance",
+        *API_ENDPOINT, modpack_id
+    );
     log::info!("Fetching prelaunch appearance from API: {}", url);
 
     match reqwest::get(&url).await {
@@ -364,21 +369,32 @@ async fn fetch_prelaunch_appearance_from_api(modpack_id: &str) -> std::result::R
                 log::info!("Prelaunch appearance not found for modpack: {}", modpack_id);
                 Ok(None)
             } else {
-                log::warn!("API returned error for modpack {}: {}", modpack_id, response.status());
+                log::warn!(
+                    "API returned error for modpack {}: {}",
+                    modpack_id,
+                    response.status()
+                );
                 Ok(None) // Return None instead of error to allow offline mode
             }
         }
         Err(e) => {
-            log::warn!("Network error fetching prelaunch appearance for modpack {}: {}", modpack_id, e);
+            log::warn!(
+                "Network error fetching prelaunch appearance for modpack {}: {}",
+                modpack_id,
+                e
+            );
             Ok(None) // Return None instead of error to allow offline mode
         }
     }
 }
 
 /// Save prelaunch appearance to the instance directory
-async fn save_prelaunch_appearance(instance_dir: &PathBuf, appearance: &PreLaunchAppearance) -> std::result::Result<(), String> {
+async fn save_prelaunch_appearance(
+    instance_dir: &PathBuf,
+    appearance: &PreLaunchAppearance,
+) -> std::result::Result<(), String> {
     let prelaunch_appearance_path = instance_dir.join("prelaunch_appearance.json");
-    
+
     let json_content = serde_json::to_string_pretty(appearance)
         .map_err(|e| format!("Failed to serialize prelaunch appearance: {}", e))?;
 
@@ -386,21 +402,32 @@ async fn save_prelaunch_appearance(instance_dir: &PathBuf, appearance: &PreLaunc
         .await
         .map_err(|e| format!("Failed to save prelaunch appearance: {}", e))?;
 
-    log::info!("Saved prelaunch appearance to: {:?}", prelaunch_appearance_path);
+    log::info!(
+        "Saved prelaunch appearance to: {:?}",
+        prelaunch_appearance_path
+    );
     Ok(())
 }
 
 /// Fetch and save prelaunch appearance for a modpack instance
 #[tauri::command]
-pub async fn fetch_and_save_prelaunch_appearance(modpack_id: String, instance_id: String) -> std::result::Result<bool, String> {
-    log::info!("Fetching prelaunch appearance for modpack: {}, instance: {}", modpack_id, instance_id);
+pub async fn fetch_and_save_prelaunch_appearance(
+    modpack_id: String,
+    instance_id: String,
+) -> std::result::Result<bool, String> {
+    log::info!(
+        "Fetching prelaunch appearance for modpack: {}, instance: {}",
+        modpack_id,
+        instance_id
+    );
 
     // Get the instance to find its directory
     let instance = get_instance_by_id(instance_id.clone())
         .map_err(|e| format!("Failed to get instance: {}", e))?
         .ok_or_else(|| "Instance not found".to_string())?;
 
-    let instance_dir = instance.instanceDirectory
+    let instance_dir = instance
+        .instanceDirectory
         .ok_or_else(|| "Instance directory not set".to_string())?;
 
     let instance_dir_path = PathBuf::from(instance_dir);
@@ -413,7 +440,10 @@ pub async fn fetch_and_save_prelaunch_appearance(modpack_id: String, instance_id
             Ok(true)
         }
         Ok(None) => {
-            log::info!("No prelaunch appearance available for modpack: {} (could be offline mode)", modpack_id);
+            log::info!(
+                "No prelaunch appearance available for modpack: {} (could be offline mode)",
+                modpack_id
+            );
             Ok(false)
         }
         Err(e) => {
@@ -427,14 +457,18 @@ pub async fn fetch_and_save_prelaunch_appearance(modpack_id: String, instance_id
 /// Update prelaunch appearance for an instance (fetch latest from API)
 #[tauri::command]
 pub async fn update_prelaunch_appearance(instance_id: String) -> std::result::Result<bool, String> {
-    log::info!("Updating prelaunch appearance for instance: {}", instance_id);
+    log::info!(
+        "Updating prelaunch appearance for instance: {}",
+        instance_id
+    );
 
     // Get the instance to find the modpack ID
     let instance = get_instance_by_id(instance_id.clone())
         .map_err(|e| format!("Failed to get instance: {}", e))?
         .ok_or_else(|| "Instance not found".to_string())?;
 
-    let modpack_id = instance.modpackId
+    let modpack_id = instance
+        .modpackId
         .ok_or_else(|| "Instance is not a modpack instance".to_string())?;
 
     // Use the fetch and save function

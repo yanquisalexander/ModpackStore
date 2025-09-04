@@ -26,15 +26,16 @@ use tauri_plugin_store::StoreExt;
 static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::AppHandle>>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
 
-static API_ENDPOINT: once_cell::sync::Lazy<String> = once_cell::sync::Lazy::new(|| {
+static API_ENDPOINT: once_cell::sync::Lazy<&'static str> = once_cell::sync::Lazy::new(|| {
     if cfg!(debug_assertions) {
         // En modo dev, usar el endpoint de desarrollo fijo
-        "https://api-modpackstore.alexitoo.dev/v1".to_string()
+        "https://api-modpackstore.alexitoo.dev/v1"
     } else {
         // En producción, preferir la variable de entorno VITE_API_ENDPOINT, si no existe, usar fallback
-        std::env::var("VITE_API_ENDPOINT")
-            .ok()
-            .unwrap_or_else(|| "https://api-modpackstore.saltouruguayserver.com/v1".to_string())
+        match std::env::var("VITE_API_ENDPOINT") {
+            Ok(s) if !s.is_empty() => Box::leak(s.into_boxed_str()),
+            _ => "https://api-modpackstore.saltouruguayserver.com/v1",
+        }
     }
 });
 

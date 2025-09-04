@@ -178,7 +178,7 @@ mod api {
         }
 
         pub async fn get_session(&self, access_token: &str) -> AuthResult<UserSession> {
-            let session_endpoint = format!("{}/auth/me", API_ENDPOINT);
+            let session_endpoint = format!("{}/auth/me", *API_ENDPOINT);
 
             let response = self
                 .client
@@ -199,7 +199,7 @@ mod api {
         }
 
         pub async fn refresh_tokens(&self, refresh_token: &str) -> AuthResult<TokenResponse> {
-            let refresh_endpoint = format!("{}/auth/refresh", API_ENDPOINT);
+            let refresh_endpoint = format!("{}/auth/refresh", *API_ENDPOINT);
 
             let response = self
                 .client
@@ -220,7 +220,7 @@ mod api {
         }
 
         pub async fn exchange_code_for_tokens(&self, code: &str) -> AuthResult<TokenResponse> {
-            let token_endpoint = format!("{}/auth/discord/callback?code={}", API_ENDPOINT, code);
+            let token_endpoint = format!("{}/auth/discord/callback?code={}", *API_ENDPOINT, code);
 
             let response = self
                 .client
@@ -253,7 +253,7 @@ mod api {
         }
 
         pub async fn logout(&self, access_token: &str) -> AuthResult<()> {
-            let logout_endpoint = format!("{}/logout", API_ENDPOINT);
+            let logout_endpoint = format!("{}/logout", *API_ENDPOINT);
 
             let response = self
                 .client
@@ -287,7 +287,7 @@ mod api {
                 .map_err(|e| format!("Error loading auth tokens: {}", e))?
                 .ok_or("No authentication tokens found")?;
 
-            let twitch_endpoint = format!("{}/auth/twitch/callback?code={}", API_ENDPOINT, code);
+            let twitch_endpoint = format!("{}/auth/twitch/callback?code={}", *API_ENDPOINT, code);
 
             let response = self
                 .client
