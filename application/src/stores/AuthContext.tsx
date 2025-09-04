@@ -160,9 +160,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setSession(enhanceSession(event.payload));
           resetAuthState();
         } catch (err) {
+          console.error('Error in auth-status-changed listener:', err);
           setError(parseError(err));
         } finally {
-          // El listener también puede detener la carga si se activa
+          // Ensure loading stops when auth status changes
           setLoading(false);
         }
       });
@@ -170,10 +171,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // Listen for auth errors
       const authErrorUnlisten = await listen<string>('auth-error', (event) => {
-        setError(parseError(event.payload));
         console.error("Auth error received:", event.payload);
+        setError(parseError(event.payload));
         setAuthStep(null);
-        setLoading(false); // Detener la carga en error
+        setLoading(false); // Always stop loading on auth error
       });
       unlistenFunctions.push(authErrorUnlisten);
 
