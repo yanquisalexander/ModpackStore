@@ -96,6 +96,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [authStep, setAuthStep] = useState<AuthStep>(null);
   const [pendingInstance, setPendingInstance] = useState<string | null>(null);
 
+  // Flag to track if auth has been completed by listener
+  const [authCompleted, setAuthCompleted] = useState<boolean>(false);
+
   // --- Memoized Values ---
 
   // Memoize isAuthenticated to prevent recalculation on every render
@@ -159,11 +162,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
           setSession(enhanceSession(event.payload));
           resetAuthState();
+          setAuthCompleted(true); // Mark auth as completed
         } catch (err) {
           setError(parseError(err));
         } finally {
-          // El listener también puede detener la carga si se activa
-          setLoading(false);
+          setLoading(false); // Stop loading when auth status is processed
         }
       });
       unlistenFunctions.push(authStatusUnlisten);
@@ -187,6 +190,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const initAuth = async () => {
       try {
         setLoading(true);
+        setAuthCompleted(false); // Reset flag
         await setupListeners();
         await Promise.race([
           invoke('init_session'),
@@ -194,7 +198,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         ]);
       } catch (err) {
         setError(parseError(err));
-        setLoading(false); // Asegurar que loading se detenga en caso de error o timeout
+      } finally {
+        // Only stop loading if auth hasn't been completed by listener
+        if (!authCompleted) {
+          setLoading(false);
+        }
       }
     };
 
