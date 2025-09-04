@@ -11,7 +11,7 @@ import ImportCurseForgeDialog from "@/components/creator/dialogs/ImportCurseForg
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { LucideEdit, LucideHistory, LucideTrash2, LucidePackage } from "lucide-react";
 import { toast } from "sonner";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { ApiErrorPayload } from "@/types/ApiResponses";
 import { playSound } from "@/utils/sounds";
 import { ModpackStatus } from "@/components/creator/ModpackStatus";
@@ -111,6 +111,7 @@ interface OrganizationModpacksViewProps {
 export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> = ({ teams }) => {
     const { sessionTokens } = useAuthentication();
     const { orgId } = useParams();
+    const navigate = useNavigate();
 
     const team = teams.find((t: { id: string }) => t.id === orgId);
 
@@ -172,9 +173,9 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
             playSound("ERROR_NOTIFICATION")
             toast.warning("No se puede editar un modpack eliminado");
             return;
-        };
-        setEditingModpack(modpack);
-        setIsEditDialogOpen(true);
+        }
+        // Navigate to the new edit page instead of opening a dialog
+        navigate(`/creators/org/${orgId}/modpacks/${modpack.id}/edit`);
     };
 
     const openDeleteDialog = (modpack: Modpack) => {
@@ -261,6 +262,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                 modpack={selectedModpack as Modpack}
                 publisherId={team?.id || ""}
             />
+            {/* Commented out: Now using dedicated edit page instead of dialog
             {editingModpack && (
                 <EditModpackDialog
                     isOpen={isEditDialogOpen}
@@ -269,6 +271,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                     modpack={editingModpack}
                 />
             )}
+            */}
             {deletingModpack && (
                 <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                     <AlertDialogContent>
