@@ -191,8 +191,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await invoke('init_session');
       } catch (err) {
         setError(parseError(err));
-      } // finally removido: setLoading(false); para evitar flash de login
-
+        setLoading(false); // Asegurar que loading se detenga en caso de error
+      }
     };
 
     initAuth();
