@@ -188,10 +188,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
         setLoading(true);
         await setupListeners();
-        await invoke('init_session');
+        await Promise.race([
+          invoke('init_session'),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Init session timeout')), 5000))
+        ]);
       } catch (err) {
         setError(parseError(err));
-        setLoading(false); // Asegurar que loading se detenga en caso de error
+        setLoading(false); // Asegurar que loading se detenga en caso de error o timeout
       }
     };
 
