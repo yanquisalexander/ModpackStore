@@ -19,15 +19,30 @@ interface Props {
         name: string;
         publisherId: string;
     };
+    existingVersions: {
+        id: string;
+        version: string;
+        mcVersion: string;
+        forgeVersion?: string;
+        changelog?: string;
+        status: string;
+        releaseDate?: string;
+        createdAt: string;
+        updatedAt: string;
+    }[];
 }
 
-export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, modpack }) => {
+export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, modpack, existingVersions }) => {
     const { sessionTokens } = useAuthentication();
     const [loading, setLoading] = useState(false);
+
+    // Get the latest version's MC and Forge versions for pre-selection
+    const latestVersion = existingVersions.length > 0 ? existingVersions[existingVersions.length - 1] : null;
+
     const [formData, setFormData] = useState({
         versionName: '',
-        mcVersion: '',
-        forgeVersion: 'none',
+        mcVersion: latestVersion?.mcVersion || '',
+        forgeVersion: latestVersion?.forgeVersion || 'none',
         changelog: ''
     });
 
@@ -79,8 +94,8 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
             // Reset form
             setFormData({
                 versionName: '',
-                mcVersion: '',
-                forgeVersion: 'none',
+                mcVersion: latestVersion?.mcVersion || '',
+                forgeVersion: latestVersion?.forgeVersion || 'none',
                 changelog: ''
             });
 
@@ -98,8 +113,8 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
         if (!loading) {
             setFormData({
                 versionName: '',
-                mcVersion: '',
-                forgeVersion: 'none',
+                mcVersion: latestVersion?.mcVersion || '',
+                forgeVersion: latestVersion?.forgeVersion || 'none',
                 changelog: ''
             });
             onClose();

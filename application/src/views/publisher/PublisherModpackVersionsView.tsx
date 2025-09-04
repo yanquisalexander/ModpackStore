@@ -51,6 +51,7 @@ interface Modpack {
     status: string;
     createdAt: string;
     updatedAt: string;
+    publisherId: string; // Added
     creatorUser?: {
         username: string;
     };
@@ -90,6 +91,22 @@ class PublisherVersionsAPI {
             throw new Error(errorData.detail || `Error deleting version: ${response.statusText}`);
         }
     }
+
+    static async getModpack(publisherId: string, modpackId: string, accessToken: string): Promise<Modpack> {
+        const response = await fetch(`${this.baseUrl}/${publisherId}/modpacks/${modpackId}`, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Error fetching modpack: ${response.statusText}`);
+        }
+
+        return await response.json();
+    }
 }
 
 // Helper functions
@@ -123,6 +140,7 @@ export const PublisherModpackVersionsView: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [createVersionDialogOpen, setCreateVersionDialogOpen] = useState(false);
 
+
     // AlertDialog states for confirmations
     const [deleteDialog, setDeleteDialog] = useState<{
         open: boolean;
@@ -149,8 +167,15 @@ export const PublisherModpackVersionsView: React.FC = () => {
 
         try {
             const data = await PublisherVersionsAPI.getVersions(publisherId, modpackId, sessionTokens.accessToken);
+            let modpackData = data.modpack;
+
+            // If modpack is not included in the response, fetch it separately
+            if (!modpackData) {
+                modpackData = await PublisherVersionsAPI.getModpack(publisherId, modpackId, sessionTokens.accessToken);
+            }
+
             setVersions(data.versions || []);
-            setModpack(data.modpack);
+            setModpack(modpackData ? { ...modpackData, publisherId } : null);
         } catch (error) {
             console.error('Error loading versions:', error);
             setError(error instanceof Error ? error.message : 'Error al cargar las versiones');
@@ -164,11 +189,8 @@ export const PublisherModpackVersionsView: React.FC = () => {
     }, [publisherId, modpackId, sessionTokens?.accessToken]);
 
     const handleCreateVersion = () => {
+        console.log('handleCreateVersion called, modpack:', modpack, 'canCreateVersions:', canCreateVersions);
         setCreateVersionDialogOpen(true);
-    };
-
-    const handleEditVersion = (version: ModpackVersion) => {
-        navigate(`/publisher/${publisherId}/modpacks/${modpackId}/versions/${version.id}`);
     };
 
     const handleViewVersion = (version: ModpackVersion) => {
@@ -188,7 +210,7 @@ export const PublisherModpackVersionsView: React.FC = () => {
 
         try {
             await PublisherVersionsAPI.deleteVersion(publisherId!, modpackId!, version.id, sessionTokens!.accessToken);
-            
+
             toast.success(`Versión "${version.version}" eliminada correctamente`);
             setVersions(prev => prev.filter(v => v.id !== version.id));
             setDeleteDialog({ open: false, version: null });
@@ -223,13 +245,13 @@ export const PublisherModpackVersionsView: React.FC = () => {
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Esta acción eliminará permanentemente la versión "{deleteDialog.version?.version}" 
+                            Esta acción eliminará permanentemente la versión "{deleteDialog.version?.version}"
                             y todos los archivos asociados a ella. Esta operación no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction 
+                        <AlertDialogAction
                             onClick={confirmDeleteVersion}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
@@ -246,6 +268,7 @@ export const PublisherModpackVersionsView: React.FC = () => {
                     onClose={() => setCreateVersionDialogOpen(false)}
                     onSuccess={onVersionCreated}
                     modpack={modpack}
+                    existingVersions={versions}
                 />
             )}
 

@@ -226,6 +226,21 @@ ModpackCreatorsRoute.delete("/publishers/:publisherId/modpacks/:modpackId", isOr
     return c.json({ success: true });
 });
 
+// Get Modpack
+
+ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId", isOrganizationMember, async (c) => {
+    const { publisherId, modpackId } = c.req.param();
+    console.log("Fetching modpack:", modpackId, "in publisher:", publisherId);
+
+    const modpack = await Modpack.findOne({
+        where: { id: modpackId, publisherId },
+        relations: ["versions"]
+    });
+    if (!modpack) return c.notFound();
+
+    return c.json({ modpack });
+});
+
 ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions", isOrganizationMember, async (c) => {
     const { publisherId, modpackId } = c.req.param();
     console.log("Fetching versions for modpack:", modpackId, "in publisher:", publisherId);
@@ -237,7 +252,7 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions"
         where: { modpackId: modpack.id },
         order: { createdAt: "DESC" }
     });
-    return c.json({ versions });
+    return c.json({ versions, modpack });
 });
 
 ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions", isOrganizationMember, async (c) => {
@@ -541,14 +556,14 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/import/curseforge",
     const { publisherId } = c.req.param();
 
     const userRole = await user.getRoleInPublisher(publisherId);
-    
+
     // Only admins, owners, and members can import modpacks
     if (!userRole) {
         throw new APIError(403, "No tienes permiso para importar modpacks en esta organización");
     }
 
     const body = await c.req.parseBody();
-    
+
     if (!(body.zipFile instanceof File)) {
         throw new APIError(400, "Se requiere un archivo ZIP de CurseForge");
     }
@@ -556,7 +571,7 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/import/curseforge",
     try {
         // Convert File to Buffer
         const zipBuffer = Buffer.from(await body.zipFile.arrayBuffer());
-        
+
         // Import options
         const options = {
             slug: body.slug as string | undefined,
@@ -586,11 +601,11 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/import/curseforge",
 
     } catch (error) {
         console.error("CurseForge import error:", error);
-        
+
         if (error instanceof Error) {
             throw new APIError(400, `Error al importar modpack: ${error.message}`);
         }
-        
+
         throw new APIError(500, "Error interno del servidor durante la importación");
     }
 });
