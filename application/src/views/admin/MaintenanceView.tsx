@@ -20,14 +20,13 @@ import {
     LucideTrash,
     LucideLoader
 } from 'lucide-react';
+import { API_ENDPOINT } from "@/consts";
 
-// API configuration
-const API_ENDPOINT = import.meta.env.VITE_API_ENDPOINT || 'http://localhost:3000/api';
 
 export const MaintenanceView: React.FC = () => {
     const { session, sessionTokens } = useAuthentication();
     const { toast } = useToast();
-    
+
     const [isCleanupLoading, setIsCleanupLoading] = useState(false);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
@@ -55,7 +54,7 @@ export const MaintenanceView: React.FC = () => {
         }
 
         setIsCleanupLoading(true);
-        
+
         try {
             const response = await fetch(`${API_ENDPOINT}/admin/maintenance/cleanup-modpack-files`, {
                 method: 'POST',
@@ -71,10 +70,10 @@ export const MaintenanceView: React.FC = () => {
             }
 
             const result = await response.json();
-            
+
             // Close dialog
             setIsDialogOpen(false);
-            
+
             // Show success toast
             if (result.deletedCount > 0) {
                 toast({
@@ -89,10 +88,10 @@ export const MaintenanceView: React.FC = () => {
             }
         } catch (error) {
             console.error('Cleanup error:', error);
-            
+
             // Close dialog
             setIsDialogOpen(false);
-            
+
             // Show error toast
             toast({
                 title: 'Error',
@@ -132,14 +131,14 @@ export const MaintenanceView: React.FC = () => {
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <p className="text-muted-foreground">
-                        Elimina registros de la base de datos y sus archivos correspondientes que no están 
+                        Elimina registros de la base de datos y sus archivos correspondientes que no están
                         asociados a ninguna versión de modpack. Esta acción es irreversible.
                     </p>
-                    
+
                     <AlertDialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                         <AlertDialogTrigger asChild>
-                            <Button 
-                                variant="destructive" 
+                            <Button
+                                variant="destructive"
                                 disabled={isCleanupLoading}
                                 className="w-full sm:w-auto"
                             >
@@ -160,7 +159,7 @@ export const MaintenanceView: React.FC = () => {
                             <AlertDialogHeader>
                                 <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    Esta acción buscará y eliminará permanentemente todos los registros y 
+                                    Esta acción buscará y eliminará permanentemente todos los registros y
                                     archivos de ModpackFiles huérfanos. No podrás deshacer esta operación.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
