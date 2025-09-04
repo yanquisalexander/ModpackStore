@@ -37,29 +37,59 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
     const checkConnection = async () => {
         try {
             console.log("[checkConnection] Checking connection...");
-            const response = await invoke("check_connection");
+            
+            // Add timeout to prevent hanging
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Connection check timeout')), 5000);
+            });
+            
+            const response = await Promise.race([
+                invoke("check_connection"),
+                timeoutPromise
+            ]);
+            
             setIsConnected(response as boolean);
             console.log("[checkConnection] Connection status:", response);
         } catch (error) {
             console.error("[checkConnection] Error checking connection:", error);
+            // Assume disconnected on error/timeout
+            setIsConnected(false);
         }
     };
 
     const checkInternetAccess = async () => {
         try {
             console.log("[checkInternetAccess] Checking internet access...");
-            const response = await invoke("check_real_connection");
+            
+            // Add timeout to prevent hanging
+            const timeoutPromise = new Promise((_, reject) => {
+                setTimeout(() => reject(new Error('Internet check timeout')), 5000);
+            });
+            
+            const response = await Promise.race([
+                invoke("check_real_connection"),
+                timeoutPromise
+            ]);
+            
             setHasInternetAccess(response as boolean);
             console.log("[checkInternetAccess] Internet access status:", response);
         } catch (error) {
             console.error("[checkInternetAccess] Error checking internet access:", error);
+            // Assume no internet access on error/timeout
+            setHasInternetAccess(false);
         }
     };
 
     const refreshConnection = async () => {
         setIsLoading(true);
-        await Promise.all([checkConnection(), checkInternetAccess()]);
-        setIsLoading(false);
+        try {
+            await Promise.all([checkConnection(), checkInternetAccess()]);
+        } catch (error) {
+            console.error("[refreshConnection] Error during connection refresh:", error);
+        } finally {
+            // Always set loading to false, even if checks fail
+            setIsLoading(false);
+        }
     };
 
     useEffect(() => {

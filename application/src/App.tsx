@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { HomeMainHeader } from "./components/home/MainHeader";
@@ -55,6 +55,18 @@ function App() {
   const navigate = useNavigate();
   const hasLaunched = useRef(false);
 
+  // Safety mechanism: Force stop loading after maximum timeout
+  const [forceStopLoading, setForceStopLoading] = useState(false);
+  
+  useEffect(() => {
+    const maxLoadingTimeout = setTimeout(() => {
+      console.warn('Maximum loading timeout reached, forcing app to continue');
+      setForceStopLoading(true);
+    }, 15000); // 15 seconds maximum loading time
+
+    return () => clearTimeout(maxLoadingTimeout);
+  }, []);
+
   // CAMBIO 2: Lógica de toasts simplificada y reactiva
   useEffect(() => {
     const connectionToastId = "connection-status";
@@ -93,7 +105,17 @@ function App() {
     return () => window.removeEventListener("navigate-to-instance", handler);
   }, [navigate]);
 
-  if (authLoading || connectionLoading || onboardingLoading) {
+  // Show loading screen only if we haven't forced stop and still loading
+  if ((authLoading || connectionLoading || onboardingLoading) && !forceStopLoading) {
+    // Log current state for debugging
+    console.log('App in loading state:', { 
+      authLoading, 
+      connectionLoading, 
+      onboardingLoading, 
+      forceStopLoading,
+      isAuthenticated,
+      isConnected 
+    });
     return <LoadingScreen />;
   }
 

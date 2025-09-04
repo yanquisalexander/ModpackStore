@@ -11,9 +11,19 @@ export const useOnboarding = () => {
       setLoading(true);
       setError(null);
       
-      // Try to use real Tauri invoke first
+      // Try to use real Tauri invoke with timeout
       const { invoke } = await import('@tauri-apps/api/core');
-      const status = await invoke<OnboardingStatus>('get_onboarding_status');
+      
+      // Add timeout to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Onboarding status check timeout')), 5000);
+      });
+      
+      const status = await Promise.race([
+        invoke<OnboardingStatus>('get_onboarding_status'),
+        timeoutPromise
+      ]);
+      
       setOnboardingStatus(status);
     } catch (err) {
       console.error('Error checking onboarding status:', err);
@@ -25,6 +35,7 @@ export const useOnboarding = () => {
         ram_allocation: 4096,
       });
     } finally {
+      // Always set loading to false
       setLoading(false);
     }
   };

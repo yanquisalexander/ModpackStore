@@ -188,10 +188,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       try {
         setLoading(true);
         await setupListeners();
-        await invoke('init_session');
+        
+        // Add timeout for init_session to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Authentication timeout - the backend may be unavailable')), 10000);
+        });
+        
+        await Promise.race([
+          invoke('init_session'),
+          timeoutPromise
+        ]);
+        
+        // Add a backup timer to ensure loading stops even if listeners don't fire
+        setTimeout(() => {
+          setLoading(false);
+        }, 12000);
+        
       } catch (err) {
+        console.warn('Auth initialization failed:', err);
         setError(parseError(err));
-        setLoading(false); // Asegurar que loading se detenga en caso de error
+        // Always set loading to false, even on timeout/error
+        setLoading(false);
       }
     };
 
