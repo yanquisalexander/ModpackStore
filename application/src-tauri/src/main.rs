@@ -29,7 +29,7 @@ static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::A
 static API_ENDPOINT: once_cell::sync::Lazy<&'static str> = once_cell::sync::Lazy::new(|| {
     if cfg!(debug_assertions) {
         // En modo dev, usar el endpoint de desarrollo fijo
-        "https://api-modpackstore.alexitoo.dev/v1"
+        "http://localhost:3000/v1"
     } else {
         // En producción, preferir la variable de entorno VITE_API_ENDPOINT, si no existe, usar fallback
         match std::env::var("VITE_API_ENDPOINT") {

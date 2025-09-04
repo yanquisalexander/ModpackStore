@@ -1,6 +1,6 @@
 export const API_ENDPOINT =
     import.meta.env.DEV || import.meta.env.MODE === "development"
-        ? "https://api-modpackstore.alexitoo.dev/v1"
+        ? "http://localhost:3000/v1"
         : import.meta.env.VITE_API_ENDPOINT ||
         "https://api-modpackstore.saltouruguayserver.com/v1";
 

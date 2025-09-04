@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Routes, Route, Link, useLocation, useParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import { PublisherModpacksView } from '@/views/publisher/PublisherModpacksView';
 import { PublisherTeamView } from '@/views/publisher/PublisherTeamView';
 import { PublisherModpackVersionsView } from '@/views/publisher/PublisherModpackVersionsView';
 import PublisherModpackVersionDetailView from '@/views/publisher/PublisherModpackVersionDetailView';
+import { useGlobalContext } from "@/stores/GlobalContext";
 
 interface PublisherLayoutProps {
     children?: React.ReactNode;
@@ -51,6 +52,17 @@ const PublisherSidebar: React.FC<{ publisherId: string; publisherName: string; u
     const location = useLocation();
     const { session } = useAuthentication();
     const navItems = getPublisherNavItems(publisherId);
+    const { setTitleBarState, titleBarState } = useGlobalContext();
+
+    useEffect(() => {
+        setTitleBarState({
+            ...titleBarState,
+            canGoBack: {
+                history: true
+            },
+            title: `Gestión de Modpacks - ${publisherName}`
+        });
+    }, [publisherName]);
 
     return (
         <Card className="h-fit">
@@ -95,22 +107,19 @@ const PublisherSidebar: React.FC<{ publisherId: string; publisherName: string; u
                                         </div>
                                     ) : (
                                         <Link to={item.path}>
-                                            <div className={`flex items-center justify-between p-3 rounded-lg transition-colors ${
-                                                isActive 
-                                                    ? 'bg-primary text-primary-foreground' 
-                                                    : 'hover:bg-muted'
-                                            }`}>
+                                            <div className={`flex items-center justify-between p-3 rounded-lg transition-colors ${isActive
+                                                ? 'bg-primary text-primary-foreground'
+                                                : 'hover:bg-muted'
+                                                }`}>
                                                 <div className="flex items-center gap-3">
                                                     <Icon className="h-4 w-4" />
                                                     <div>
-                                                        <div className={`text-sm font-medium ${
-                                                            isActive ? 'text-primary-foreground' : ''
-                                                        }`}>
+                                                        <div className={`text-sm font-medium ${isActive ? 'text-primary-foreground' : ''
+                                                            }`}>
                                                             {item.label}
                                                         </div>
-                                                        <div className={`text-xs ${
-                                                            isActive ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                                                        }`}>
+                                                        <div className={`text-xs ${isActive ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                                                            }`}>
                                                             {item.description}
                                                         </div>
                                                     </div>
@@ -180,8 +189,8 @@ export const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) =>
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
                 {/* Sidebar */}
                 <div className="lg:col-span-1">
-                    <PublisherSidebar 
-                        publisherId={publisherId!} 
+                    <PublisherSidebar
+                        publisherId={publisherId!}
                         publisherName={publisherName}
                         userRole={publisherMembership.role}
                     />
