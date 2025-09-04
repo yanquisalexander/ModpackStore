@@ -35,7 +35,18 @@ const patchConsoleMethod = (method: keyof Console, logger: (...args: any[]) => v
   const original = (console as any)[method];
   (console as any)[method] = (...args: any[]) => {
     original(...args);
-    logger(...args);
+    // Convertir args a string para el logger de Tauri
+    const message = args.map(arg => {
+      if (typeof arg === 'object') {
+        try {
+          return JSON.stringify(arg);
+        } catch {
+          return String(arg);
+        }
+      }
+      return String(arg);
+    }).join(' ');
+    logger(message);
   };
 };
 

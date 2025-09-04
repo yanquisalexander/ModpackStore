@@ -1,28 +1,45 @@
 import { Link } from "react-router-dom"
-import { LucideConstruction, LucideTrafficCone, LucideFrown, LucideHome } from "lucide-react"
+import { LucideFrown, LucideHome, LucideArrowLeft } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 
 export const NotFound = () => {
     return (
-        <div className="relative min-h-dvh flex flex-col items-center justify-center text-white overflow-hidden">
-            {/* Íconos de fondo */}
-            <LucideConstruction className="absolute text-white opacity-10 w-64 h-64 -top-10 -left-20 rotate-12" />
-            <LucideTrafficCone className="absolute text-white opacity-10 w-64 h-64 -bottom-10 -right-20 -rotate-12" />
+        <div className="h-[calc(100dvh-2.25rem)] flex items-center justify-center p-4">
+            <Card className="max-w-md w-full">
+                <CardContent className="p-8 text-center">
+                    {/* Ícono principal */}
+                    <div className="flex justify-center mb-6">
+                        <LucideFrown className="w-16 h-16 text-muted-foreground" />
+                    </div>
 
-            {/* Ícono principal */}
-            <LucideFrown className="w-24 h-24 text-white mb-4 z-10" />
+                    {/* Título */}
+                    <h1 className="text-2xl font-bold mb-2">
+                        Sección no encontrada
+                    </h1>
 
-            {/* Mensaje */}
-            <p className="mt-2 text-lg z-10 text-center px-4">
-                Intentaste acceder a algo que no existe…<br /> o al menos por ahora.
-            </p>
+                    {/* Mensaje */}
+                    <p className="text-muted-foreground mb-8 leading-relaxed">
+                        Lo sentimos, la sección que buscas no existe o ha sido movida.
+                    </p>
 
-            <Link
-                to="/"
-                className="z-10 mt-6 px-4 py-2 bg-transparent rounded hover:bg-white/10 transition flex items-center justify-center gap-2 text-white font-medium border border-white/20 hover:border-white/30"
-            >
-                <LucideHome className="w-4 h-4" />
-                Volver al inicio
-            </Link>
+                    {/* Botones */}
+                    <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                        <Button asChild variant="secondary" className="flex items-center gap-2">
+                            <Link to="/">
+                                <LucideHome className="w-4 h-4" />
+                                Ir al inicio
+                            </Link>
+                        </Button>
+                        <Button asChild variant="outline" className="flex items-center gap-2">
+                            <div onClick={() => window.history.back()}>
+                                <LucideArrowLeft className="w-4 h-4" />
+                                Volver atrás
+                            </div>
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
         </div>
     )
 }
