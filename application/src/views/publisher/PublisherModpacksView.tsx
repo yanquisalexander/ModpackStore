@@ -26,6 +26,8 @@ import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from '@/consts';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import CreateModpackDialog from '@/components/creator/dialogs/CreateModpackDialog';
+import EditModpackDialog from '@/components/creator/dialogs/EditModpackDialog';
 
 // Types
 interface Modpack {
@@ -137,6 +139,16 @@ export const PublisherModpacksView: React.FC = () => {
         modpack: null
     });
 
+    // Dialog states for create/edit modpack
+    const [createModpackDialogOpen, setCreateModpackDialogOpen] = useState(false);
+    const [editModpackDialog, setEditModpackDialog] = useState<{
+        open: boolean;
+        modpack: Modpack | null;
+    }>({
+        open: false,
+        modpack: null
+    });
+
     // Get user role in this publisher
     const publisherMembership = session?.publisherMemberships?.find(
         membership => membership.publisherId === publisherId
@@ -166,13 +178,14 @@ export const PublisherModpacksView: React.FC = () => {
     }, [publisherId, sessionTokens?.accessToken]);
 
     const handleCreateModpack = () => {
-        // TODO: Implement modpack creation
-        console.log('Create new modpack');
+        setCreateModpackDialogOpen(true);
     };
 
     const handleEditModpack = (modpack: Modpack) => {
-        // TODO: Implement modpack editing
-        console.log('Edit modpack:', modpack.id);
+        setEditModpackDialog({
+            open: true,
+            modpack
+        });
     };
 
     const handleConfigureModpack = (modpack: Modpack) => {
@@ -207,6 +220,16 @@ export const PublisherModpacksView: React.FC = () => {
         navigate(`/publisher/${publisherId}/modpacks/${modpack.id}/versions`);
     };
 
+    const onModpackCreated = () => {
+        loadModpacks(); // Refresh the list
+        setCreateModpackDialogOpen(false);
+    };
+
+    const onModpackUpdated = () => {
+        loadModpacks(); // Refresh the list
+        setEditModpackDialog({ open: false, modpack: null });
+    };
+
     return (
         <>
             {/* AlertDialog for Delete Confirmation */}
@@ -230,6 +253,25 @@ export const PublisherModpacksView: React.FC = () => {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Create Modpack Dialog */}
+            <CreateModpackDialog
+                isOpen={createModpackDialogOpen}
+                onClose={() => setCreateModpackDialogOpen(false)}
+                onSuccess={onModpackCreated}
+                teamId={publisherId}
+            />
+
+            {/* Edit Modpack Dialog */}
+            {editModpackDialog.modpack && (
+                <EditModpackDialog
+                    isOpen={editModpackDialog.open}
+                    onClose={() => setEditModpackDialog({ open: false, modpack: null })}
+                    onSuccess={onModpackUpdated}
+                    modpack={editModpackDialog.modpack}
+                    teamId={publisherId}
+                />
+            )}
 
             <div className="space-y-6">
             {/* Header */}
