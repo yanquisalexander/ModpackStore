@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import {
     LucidePackage,
     LucideLoader,
@@ -12,7 +13,8 @@ import {
     LucideMoreHorizontal,
     LucideEdit,
     LucideSettings,
-    LucideTrash2
+    LucideTrash2,
+    LucideHistory
 } from 'lucide-react';
 import {
     DropdownMenu,
@@ -22,6 +24,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from '@/consts';
+import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 // Types
 interface Modpack {
@@ -59,6 +63,21 @@ class PublisherModpacksAPI {
         const { modpacks } = await response.json();
 
         return modpacks;
+    }
+
+    static async deleteModpack(publisherId: string, modpackId: string, accessToken: string): Promise<void> {
+        const response = await fetch(`${this.baseUrl}/${publisherId}/modpacks/${modpackId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || `Error deleting modpack: ${response.statusText}`);
+        }
     }
 }
 
@@ -102,11 +121,21 @@ const getVisibilityLabel = (visibility: string) => {
 export const PublisherModpacksView: React.FC = () => {
     const { publisherId } = useParams<{ publisherId: string }>();
     const { session, sessionTokens } = useAuthentication();
+    const navigate = useNavigate();
 
     // State
     const [modpacks, setModpacks] = useState<Modpack[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // AlertDialog states for confirmations
+    const [deleteDialog, setDeleteDialog] = useState<{
+        open: boolean;
+        modpack: Modpack | null;
+    }>({
+        open: false,
+        modpack: null
+    });
 
     // Get user role in this publisher
     const publisherMembership = session?.publisherMemberships?.find(
@@ -152,12 +181,57 @@ export const PublisherModpacksView: React.FC = () => {
     };
 
     const handleDeleteModpack = (modpack: Modpack) => {
-        // TODO: Implement modpack deletion
-        console.log('Delete modpack:', modpack.id);
+        setDeleteDialog({
+            open: true,
+            modpack
+        });
+    };
+
+    const confirmDeleteModpack = async () => {
+        const modpack = deleteDialog.modpack;
+        if (!modpack) return;
+
+        try {
+            const response = await PublisherModpacksAPI.deleteModpack(publisherId!, modpack.id, sessionTokens!.accessToken);
+            
+            toast.success(`Modpack "${modpack.name}" eliminado correctamente`);
+            setModpacks(prev => prev.filter(m => m.id !== modpack.id));
+            setDeleteDialog({ open: false, modpack: null });
+        } catch (error) {
+            console.error('Error deleting modpack:', error);
+            toast.error(error instanceof Error ? error.message : 'Error al eliminar el modpack');
+        }
+    };
+
+    const handleManageVersions = (modpack: Modpack) => {
+        navigate(`/publisher/${publisherId}/modpacks/${modpack.id}/versions`);
     };
 
     return (
-        <div className="space-y-6">
+        <>
+            {/* AlertDialog for Delete Confirmation */}
+            <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción eliminará permanentemente el modpack "{deleteDialog.modpack?.name}" y todas sus versiones.
+                            Esta operación no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction 
+                            onClick={confirmDeleteModpack}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Eliminar Modpack
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            <div className="space-y-6">
             {/* Header */}
             <Card>
                 <CardHeader>
@@ -257,6 +331,10 @@ export const PublisherModpacksView: React.FC = () => {
                                                     </Button>
                                                 </DropdownMenuTrigger>
                                                 <DropdownMenuContent align="end">
+                                                    <DropdownMenuItem onClick={() => handleManageVersions(modpack)}>
+                                                        <LucideHistory className="h-4 w-4 mr-2" />
+                                                        Gestionar Versiones
+                                                    </DropdownMenuItem>
                                                     <DropdownMenuItem onClick={() => handleEditModpack(modpack)}>
                                                         <LucideEdit className="h-4 w-4 mr-2" />
                                                         Editar
@@ -285,5 +363,6 @@ export const PublisherModpacksView: React.FC = () => {
                 </CardContent>
             </Card>
         </div>
+        </>
     );
 };
