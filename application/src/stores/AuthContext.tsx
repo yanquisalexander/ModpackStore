@@ -96,19 +96,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [authStep, setAuthStep] = useState<AuthStep>(null);
   const [pendingInstance, setPendingInstance] = useState<string | null>(null);
 
-  // Flag to track if auth has been completed by listener
-  const [authCompleted, setAuthCompleted] = useState<boolean>(false);
-
-  // --- Memoized Values ---
-
-  // Memoize isAuthenticated to prevent recalculation on every render
   const isAuthenticated = useMemo(() => !!session && !!sessionTokens, [session, sessionTokens]);
 
-  // --- Helper Functions ---
-
-  // CORRECTED: Handles simple strings, Error objects, and the specific JSON error structure
   const parseError = (err: unknown): AuthError => {
-    // 1. Handle the specific JSON error string from the backend
     if (typeof err === 'string') {
       try {
         const parsed = JSON.parse(err) as ApiErrorPayload;
@@ -120,17 +110,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           };
         }
       } catch (e) {
-        // It's a plain string, not JSON
         return { code: 'RAW_STRING_ERROR', message: err };
       }
     }
-
-    // 2. Handle standard Error objects
     if (err instanceof Error) {
       return { code: 'CLIENT_ERROR', message: err.message };
     }
-
-    // 3. Fallback for other unknown error types
     return { code: 'UNKNOWN_ERROR', message: 'An unknown error occurred' };
   };
 
@@ -142,11 +127,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // --- Effects ---
 
   useEffect(() => {
-    const unlistenFunctions: UnlistenFn[] = [];
+    let unlistenFunctions: UnlistenFn[] = [];
+    let isMounted = true; // Flag to prevent state updates on unmounted component
 
-    const setupListeners = async () => {
+    const setupListenersAndInit = async () => {
+      // Create a promise that resolves when the auth status is received
+      let resolveAuthStatus: (value?: unknown) => void;
+      const authStatusPromise = new Promise((resolve) => {
+        resolveAuthStatus = resolve;
+      });
+
       // Listen for auth status updates
       const authStatusUnlisten = await listen<UserSession | null>('auth-status-changed', async (event) => {
+        if (!isMounted) return;
         try {
           const store = await load('auth_store.json');
           const tokens = await store.get<any>('auth_tokens');
@@ -162,54 +155,56 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
           setSession(enhanceSession(event.payload));
           resetAuthState();
-          setAuthCompleted(true); // Mark auth as completed
         } catch (err) {
           setError(parseError(err));
         } finally {
-          setLoading(false); // Stop loading when auth status is processed
+          // Resolve the promise to signal that auth has been processed
+          resolveAuthStatus();
         }
       });
       unlistenFunctions.push(authStatusUnlisten);
 
       // Listen for auth errors
       const authErrorUnlisten = await listen<string>('auth-error', (event) => {
+        if (!isMounted) return;
         setError(parseError(event.payload));
         console.error("Auth error received:", event.payload);
         setAuthStep(null);
-        setLoading(false); // Detener la carga en error
+        setLoading(false);
+        resolveAuthStatus(); // Resolve on error too, to stop the loading state
       });
       unlistenFunctions.push(authErrorUnlisten);
 
       // Listen for auth step updates
       const authStepUnlisten = await listen<AuthStep>('auth-step-changed', (event) => {
+        if (!isMounted) return;
         setAuthStep(event.payload);
       });
       unlistenFunctions.push(authStepUnlisten);
-    };
 
-    const initAuth = async () => {
+      // --- Initialization Logic ---
       try {
         setLoading(true);
-        setAuthCompleted(false); // Reset flag
-        await setupListeners();
-        await Promise.race([
-          invoke('init_session'),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('Init session timeout')), 5000))
-        ]);
+        // Invoke the init command. This will likely trigger the 'auth-status-changed' event.
+        await invoke('init_session');
+        // Wait for the auth status event to be received before proceeding.
+        await authStatusPromise;
       } catch (err) {
+        if (!isMounted) return;
         setError(parseError(err));
+        setSession(null);
+        setSessionTokens(null);
       } finally {
-        // Only stop loading if auth hasn't been completed by listener
-        if (!authCompleted) {
+        if (isMounted) {
           setLoading(false);
         }
       }
     };
 
-    initAuth();
+    setupListenersAndInit();
 
-    // Cleanup listeners on unmount
     return () => {
+      isMounted = false; // Cleanup flag
       unlistenFunctions.forEach(unlisten => unlisten());
     };
   }, [resetAuthState]);
