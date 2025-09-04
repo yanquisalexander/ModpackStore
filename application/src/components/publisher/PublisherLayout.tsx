@@ -16,6 +16,8 @@ import { useAuthentication } from '@/stores/AuthContext';
 import { useTeams } from '@/hooks/creators/useTeams';
 import { PublisherModpacksView } from '@/views/publisher/PublisherModpacksView';
 import { PublisherTeamView } from '@/views/publisher/PublisherTeamView';
+import { PublisherModpackVersionsView } from '@/views/publisher/PublisherModpackVersionsView';
+import PublisherModpackVersionDetailView from '@/views/publisher/PublisherModpackVersionDetailView';
 
 interface PublisherLayoutProps {
     children?: React.ReactNode;
@@ -190,6 +192,8 @@ export const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) =>
                     {children || (
                         <Routes>
                             <Route path="/modpacks" element={<PublisherModpacksView />} />
+                            <Route path="/modpacks/:modpackId/versions" element={<PublisherModpackVersionsView />} />
+                            <Route path="/modpacks/:modpackId/versions/:versionId" element={<PublisherModpackVersionDetailView />} />
                             <Route path="/team" element={<PublisherTeamView />} />
                             <Route path="*" element={<PublisherModpacksView />} /> {/* Default to modpacks */}
                         </Routes>
