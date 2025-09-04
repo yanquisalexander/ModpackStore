@@ -10,12 +10,14 @@ import {
     LucideSettings,
     LucideShield,
     LucideBuilding2,
-    LucideChevronRight
+    LucideChevronRight,
+    LucideWrench
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { ManageUsersView } from '@/views/admin/ManageUsersView';
 import { AuditLogsView } from '@/views/admin/AuditLogsView';
 import { ManagePublishersView } from '@/views/admin/ManagePublishersView';
+import { MaintenanceView } from '@/views/admin/MaintenanceView';
 
 interface AdminLayoutProps {
     children?: React.ReactNode;
@@ -40,6 +42,12 @@ const adminNavItems = [
         label: 'Registros de Auditoría',
         icon: LucideActivity,
         description: 'Ver actividad del sistema y registros de seguridad'
+    },
+    {
+        path: '/admin/maintenance',
+        label: 'Mantenimiento',
+        icon: LucideWrench,
+        description: 'Herramientas de mantenimiento y limpieza de datos'
     },
     {
         path: '/admin/settings',
@@ -180,6 +188,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                             <Route path="/users" element={<ManageUsersView />} />
                             <Route path="/publishers" element={<ManagePublishersView />} />
                             <Route path="/audit" element={<AuditLogsView />} />
+                            <Route path="/maintenance" element={<MaintenanceView />} />
                             <Route path="*" element={<ManageUsersView />} /> {/* Default to users */}
                         </Routes>
                     )}

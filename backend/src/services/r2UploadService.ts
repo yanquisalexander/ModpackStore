@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 import { Readable } from "stream";
 
 interface UploadReturn {
@@ -99,5 +99,46 @@ class Semaphore {
             this.permits--;
             resolve();
         }
+    }
+}
+
+export async function deleteFromR2(key: string): Promise<void> {
+    try {
+        const command = new DeleteObjectCommand({
+            Bucket: R2_BUCKET_NAME,
+            Key: key,
+        });
+
+        await s3Client.send(command);
+    } catch (error) {
+        console.error("Error deleting from R2:", error);
+        throw new Error("Failed to delete file from R2");
+    }
+}
+
+export async function batchDeleteFromR2(keys: string[]): Promise<void> {
+    if (keys.length === 0) return;
+
+    try {
+        // R2 supports deleting up to 1000 objects at once
+        const chunks = [];
+        for (let i = 0; i < keys.length; i += 1000) {
+            chunks.push(keys.slice(i, i + 1000));
+        }
+
+        for (const chunk of chunks) {
+            const command = new DeleteObjectsCommand({
+                Bucket: R2_BUCKET_NAME,
+                Delete: {
+                    Objects: chunk.map(key => ({ Key: key })),
+                    Quiet: true
+                }
+            });
+
+            await s3Client.send(command);
+        }
+    } catch (error) {
+        console.error("Error batch deleting from R2:", error);
+        throw new Error("Failed to batch delete files from R2");
     }
 }
