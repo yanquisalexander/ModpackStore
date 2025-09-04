@@ -41,7 +41,7 @@ interface Modpack {
 
 // API Service for publisher modpacks
 class PublisherModpacksAPI {
-    private static baseUrl = `${API_ENDPOINT}/v1/creators/publishers`;
+    private static baseUrl = `${API_ENDPOINT}/creators/publishers`;
 
     static async getModpacks(publisherId: string, accessToken: string): Promise<Modpack[]> {
         const response = await fetch(`${this.baseUrl}/${publisherId}/modpacks`, {
@@ -56,7 +56,9 @@ class PublisherModpacksAPI {
             throw new Error(errorData.detail || `Error fetching modpacks: ${response.statusText}`);
         }
 
-        return response.json();
+        const { modpacks } = await response.json();
+
+        return modpacks;
     }
 }
 
@@ -264,7 +266,7 @@ export const PublisherModpacksView: React.FC = () => {
                                                         Configurar
                                                     </DropdownMenuItem>
                                                     {['owner', 'admin'].includes(userRole) && (
-                                                        <DropdownMenuItem 
+                                                        <DropdownMenuItem
                                                             onClick={() => handleDeleteModpack(modpack)}
                                                             className="text-destructive"
                                                         >

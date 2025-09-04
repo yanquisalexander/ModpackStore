@@ -259,6 +259,15 @@ export class AdminPublishersController {
             if (!role || !Object.values(PublisherMemberRole).includes(role)) {
                 throw new APIError(400, 'Bad Request', 'Valid role is required.');
             }
+            // Verificar el rol del usuario actual dentro del publisher
+            // c.get('user') debería contener publisherMemberships (establecido por el middleware de autenticación)
+            const currentUser = c.get('user') as any;
+            const membership = currentUser?.publisherMemberships?.find((m: any) => m.publisherId === publisherId);
+            const currentUserRole = membership?.role as string | undefined;
+
+            if (!membership || !['owner', 'admin'].includes(String(currentUserRole).toLowerCase())) {
+                throw new APIError(403, 'Forbidden', 'Insufficient publisher role to update member roles.');
+            }
 
             const updatedMember = await AdminPublishersService.updateMemberRole(publisherId, userId, role, adminUserId);
             return c.json(serializeResource('publisherMember', updatedMember), 200);
