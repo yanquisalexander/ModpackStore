@@ -255,6 +255,21 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         }
     }, [publisherId, modpackId, versionId]);
 
+    useEffect(() => {
+        if (reuseDialog.previousFiles.length > 0) {
+            const initialExpansionState: { [key: string]: boolean } = {};
+            reuseDialog.previousFiles.forEach(versionData => {
+                const fileTree = buildFileTree(versionData.files, reuseDialog.type);
+                Object.keys(fileTree).forEach(key => {
+                    if (fileTree[key].type === 'folder') {
+                        initialExpansionState[`${versionData.versionId}-${key}`] = true;
+                    }
+                });
+            });
+            setReuseExpandedFolders(initialExpansionState);
+        }
+    }, [reuseDialog.previousFiles]);
+
     const fetchVersionDetails = async () => {
         setLoading(true);
         try {
@@ -502,42 +517,28 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         setReuseDialog(prev => ({ ...prev, open: true, type, loading: true }));
 
         try {
-            const res = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions`, {
+            const res = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/previous-files/${type}`, {
                 headers: {
                     'Authorization': `Bearer ${sessionTokens?.accessToken}`,
                 },
             });
 
             if (!res.ok) {
-                throw new Error('Error al cargar versiones anteriores');
+                await handleApiError(res);
+                setReuseDialog(prev => ({ ...prev, open: false, loading: false }));
+                return;
             }
 
             const data = await res.json();
-            const previousVersions = data.versions
-                .filter((v: any) => v.id !== versionId && v.files && v.files.length > 0)
-                .map((v: any) => ({
-                    version: v.version,
-                    versionId: v.id,
-                    files: v.files
-                        .filter((f: any) => f.file.type === type)
-                        .map((f: any) => ({
-                            fileHash: f.fileHash,
-                            path: f.path,
-                            size: f.size || 0,
-                            type: f.file.type
-                        }))
-                }))
-                .filter((v: any) => v.files.length > 0);
-
             setReuseDialog(prev => ({
                 ...prev,
-                previousFiles: previousVersions,
-                loading: false,
-                selectedFiles: []
+                previousFiles: data.previousFiles || [],
+                selectedFiles: [],
+                loading: false
             }));
         } catch (error) {
-            console.error('Error loading previous versions:', error);
-            toast.error('Error al cargar versiones anteriores');
+            console.error('Error fetching previous files:', error);
+            toast.error('Error al cargar archivos anteriores');
             setReuseDialog(prev => ({ ...prev, open: false, loading: false }));
         }
     };
@@ -563,14 +564,14 @@ const PublisherModpackVersionDetailView: React.FC = () => {
 
     const selectAllFiles = () => {
         const allFileHashes = reuseDialog.previousFiles.flatMap(version => version.files.map(file => file.fileHash));
-        setReuseDialog(prev => ({ ...prev, selectedFiles: allFileHashes }));
+        setReuseDialog(prev => ({ ...prev, selectedFiles: [...new Set(allFileHashes)] }));
     };
 
     const deselectAllFiles = () => {
         setReuseDialog(prev => ({ ...prev, selectedFiles: [] }));
     };
 
-    const buildFileTree = (files: Array<{ fileHash: string; path: string; size: number; type: string }>): { [key: string]: TreeNode } => {
+    const buildFileTree = (files: Array<{ fileHash: string; path: string; size: number }>, type: string): { [key: string]: TreeNode } => {
         const tree: { [key: string]: TreeNode } = {};
         files.forEach(fileEntry => {
             const pathParts = fileEntry.path.split('/');
@@ -581,7 +582,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     const modpackFile: ModpackVersionFile = {
                         fileHash: fileEntry.fileHash,
                         path: fileEntry.path,
-                        file: { type: fileEntry.type as any },
+                        file: { type: type as any },
                         size: fileEntry.size
                     };
                     currentLevel[part] = { type: 'file', data: modpackFile };
@@ -597,7 +598,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     };
 
     const confirmFileReuse = async () => {
-        if (reuseDialog.selectedFiles.length === 0) {
+        const uniqueFileHashes = [...new Set(reuseDialog.selectedFiles)];
+        if (uniqueFileHashes.length === 0) {
             toast.error('Selecciona al menos un archivo para reutilizar');
             return;
         }
@@ -610,7 +612,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    fileHashes: reuseDialog.selectedFiles
+                    fileHashes: uniqueFileHashes
                 })
             });
 
@@ -619,7 +621,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 return;
             }
 
-            toast.success(`Reutilizados ${reuseDialog.selectedFiles.length} archivo(s) correctamente`);
+            toast.success(`Reutilizados ${uniqueFileHashes.length} archivo(s) correctamente`);
             fetchVersionDetails();
             setReuseDialog(prev => ({ ...prev, open: false, selectedFiles: [] }));
         } catch (error) {
@@ -769,13 +771,22 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         }, [filteredFiles]);
 
         useEffect(() => {
-            const initialExpansionState: { [key: string]: boolean } = {};
-            Object.keys(fileTree).forEach(key => {
-                if (fileTree[key].type === 'folder') {
-                    initialExpansionState[key] = true;
+            setExpandedFolders(prev => {
+                const newState: { [key: string]: boolean } = {};
+                Object.keys(fileTree).forEach(key => {
+                    if (fileTree[key].type === 'folder') {
+                        newState[key] = prev[key] !== undefined ? prev[key] : true;
+                    }
+                });
+                // Only update if the state actually changed
+                const keys = new Set([...Object.keys(prev), ...Object.keys(newState)]);
+                for (const key of keys) {
+                    if (prev[key] !== newState[key]) {
+                        return newState;
+                    }
                 }
+                return prev; // No change, return prev to avoid re-render
             });
-            setExpandedFolders(initialExpansionState);
         }, [fileTree]);
 
         return (
@@ -897,8 +908,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={publishing}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction 
-                            onClick={confirmPublishVersion} 
+                        <AlertDialogAction
+                            onClick={confirmPublishVersion}
                             disabled={publishing}
                             className="bg-green-600 text-white hover:bg-green-700"
                         >
@@ -921,8 +932,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={publishing}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction 
-                            onClick={confirmUnpublishVersion} 
+                        <AlertDialogAction
+                            onClick={confirmUnpublishVersion}
                             disabled={publishing}
                             className="bg-orange-600 text-white hover:bg-orange-700"
                         >
@@ -1022,7 +1033,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                             </p>
                         ) : (
                             reuseDialog.previousFiles.map(versionData => {
-                                const fileTree = buildFileTree(versionData.files);
+                                const fileTree = buildFileTree(versionData.files, reuseDialog.type);
                                 return (
                                     <div key={versionData.versionId} className="border rounded-lg p-4">
                                         <h4 className="font-medium text-sm mb-3 text-gray-700">
@@ -1090,9 +1101,9 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                             </Button>
                             <Button
                                 onClick={confirmFileReuse}
-                                disabled={reuseDialog.selectedFiles.length === 0}
+                                disabled={new Set(reuseDialog.selectedFiles).size === 0}
                             >
-                                Reutilizar {reuseDialog.selectedFiles.length} archivo(s)
+                                Reutilizar {new Set(reuseDialog.selectedFiles).size} archivo(s)
                             </Button>
                         </div>
                     </DialogFooter>
