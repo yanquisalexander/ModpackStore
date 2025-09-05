@@ -7,6 +7,7 @@ import { uploadToR2, batchUploadToR2 } from "./r2UploadService";
 import { ModpackFile, ModpackFileType } from "@/entities/ModpackFile";
 import { ModpackVersionFile } from "@/entities/ModpackVersionFile";
 import { In } from "typeorm";
+import { sendProgressUpdate, sendCompletionUpdate, sendErrorUpdate } from "./realtime.service";
 
 export const ALLOWED_FILE_TYPES = ['mods', 'resourcepacks', 'config', 'shaderpacks', 'datapacks', 'extras'];
 
@@ -41,97 +42,107 @@ export const processModpackFileUpload = async (
 
   // Función que se delega a la queue
   const task = async () => {
-    console.log(`Procesando ${fileType} para modpack ${modpackId}...`);
+    try {
+      console.log(`Procesando ${fileType} para modpack ${modpackId}...`);
+      sendProgressUpdate(modpackId, versionId, `Iniciando procesamiento de ${fileType}`, { category: fileType, percent: 0 });
 
-    // Eliminar todos los ModpackVersionFile existentes para esta versión y tipo
-    await ModpackVersionFile.createQueryBuilder()
-      .delete()
-      .from(ModpackVersionFile)
-      .where(`modpackVersionId = :versionId AND fileHash IN (
-        SELECT hash FROM modpack_files WHERE type = :fileType
-      )`, { versionId, fileType })
-      .execute();
+      // Eliminar todos los ModpackVersionFile existentes para esta versión y tipo
+      await ModpackVersionFile.createQueryBuilder()
+        .delete()
+        .from(ModpackVersionFile)
+        .where(`modpackVersionId = :versionId AND fileHash IN (
+          SELECT hash FROM modpack_files WHERE type = :fileType
+        )`, { versionId, fileType })
+        .execute();
 
-    const fileEntries: { path: string; hash: string; content: Buffer }[] = [];
+      const fileEntries: { path: string; hash: string; content: Buffer }[] = [];
 
-    const zip = await JSZip.loadAsync(buffer);
-    const extractDir = path.join(TEMP_UPLOAD_DIR, `${modpackId}-${fileType}-${Date.now()}`);
-    fs.mkdirSync(extractDir, { recursive: true });
+      const zip = await JSZip.loadAsync(buffer);
+      const extractDir = path.join(TEMP_UPLOAD_DIR, `${modpackId}-${fileType}-${Date.now()}`);
+      fs.mkdirSync(extractDir, { recursive: true });
 
-    for (const entryName of Object.keys(zip.files)) {
-      const zipFile = zip.files[entryName];
-      if (!zipFile.dir) {
-        const content = await zipFile.async("nodebuffer");
-        const hash = crypto.createHash("sha1").update(content).digest("hex");
-        // Adjust path based on fileType
-        const adjustedPath = fileType === 'extras' ? entryName : `${fileType}/${entryName}`;
-        fileEntries.push({ path: adjustedPath, hash, content });
+      for (const entryName of Object.keys(zip.files)) {
+        const zipFile = zip.files[entryName];
+        if (!zipFile.dir) {
+          const content = await zipFile.async("nodebuffer");
+          const hash = crypto.createHash("sha1").update(content).digest("hex");
+          // Adjust path based on fileType
+          const adjustedPath = fileType === 'extras' ? entryName : `${fileType}/${entryName}`;
+          fileEntries.push({ path: adjustedPath, hash, content });
 
-        // Guardar temporalmente para compatibilidad
-        const filePath = path.join(extractDir, entryName);
-        fs.mkdirSync(path.dirname(filePath), { recursive: true });
-        fs.writeFileSync(filePath, content);
+          // Guardar temporalmente para compatibilidad
+          const filePath = path.join(extractDir, entryName);
+          fs.mkdirSync(path.dirname(filePath), { recursive: true });
+          fs.writeFileSync(filePath, content);
+        }
       }
+
+      sendProgressUpdate(modpackId, versionId, `Archivos extraídos: ${fileEntries.length} archivos encontrados`, { category: fileType, percent: 20 });
+
+      // Batch query: obtener todos los archivos existentes por hash
+      const allHashes = fileEntries.map(fe => fe.hash);
+      const existingFiles = await ModpackFile.find({ where: { hash: In(allHashes) } });
+      const existingHashes = new Set(existingFiles.map(ef => ef.hash));
+
+      // Procesar solo los que no existen
+      const newFiles = fileEntries.filter(fe => !existingHashes.has(fe.hash));
+      const getHashKey = (hash: string) => path.posix.join("resources", "files", hash.slice(0, 2), hash.slice(2, 4), hash);
+      const uploads = newFiles.map(fe => ({
+        key: getHashKey(fe.hash),
+        body: fe.content,
+        contentType: "application/octet-stream"
+      }));
+
+      // Batch upload to R2 with concurrency control
+      const uploadResults = await batchUploadToR2(uploads, 5); // concurrency 5
+
+      console.log(`Subidos ${uploadResults.length} archivos nuevos a R2 para ${fileType}`);
+      sendProgressUpdate(modpackId, versionId, `Subidos ${uploadResults.length} archivos nuevos a R2`, { category: fileType, percent: 60 });
+
+      // Save to DB after uploads
+      const savePromises = fileEntries.map(async (fe) => {
+        try {
+          // Find or create ModpackFile
+          let modpackFile = await ModpackFile.findOne({ where: { hash: fe.hash } });
+          if (!modpackFile) {
+            modpackFile = new ModpackFile();
+            modpackFile.hash = fe.hash;
+            modpackFile.size = fe.content.length;
+            modpackFile.type = fileType as ModpackFileType;
+            await modpackFile.save();
+          }
+
+          // Create ModpackVersionFile entry for all files, even if they already exist
+          const modpackVersionFile = new ModpackVersionFile();
+          modpackVersionFile.modpackVersionId = versionId;
+          modpackVersionFile.fileHash = fe.hash;
+          modpackVersionFile.path = fe.path;
+          modpackVersionFile.file = modpackFile; // Associate with the ModpackFile
+          await modpackVersionFile.save();
+        } catch (error) {
+          // Ignore duplicate key errors for both ModpackFile and ModpackVersionFile
+          if (error instanceof Error && !error.message.includes('duplicate key') && !error.message.includes('llave duplicada')) {
+            throw error;
+          }
+        }
+      });
+
+      await Promise.all(savePromises);
+      sendProgressUpdate(modpackId, versionId, `Guardados ${fileEntries.length} archivos en base de datos`, { category: fileType, percent: 80 });
+
+      // Mostrar tabla con path y hash (todos, incluyendo existentes)
+      console.log(`Hashes generados para ${fileType}:`);
+      console.table(fileEntries.map(fe => ({ path: fe.path, hash: fe.hash })));
+
+      console.log(`Procesamiento completo para ${fileType}`);
+      sendCompletionUpdate(modpackId, versionId, `Procesamiento completo para ${fileType}`);
+
+      // Limpiar directorio temporal
+      fs.rmSync(extractDir, { recursive: true, force: true });
+    } catch (error) {
+      console.error(`Error procesando ${fileType} para modpack ${modpackId}:`, error);
+      sendErrorUpdate(modpackId, versionId, `Error procesando ${fileType}: ${error instanceof Error ? error.message : String(error)}`);
     }
-
-
-    // Batch query: obtener todos los archivos existentes por hash
-    const allHashes = fileEntries.map(fe => fe.hash);
-    const existingFiles = await ModpackFile.find({ where: { hash: In(allHashes) } });
-    const existingHashes = new Set(existingFiles.map(ef => ef.hash));
-
-    // Procesar solo los que no existen
-    const newFiles = fileEntries.filter(fe => !existingHashes.has(fe.hash));
-    const getHashKey = (hash: string) => path.posix.join("resources", "files", hash.slice(0, 2), hash.slice(2, 4), hash);
-    const uploads = newFiles.map(fe => ({
-      key: getHashKey(fe.hash),
-      body: fe.content,
-      contentType: "application/octet-stream"
-    }));
-
-    // Batch upload to R2 with concurrency control
-    const uploadResults = await batchUploadToR2(uploads, 5); // concurrency 5
-
-    console.log(`Subidos ${uploadResults.length} archivos nuevos a R2 para ${fileType}`);
-
-    // Save to DB after uploads
-    const savePromises = fileEntries.map(async (fe) => {
-      try {
-        // Find or create ModpackFile
-        let modpackFile = await ModpackFile.findOne({ where: { hash: fe.hash } });
-        if (!modpackFile) {
-          modpackFile = new ModpackFile();
-          modpackFile.hash = fe.hash;
-          modpackFile.size = fe.content.length;
-          modpackFile.type = fileType as ModpackFileType;
-          await modpackFile.save();
-        }
-
-        // Create ModpackVersionFile entry for all files, even if they already exist
-        const modpackVersionFile = new ModpackVersionFile();
-        modpackVersionFile.modpackVersionId = versionId;
-        modpackVersionFile.fileHash = fe.hash;
-        modpackVersionFile.path = fe.path;
-        modpackVersionFile.file = modpackFile; // Associate with the ModpackFile
-        await modpackVersionFile.save();
-      } catch (error) {
-        // Ignore duplicate key errors for both ModpackFile and ModpackVersionFile
-        if (error instanceof Error && !error.message.includes('duplicate key') && !error.message.includes('llave duplicada')) {
-          throw error;
-        }
-      }
-    });
-
-    await Promise.all(savePromises);
-
-    // Mostrar tabla con path y hash (todos, incluyendo existentes)
-    console.log(`Hashes generados para ${fileType}:`);
-    console.table(fileEntries.map(fe => ({ path: fe.path, hash: fe.hash })));
-
-    console.log(`Procesamiento completo para ${fileType}`);
-
-    // Limpiar directorio temporal
-    fs.rmSync(extractDir, { recursive: true, force: true });
   };
 
   // Delegar a la queue

@@ -1,6 +1,7 @@
 import { Context, Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { cors } from 'hono/cors';
+import { createNodeWebSocket } from '@hono/node-ws';
 import rootRouter from "./routes"; // Corrected import for router
 import Passport from "./lib/Passport";
 import "dotenv/config";
@@ -21,6 +22,7 @@ import { generateSystemUser } from "./utils/system";
 
 const app = new Hono();
 
+
 const loggerFn = (string: string) => {
   // Si contiene '/ws', no loguear
   if (string.includes('/ws')) {
@@ -30,6 +32,10 @@ const loggerFn = (string: string) => {
 };
 
 app.use(logger(loggerFn));
+
+const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
+
+
 const port = Number(process.env.PORT) || 3000;
 
 const initializeServices = async (): Promise<void> => {
@@ -150,8 +156,10 @@ const server = serve({
   console.log(`Server is running on http://localhost:${info.port}`);
 });
 
+injectWebSocket(server);
+
 // Initialize WebSocket service
-wsManager.initialize(app);
+wsManager.initialize(app, upgradeWebSocket);
 
 // Basic health check or root route (optional)
 app.get('/', (c) => c.text('Modpack Store API is running!'));

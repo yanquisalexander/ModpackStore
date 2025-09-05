@@ -1,6 +1,9 @@
 import { Hono } from 'hono';
-import { verify } from 'jsonwebtoken';
+import { jwt } from 'hono/jwt';
+import { logger } from 'hono/logger';
 import { User } from '@/entities/User';
+
+
 
 // --- Startup Configuration ---
 if (!process.env.JWT_SECRET) {
@@ -14,9 +17,12 @@ export interface WebSocketMessage {
     payload: any;
 }
 
-export interface AuthenticatedWebSocket extends WebSocket {
+export interface AuthenticatedWebSocket {
     userId: string;
     user: User;
+    send: (data: string) => void;
+    close: () => void;
+    readyState: number;
 }
 
 export interface ConnectionInfo {
@@ -44,20 +50,29 @@ export class WebSocketManager {
     /**
      * Initialize WebSocket with Hono app
      */
-    public initialize(app: Hono): void {
+    public initialize(app: Hono, upgradeWebSocket: any): void {
         this.honoApp = app;
 
-        // WebSocket route with authentication
-        app.get('/ws', async (c) => {
-            try {
-                // Extract and verify JWT token
-                const token = this.extractToken(c.req);
-                if (!token) {
-                    console.log('WebSocket connection rejected: No token provided');
-                    return c.json({ error: 'No token provided' }, 401);
-                }
+        // Add logger middleware
+        app.use(logger());
 
-                const payload = verify(token, JWT_SECRET) as { sub: string; iat: number; exp: number };
+        // Middleware to handle token from query parameters
+        app.use('/ws', async (c, next) => {
+            const url = new URL(c.req.url);
+            const token = url.searchParams.get('token');
+            if (token && !c.req.header('authorization')) {
+                c.req.raw.headers.set('authorization', `Bearer ${token}`);
+            }
+            await next();
+        });
+
+        // JWT middleware for /ws route
+        app.use('/ws', jwt({ secret: JWT_SECRET }));
+
+        // WebSocket route with upgradeWebSocket helper
+        app.get('/ws', upgradeWebSocket(async (c: any) => {
+            try {
+                const payload = c.get('jwtPayload') as { sub: string; iat: number; exp: number };
                 const user = await User.findOne({
                     where: { id: payload.sub },
                     relations: ['publisherMemberships']
@@ -65,16 +80,65 @@ export class WebSocketManager {
 
                 if (!user) {
                     console.log('WebSocket connection rejected: User not found');
-                    return c.json({ error: 'User not found' }, 401);
+                    return {
+                        onOpen: (_event: any, ws: any) => {
+                            ws.close();
+                        }
+                    };
                 }
 
-                // Upgrade to WebSocket using Hono's built-in WebSocket support
-                return c.json({ message: 'WebSocket upgrade initiated' });
+                return {
+                    onOpen: (_event: any, ws: any) => {
+                        console.log(`WebSocket connection established for user: ${user.username}`);
+
+                        // Attach user info to ws
+                        (ws as any).userId = user.id;
+                        (ws as any).user = user;
+
+                        // Create connection info
+                        const connection: ConnectionInfo = {
+                            ws: ws as any,
+                            userId: user.id,
+                            user: user,
+                            connectedAt: new Date()
+                        };
+
+                        // Store connection
+                        if (!this.connections.has(user.id)) {
+                            this.connections.set(user.id, []);
+                        }
+                        this.connections.get(user.id)!.push(connection);
+                    },
+                    onMessage: (event: any, ws: any) => {
+                        const connection = this.findConnectionByWebSocket(ws);
+                        if (connection) {
+                            this.handleMessage(connection, event.data.toString());
+                        }
+                    },
+                    onClose: (_event: any, ws: any) => {
+                        console.log(`WebSocket connection closed for user: ${(ws as any).user?.username}`);
+                        const connection = this.findConnectionByWebSocket(ws);
+                        if (connection) {
+                            this.removeConnection(connection);
+                        }
+                    },
+                    onError: (event: any, ws: any) => {
+                        console.error(`WebSocket error for user: ${(ws as any).user?.username}`, event);
+                        const connection = this.findConnectionByWebSocket(ws);
+                        if (connection) {
+                            this.removeConnection(connection);
+                        }
+                    }
+                };
             } catch (err: any) {
                 console.log('WebSocket connection rejected: Auth error', err?.message);
-                return c.json({ error: 'Authentication failed' }, 401);
+                return {
+                    onOpen: (_event: any, ws: any) => {
+                        ws.close();
+                    }
+                };
             }
-        });
+        }));
 
         console.log('WebSocket server initialized on /ws');
     }
@@ -82,7 +146,7 @@ export class WebSocketManager {
     /**
      * Find connection by WebSocket instance
      */
-    private findConnectionByWebSocket(ws: WebSocket): ConnectionInfo | null {
+    private findConnectionByWebSocket(ws: any): ConnectionInfo | null {
         for (const userConnections of this.connections.values()) {
             for (const connection of userConnections) {
                 if (connection.ws === ws) {
@@ -90,26 +154,6 @@ export class WebSocketManager {
                 }
             }
         }
-        return null;
-    }
-
-    /**
-     * Extract JWT token from Hono request headers or query parameters
-     */
-    private extractToken(req: any): string | null {
-        // Try Authorization header first
-        const authHeader = req.header('authorization');
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-            return authHeader.substring(7);
-        }
-
-        // Try query parameters
-        const url = new URL(req.url);
-        const token = url.searchParams.get('token');
-        if (token) {
-            return token;
-        }
-
         return null;
     }
 

@@ -32,6 +32,7 @@ import { useAuthentication } from '@/stores/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { handleApiError } from '@/lib/utils';
+import { ModpackProcessingStatus } from '@/components/modpack/ModpackProcessingStatus';
 
 // --- Interfaces & Types ---
 
@@ -772,20 +773,17 @@ const PublisherModpackVersionDetailView: React.FC = () => {
 
         useEffect(() => {
             setExpandedFolders(prev => {
-                const newState: { [key: string]: boolean } = {};
+                const newState = { ...prev };
+                let hasChanges = false;
+
                 Object.keys(fileTree).forEach(key => {
-                    if (fileTree[key].type === 'folder') {
-                        newState[key] = prev[key] !== undefined ? prev[key] : true;
+                    if (fileTree[key].type === 'folder' && !(key in newState)) {
+                        newState[key] = true; // Default to expanded for new folders
+                        hasChanges = true;
                     }
                 });
-                // Only update if the state actually changed
-                const keys = new Set([...Object.keys(prev), ...Object.keys(newState)]);
-                for (const key of keys) {
-                    if (prev[key] !== newState[key]) {
-                        return newState;
-                    }
-                }
-                return prev; // No change, return prev to avoid re-render
+
+                return hasChanges ? newState : prev;
             });
         }, [fileTree]);
 
@@ -840,8 +838,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                             versionStatus={versionStatus}
                                             onDelete={onDeleteFile}
                                         />
-                                    ))
-                                }
+                                    ))}
                             </div>
                         ) : (
                             versionStatus !== 'published' && (
@@ -1189,6 +1186,21 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                 </div>
                             </CardContent>
                         </Card>
+
+                        {/* Processing Status */}
+                        <ModpackProcessingStatus
+                            modpackId={modpackId!}
+                            versionId={versionId!}
+                            token={sessionTokens?.accessToken}
+                            showConnectionStatus={true}
+                            onCompleted={() => {
+                                toast.success('Procesamiento completado exitosamente');
+                                fetchVersionDetails(); // Refresh version data
+                            }}
+                            onError={(error) => {
+                                toast.error(`Error en el procesamiento: ${error}`);
+                            }}
+                        />
 
                         {/* Changelog */}
                         <Card>

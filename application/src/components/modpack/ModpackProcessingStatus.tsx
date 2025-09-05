@@ -63,42 +63,6 @@ export function ModpackProcessingStatus({
     }
   }, [connectionError, isConnecting, isConnected, connect]);
 
-  const renderConnectionStatus = () => {
-    if (!showConnectionStatus) return null;
-
-    if (isConnecting) {
-      return (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <LucideLoader2 className="h-4 w-4 animate-spin" />
-          <span>Conectando...</span>
-        </div>
-      );
-    }
-
-    if (!isConnected) {
-      return (
-        <div className="flex items-center gap-2 text-sm text-destructive">
-          <LucideWifiOff className="h-4 w-4" />
-          <span>Desconectado</span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={connect}
-            className="ml-2"
-          >
-            Reconectar
-          </Button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex items-center gap-2 text-sm text-green-600">
-        <LucideWifi className="h-4 w-4" />
-        <span>Conectado</span>
-      </div>
-    );
-  };
 
   const renderProcessingStatus = () => {
     const { isProcessing, isCompleted, error, statusMessage, percent, category } = processingState;
@@ -128,12 +92,12 @@ export function ModpackProcessingStatus({
               {Math.round(percent)}%
             </span>
           </div>
-          
-          <Progress 
-            value={percent} 
-            className="w-full" 
+
+          <Progress
+            value={percent}
+            className="w-full"
           />
-          
+
           {statusMessage && (
             <p className="text-xs text-blue-700 dark:text-blue-300">
               {statusMessage}
@@ -219,9 +183,12 @@ export function ModpackProcessingStatus({
     return children;
   };
 
+  if (!processingState.isProcessing) {
+    return null;
+  }
+
   return (
     <div className={cn("space-y-3", className)}>
-      {renderConnectionStatus()}
       {renderProcessingStatus()}
     </div>
   );
