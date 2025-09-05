@@ -1,5 +1,32 @@
 import { wsManager } from './websocket.service';
 
+// --- Types for Modpack Processing Notifications ---
+export interface ModpackProgressMessage {
+    type: 'progress';
+    modpackId: string;
+    versionId: string;
+    category?: string; // "mods", "resourcepacks", etc.
+    message: string;
+    percent?: number;
+}
+
+export interface ModpackCompletedMessage {
+    type: 'completed';
+    modpackId: string;
+    versionId: string;
+    message: string;
+}
+
+export interface ModpackErrorMessage {
+    type: 'error';
+    modpackId: string;
+    versionId: string;
+    message: string;
+    details?: any;
+}
+
+export type ModpackProcessingMessage = ModpackProgressMessage | ModpackCompletedMessage | ModpackErrorMessage;
+
 /**
  * Broadcast a message to all connected users or specific users
  * @param type - Message type
@@ -46,6 +73,87 @@ export function getConnectionStats(): { totalConnections: number; totalUsers: nu
  */
 export function disconnectUser(userId: string): boolean {
     return wsManager.disconnectUser(userId);
+}
+
+/**
+ * Send a modpack processing progress update to all connected users
+ * @param modpackId - Modpack ID being processed
+ * @param versionId - Version ID being processed
+ * @param message - Progress message
+ * @param options - Additional options (category, percent, userIds)
+ * @returns Number of connections the message was sent to
+ */
+export function sendProgressUpdate(
+    modpackId: string, 
+    versionId: string, 
+    message: string, 
+    options: {
+        category?: string;
+        percent?: number;
+        userIds?: string[];
+    } = {}
+): number {
+    const payload: ModpackProgressMessage = {
+        type: 'progress',
+        modpackId,
+        versionId,
+        message,
+        ...(options.category && { category: options.category }),
+        ...(options.percent !== undefined && { percent: options.percent })
+    };
+
+    return broadcast('modpack_processing', payload, options.userIds);
+}
+
+/**
+ * Send a modpack processing completion notification
+ * @param modpackId - Modpack ID that was processed
+ * @param versionId - Version ID that was processed
+ * @param message - Completion message
+ * @param userIds - Optional array of user IDs to send to specific users
+ * @returns Number of connections the message was sent to
+ */
+export function sendCompletionUpdate(
+    modpackId: string,
+    versionId: string,
+    message: string,
+    userIds?: string[]
+): number {
+    const payload: ModpackCompletedMessage = {
+        type: 'completed',
+        modpackId,
+        versionId,
+        message
+    };
+
+    return broadcast('modpack_processing', payload, userIds);
+}
+
+/**
+ * Send a modpack processing error notification
+ * @param modpackId - Modpack ID that failed processing
+ * @param versionId - Version ID that failed processing
+ * @param message - Error message
+ * @param details - Optional error details
+ * @param userIds - Optional array of user IDs to send to specific users
+ * @returns Number of connections the message was sent to
+ */
+export function sendErrorUpdate(
+    modpackId: string,
+    versionId: string,
+    message: string,
+    details?: any,
+    userIds?: string[]
+): number {
+    const payload: ModpackErrorMessage = {
+        type: 'error',
+        modpackId,
+        versionId,
+        message,
+        ...(details && { details })
+    };
+
+    return broadcast('modpack_processing', payload, userIds);
 }
 
 // Re-export the manager for advanced usage
