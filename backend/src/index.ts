@@ -6,6 +6,7 @@ import Passport from "./lib/Passport";
 import "dotenv/config";
 import { logger } from 'hono/logger'
 import { HTTPException } from 'hono/http-exception';
+import { wsManager } from './services/websocket.service';
 
 
 // Swagger UI Setup
@@ -133,12 +134,15 @@ app.onError((err: Error, c: Context) => {
 
 // Start the server
 console.log(`Server is preparing to run on port ${port}`);
-serve({
+const server = serve({
   fetch: app.fetch,
   port: port
 }, (info) => {
   console.log(`Server is running on http://localhost:${info.port}`);
 });
+
+// Initialize WebSocket service
+wsManager.initialize(server);
 
 // Basic health check or root route (optional)
 app.get('/', (c) => c.text('Modpack Store API is running!'));
