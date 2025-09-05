@@ -14,7 +14,7 @@ import { useCallback, useEffect, useState } from "react"
 
 
 export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) => {
-    const { titleBarState, setTitleBarState } = useGlobalContext()
+    const { setTitleBarState } = useGlobalContext()
     const { hasInternetAccess } = useConnection()
     const { instances: instancesOnContext } = useInstances()
     const { instancesBootstraping } = useTasksContext()
@@ -23,10 +23,17 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
     const [isLoading, setIsLoading] = useState(true)
     const fetchInstances = useCallback(async () => {
         setIsLoading(true)
-        await sleep(1000) // Simulate a short delay for better UX
-        const instances = await invoke('get_all_instances') as any
-        setInstances(instances)
-        setIsLoading(false)
+        try {
+            await sleep(1000) // Simulate a short delay for better UX
+            const instances = await invoke('get_all_instances') as any
+            setInstances(instances)
+        } catch (error) {
+            console.error('Error fetching instances:', error)
+            // In offline mode, we can still show an empty list or cached data
+            setInstances([])
+        } finally {
+            setIsLoading(false)
+        }
     }, [])
 
     useEffect(() => {

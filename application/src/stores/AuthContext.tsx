@@ -132,7 +132,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const setupListenersAndInit = async () => {
       // Create a promise that resolves when the auth status is received
-      let resolveAuthStatus: (value?: unknown) => void;
+      let resolveAuthStatus: (value?: unknown) => void = () => { };
       const authStatusPromise = new Promise((resolve) => {
         resolveAuthStatus = resolve;
       });
@@ -191,9 +191,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await authStatusPromise;
       } catch (err) {
         if (!isMounted) return;
+        console.error("[AuthContext] Error during init_session:", err);
         setError(parseError(err));
         setSession(null);
         setSessionTokens(null);
+        // Resolve the promise to prevent hanging
+        resolveAuthStatus();
       } finally {
         if (isMounted) {
           setLoading(false);

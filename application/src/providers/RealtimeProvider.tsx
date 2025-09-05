@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode } from 'react';
 import { useRealtime, WebSocketHookReturn } from '@/hooks/useRealtime';
+import { useAuthentication } from '@/stores/AuthContext';
 
 // Context for WebSocket functionality
 interface RealtimeContextType extends WebSocketHookReturn {
@@ -16,33 +17,31 @@ interface RealtimeProviderProps {
 }
 
 export function RealtimeProvider({ children, token, autoConnect = true }: RealtimeProviderProps) {
-  const realtime = useRealtime(token, {
-    autoConnect,
-    debug: process.env.NODE_ENV === 'development',
+  // Safely get authentication data, with fallback if not available
+  let sessionTokens = null;
+  let authLoading = true;
+
+  try {
+    const auth = useAuthentication();
+    sessionTokens = auth.sessionTokens;
+    authLoading = auth.loading;
+  } catch (error) {
+    // AuthProvider might not be available yet, continue without auth
+    console.warn('[RealtimeProvider] AuthProvider not available yet, continuing without authentication');
+    authLoading = false;
+  }
+
+  // Use provided token or get from auth context
+  const authToken = token || sessionTokens?.accessToken;
+
+  const realtime = useRealtime(authToken, {
+    autoConnect: autoConnect && !!authToken && !authLoading,
+    debug: import.meta.env.DEV,
     maxReconnectAttempts: 10,
     reconnectInterval: 1000
   });
 
-  // Set up global event listeners here if needed
-  useEffect(() => {
-    if (!realtime.isConnected) return;
 
-    // Example: Listen for global notifications
-    const unsubscribeNotification = realtime.on('notification', (payload) => {
-      console.log('Global notification received:', payload);
-      // Handle global notifications (toast, etc.)
-    });
-
-    const unsubscribeBroadcast = realtime.on('broadcast', (payload) => {
-      console.log('Broadcast message received:', payload);
-      // Handle broadcast messages
-    });
-
-    return () => {
-      unsubscribeNotification();
-      unsubscribeBroadcast();
-    };
-  }, [realtime.isConnected, realtime.on]);
 
   return (
     <RealtimeContext.Provider value={realtime}>

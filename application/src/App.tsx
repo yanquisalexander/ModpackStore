@@ -55,6 +55,9 @@ function App() {
   const navigate = useNavigate();
   const hasLaunched = useRef(false);
 
+  // Use a ref to track if we've already tried to check connection
+  const hasCheckedConnectionRef = useRef(false);
+
   // CAMBIO 2: Lógica de toasts simplificada y reactiva
   useEffect(() => {
     const connectionToastId = "connection-status";
@@ -93,7 +96,18 @@ function App() {
     return () => window.removeEventListener("navigate-to-instance", handler);
   }, [navigate]);
 
-  if (authLoading || connectionLoading || onboardingLoading) {
+  // Allow the app to continue even if connection check is taking too long
+  // Assume offline mode if connection check takes more than expected
+  const shouldShowLoading = authLoading || onboardingLoading ||
+    (connectionLoading && !hasCheckedConnectionRef.current);
+
+  useEffect(() => {
+    if (!connectionLoading) {
+      hasCheckedConnectionRef.current = true;
+    }
+  }, [connectionLoading]);
+
+  if (shouldShowLoading) {
     return <LoadingScreen />;
   }
 

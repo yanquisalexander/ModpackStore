@@ -7,10 +7,10 @@ export const useOnboarding = () => {
   const [error, setError] = useState<string | null>(null);
 
   const checkOnboardingStatus = async () => {
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
-      
       // Try to use real Tauri invoke first
       const { invoke } = await import('@tauri-apps/api/core');
       const status = await invoke<OnboardingStatus>('get_onboarding_status');
@@ -18,13 +18,14 @@ export const useOnboarding = () => {
     } catch (err) {
       console.error('Error checking onboarding status:', err);
       setError(err as string);
-      
-      // Fallback for development/demo mode - assume not first run
+
+      // Fallback for development/demo mode or offline mode - assume not first run
       setOnboardingStatus({
         first_run_at: new Date().toISOString(),
         ram_allocation: 4096,
       });
     } finally {
+      // Ensure loading is always set to false
       setLoading(false);
     }
   };

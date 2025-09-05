@@ -325,6 +325,7 @@ mod session {
             Some(tokens) => tokens,
             None => {
                 println!("No hay tokens guardados");
+                events::emit_auth_status_changed(None);
                 return Ok(None);
             }
         };

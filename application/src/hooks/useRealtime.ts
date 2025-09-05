@@ -59,8 +59,16 @@ export function useRealtime(
   }, [debug]);
 
   const getWebSocketUrl = useCallback(() => {
-    const baseUrl = API_ENDPOINT.replace('/v1', '').replace('http', 'ws');
-    return `${baseUrl}/ws`;
+    try {
+      const url = new URL(API_ENDPOINT.replace('/v1', ''));
+      const wsProtocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${wsProtocol}//${url.host}/ws`;
+    } catch (error) {
+      console.error('Error parsing API_ENDPOINT URL:', error);
+      // Fallback to the old method
+      const baseUrl = API_ENDPOINT.replace('/v1', '').replace('http', 'ws');
+      return `${baseUrl}/ws`;
+    }
   }, []);
 
   const clearReconnectTimeout = useCallback(() => {
@@ -168,8 +176,8 @@ export function useRealtime(
         setIsConnecting(false);
         wsRef.current = null;
 
-        emit('disconnected', { 
-          code: event.code, 
+        emit('disconnected', {
+          code: event.code,
           reason: event.reason,
           timestamp: new Date().toISOString()
         });
@@ -178,7 +186,7 @@ export function useRealtime(
         if (!isManualDisconnectRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
           const delay = calculateBackoffDelay(reconnectAttemptsRef.current);
           log(`Attempting reconnect in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`);
-          
+
           reconnectTimeoutRef.current = setTimeout(() => {
             reconnectAttemptsRef.current++;
             connect();
@@ -206,9 +214,9 @@ export function useRealtime(
           emit(message.type, message.payload);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
-          emit('error', { 
-            message: 'Failed to parse message', 
-            error: error.message,
+          emit('error', {
+            message: 'Failed to parse message',
+            error: error instanceof Error ? error.message : String(error),
             rawData: event.data,
             timestamp: new Date().toISOString()
           });
@@ -216,7 +224,7 @@ export function useRealtime(
       };
 
     } catch (error) {
-      const errorMsg = `Failed to create WebSocket connection: ${error.message}`;
+      const errorMsg = `Failed to create WebSocket connection: ${error instanceof Error ? error.message : String(error)}`;
       log(errorMsg);
       setError(errorMsg);
       setIsConnecting(false);
@@ -228,12 +236,12 @@ export function useRealtime(
     log('Manually disconnecting WebSocket');
     isManualDisconnectRef.current = true;
     clearReconnectTimeout();
-    
+
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
     }
-    
+
     setIsConnected(false);
     setIsConnecting(false);
     setError(null);
@@ -253,7 +261,7 @@ export function useRealtime(
       wsRef.current.send(JSON.stringify(message));
       log(`Sent message:`, message);
     } catch (error) {
-      const errorMsg = `Failed to send message: ${error.message}`;
+      const errorMsg = `Failed to send message: ${error instanceof Error ? error.message : String(error)}`;
       log(errorMsg);
       emit('error', { message: errorMsg, error, timestamp: new Date().toISOString() });
     }

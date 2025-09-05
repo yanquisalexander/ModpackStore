@@ -20,7 +20,16 @@ import { AppDataSource } from "./db/data-source";
 import { generateSystemUser } from "./utils/system";
 
 const app = new Hono();
-app.use(logger())
+
+const loggerFn = (string: string) => {
+  // Si contiene '/ws', no loguear
+  if (string.includes('/ws')) {
+    return;
+  }
+  console.log(`[Hono] ${string}`);
+};
+
+app.use(logger(loggerFn));
 const port = Number(process.env.PORT) || 3000;
 
 const initializeServices = async (): Promise<void> => {
@@ -142,7 +151,7 @@ const server = serve({
 });
 
 // Initialize WebSocket service
-wsManager.initialize(server);
+wsManager.initialize(app);
 
 // Basic health check or root route (optional)
 app.get('/', (c) => c.text('Modpack Store API is running!'));

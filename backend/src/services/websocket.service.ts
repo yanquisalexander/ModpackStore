@@ -1,7 +1,6 @@
-import WebSocket from 'ws';
-import { verify, JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
+import { Hono } from 'hono';
+import { verify } from 'jsonwebtoken';
 import { User } from '@/entities/User';
-import url from 'url';
 
 // --- Startup Configuration ---
 if (!process.env.JWT_SECRET) {
@@ -31,9 +30,9 @@ export interface ConnectionInfo {
 export class WebSocketManager {
     private static instance: WebSocketManager;
     private connections: Map<string, ConnectionInfo[]> = new Map(); // userId -> connections
-    private wss: WebSocket.Server | null = null;
+    private honoApp: Hono | null = null;
 
-    private constructor() {}
+    private constructor() { }
 
     public static getInstance(): WebSocketManager {
         if (!WebSocketManager.instance) {
@@ -43,127 +42,84 @@ export class WebSocketManager {
     }
 
     /**
-     * Initialize WebSocket server
+     * Initialize WebSocket with Hono app
      */
-    public initialize(server: any): void {
-        this.wss = new WebSocket.Server({ 
-            server,
-            path: '/ws',
-            verifyClient: this.verifyClient.bind(this)
+    public initialize(app: Hono): void {
+        this.honoApp = app;
+
+        // WebSocket route with authentication
+        app.get('/ws', async (c) => {
+            try {
+                // Extract and verify JWT token
+                const token = this.extractToken(c.req);
+                if (!token) {
+                    console.log('WebSocket connection rejected: No token provided');
+                    return c.json({ error: 'No token provided' }, 401);
+                }
+
+                const payload = verify(token, JWT_SECRET) as { sub: string; iat: number; exp: number };
+                const user = await User.findOne({
+                    where: { id: payload.sub },
+                    relations: ['publisherMemberships']
+                });
+
+                if (!user) {
+                    console.log('WebSocket connection rejected: User not found');
+                    return c.json({ error: 'User not found' }, 401);
+                }
+
+                // Upgrade to WebSocket using Hono's built-in WebSocket support
+                return c.json({ message: 'WebSocket upgrade initiated' });
+            } catch (err: any) {
+                console.log('WebSocket connection rejected: Auth error', err?.message);
+                return c.json({ error: 'Authentication failed' }, 401);
+            }
         });
 
-        this.wss.on('connection', this.handleConnection.bind(this));
         console.log('WebSocket server initialized on /ws');
     }
 
     /**
-     * Verify client authentication before establishing WebSocket connection
+     * Find connection by WebSocket instance
      */
-    private async verifyClient(info: any): Promise<boolean> {
-        try {
-            const token = this.extractToken(info.req);
-            if (!token) {
-                console.log('WebSocket connection rejected: No token provided');
-                return false;
+    private findConnectionByWebSocket(ws: WebSocket): ConnectionInfo | null {
+        for (const userConnections of this.connections.values()) {
+            for (const connection of userConnections) {
+                if (connection.ws === ws) {
+                    return connection;
+                }
             }
-
-            const payload = verify(token, JWT_SECRET) as { sub: string; iat: number; exp: number };
-            const user = await User.findOne({ 
-                where: { id: payload.sub }, 
-                relations: ['publisherMemberships'] 
-            });
-
-            if (!user) {
-                console.log('WebSocket connection rejected: User not found');
-                return false;
-            }
-
-            // Store user info for later use in connection handler
-            info.req.user = user;
-            info.req.userId = payload.sub;
-            return true;
-        } catch (err) {
-            console.log('WebSocket connection rejected: Auth error', err.message);
-            return false;
         }
+        return null;
     }
 
     /**
-     * Extract JWT token from request headers or query parameters
+     * Extract JWT token from Hono request headers or query parameters
      */
     private extractToken(req: any): string | null {
         // Try Authorization header first
-        const authHeader = req.headers.authorization;
+        const authHeader = req.header('authorization');
         if (authHeader && authHeader.startsWith('Bearer ')) {
             return authHeader.substring(7);
         }
 
         // Try query parameters
-        const query = url.parse(req.url, true).query;
-        if (query.token && typeof query.token === 'string') {
-            return query.token;
+        const url = new URL(req.url);
+        const token = url.searchParams.get('token');
+        if (token) {
+            return token;
         }
 
         return null;
     }
 
     /**
-     * Handle new WebSocket connection
-     */
-    private handleConnection(ws: WebSocket, req: any): void {
-        const user = req.user;
-        const userId = req.userId;
-
-        const authenticatedWs = ws as AuthenticatedWebSocket;
-        authenticatedWs.userId = userId;
-        authenticatedWs.user = user;
-
-        const connectionInfo: ConnectionInfo = {
-            ws: authenticatedWs,
-            userId,
-            user,
-            connectedAt: new Date()
-        };
-
-        // Add to connections map
-        if (!this.connections.has(userId)) {
-            this.connections.set(userId, []);
-        }
-        this.connections.get(userId)!.push(connectionInfo);
-
-        console.log(`WebSocket connection established for user: ${user.username} (${userId})`);
-
-        // Send welcome message
-        this.sendToConnection(connectionInfo, 'connected', {
-            message: 'Successfully connected to WebSocket',
-            timestamp: new Date().toISOString()
-        });
-
-        // Handle messages from client
-        ws.on('message', (data: WebSocket.Data) => {
-            this.handleMessage(connectionInfo, data);
-        });
-
-        // Handle connection close
-        ws.on('close', () => {
-            this.removeConnection(connectionInfo);
-            console.log(`WebSocket connection closed for user: ${user.username} (${userId})`);
-        });
-
-        // Handle errors
-        ws.on('error', (error) => {
-            console.error(`WebSocket error for user ${user.username} (${userId}):`, error);
-            this.removeConnection(connectionInfo);
-        });
-    }
-
-    /**
      * Handle incoming messages from clients
      */
-    private handleMessage(connection: ConnectionInfo, data: WebSocket.Data): void {
+    private handleMessage(connection: ConnectionInfo, data: string): void {
         try {
-            const message = JSON.parse(data.toString());
-            console.log(`Message received from ${connection.user.username}:`, message);
+            const message = JSON.parse(data);
+            console.log(`Message received from ${connection.user?.username}:`, message);
 
             // Echo the message back for now (can be extended with specific handlers)
             this.sendToConnection(connection, 'echo', {
@@ -189,7 +145,7 @@ export class WebSocketManager {
             if (index !== -1) {
                 userConnections.splice(index, 1);
             }
-            
+
             // Remove user entry if no connections left
             if (userConnections.length === 0) {
                 this.connections.delete(connection.userId);
@@ -201,7 +157,7 @@ export class WebSocketManager {
      * Send message to a specific connection
      */
     private sendToConnection(connection: ConnectionInfo, type: string, payload: any): void {
-        if (connection.ws.readyState === WebSocket.OPEN) {
+        if (connection.ws.readyState === 1) { // OPEN state
             const message: WebSocketMessage = { type, payload };
             connection.ws.send(JSON.stringify(message));
         }
@@ -220,7 +176,7 @@ export class WebSocketManager {
         const messageStr = JSON.stringify(message);
 
         userConnections.forEach(connection => {
-            if (connection.ws.readyState === WebSocket.OPEN) {
+            if (connection.ws.readyState === 1) { // OPEN state
                 connection.ws.send(messageStr);
             }
         });
@@ -255,7 +211,7 @@ export class WebSocketManager {
             }
 
             userConnections.forEach(connection => {
-                if (connection.ws.readyState === WebSocket.OPEN) {
+                if (connection.ws.readyState === 1) { // OPEN state
                     connection.ws.send(messageStr);
                     sentCount++;
                 }
@@ -321,7 +277,7 @@ export class WebSocketManager {
         }
 
         userConnections.forEach(connection => {
-            if (connection.ws.readyState === WebSocket.OPEN) {
+            if (connection.ws.readyState === 1) { // OPEN state
                 connection.ws.close();
             }
         });
@@ -336,7 +292,7 @@ export class WebSocketManager {
     public disconnectAll(): void {
         this.connections.forEach((userConnections) => {
             userConnections.forEach(connection => {
-                if (connection.ws.readyState === WebSocket.OPEN) {
+                if (connection.ws.readyState === 1) { // OPEN state
                     connection.ws.close();
                 }
             });
