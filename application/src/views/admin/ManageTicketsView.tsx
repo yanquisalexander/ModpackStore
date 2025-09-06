@@ -26,16 +26,16 @@ import * as TicketsService from '@/services/tickets';
 import type { Ticket, TicketMessage } from '@/services/tickets';
 
 const statusConfig = {
-  open: { label: 'Abierto', variant: 'default' as const, icon: LucideClock },
-  in_review: { label: 'En Revisión', variant: 'secondary' as const, icon: LucideMessageSquare },
-  closed: { label: 'Cerrado', variant: 'outline' as const, icon: LucideCheck }
+    open: { label: 'Abierto', variant: 'default' as const, icon: LucideClock },
+    in_review: { label: 'En Revisión', variant: 'secondary' as const, icon: LucideMessageSquare },
+    closed: { label: 'Cerrado', variant: 'outline' as const, icon: LucideCheck }
 };
 
 const statusOptions = [
-  { value: '', label: 'Todos los estados' },
-  { value: 'open', label: 'Abiertos' },
-  { value: 'in_review', label: 'En Revisión' },
-  { value: 'closed', label: 'Cerrados' }
+    { value: 'all', label: 'Todos los estados' },
+    { value: 'open', label: 'Abiertos' },
+    { value: 'in_review', label: 'En Revisión' },
+    { value: 'closed', label: 'Cerrados' }
 ];
 
 export const ManageTicketsView: React.FC = () => {
@@ -45,7 +45,7 @@ export const ManageTicketsView: React.FC = () => {
     const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
     const [loading, setLoading] = useState(true);
     const [view, setView] = useState<'list' | 'ticket'>('list');
-    const [statusFilter, setStatusFilter] = useState<string>('');
+    const [statusFilter, setStatusFilter] = useState<string>('all');
     const [newMessage, setNewMessage] = useState('');
     const [sendingMessage, setSendingMessage] = useState(false);
     const [updatingStatus, setUpdatingStatus] = useState(false);
@@ -55,15 +55,17 @@ export const ManageTicketsView: React.FC = () => {
         onNewMessage: (data) => {
             // Update the selected ticket if we're viewing it
             if (selectedTicket && data.ticketId === selectedTicket.id && data.message) {
-                setSelectedTicket(prev => prev ? {
-                    ...prev,
-                    messages: [...(prev.messages || []), data.message]
-                } : null);
+                setSelectedTicket(prev => {
+                    if (!prev) return null;
+                    const existing = prev.messages || [];
+                    const merged = mergeAndSortMessages(existing, [data.message]);
+                    return { ...prev, messages: merged };
+                });
             }
-            
+
             // Update ticket list
-            setTickets(prev => prev.map(ticket => 
-                ticket.id === data.ticketId 
+            setTickets(prev => prev.map(ticket =>
+                ticket.id === data.ticketId
                     ? { ...ticket, updatedAt: new Date().toISOString(), messageCount: (ticket.messageCount || 0) + 1 }
                     : ticket
             ));
@@ -73,6 +75,16 @@ export const ManageTicketsView: React.FC = () => {
             loadTickets();
         }
     });
+
+    // Merge helper to dedupe by id and sort by createdAt (ascending)
+    function mergeAndSortMessages(existing: Ticket['messages'] = [], incoming: Ticket['messages'] = []) {
+        const map = new Map<string, any>();
+        existing.forEach(m => map.set(m.id, m));
+        incoming.forEach(m => map.set(m.id, m));
+        const arr = Array.from(map.values());
+        arr.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        return arr;
+    }
 
     // Check if user has staff privileges
     if (!session?.isStaff?.()) {
@@ -87,12 +99,12 @@ export const ManageTicketsView: React.FC = () => {
 
     const loadTickets = async () => {
         if (!sessionTokens?.accessToken) return;
-        
+
         setLoading(true);
         try {
             const adminTickets = await TicketsService.getAllTickets(
-                sessionTokens.accessToken, 
-                statusFilter || undefined
+                sessionTokens.accessToken,
+                statusFilter === 'all' ? undefined : statusFilter
             );
             setTickets(adminTickets);
         } catch (error) {
@@ -108,12 +120,12 @@ export const ManageTicketsView: React.FC = () => {
 
     const loadTicketDetails = async (ticketId: string) => {
         if (!sessionTokens?.accessToken) return;
-        
+
         try {
             const ticket = await TicketsService.getAdminTicket(ticketId, sessionTokens.accessToken);
             setSelectedTicket(ticket);
             setView('ticket');
-            
+
             // Mark messages as read
             await TicketsService.markMessagesAsRead(ticketId, sessionTokens.accessToken);
         } catch (error) {
@@ -131,16 +143,17 @@ export const ManageTicketsView: React.FC = () => {
         setSendingMessage(true);
         try {
             const message = await TicketsService.sendAdminMessage(
-                selectedTicket.id, 
-                { content: newMessage }, 
+                selectedTicket.id,
+                { content: newMessage },
                 sessionTokens.accessToken
             );
-            
-            setSelectedTicket(prev => prev ? {
-                ...prev,
-                messages: [...(prev.messages || []), message]
-            } : null);
-            
+
+            setSelectedTicket(prev => {
+                if (!prev) return null;
+                const merged = mergeAndSortMessages(prev.messages || [], [message]);
+                return { ...prev, messages: merged };
+            });
+
             setNewMessage('');
             toast({
                 title: 'Mensaje enviado',
@@ -167,7 +180,7 @@ export const ManageTicketsView: React.FC = () => {
                 { status: newStatus },
                 sessionTokens.accessToken
             );
-            
+
             setSelectedTicket(prev => prev ? { ...prev, status: newStatus } : null);
             toast({
                 title: 'Estado actualizado',
@@ -190,7 +203,7 @@ export const ManageTicketsView: React.FC = () => {
 
     if (view === 'ticket' && selectedTicket) {
         const StatusIcon = statusConfig[selectedTicket.status].icon;
-        
+
         return (
             <Card>
                 <CardHeader>
@@ -219,8 +232,8 @@ export const ManageTicketsView: React.FC = () => {
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
-                            <Select 
-                                value={selectedTicket.status} 
+                            <Select
+                                value={selectedTicket.status}
                                 onValueChange={(value: 'open' | 'in_review' | 'closed') => updateTicketStatus(value)}
                                 disabled={updatingStatus}
                             >
@@ -247,11 +260,10 @@ export const ManageTicketsView: React.FC = () => {
                                         className={`flex ${message.isStaffMessage ? 'justify-end' : 'justify-start'}`}
                                     >
                                         <div
-                                            className={`max-w-[80%] rounded-lg p-3 ${
-                                                message.isStaffMessage
-                                                    ? 'bg-primary text-primary-foreground'
-                                                    : 'bg-muted text-muted-foreground'
-                                            }`}
+                                            className={`max-w-[80%] rounded-lg p-3 ${message.isStaffMessage
+                                                ? 'bg-primary text-primary-foreground'
+                                                : 'bg-muted text-muted-foreground'
+                                                }`}
                                         >
                                             <div className="flex items-center gap-2 mb-1">
                                                 <span className="font-medium text-sm">
@@ -352,7 +364,7 @@ export const ManageTicketsView: React.FC = () => {
                         <LucideTicket className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
                         <h3 className="text-lg font-medium mb-2">No hay tickets</h3>
                         <p className="text-muted-foreground">
-                            {statusFilter ? 'No hay tickets con el estado seleccionado.' : 'No se han creado tickets aún.'}
+                            {statusFilter === 'all' ? 'No se han creado tickets aún.' : 'No hay tickets con el estado seleccionado.'}
                         </p>
                     </div>
                 ) : (
@@ -372,7 +384,7 @@ export const ManageTicketsView: React.FC = () => {
                         <TableBody>
                             {tickets.map((ticket) => {
                                 const StatusIcon = statusConfig[ticket.status].icon;
-                                
+
                                 return (
                                     <TableRow key={ticket.id}>
                                         <TableCell>
@@ -418,6 +430,7 @@ export const ManageTicketsView: React.FC = () => {
                                                 onClick={() => loadTicketDetails(ticket.id)}
                                             >
                                                 <LucideEye className="h-4 w-4" />
+                                                Ver ticket
                                             </Button>
                                         </TableCell>
                                     </TableRow>

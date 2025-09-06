@@ -11,13 +11,15 @@ import {
     LucideShield,
     LucideBuilding2,
     LucideChevronRight,
-    LucideWrench
+    LucideWrench,
+    LucideTicket
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { ManageUsersView } from '@/views/admin/ManageUsersView';
 import { AuditLogsView } from '@/views/admin/AuditLogsView';
 import { ManagePublishersView } from '@/views/admin/ManagePublishersView';
 import { MaintenanceView } from '@/views/admin/MaintenanceView';
+import { ManageTicketsView } from "@/views/admin/ManageTicketsView";
 
 interface AdminLayoutProps {
     children?: React.ReactNode;
@@ -36,6 +38,12 @@ const adminNavItems = [
         label: 'Gestión de Publishers',
         icon: LucideBuilding2,
         description: 'Administrar organizaciones y sus miembros'
+    },
+    {
+        path: '/admin/tickets',
+        label: 'Gestión de Tickets',
+        icon: LucideTicket,
+        description: 'Administrar tickets y solicitudes de soporte'
     },
     {
         path: '/admin/audit',
@@ -187,6 +195,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                         <Routes>
                             <Route path="/users" element={<ManageUsersView />} />
                             <Route path="/publishers" element={<ManagePublishersView />} />
+                            <Route path="/tickets" element={<ManageTicketsView />} />
                             <Route path="/audit" element={<AuditLogsView />} />
                             <Route path="/maintenance" element={<MaintenanceView />} />
                             <Route path="*" element={<ManageUsersView />} /> {/* Default to users */}

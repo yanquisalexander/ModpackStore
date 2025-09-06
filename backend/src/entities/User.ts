@@ -9,6 +9,7 @@ import { Publisher } from "./Publisher";
 import { PublisherMemberRole, UserRole } from "@/types/enums";
 import { sign } from "jsonwebtoken";
 import { TwitchService } from "@/services/twitch.service";
+import { Ticket } from "./Ticket";
 
 @Entity({ name: "users" })
 export class User extends BaseEntity {
@@ -93,8 +94,8 @@ export class User extends BaseEntity {
     @OneToMany(() => WalletTransaction, transaction => transaction.relatedUser)
     relatedTransactions: WalletTransaction[];
 
-    @OneToMany(() => import("./Ticket").Ticket, ticket => ticket.user)
-    tickets: import("./Ticket").Ticket[];
+    @OneToMany(() => Ticket, ticket => ticket.user)
+    tickets: Ticket[];
 
     async getPublishers(): Promise<Publisher[]> {
         const memberships = await PublisherMember.find({ where: { user: { id: this.id } }, relations: ["publisher"] });

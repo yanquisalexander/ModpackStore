@@ -6,12 +6,12 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { 
-  LucideTicket, 
-  LucidePlus, 
-  LucideMessageSquare, 
-  LucideClock, 
-  LucideCheck, 
+import {
+  LucideTicket,
+  LucidePlus,
+  LucideMessageSquare,
+  LucideClock,
+  LucideCheck,
   LucideX,
   LucideSend,
   LucideArrowLeft
@@ -44,15 +44,17 @@ export const TicketsSection: React.FC = () => {
     onNewMessage: (data) => {
       // Update the selected ticket if we're viewing it
       if (selectedTicket && data.ticketId === selectedTicket.id && data.message) {
-        setSelectedTicket(prev => prev ? {
-          ...prev,
-          messages: [...(prev.messages || []), data.message]
-        } : null);
+        setSelectedTicket(prev => {
+          if (!prev) return null;
+          const existing = prev.messages || [];
+          const merged = mergeAndSortMessages(existing, [data.message]);
+          return { ...prev, messages: merged };
+        });
       }
-      
+
       // Update ticket list timestamp
-      setTickets(prev => prev.map(ticket => 
-        ticket.id === data.ticketId 
+      setTickets(prev => prev.map(ticket =>
+        ticket.id === data.ticketId
           ? { ...ticket, updatedAt: new Date().toISOString() }
           : ticket
       ));
@@ -61,18 +63,27 @@ export const TicketsSection: React.FC = () => {
       if (selectedTicket && data.ticketId === selectedTicket.id) {
         setSelectedTicket(prev => prev ? { ...prev, status: data.status as any } : null);
       }
-      
-      setTickets(prev => prev.map(ticket => 
-        ticket.id === data.ticketId 
+
+      setTickets(prev => prev.map(ticket =>
+        ticket.id === data.ticketId
           ? { ...ticket, status: data.status as any }
           : ticket
       ));
     }
   });
 
+  function mergeAndSortMessages(existing: Ticket['messages'] = [], incoming: Ticket['messages'] = []) {
+    const map = new Map<string, any>();
+    existing.forEach(m => map.set(m.id, m));
+    incoming.forEach(m => map.set(m.id, m));
+    const arr = Array.from(map.values());
+    arr.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    return arr;
+  }
+
   const loadTickets = async () => {
     if (!sessionTokens?.accessToken) return;
-    
+
     try {
       const userTickets = await TicketsService.getUserTickets(sessionTokens.accessToken);
       setTickets(userTickets);
@@ -89,7 +100,7 @@ export const TicketsSection: React.FC = () => {
 
   const loadTicketDetails = async (ticketId: string) => {
     if (!sessionTokens?.accessToken) return;
-    
+
     try {
       const ticket = await TicketsService.getTicket(ticketId, sessionTokens.accessToken);
       setSelectedTicket(ticket);
@@ -137,16 +148,17 @@ export const TicketsSection: React.FC = () => {
     setSendingMessage(true);
     try {
       const message = await TicketsService.sendMessage(
-        selectedTicket.id, 
-        { content: newMessage }, 
+        selectedTicket.id,
+        { content: newMessage },
         sessionTokens.accessToken
       );
-      
-      setSelectedTicket(prev => prev ? {
-        ...prev,
-        messages: [...(prev.messages || []), message]
-      } : null);
-      
+
+      setSelectedTicket(prev => {
+        if (!prev) return null;
+        const merged = mergeAndSortMessages(prev.messages || [], [message]);
+        return { ...prev, messages: merged };
+      });
+
       setNewMessage('');
       toast({
         title: 'Mensaje enviado',
@@ -227,7 +239,7 @@ export const TicketsSection: React.FC = () => {
 
   if (view === 'ticket' && selectedTicket) {
     const StatusIcon = statusConfig[selectedTicket.status].icon;
-    
+
     return (
       <Card>
         <CardHeader>
@@ -265,11 +277,10 @@ export const TicketsSection: React.FC = () => {
                     className={`flex ${message.isStaffMessage ? 'justify-start' : 'justify-end'}`}
                   >
                     <div
-                      className={`max-w-[80%] rounded-lg p-3 ${
-                        message.isStaffMessage
-                          ? 'bg-muted text-muted-foreground'
-                          : 'bg-primary text-primary-foreground'
-                      }`}
+                      className={`max-w-[80%] rounded-lg p-3 ${message.isStaffMessage
+                        ? 'bg-muted text-muted-foreground'
+                        : 'bg-primary text-primary-foreground'
+                        }`}
                     >
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-sm">
@@ -349,7 +360,7 @@ export const TicketsSection: React.FC = () => {
           <div className="space-y-3">
             {tickets.map((ticket) => {
               const StatusIcon = statusConfig[ticket.status].icon;
-              
+
               return (
                 <div
                   key={ticket.id}

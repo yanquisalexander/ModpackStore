@@ -66,8 +66,8 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
         };
     }, [openMenu]);
 
-    const baseClasses = "flex h-full items-center space-x-2 transition-all px-2 cursor-pointer";
-    const lightMode = "hover:bg-white/40 text-neutral-800";
+    const baseClasses = "flex h-full items-center space-x-3 transition-all px-3 py-1 rounded-md cursor-pointer";
+    const lightMode = "hover:bg-white/60 text-neutral-900";
     const darkMode = "hover:bg-neutral-700 text-white";
 
     if (!isAuthenticated) return null;
@@ -106,15 +106,17 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                 style={{
                     opacity: openMenu ? 1 : 0,
                     visibility: openMenu ? "visible" : "hidden",
-                    transform: openMenu ? "translateY(0)" : "translateY(-5px)",
-                    transition: "opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease",
+                    transform: openMenu ? "translateY(0) scale(1)" : "translateY(-6px) scale(0.98)",
+                    transition: "opacity 160ms ease, visibility 160ms ease, transform 160ms ease",
                 }}
-                className="absolute right-0 mt-2 min-w-48 max-w-56 w-auto bg-neutral-900 border border-neutral-700 rounded shadow-lg z-50 p-2">
-                <ul className="text-sm text-white flex flex-col">
+                className="absolute right-0 mt-2 min-w-[220px] max-w-72 w-auto bg-neutral-900/95 backdrop-blur-sm border border-neutral-700/60 rounded-lg shadow-2xl z-50 p-3">
+                {/* decorative caret */}
+                <div className="absolute -top-2 right-4 w-3 h-3 rotate-45 bg-neutral-900/95 border-t border-l border-neutral-700/60"></div>
+                <ul className="text-sm text-white flex flex-col gap-1">
                     <Link
                         to="/profile"
                         onClick={closeMenu}
-                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded whitespace-nowrap"
+                        className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-neutral-800/60 rounded whitespace-nowrap font-medium"
                     >
                         <LucideSquareUserRound size={16} />
                         Ver perfil
@@ -122,7 +124,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
                     <button
                         onClick={handleOpenConfig}
-                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded text-left cursor-pointer whitespace-nowrap"
+                        className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-neutral-800/60 rounded text-left cursor-pointer whitespace-nowrap font-medium"
                     >
                         <LucideSettings2 size={16} />
                         Configuración
@@ -132,7 +134,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         <Link
                             to="/creators"
                             onClick={closeMenu}
-                            className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded whitespace-nowrap"
+                            className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-neutral-800/60 rounded whitespace-nowrap font-medium"
                         >
                             <LucidePackageOpen size={16} />
                             Centro de creadores
@@ -144,7 +146,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         <Link
                             to="/admin"
                             onClick={closeMenu}
-                            className="w-full shrink-0 flex gap-x-2 items-center py-1 px-2 hover:bg-neutral-800 rounded whitespace-nowrap"
+                            className="w-full shrink-0 flex gap-x-3 items-center py-2 px-2 hover:bg-neutral-800/60 rounded whitespace-nowrap font-medium"
                         >
                             <LucideSettings2 size={16} />
                             Panel de administración
@@ -153,7 +155,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
                     <button
                         onClick={handleLogout}
-                        className="w-full flex gap-x-2 items-center py-1 px-2 hover:bg-red-600/20 rounded text-left cursor-pointer whitespace-nowrap"
+                        className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-red-600/30 rounded text-left cursor-pointer whitespace-nowrap font-medium text-red-100"
                     >
                         <LucideLogOut size={16} />
                         Cerrar sesión

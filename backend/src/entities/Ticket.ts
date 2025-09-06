@@ -8,6 +8,9 @@ export class Ticket extends BaseEntity {
     @PrimaryGeneratedColumn("uuid")
     id: string;
 
+    @Column({ name: "ticket_number", type: "int", unsigned: true, unique: true, generated: "increment" })
+    ticketNumber: number;
+
     @Column({ name: "user_id", type: "uuid" })
     userId: string;
 
@@ -33,44 +36,54 @@ export class Ticket extends BaseEntity {
     @JoinColumn({ name: "user_id" })
     user: User;
 
-    @OneToMany(() => TicketMessage, message => message.ticket, { cascade: true })
+    @OneToMany(() => TicketMessage, message => message.ticket)
     messages: TicketMessage[];
 
     // Helper methods
     static async findByIdWithRelations(id: string): Promise<Ticket | null> {
-        return await Ticket.findOne({
-            where: { id },
-            relations: ["user", "messages", "messages.sender"]
-        });
+        // Use query builder so we can order related messages consistently
+        return await Ticket.createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('ticket.messages', 'messages')
+            .leftJoinAndSelect('messages.sender', 'sender')
+            .where('ticket.id = :id', { id })
+            .orderBy('messages.created_at', 'ASC')
+            .getOne();
     }
 
     static async findUserTickets(userId: string): Promise<Ticket[]> {
-        return await Ticket.find({
-            where: { userId },
-            relations: ["messages"],
-            order: { updatedAt: "DESC" }
-        });
+        // Include messages but we only need counts for most callers; order tickets by updatedAt
+        return await Ticket.createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.messages', 'messages')
+            .where('ticket.userId = :userId', { userId })
+            .orderBy('ticket.updated_at', 'DESC')
+            .getMany();
     }
 
     static async findAllTickets(): Promise<Ticket[]> {
-        return await Ticket.find({
-            relations: ["user", "messages"],
-            order: { updatedAt: "DESC" }
-        });
+        return await Ticket.createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('ticket.messages', 'messages')
+            .leftJoinAndSelect('messages.sender', 'sender')
+            .orderBy('ticket.updated_at', 'DESC')
+            .addOrderBy('messages.created_at', 'ASC')
+            .getMany();
     }
 
     static async findByStatus(status: TicketStatus): Promise<Ticket[]> {
-        return await Ticket.find({
-            where: { status },
-            relations: ["user", "messages"],
-            order: { updatedAt: "DESC" }
-        });
+        return await Ticket.createQueryBuilder('ticket')
+            .leftJoinAndSelect('ticket.user', 'user')
+            .leftJoinAndSelect('ticket.messages', 'messages')
+            .leftJoinAndSelect('messages.sender', 'sender')
+            .where('ticket.status = :status', { status })
+            .orderBy('ticket.updated_at', 'DESC')
+            .addOrderBy('messages.created_at', 'ASC')
+            .getMany();
     }
 
     // Generate padded ticket number for UI
     getTicketNumber(): string {
-        // Extract numeric part from UUID for display purposes
-        const numericPart = parseInt(this.id.replace(/\D/g, '').substring(0, 6)) || 1;
+        const numericPart = this.ticketNumber;
         return `#${numericPart.toString().padStart(3, '0')}`;
     }
 }

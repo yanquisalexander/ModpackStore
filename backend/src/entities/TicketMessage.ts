@@ -1,6 +1,6 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, BaseEntity } from "typeorm";
-import { User } from "./User";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, BaseEntity, JoinColumn } from "typeorm";
 import { Ticket } from "./Ticket";
+import { User } from "./User";
 
 @Entity({ name: "ticket_messages" })
 export class TicketMessage extends BaseEntity {

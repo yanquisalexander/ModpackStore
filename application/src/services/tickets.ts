@@ -61,7 +61,10 @@ export const createTicket = async (request: CreateTicketRequest, token: string):
   }
 
   const json = await response.json();
-  return json.data.attributes;
+  return {
+    id: json.data.id,
+    ...json.data.attributes
+  };
 };
 
 export const getUserTickets = async (token: string): Promise<Ticket[]> => {
@@ -75,7 +78,10 @@ export const getUserTickets = async (token: string): Promise<Ticket[]> => {
   }
 
   const json = await response.json();
-  return json.data.map((item: any) => item.attributes);
+  return json.data.map((item: any) => ({
+    id: item.id,
+    ...item.attributes
+  }));
 };
 
 export const getTicket = async (ticketId: string, token: string): Promise<Ticket> => {
@@ -89,7 +95,10 @@ export const getTicket = async (ticketId: string, token: string): Promise<Ticket
   }
 
   const json = await response.json();
-  return json.data.attributes;
+  return {
+    id: json.data.id,
+    ...json.data.attributes
+  };
 };
 
 export const sendMessage = async (ticketId: string, request: SendMessageRequest, token: string): Promise<TicketMessage> => {
@@ -104,7 +113,10 @@ export const sendMessage = async (ticketId: string, request: SendMessageRequest,
   }
 
   const json = await response.json();
-  return json.data.attributes;
+  return {
+    id: json.data.id,
+    ...json.data.attributes
+  };
 };
 
 // Admin ticket services
@@ -124,7 +136,10 @@ export const getAllTickets = async (token: string, status?: string): Promise<Tic
   }
 
   const json = await response.json();
-  return json.data.map((item: any) => item.attributes);
+  return json.data.map((item: any) => ({
+    id: item.id,
+    ...item.attributes
+  }));
 };
 
 export const getAdminTicket = async (ticketId: string, token: string): Promise<Ticket> => {
@@ -138,7 +153,10 @@ export const getAdminTicket = async (ticketId: string, token: string): Promise<T
   }
 
   const json = await response.json();
-  return json.data.attributes;
+  return {
+    id: json.data.id,
+    ...json.data.attributes
+  };
 };
 
 export const sendAdminMessage = async (ticketId: string, request: SendMessageRequest, token: string): Promise<TicketMessage> => {
@@ -153,7 +171,10 @@ export const sendAdminMessage = async (ticketId: string, request: SendMessageReq
   }
 
   const json = await response.json();
-  return json.data.attributes;
+  return {
+    id: json.data.id,
+    ...json.data.attributes
+  };
 };
 
 export const updateTicketStatus = async (ticketId: string, request: UpdateStatusRequest, token: string): Promise<void> => {

@@ -180,8 +180,8 @@ export class TicketsController {
                         createdAt: msg.createdAt,
                         sender: {
                             id: msg.sender.id,
-                            username: user.isStaff() ? msg.sender.username : 
-                                      (msg.isStaffMessage ? 'Soporte de Modpack Store' : msg.sender.username)
+                            username: user.isStaff() ? msg.sender.username :
+                                (msg.isStaffMessage ? 'Soporte de Modpack Store' : msg.sender.username)
                         }
                     }))
                 }
@@ -199,6 +199,7 @@ export class TicketsController {
         }
 
         const ticketId = c.req.param('id');
+        console.log(`Sending message to ticket ${ticketId}`);
         const { content } = await c.req.json();
 
         if (!content || !content.trim()) {
@@ -215,6 +216,8 @@ export class TicketsController {
             throw new APIError(403, 'Access denied', 'ACCESS_DENIED');
         }
 
+        console.log(ticket)
+
         // Create message
         const message = TicketMessage.create({
             ticketId: ticket.id,
@@ -224,11 +227,12 @@ export class TicketsController {
             isReadByStaff: false
         });
 
+        console.log(`Message created: ${JSON.stringify(message)}`);
+
         const savedMessage = await message.save();
 
-        // Update ticket timestamp
-        ticket.updatedAt = new Date();
-        await ticket.save();
+        // Update ticket timestamp using direct update to avoid persisting loaded relations
+        await Ticket.update({ id: ticket.id }, { updatedAt: new Date() });
 
         // Load message with sender for response
         const messageWithSender = await TicketMessage.findOne({
@@ -254,7 +258,7 @@ export class TicketsController {
 
         // Send to ticket owner
         wsManager.sendToUser(ticket.userId, 'new_message', messageData);
-        
+
         // Send to all staff
         wsManager.broadcastToStaff('new_message', messageData);
 
