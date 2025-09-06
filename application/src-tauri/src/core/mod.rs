@@ -14,5 +14,6 @@ pub mod models;
 pub mod modpack_file_manager;
 pub mod network_utilities;
 pub mod onboarding;
+pub mod optimized_downloader;
 pub mod prelaunch_appearance;
 pub mod tasks_manager;
