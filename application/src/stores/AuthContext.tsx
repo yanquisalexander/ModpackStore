@@ -17,7 +17,7 @@ interface UserSession {
   twitchId?: string;
   createdAt: string;
   patreonId: string;
-  role: 'user' | 'admin' | 'superadmin';
+  role: 'user' | 'admin' | 'superadmin' | 'support';
   publisherMemberships: null | {
     createdAt: string;
     id: number;
@@ -29,7 +29,9 @@ interface UserSession {
   // Helper methods for role checking
   isAdmin?: () => boolean;
   isSuperAdmin?: () => boolean;
-  hasRole?: (role: 'user' | 'admin' | 'superadmin') => boolean;
+  isSupport?: () => boolean;
+  isStaff?: () => boolean;
+  hasRole?: (role: 'user' | 'admin' | 'superadmin' | 'support') => boolean;
 }
 
 interface SessionTokens {
@@ -80,7 +82,9 @@ const enhanceSession = (session: UserSession | null): UserSession | null => {
     ...session,
     isAdmin: () => session.role === 'admin' || session.role === 'superadmin',
     isSuperAdmin: () => session.role === 'superadmin',
-    hasRole: (role: 'user' | 'admin' | 'superadmin') => session.role === role,
+    isSupport: () => session.role === 'support',
+    isStaff: () => session.role === 'admin' || session.role === 'superadmin' || session.role === 'support',
+    hasRole: (role: 'user' | 'admin' | 'superadmin' | 'support') => session.role === role,
   };
 };
 

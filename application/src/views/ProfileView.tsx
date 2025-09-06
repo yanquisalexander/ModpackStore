@@ -1,6 +1,7 @@
 import { useAuthentication } from "@/stores/AuthContext";
 import { TwitchLinkingComponent } from "@/components/TwitchLinkingComponent";
-import { LucideUser, LucideMail, LucideCalendar, LucideShield, LucideSettings, LucideChevronRight, LucideHelpCircle } from "lucide-react";
+import { TicketsSection } from "@/components/TicketsSection";
+import { LucideUser, LucideMail, LucideCalendar, LucideShield, LucideSettings, LucideChevronRight, LucideHelpCircle, LucideTicket } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGlobalContext } from "@/stores/GlobalContext";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { MdiTwitch } from "@/icons/MdiTwitch";
 import { DiscordIcon } from "@/icons/DiscordIcon";
 
-type ActiveSection = 'profile' | 'integrations' | 'help';
+type ActiveSection = 'profile' | 'integrations' | 'tickets' | 'help';
 
 export const ProfileView = () => {
   const { session } = useAuthentication();
@@ -150,8 +151,12 @@ export const ProfileView = () => {
         <p className="text-muted-foreground text-sm mb-4">
           ¿Tienes problemas con tus integraciones o configuración de cuenta?
         </p>
-        <Button variant="outline" size="sm">
-          Contactar Soporte
+        <Button 
+          variant="outline" 
+          size="sm"
+          onClick={() => setActiveSection('tickets')}
+        >
+          Ver Mis Tickets
         </Button>
       </CardContent>
     </Card>
@@ -226,6 +231,27 @@ export const ProfileView = () => {
                   </button>
 
                   <button
+                    onClick={() => setActiveSection('tickets')}
+                    className={`
+                      w-full flex items-center gap-3 p-3 rounded-lg transition-colors
+                      ${activeSection === 'tickets'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'hover:bg-muted/50'
+                      }
+                    `}
+                  >
+                    <LucideTicket className="h-4 w-4" />
+                    <div className="flex-1 text-left">
+                      <div className="font-medium text-sm">Mis Tickets</div>
+                      <div className={`text-xs ${activeSection === 'tickets' ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                        }`}>
+                        Soporte técnico
+                      </div>
+                    </div>
+                    {activeSection === 'tickets' && <LucideChevronRight className="h-4 w-4" />}
+                  </button>
+
+                  <button
                     onClick={() => setActiveSection('help')}
                     className={`
                       w-full flex items-center gap-3 p-3 rounded-lg transition-colors
@@ -280,6 +306,7 @@ export const ProfileView = () => {
           <div className="space-y-6">
             {activeSection === 'profile' && <ProfileInformation />}
             {activeSection === 'integrations' && <IntegrationsSection />}
+            {activeSection === 'tickets' && <TicketsSection />}
             {activeSection === 'help' && <HelpSection />}
           </div>
         </div>
