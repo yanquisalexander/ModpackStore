@@ -4,11 +4,15 @@ use crate::core::bootstrap::tasks::{
 use crate::core::minecraft::paths::MinecraftPaths;
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::tasks_manager::{add_task, remove_task, task_exists, update_task, TaskStatus};
+use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
+use sha1::{Digest, Sha1};
 use std::collections::HashSet;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use tauri::Emitter;
+use tauri_plugin_http::reqwest;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ModpackManifest {
@@ -324,7 +328,9 @@ pub async fn download_and_install_files(
 
     let total_files = manifest.files.len();
     let mut files_processed = 0;
+    let mut files_to_download = Vec::new();
 
+    // First pass: check which files need downloading
     for (index, file_entry) in manifest.files.iter().enumerate() {
         let target_path = minecraft_dir.join(&file_entry.path);
 
@@ -363,43 +369,54 @@ pub async fn download_and_install_files(
                     total: total_files,
                 },
             );
-            continue; // File already exists and is correct, skip download
+        } else {
+            // File needs to be downloaded
+            files_to_download.push(file_entry);
         }
+    }
 
-        // Update progress before downloading
-        if let Some(ref tid) = task_id {
-            let progress = (60.0 + (index as f64 / total_files as f64) * 30.0) as f32;
-            update_task(
-                tid,
-                TaskStatus::Running,
-                progress,
-                &format!(
-                    "Descargando archivo {} de {}: {}",
-                    index + 1,
-                    total_files,
-                    file_entry.path
-                ),
-                None,
+    // Second pass: download needed files using the download manager
+    if !files_to_download.is_empty() {
+        let download_manager = DownloadManager::new();
+        
+        for (download_index, file_entry) in files_to_download.iter().enumerate() {
+            let target_path = minecraft_dir.join(&file_entry.path);
+            let overall_current = files_processed + download_index + 1;
+            
+            // Update task progress
+            if let Some(ref tid) = task_id {
+                let progress = (overall_current as f32 / total_files as f32) * 100.0;
+                update_task(
+                    tid,
+                    TaskStatus::Running,
+                    progress,
+                    &format!(
+                        "Descargando archivo {} de {}: {}",
+                        overall_current,
+                        total_files,
+                        file_entry.path
+                    ),
+                    None,
+                );
+            }
+
+            // Emit status with stage
+            emit_status_with_stage(
+                instance,
+                "instance-downloading-modpack-files",
+                &Stage::DownloadingModpackFiles {
+                    current: overall_current,
+                    total: total_files,
+                },
             );
-        }
-        emit_status_with_stage(
-            instance,
-            "instance-downloading-modpack-files",
-            &Stage::DownloadingModpackFiles {
-                current: index + 1,
-                total: total_files,
-            },
-        );
 
-        // Download the file
-        match download_file(&file_entry.downloadUrl, &target_path).await {
-            Ok(_) => {
-                files_processed += 1;
-            }
-            Err(e) => {
-                eprintln!("Failed to download file {}: {}", file_entry.path, e);
-                // Continue with other files rather than failing completely
-            }
+            // Download the file with hash verification
+            download_manager
+                .download_file_with_hash(&file_entry.downloadUrl, &target_path, &file_entry.fileHash)
+                .await
+                .map_err(|e| format!("Failed to download {}: {}", file_entry.path, e))?;
+            
+            files_processed += 1;
         }
     }
 
@@ -636,8 +653,148 @@ pub async fn validate_modpack_assets(
     Ok(files_to_download)
 }
 
+/// Download manager that reuses a single HTTP client for all downloads
+pub struct DownloadManager {
+    client: reqwest::Client,
+}
+
+impl DownloadManager {
+    /// Create a new download manager with optimized HTTP client
+    pub fn new() -> Self {
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(300)) // 5 minutes timeout
+            .tcp_keepalive(std::time::Duration::from_secs(60))
+            .build()
+            .expect("Failed to create HTTP client");
+
+        Self { client }
+    }
+
+    /// Download a single file with streaming and hash verification
+    pub async fn download_file_with_hash(
+        &self,
+        url: &str,
+        target_path: &Path,
+        expected_hash: &str,
+    ) -> Result<(), String> {
+        const MAX_RETRIES: usize = 3;
+        
+        for attempt in 1..=MAX_RETRIES {
+            match self.download_file_attempt(url, target_path, expected_hash).await {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    if attempt == MAX_RETRIES {
+                        return Err(format!("Failed after {} attempts: {}", MAX_RETRIES, e));
+                    }
+                    log::warn!("Download attempt {} failed: {}, retrying...", attempt, e);
+                    
+                    // Clean up partial file on retry
+                    if target_path.exists() {
+                        let _ = fs::remove_file(target_path);
+                    }
+                }
+            }
+        }
+        
+        unreachable!()
+    }
+
+    /// Single download attempt with streaming and hash verification
+    async fn download_file_attempt(
+        &self,
+        url: &str,
+        target_path: &Path,
+        expected_hash: &str,
+    ) -> Result<(), String> {
+        // Create parent directories if needed
+        if let Some(parent) = target_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
+        }
+
+        // Start the download
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| format!("Failed to connect to {}: {}", url, e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("HTTP error {} for {}", response.status(), url));
+        }
+
+        // Create the output file
+        let mut file = fs::File::create(target_path)
+            .map_err(|e| format!("Failed to create file {}: {}", target_path.display(), e))?;
+
+        // Initialize hash calculator
+        let mut hasher = Sha1::new();
+        let mut stream = response.bytes_stream();
+
+        // Stream the content directly to disk while computing hash
+        while let Some(chunk_result) = stream.next().await {
+            let chunk = chunk_result
+                .map_err(|e| format!("Failed to read chunk from stream: {}", e))?;
+            
+            // Update hash with chunk
+            hasher.update(&chunk);
+            
+            // Write chunk to file
+            file.write_all(&chunk)
+                .map_err(|e| format!("Failed to write to file: {}", e))?;
+        }
+
+        // Ensure all data is written to disk
+        file.sync_all()
+            .map_err(|e| format!("Failed to sync file to disk: {}", e))?;
+
+        // Verify hash
+        let computed_hash = format!("{:x}", hasher.finalize());
+        if computed_hash != expected_hash {
+            return Err(format!(
+                "Hash mismatch: expected {}, got {}",
+                expected_hash, computed_hash
+            ));
+        }
+
+        Ok(())
+    }
+
+    /// Download multiple files sequentially with progress reporting
+    /// Takes Vec<(url, target_path, expected_hash)> as requested in the specification
+    pub async fn download_files_with_progress<F>(
+        &self,
+        files: Vec<(String, PathBuf, String)>, // (url, target_path, expected_hash)
+        mut progress_callback: F,
+    ) -> Result<usize, String>
+    where
+        F: FnMut(usize, usize, &str),
+    {
+        let total_files = files.len();
+        let mut downloaded_count = 0;
+
+        for (index, (url, target_path, expected_hash)) in files.iter().enumerate() {
+            // Report progress
+            progress_callback(
+                index + 1,
+                total_files,
+                &format!("Descargando {}", target_path.file_name().unwrap_or_default().to_string_lossy()),
+            );
+
+            // Download the file with hash verification and retry
+            self.download_file_with_hash(url, target_path, expected_hash)
+                .await
+                .map_err(|e| format!("Failed to download {}: {}", target_path.display(), e))?;
+
+            downloaded_count += 1;
+        }
+
+        Ok(downloaded_count)
+    }
+}
+
 fn compute_file_hash(contents: &[u8]) -> String {
-    use sha1::{Digest, Sha1};
     let mut hasher = Sha1::new();
     hasher.update(contents);
     format!("{:x}", hasher.finalize())
@@ -894,7 +1051,9 @@ async fn download_modpack_files(
             .ok_or("Instance directory not set")?,
     );
     let minecraft_dir = instance_dir.join("minecraft");
-    let mut downloaded_count = 0;
+    
+    // Create download manager for efficient reuse of HTTP client
+    let download_manager = DownloadManager::new();
 
     // Emit initial stage for downloading modpack files
     let initial_stage = Stage::DownloadingModpackFiles {
@@ -907,49 +1066,55 @@ async fn download_modpack_files(
         &initial_stage,
     );
 
-    for (index, file_entry) in files.iter().enumerate() {
-        let file_path = minecraft_dir.join(&file_entry.path);
+    // Prepare files for download with (url, target_path, expected_hash) format
+    let files_to_download: Vec<(String, PathBuf, String)> = files
+        .iter()
+        .map(|file_entry| {
+            let target_path = minecraft_dir.join(&file_entry.path);
+            (
+                file_entry.downloadUrl.clone(),
+                target_path,
+                file_entry.fileHash.clone(),
+            )
+        })
+        .collect();
 
-        // Update progress
-        if let Some(task_id) = &task_id {
-            let progress = (index as f32 / files.len() as f32) * 100.0;
+    let total_files = files.len();
+    let mut downloaded_count = 0;
+
+    // Download files sequentially with progress reporting
+    for (index, (url, target_path, expected_hash)) in files_to_download.iter().enumerate() {
+        // Update task progress
+        if let Some(ref tid) = task_id {
+            let progress = ((index + 1) as f32 / total_files as f32) * 100.0;
             update_task(
-                task_id,
+                tid,
                 TaskStatus::Running,
                 progress,
                 &format!(
                     "Descargando {} ({}/{})",
-                    file_entry.path,
+                    target_path.file_name().unwrap_or_default().to_string_lossy(),
                     index + 1,
-                    files.len()
+                    total_files
                 ),
                 None,
             );
         }
 
-        // Create parent directories if they don't exist
-        if let Some(parent) = file_path.parent() {
-            if let Err(e) = fs::create_dir_all(parent) {
-                return Err(format!(
-                    "Failed to create directory {}: {}",
-                    parent.display(),
-                    e
-                ));
-            }
-        }
-
-        // Download the file
-        if let Err(e) = download_file(&file_entry.downloadUrl, &file_path).await {
-            return Err(format!("Failed to download {}: {}", file_entry.path, e));
-        }
-
-        downloaded_count += 1;
-
+        // Emit status with stage
         let stage = Stage::DownloadingModpackFiles {
-            current: downloaded_count,
-            total: files.len(),
+            current: index + 1,
+            total: total_files,
         };
         emit_status_with_stage(instance, "instance-downloading-modpack-files", &stage);
+
+        // Download the file with hash verification
+        download_manager
+            .download_file_with_hash(url, target_path, expected_hash)
+            .await
+            .map_err(|e| format!("Failed to download {}: {}", target_path.display(), e))?;
+
+        downloaded_count += 1;
     }
 
     emit_status(
