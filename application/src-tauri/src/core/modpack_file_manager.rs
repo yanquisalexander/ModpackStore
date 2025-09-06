@@ -343,32 +343,7 @@ pub async fn download_and_install_files(
         // Check if file already exists and has correct hash
         if file_exists_with_correct_hash(&target_path, &file_entry.fileHash).await {
             files_processed += 1;
-            // Update progress for existing files too
-            if let Some(ref tid) = task_id {
-                let progress: f32 =
-                    (((85.0 + (index as f64 / total_files as f64) * 30.0) * 10.0).round() / 10.0)
-                        .clamp(0.0, 100.0) as f32;
-                update_task(
-                    tid,
-                    TaskStatus::Running,
-                    progress,
-                    &format!(
-                        "Verificando archivo {} de {}: {}",
-                        index + 1,
-                        total_files,
-                        file_entry.path
-                    ),
-                    None,
-                );
-            }
-            emit_status_with_stage(
-                instance,
-                "instance-downloading-modpack-files",
-                &Stage::DownloadingModpackFiles {
-                    current: index + 1,
-                    total: total_files,
-                },
-            );
+            // Don't report progress for verification phase to avoid double counting
         } else {
             // File needs to be downloaded
             files_to_download.push(file_entry);
@@ -381,19 +356,20 @@ pub async fn download_and_install_files(
         
         for (download_index, file_entry) in files_to_download.iter().enumerate() {
             let target_path = minecraft_dir.join(&file_entry.path);
-            let overall_current = files_processed + download_index + 1;
+            let current_download = download_index + 1;
+            let total_downloads = files_to_download.len();
             
-            // Update task progress
+            // Update task progress - only report progress for actual downloads
             if let Some(ref tid) = task_id {
-                let progress = (overall_current as f32 / total_files as f32) * 100.0;
+                let progress = (current_download as f32 / total_downloads as f32) * 100.0;
                 update_task(
                     tid,
                     TaskStatus::Running,
                     progress,
                     &format!(
                         "Descargando archivo {} de {}: {}",
-                        overall_current,
-                        total_files,
+                        current_download,
+                        total_downloads,
                         file_entry.path
                     ),
                     None,
@@ -405,8 +381,8 @@ pub async fn download_and_install_files(
                 instance,
                 "instance-downloading-modpack-files",
                 &Stage::DownloadingModpackFiles {
-                    current: overall_current,
-                    total: total_files,
+                    current: current_download,
+                    total: total_downloads,
                 },
             );
 
@@ -418,12 +394,23 @@ pub async fn download_and_install_files(
             
             files_processed += 1;
         }
+    } else {
+        // No files need downloading, just report that verification is complete
+        if let Some(ref tid) = task_id {
+            update_task(
+                tid,
+                TaskStatus::Running,
+                100.0,
+                "Verificación completa - todos los archivos están actualizados",
+                None,
+            );
+        }
     }
 
     emit_status(
         instance,
         "instance-finish-assets-download",
-        &format!("Descargados {} archivos", files_processed),
+        &format!("Procesados {} archivos ({} descargados)", files_processed, files_to_download.len()),
     );
 
     Ok(files_processed)
