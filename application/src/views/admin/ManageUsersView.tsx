@@ -192,6 +192,7 @@ const UserForm: React.FC<{
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="user">Usuario</SelectItem>
+                        <SelectItem value="support">Soporte</SelectItem>
                         <SelectItem value="admin">Administrador</SelectItem>
                         <SelectItem value="superadmin">Super Administrador</SelectItem>
                     </SelectContent>
@@ -467,6 +468,7 @@ export const ManageUsersView: React.FC = () => {
                             <SelectContent>
                                 <SelectItem value="all">Todos los Roles</SelectItem>
                                 <SelectItem value="user">Usuario</SelectItem>
+                                <SelectItem value="support">Soporte</SelectItem>
                                 <SelectItem value="admin">Administrador</SelectItem>
                                 <SelectItem value="superadmin">Super Administrador</SelectItem>
                             </SelectContent>
