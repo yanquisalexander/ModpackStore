@@ -93,6 +93,9 @@ export class User extends BaseEntity {
     @OneToMany(() => WalletTransaction, transaction => transaction.relatedUser)
     relatedTransactions: WalletTransaction[];
 
+    @OneToMany(() => import("./Ticket").Ticket, ticket => ticket.user)
+    tickets: import("./Ticket").Ticket[];
+
     async getPublishers(): Promise<Publisher[]> {
         const memberships = await PublisherMember.find({ where: { user: { id: this.id } }, relations: ["publisher"] });
         return memberships.map(membership => membership.publisher);
@@ -110,6 +113,14 @@ export class User extends BaseEntity {
 
     isSuperAdmin(): boolean {
         return this.role === UserRole.SUPERADMIN;
+    }
+
+    isSupport(): boolean {
+        return this.role === UserRole.SUPPORT;
+    }
+
+    isStaff(): boolean {
+        return this.role === UserRole.ADMIN || this.role === UserRole.SUPERADMIN || this.role === UserRole.SUPPORT;
     }
 
     hasRole(role: UserRole): boolean {

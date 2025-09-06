@@ -24,6 +24,17 @@ export async function ensureSuperAdmin(c: Context, next: Next) {
 }
 
 /**
+ * Middleware to ensure that the authenticated user has staff privileges (admin, super admin, or support).
+ */
+export async function ensureStaff(c: Context, next: Next) {
+  const user = c.get('user');
+  if (!user || !user.isStaff()) {
+    return c.json({ error: 'Forbidden', message: 'You do not have staff privileges.' }, 403);
+  }
+  await next();
+}
+
+/**
  * Middleware to ensure that the authenticated user has specific role or higher.
  */
 export function ensureRole(requiredRole: UserRole) {
