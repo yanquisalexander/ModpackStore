@@ -392,9 +392,30 @@ pub async fn install_modpack_files_enhanced(
                     files_moved += 1;
                 }
                 Err(e) => {
-                    log::warn!("Failed to move file from {} to {}: {}. Will download instead.", 
+                    log::warn!("Failed to move file from {} to {}: {}. Trying copy+delete...", 
                         from_path.display(), to_path.display(), e);
-                    // If move fails, we'll treat it as needing download later
+                    
+                    // Try copy + delete as fallback (for cross-device moves)
+                    match fs::copy(from_path, to_path) {
+                        Ok(_) => {
+                            match fs::remove_file(from_path) {
+                                Ok(_) => {
+                                    log::info!("Successfully copied and removed file from {} to {}", 
+                                        from_path.display(), to_path.display());
+                                    files_moved += 1;
+                                }
+                                Err(e) => {
+                                    log::warn!("Copied file but failed to remove original from {}: {}. Will download to ensure correct location.", 
+                                        from_path.display(), e);
+                                    // Leave original file, it will be cleaned up later
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to copy file from {} to {}: {}. Will download instead.", 
+                                from_path.display(), to_path.display(), e);
+                        }
+                    }
                 }
             }
             
@@ -747,14 +768,53 @@ async fn file_exists_with_correct_hash(file_path: &Path, expected_hash: &str) ->
 
 /// Searches for a file with the specified hash anywhere in the minecraft directory
 /// Returns the path of the first file found with the matching hash
+/// Only searches in modpack-related directories for performance
 async fn find_file_by_hash(minecraft_dir: &Path, expected_hash: &str) -> Option<PathBuf> {
-    if let Ok(files) = find_files_recursively(minecraft_dir) {
-        for file_path in files {
-            if file_exists_with_correct_hash(&file_path, expected_hash).await {
-                return Some(file_path);
+    // Define directories to search for better performance
+    let search_dirs = [
+        "mods",
+        "coremods", 
+        "config",
+        "scripts",
+        "resources",
+        "resourcepacks",
+        "shaderpacks",
+        "datapacks",
+        "packmenu",
+        "structures",
+        "schematics",
+        "changelogs",
+    ];
+    
+    // First search in common modpack directories
+    for dir_name in &search_dirs {
+        let search_path = minecraft_dir.join(dir_name);
+        if search_path.exists() {
+            if let Ok(files) = find_files_recursively(&search_path) {
+                for file_path in files {
+                    if file_exists_with_correct_hash(&file_path, expected_hash).await {
+                        return Some(file_path);
+                    }
+                }
             }
         }
     }
+    
+    // If not found in common directories, search entire minecraft directory as fallback
+    if let Ok(files) = find_files_recursively(minecraft_dir) {
+        for file_path in files {
+            // Skip files we already checked
+            let relative_path = file_path.strip_prefix(minecraft_dir).ok()?;
+            let first_component = relative_path.components().next()?.as_os_str().to_str()?;
+            
+            if !search_dirs.contains(&first_component) {
+                if file_exists_with_correct_hash(&file_path, expected_hash).await {
+                    return Some(file_path);
+                }
+            }
+        }
+    }
+    
     None
 }
 
