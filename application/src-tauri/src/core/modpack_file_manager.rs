@@ -49,6 +49,24 @@ pub struct ModpackFileType {
     pub r#type: String,
 }
 
+/// Represents the action needed for a specific file during modpack update
+#[derive(Clone, Debug)]
+pub enum FileAction {
+    /// File is already in correct location with correct hash
+    CorrectLocation,
+    /// File exists with correct hash but in wrong location - needs to be moved
+    NeedsMove { from_path: PathBuf, to_path: PathBuf },
+    /// File doesn't exist anywhere with correct hash - needs to be downloaded
+    NeedsDownload,
+}
+
+/// Result of validating a single modpack file
+#[derive(Clone, Debug)]
+pub struct FileValidationResult {
+    pub file_entry: ModpackFileEntry,
+    pub action: FileAction,
+}
+
 fn get_download_concurrency() -> usize {
     // Return 4
     4
@@ -320,7 +338,188 @@ fn is_modpack_file(relative_path: &str) -> bool {
     relative_path.starts_with("changelogs/")
 }
 
+/// Enhanced function to install modpack files with intelligent move/download logic
+/// Moves existing files with correct hashes and only downloads files that don't exist
+pub async fn install_modpack_files_enhanced(
+    instance: &MinecraftInstance,
+    manifest: &ModpackManifest,
+    task_id: Option<String>,
+) -> Result<usize, String> {
+    let instance_dir = instance
+        .instanceDirectory
+        .as_ref()
+        .ok_or("Instance directory not set")?;
+
+    let minecraft_dir = Path::new(instance_dir).join("minecraft");
+    fs::create_dir_all(&minecraft_dir)
+        .map_err(|e| format!("Failed to create minecraft directory: {}", e))?;
+
+    // Get detailed validation results
+    let validation_results = validate_modpack_assets_detailed(instance, manifest, task_id.clone()).await?;
+
+    let total_operations = validation_results.len();
+    let mut files_processed = 0;
+    let mut files_moved = 0;
+    let mut files_downloaded = 0;
+
+    // Process files that need moving
+    for (index, result) in validation_results.iter().enumerate() {
+        if let FileAction::NeedsMove { from_path, to_path } = &result.action {
+            // Update progress
+            if let Some(task_id) = &task_id {
+                let progress = (index as f32 / total_operations as f32) * 50.0; // First 50% for moves
+                update_task(
+                    task_id,
+                    TaskStatus::Running,
+                    progress,
+                    &format!("Moviendo archivo {} a {}", 
+                        from_path.file_name().unwrap_or_default().to_string_lossy(),
+                        result.file_entry.path),
+                    None,
+                );
+            }
+
+            // Create target directory if needed
+            if let Some(parent) = to_path.parent() {
+                fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
+            }
+
+            // Move the file
+            match fs::rename(from_path, to_path) {
+                Ok(_) => {
+                    log::info!("Moved file from {} to {}", from_path.display(), to_path.display());
+                    files_moved += 1;
+                }
+                Err(e) => {
+                    log::warn!("Failed to move file from {} to {}: {}. Trying copy+delete...", 
+                        from_path.display(), to_path.display(), e);
+                    
+                    // Try copy + delete as fallback (for cross-device moves)
+                    match fs::copy(from_path, to_path) {
+                        Ok(_) => {
+                            match fs::remove_file(from_path) {
+                                Ok(_) => {
+                                    log::info!("Successfully copied and removed file from {} to {}", 
+                                        from_path.display(), to_path.display());
+                                    files_moved += 1;
+                                }
+                                Err(e) => {
+                                    log::warn!("Copied file but failed to remove original from {}: {}. Will download to ensure correct location.", 
+                                        from_path.display(), e);
+                                    // Leave original file, it will be cleaned up later
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::warn!("Failed to copy file from {} to {}: {}. Will download instead.", 
+                                from_path.display(), to_path.display(), e);
+                        }
+                    }
+                }
+            }
+            
+            files_processed += 1;
+        }
+    }
+
+    // Collect files that still need downloading (either originally needed download or move failed)
+    let mut files_to_download = Vec::new();
+    for result in &validation_results {
+        match &result.action {
+            FileAction::NeedsDownload => {
+                files_to_download.push(&result.file_entry);
+            }
+            FileAction::NeedsMove { to_path, .. } => {
+                // Check if move was successful by verifying file exists at target with correct hash
+                if !file_exists_with_correct_hash(to_path, &result.file_entry.fileHash).await {
+                    files_to_download.push(&result.file_entry);
+                }
+            }
+            FileAction::CorrectLocation => {
+                // Nothing to do
+            }
+        }
+    }
+
+    // Download needed files using the existing download manager
+    if !files_to_download.is_empty() {
+        let download_manager = DownloadManager::with_concurrency(get_download_concurrency());
+
+        // Prepare files for parallel download
+        let files_for_download: Vec<(String, PathBuf, String)> = files_to_download
+            .iter()
+            .map(|file_entry| {
+                let target_path = minecraft_dir.join(&file_entry.path);
+                (
+                    file_entry.downloadUrl.clone(),
+                    target_path,
+                    file_entry.fileHash.clone(),
+                )
+            })
+            .collect();
+
+        let total_downloads = files_for_download.len();
+        let instance_clone = instance.clone();
+        let task_id_clone = task_id.clone();
+
+        // Use parallel downloads with progress callback
+        let downloaded_count = download_manager
+            .download_files_parallel_with_progress(
+                files_for_download,
+                move |current, total, message| {
+                    // Update task progress - second 50% for downloads
+                    if let Some(ref tid) = task_id_clone {
+                        let progress = 50.0 + (current as f32 / total as f32) * 50.0;
+                        update_task(
+                            tid,
+                            TaskStatus::Running,
+                            progress,
+                            &format!("Descargando archivo {} de {}: {}", current, total, message),
+                            None,
+                        );
+                    }
+
+                    // Emit status with stage
+                    emit_status_with_stage(
+                        &instance_clone,
+                        "instance-downloading-modpack-files",
+                        &Stage::DownloadingModpackFiles { current, total },
+                    );
+                },
+            )
+            .await
+            .map_err(|e| format!("Failed to download files: {}", e))?;
+
+        files_downloaded = downloaded_count;
+        files_processed += downloaded_count;
+    } else {
+        // No files need downloading, just report that processing is complete
+        if let Some(ref tid) = task_id {
+            update_task(
+                tid,
+                TaskStatus::Running,
+                100.0,
+                &format!("Procesamiento completo - {} archivos movidos", files_moved),
+                None,
+            );
+        }
+    }
+
+    emit_status(
+        instance,
+        "instance-finish-assets-download",
+        &format!(
+            "Procesados {} archivos ({} movidos, {} descargados)",
+            files_processed, files_moved, files_downloaded
+        ),
+    );
+
+    Ok(files_processed)
+}
+
 /// Downloads and installs modpack files, reusing existing files when possible
+/// Legacy function kept for backward compatibility
 pub async fn download_and_install_files(
     instance: &MinecraftInstance,
     manifest: &ModpackManifest,
@@ -567,13 +766,65 @@ async fn file_exists_with_correct_hash(file_path: &Path, expected_hash: &str) ->
     }
 }
 
+/// Searches for a file with the specified hash anywhere in the minecraft directory
+/// Returns the path of the first file found with the matching hash
+/// Only searches in modpack-related directories for performance
+async fn find_file_by_hash(minecraft_dir: &Path, expected_hash: &str) -> Option<PathBuf> {
+    // Define directories to search for better performance
+    let search_dirs = [
+        "mods",
+        "coremods", 
+        "config",
+        "scripts",
+        "resources",
+        "resourcepacks",
+        "shaderpacks",
+        "datapacks",
+        "packmenu",
+        "structures",
+        "schematics",
+        "changelogs",
+    ];
+    
+    // First search in common modpack directories
+    for dir_name in &search_dirs {
+        let search_path = minecraft_dir.join(dir_name);
+        if search_path.exists() {
+            if let Ok(files) = find_files_recursively(&search_path) {
+                for file_path in files {
+                    if file_exists_with_correct_hash(&file_path, expected_hash).await {
+                        return Some(file_path);
+                    }
+                }
+            }
+        }
+    }
+    
+    // If not found in common directories, search entire minecraft directory as fallback
+    if let Ok(files) = find_files_recursively(minecraft_dir) {
+        for file_path in files {
+            // Skip files we already checked
+            let relative_path = file_path.strip_prefix(minecraft_dir).ok()?;
+            let first_component = relative_path.components().next()?.as_os_str().to_str()?;
+            
+            if !search_dirs.contains(&first_component) {
+                if file_exists_with_correct_hash(&file_path, expected_hash).await {
+                    return Some(file_path);
+                }
+            }
+        }
+    }
+    
+    None
+}
+
 /// Validates modpack assets against the manifest
-/// Returns a list of files that need to be downloaded (missing, corrupt, or wrong size/hash)
-pub async fn validate_modpack_assets(
+/// Returns a list of file validation results indicating what action is needed for each file
+pub async fn validate_modpack_assets_detailed(
     instance: &MinecraftInstance,
     manifest: &ModpackManifest,
     task_id: Option<String>,
-) -> Result<Vec<ModpackFileEntry>, String> {
+) -> Result<Vec<FileValidationResult>, String> {
     let instance_dir = PathBuf::from(
         instance
             .instanceDirectory
@@ -581,7 +832,7 @@ pub async fn validate_modpack_assets(
             .ok_or("Instance directory not set")?,
     );
     let minecraft_dir = instance_dir.join("minecraft");
-    let mut files_to_download = Vec::new();
+    let mut validation_results = Vec::new();
 
     if let Some(task_id) = &task_id {
         update_task(
@@ -596,7 +847,7 @@ pub async fn validate_modpack_assets(
     let total_files = manifest.files.len();
 
     for (index, file_entry) in manifest.files.iter().enumerate() {
-        let file_path = minecraft_dir.join(&file_entry.path);
+        let target_path = minecraft_dir.join(&file_entry.path);
 
         // Update progress
         if let Some(task_id) = &task_id {
@@ -615,46 +866,76 @@ pub async fn validate_modpack_assets(
             );
         }
 
-        let mut needs_download = false;
-
-        // Check if file exists
-        if !file_path.exists() {
-            needs_download = true;
+        // Check if file exists at correct location with correct hash
+        if file_exists_with_correct_hash(&target_path, &file_entry.fileHash).await {
+            validation_results.push(FileValidationResult {
+                file_entry: file_entry.clone(),
+                action: FileAction::CorrectLocation,
+            });
         } else {
-            // Check file size
-            if let Ok(metadata) = fs::metadata(&file_path) {
-                if metadata.len() != file_entry.file.size {
-                    needs_download = true;
-                }
+            // File is not at correct location, search for it elsewhere
+            if let Some(existing_path) = find_file_by_hash(&minecraft_dir, &file_entry.fileHash).await {
+                // File exists elsewhere with correct hash - needs to be moved
+                validation_results.push(FileValidationResult {
+                    file_entry: file_entry.clone(),
+                    action: FileAction::NeedsMove {
+                        from_path: existing_path,
+                        to_path: target_path,
+                    },
+                });
             } else {
-                needs_download = true;
+                // File doesn't exist anywhere with correct hash - needs download
+                validation_results.push(FileValidationResult {
+                    file_entry: file_entry.clone(),
+                    action: FileAction::NeedsDownload,
+                });
             }
-
-            // Check file hash if size is correct
-            if !needs_download
-                && !file_exists_with_correct_hash(&file_path, &file_entry.fileHash).await
-            {
-                needs_download = true;
-            }
-        }
-
-        if needs_download {
-            files_to_download.push(file_entry.clone());
         }
     }
 
     if let Some(task_id) = &task_id {
+        let files_to_download = validation_results
+            .iter()
+            .filter(|result| matches!(result.action, FileAction::NeedsDownload))
+            .count();
+        let files_to_move = validation_results
+            .iter()
+            .filter(|result| matches!(result.action, FileAction::NeedsMove { .. }))
+            .count();
+        
         update_task(
             task_id,
             TaskStatus::Running,
             100.0,
             &format!(
-                "Validación completa. {} archivos necesitan descarga",
-                files_to_download.len()
+                "Validación completa. {} archivos para descargar, {} para mover",
+                files_to_download, files_to_move
             ),
             None,
         );
     }
+
+    Ok(validation_results)
+}
+
+/// Legacy function - validates modpack assets against the manifest
+/// Returns a list of files that need to be downloaded (missing, corrupt, or wrong size/hash)
+/// Kept for backward compatibility
+pub async fn validate_modpack_assets(
+    instance: &MinecraftInstance,
+    manifest: &ModpackManifest,
+    task_id: Option<String>,
+) -> Result<Vec<ModpackFileEntry>, String> {
+    let validation_results = validate_modpack_assets_detailed(instance, manifest, task_id).await?;
+    
+    // Return only files that need downloading (maintain backward compatibility)
+    let files_to_download = validation_results
+        .into_iter()
+        .filter_map(|result| match result.action {
+            FileAction::NeedsDownload => Some(result.file_entry),
+            _ => None,
+        })
+        .collect();
 
     Ok(files_to_download)
 }
@@ -1209,68 +1490,16 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         }
     }
 
-    // Validate assets and get files that need downloading
-    let files_to_download =
-        match validate_modpack_assets(&instance, &manifest, Some(task_id.clone())).await {
-            Ok(files) => files,
-            Err(e) => {
-                update_task(
-                    &task_id,
-                    TaskStatus::Failed,
-                    0.0,
-                    &format!("Error validando assets: {}", e),
-                    None,
-                );
-
-                // Schedule task removal after a delay even on failure
-                let task_id_for_cleanup = task_id.clone();
-                tokio::spawn(async move {
-                    tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-                    remove_task(&task_id_for_cleanup);
-                    log::info!(
-                        "Cleaned up failed modpack validation task: {}",
-                        task_id_for_cleanup
-                    );
-                });
-
-                return Err(e);
-            }
-        };
-
-    if files_to_download.is_empty() {
-        update_task(
-            &task_id,
-            TaskStatus::Completed,
-            100.0,
-            "Todos los assets están actualizados",
-            None,
-        );
-
-        // Schedule task removal after a delay to allow UI to show completion
-        let task_id_for_cleanup = task_id.clone();
-        tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-            remove_task(&task_id_for_cleanup);
-            log::info!(
-                "Cleaned up completed modpack validation task (no downloads needed): {}",
-                task_id_for_cleanup
-            );
-        });
-
-        return Ok(0);
-    }
-
-    // Download missing/corrupt files
+    // Use enhanced installation that handles moving and downloading intelligently
     update_task(
         &task_id,
         TaskStatus::Running,
         0.0,
-        &format!("Descargando {} archivos...", files_to_download.len()),
+        "Procesando archivos del modpack...",
         None,
     );
 
-    let downloaded_count =
-        download_modpack_files(&instance, &files_to_download, Some(task_id.clone())).await?;
+    let processed_count = install_modpack_files_enhanced(&instance, &manifest, Some(task_id.clone())).await?;
 
     emit_bootstrap_complete(&instance, "forge");
 
@@ -1278,14 +1507,14 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
     emit_status(
         &instance,
         "instance-finish-assets-download",
-        &format!("Descargados {} archivos", downloaded_count),
+        &format!("Procesados {} archivos", processed_count),
     );
 
     update_task(
         &task_id,
         TaskStatus::Completed,
         100.0,
-        &format!("Descargados {} archivos", downloaded_count),
+        &format!("Procesados {} archivos", processed_count),
         None,
     );
 
@@ -1300,7 +1529,7 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         );
     });
 
-    Ok(downloaded_count)
+    Ok(processed_count)
 }
 
 async fn download_modpack_files(
