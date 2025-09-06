@@ -36,5 +36,12 @@ export enum UserRole {
     USER = 'user',
     ADMIN = 'admin',
     SUPERADMIN = 'superadmin',
+    SUPPORT = 'support',
     SYSTEM = 'system'
+}
+
+export enum TicketStatus {
+    OPEN = 'open',
+    IN_REVIEW = 'in_review',
+    CLOSED = 'closed'
 }

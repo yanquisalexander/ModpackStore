@@ -165,15 +165,51 @@ export class WebSocketManager {
             const message = JSON.parse(data);
             console.log(`Message received from ${connection.user?.username}:`, message);
 
-            // Echo the message back for now (can be extended with specific handlers)
-            this.sendToConnection(connection, 'echo', {
-                originalMessage: message,
-                timestamp: new Date().toISOString()
-            });
+            // Handle different message types
+            switch (message.type) {
+                case 'user_typing':
+                    this.handleUserTyping(connection, message.payload);
+                    break;
+                case 'ping':
+                    this.sendToConnection(connection, 'pong', {
+                        timestamp: new Date().toISOString()
+                    });
+                    break;
+                default:
+                    // Echo the message back for now (can be extended with specific handlers)
+                    this.sendToConnection(connection, 'echo', {
+                        originalMessage: message,
+                        timestamp: new Date().toISOString()
+                    });
+            }
         } catch (error) {
             console.error('Error parsing WebSocket message:', error);
             this.sendToConnection(connection, 'error', {
                 message: 'Invalid JSON message format',
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+
+    /**
+     * Handle user typing notification for tickets
+     */
+    private handleUserTyping(connection: ConnectionInfo, payload: any): void {
+        const { ticketId } = payload;
+        if (!ticketId) return;
+
+        // Forward typing notification to relevant users
+        // For now, broadcast to all staff - could be optimized to only staff viewing the ticket
+        if (connection.user.isStaff()) {
+            // Staff is typing - notify ticket owner
+            // We'd need to look up ticket owner from the database
+            // For simplicity, this could be enhanced with ticket caching
+        } else {
+            // User is typing - notify all staff
+            this.broadcastToStaff('user_typing', {
+                ticketId,
+                userId: connection.userId,
+                username: connection.user.username,
                 timestamp: new Date().toISOString()
             });
         }
@@ -274,6 +310,27 @@ export class WebSocketManager {
         } else {
             return this.broadcast(type, payload);
         }
+    }
+
+    /**
+     * Broadcast message to all connected staff members (admin, superadmin, support)
+     */
+    public broadcastToStaff(type: string, payload: any): number {
+        const message: WebSocketMessage = { type, payload };
+        const messageStr = JSON.stringify(message);
+        let sentCount = 0;
+
+        this.connections.forEach((userConnections) => {
+            userConnections.forEach(connection => {
+                // Check if user is staff
+                if (connection.user && connection.user.isStaff() && connection.ws.readyState === 1) {
+                    connection.ws.send(messageStr);
+                    sentCount++;
+                }
+            });
+        });
+
+        return sentCount;
     }
 
     /**
