@@ -4,6 +4,7 @@ use crate::core::bootstrap::tasks::{
 use crate::core::minecraft::paths::MinecraftPaths;
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::tasks_manager::{add_task, remove_task, task_exists, update_task, TaskStatus};
+use crate::utils::config_manager::get_config;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
@@ -46,6 +47,17 @@ pub struct ModpackFileEntry {
 pub struct ModpackFileType {
     pub size: u64,
     pub r#type: String,
+}
+
+/// Helper function to get download concurrency from configuration
+fn get_download_concurrency() -> usize {
+    let config = get_config();
+    config
+        .get("downloadConcurrency")
+        .and_then(|v| v.as_u64())
+        .map(|v| v as usize)
+        .unwrap_or(4) // Default to 4 if not set
+        .max(1) // Ensure at least 1
 }
 
 /// Identifies essential Minecraft files and directories that should never be deleted
@@ -355,48 +367,53 @@ pub async fn download_and_install_files(
 
     // Second pass: download needed files using the download manager
     if !files_to_download.is_empty() {
-        let download_manager = DownloadManager::new();
+        let download_manager = DownloadManager::with_concurrency(get_download_concurrency()); // Use configured concurrent downloads
         
-        for (download_index, file_entry) in files_to_download.iter().enumerate() {
-            let target_path = minecraft_dir.join(&file_entry.path);
-            let current_download = download_index + 1;
-            let total_downloads = files_to_download.len();
-            
-            // Update task progress - only report progress for actual downloads
-            if let Some(ref tid) = task_id {
-                let progress = (current_download as f32 / total_downloads as f32) * 100.0;
-                update_task(
-                    tid,
-                    TaskStatus::Running,
-                    progress,
-                    &format!(
-                        "Descargando archivo {} de {}: {}",
-                        current_download,
-                        total_downloads,
-                        file_entry.path
-                    ),
-                    None,
-                );
-            }
+        // Prepare files for parallel download
+        let files_for_download: Vec<(String, PathBuf, String)> = files_to_download.iter()
+            .map(|file_entry| {
+                let target_path = minecraft_dir.join(&file_entry.path);
+                (
+                    file_entry.downloadUrl.clone(),
+                    target_path,
+                    file_entry.fileHash.clone(),
+                )
+            })
+            .collect();
 
-            // Emit status with stage
-            emit_status_with_stage(
-                instance,
-                "instance-downloading-modpack-files",
-                &Stage::DownloadingModpackFiles {
-                    current: current_download,
-                    total: total_downloads,
-                },
-            );
+        let total_downloads = files_for_download.len();
+        let instance_clone = instance.clone();
+        let task_id_clone = task_id.clone();
+        
+        // Use parallel downloads with progress callback
+        download_manager
+            .download_files_parallel_with_progress(
+                files_for_download,
+                |current, total, message| {
+                    // Update task progress - only report progress for actual downloads
+                    if let Some(ref tid) = task_id_clone {
+                        let progress = (current as f32 / total as f32) * 100.0;
+                        update_task(
+                            tid,
+                            TaskStatus::Running,
+                            progress,
+                            &format!("Descargando archivo {} de {}: {}", current, total, message),
+                            None,
+                        );
+                    }
 
-            // Download the file with hash verification
-            download_manager
-                .download_file_with_hash(&file_entry.downloadUrl, &target_path, &file_entry.fileHash)
-                .await
-                .map_err(|e| format!("Failed to download {}: {}", file_entry.path, e))?;
+                    // Emit status with stage
+                    emit_status_with_stage(
+                        &instance_clone,
+                        "instance-downloading-modpack-files",
+                        &Stage::DownloadingModpackFiles { current, total },
+                    );
+                }
+            )
+            .await
+            .map_err(|e| format!("Failed to download files: {}", e))?;
             
-            files_processed += 1;
-        }
+        files_processed += files_to_download.len();
     } else {
         // No files need downloading, just report that verification is complete
         if let Some(ref tid) = task_id {
@@ -669,6 +686,11 @@ impl DownloadManager {
         }
     }
 
+    /// Get the current concurrency limit
+    pub fn get_concurrency(&self) -> usize {
+        self.max_concurrent_downloads
+    }
+
     /// Download a single file with streaming and hash verification
     pub async fn download_file_with_hash(
         &self,
@@ -793,7 +815,30 @@ impl DownloadManager {
     }
 
     /// Download multiple files in parallel with sequential progress reporting
-    /// Downloads files concurrently but reports progress in order (1, 2, 3...)
+    /// 
+    /// This method downloads files concurrently using a configurable number of simultaneous connections,
+    /// but ensures that progress is reported in sequential order (file 1, file 2, file 3...) regardless
+    /// of the order in which downloads complete.
+    /// 
+    /// Features:
+    /// - Configurable concurrency limit (set via max_concurrent_downloads)
+    /// - Reuses a single reqwest::Client for all downloads
+    /// - Streams data directly to disk without loading into memory
+    /// - Verifies SHA1 hash of each downloaded file
+    /// - Automatic retry on failure (up to 3 attempts per file)
+    /// - Sequential progress reporting despite parallel execution
+    /// - Robust error handling for network, HTTP, disk I/O, and hash validation errors
+    /// 
+    /// # Arguments
+    /// 
+    /// * `files` - Vec of (url, target_path, expected_hash) tuples
+    /// * `progress_callback` - Closure called for each completed file in order
+    /// 
+    /// # Returns
+    /// 
+    /// * `Ok(usize)` - Number of successfully downloaded files
+    /// * `Err(String)` - Error message if any download fails
+    /// 
     /// Takes Vec<(url, target_path, expected_hash)> as requested in the specification
     pub async fn download_files_parallel_with_progress<F>(
         &self,
@@ -1239,7 +1284,7 @@ async fn download_modpack_files(
     let minecraft_dir = instance_dir.join("minecraft");
     
     // Create download manager for efficient reuse of HTTP client
-    let download_manager = DownloadManager::with_concurrency(4); // Use 4 concurrent downloads
+    let download_manager = DownloadManager::with_concurrency(get_download_concurrency());
 
     // Emit initial stage for downloading modpack files
     let initial_stage = Stage::DownloadingModpackFiles {
@@ -1356,11 +1401,22 @@ mod tests {
     fn test_download_manager_concurrency_config() {
         let dm1 = DownloadManager::new();
         assert_eq!(dm1.max_concurrent_downloads, 4); // Default
+        assert_eq!(dm1.get_concurrency(), 4);
 
         let dm2 = DownloadManager::with_concurrency(8);
         assert_eq!(dm2.max_concurrent_downloads, 8);
+        assert_eq!(dm2.get_concurrency(), 8);
 
         let dm3 = DownloadManager::with_concurrency(0);
         assert_eq!(dm3.max_concurrent_downloads, 1); // Minimum enforced
+        assert_eq!(dm3.get_concurrency(), 1);
+    }
+
+    #[test]
+    fn test_get_download_concurrency_default() {
+        // Test that the function returns a reasonable default when config is not available
+        let concurrency = get_download_concurrency();
+        assert!(concurrency >= 1);
+        assert!(concurrency <= 16); // Should be within reasonable bounds
     }
 }

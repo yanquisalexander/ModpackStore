@@ -77,3 +77,11 @@ ramAllocation:
   max: 16384
   description: "Memoria RAM asignada para Minecraft en MB (configurada durante el onboarding)"
   ui_section: gameplay
+
+downloadConcurrency:
+  type: slider
+  default: 4
+  min: 1
+  max: 16
+  description: "Número de descargas simultáneas para archivos de modpack"
+  ui_section: gameplay
