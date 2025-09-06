@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { LucidePackage, LucidePlus } from 'lucide-react';
+import { LucidePackage, LucidePlus, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { API_ENDPOINT } from '@/consts';
 import { useAuthentication } from '@/stores/AuthContext';
@@ -46,14 +46,22 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
         changelog: ''
     });
 
-    // Mock data - in a real app, you'd fetch these from APIs
-    const minecraftVersions = [
-        '1.20.1', '1.19.4', '1.19.2', '1.18.2', '1.16.5', '1.12.2'
-    ];
+    // Versions fetching/state (reuse logic used elsewhere)
+    interface MinecraftVersion {
+        id: string;
+        type: string;
+        url: string;
+        time?: string;
+        releaseTime?: string;
+    }
 
-    const forgeVersions = [
-        '47.2.0', '47.1.0', '43.3.0', '43.2.11', '36.2.39', '14.23.5.2860'
-    ];
+    const LAUNCHER_VERSIONS_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
+    const FORGE_VERSIONS_URL = "https://mc-versions-api.net/api/forge";
+
+    const [minecraftVersions, setMinecraftVersions] = useState<MinecraftVersion[]>([]);
+    const [forgeVersionsMap, setForgeVersionsMap] = useState<Record<string, string[]>>({});
+    const [compatibleForgeVersions, setCompatibleForgeVersions] = useState<string[]>([]);
+    const [loadingVersions, setLoadingVersions] = useState(false);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -121,6 +129,75 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
         }
     };
 
+    // Load versions when dialog opens
+    useEffect(() => {
+        if (isOpen) {
+            fetchMinecraftVersions();
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isOpen]);
+
+    // Update compatible forge versions when selected mcVersion changes
+    useEffect(() => {
+        const forgeVersions = forgeVersionsMap[formData.mcVersion] || [];
+        setCompatibleForgeVersions(forgeVersions);
+
+        if (forgeVersions.length > 0 && (!formData.forgeVersion || formData.forgeVersion === 'none')) {
+            setFormData(prev => ({ ...prev, forgeVersion: forgeVersions[0] }));
+        } else if (forgeVersions.length === 0) {
+            setFormData(prev => ({ ...prev, forgeVersion: 'none' }));
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [formData.mcVersion, forgeVersionsMap]);
+
+    const fetchMinecraftVersions = async (): Promise<void> => {
+        setLoadingVersions(true);
+        try {
+            const response = await fetch(LAUNCHER_VERSIONS_URL);
+            const data = await response.json();
+
+            // Filter to releases (sensible default for modpack versions)
+            const releaseVersions = data.versions.filter((version: MinecraftVersion) => version.type === 'release');
+
+            setMinecraftVersions(releaseVersions);
+
+            if (releaseVersions.length > 0 && !formData.mcVersion) {
+                setFormData(prev => ({ ...prev, mcVersion: releaseVersions[0].id }));
+            }
+
+            await fetchForgeVersions();
+        } catch (error) {
+            console.error('Error fetching Minecraft versions:', error);
+            toast.error('No se pudieron cargar las versiones de Minecraft');
+        } finally {
+            setLoadingVersions(false);
+        }
+    };
+
+    const fetchForgeVersions = async (): Promise<void> => {
+        try {
+            const response = await fetch(FORGE_VERSIONS_URL);
+            const data = await response.json();
+
+            const rawData = data.result?.[0] || {};
+            const processedData: Record<string, string[]> = {};
+
+            for (const mcVersion in rawData) {
+                if (Object.prototype.hasOwnProperty.call(rawData, mcVersion)) {
+                    processedData[mcVersion] = rawData[mcVersion].filter((version: string) => {
+                        const versionParts = version.split('.');
+                        return versionParts.length > 1 && (parseInt(versionParts[0]) > 1 || (parseInt(versionParts[0]) === 1 && parseInt(versionParts[1]) >= 5));
+                    });
+                }
+            }
+
+            setForgeVersionsMap(processedData);
+        } catch (error) {
+            console.error('Error fetching Forge versions:', error);
+            toast.error('No se pudieron cargar las versiones de Forge');
+        }
+    };
+
     return (
         <Dialog open={isOpen} onOpenChange={handleClose}>
             <DialogContent className="max-w-lg">
@@ -154,23 +231,30 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                         <label className="text-sm font-medium text-gray-700 block mb-1">
                             Versión de Minecraft *
                         </label>
-                        <Select
-                            value={formData.mcVersion}
-                            onValueChange={(value) => setFormData(prev => ({ ...prev, mcVersion: value }))}
-                            disabled={loading}
-                            required
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar versión de Minecraft" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {minecraftVersions.map((version) => (
-                                    <SelectItem key={version} value={version}>
-                                        Minecraft {version}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        {loadingVersions ? (
+                            <div className="flex items-center gap-2 p-2">
+                                <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                                <span className="text-sm text-gray-500">Cargando versiones...</span>
+                            </div>
+                        ) : (
+                            <Select
+                                value={formData.mcVersion}
+                                onValueChange={(value) => setFormData(prev => ({ ...prev, mcVersion: value }))}
+                                disabled={loading}
+                                required
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccionar versión de Minecraft" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-60">
+                                    {minecraftVersions.map((v) => (
+                                        <SelectItem key={v.id} value={v.id}>
+                                            {v.id}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
                     </div>
 
                     {/* Forge Version */}
@@ -178,23 +262,30 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                         <label className="text-sm font-medium text-gray-700 block mb-1">
                             Versión de Forge (Opcional)
                         </label>
-                        <Select
-                            value={formData.forgeVersion}
-                            onValueChange={(value) => setFormData(prev => ({ ...prev, forgeVersion: value }))}
-                            disabled={loading}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Seleccionar versión de Forge (opcional)" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="none">Sin Forge (Vanilla)</SelectItem>
-                                {forgeVersions.map((version) => (
-                                    <SelectItem key={version} value={version}>
-                                        Forge {version}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        {loadingVersions ? (
+                            <div className="flex items-center gap-2 p-2">
+                                <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
+                                <span className="text-sm text-gray-500">Cargando versiones de Forge...</span>
+                            </div>
+                        ) : (
+                            <Select
+                                value={formData.forgeVersion}
+                                onValueChange={(value) => setFormData(prev => ({ ...prev, forgeVersion: value }))}
+                                disabled={loading}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccionar versión de Forge (opcional)" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-60">
+                                    <SelectItem value="none">Sin Forge (Vanilla)</SelectItem>
+                                    {compatibleForgeVersions.map((version) => (
+                                        <SelectItem key={version} value={version}>
+                                            Forge {version}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
                     </div>
 
                     {/* Changelog */}
