@@ -4,7 +4,7 @@ use crate::core::bootstrap::tasks::{
 use crate::core::minecraft::paths::MinecraftPaths;
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::tasks_manager::{add_task, remove_task, task_exists, update_task, TaskStatus};
-use crate::utils::config_manager::get_config;
+use crate::utils::config_manager::get_config_manager;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri::Emitter;
 use tauri_plugin_http::reqwest;
-use tokio::sync::{Semaphore, Mutex};
+use tokio::sync::{Mutex, Semaphore};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ModpackManifest {
@@ -49,15 +49,9 @@ pub struct ModpackFileType {
     pub r#type: String,
 }
 
-/// Helper function to get download concurrency from configuration
 fn get_download_concurrency() -> usize {
-    let config = get_config();
-    config
-        .get("downloadConcurrency")
-        .and_then(|v| v.as_u64())
-        .map(|v| v as usize)
-        .unwrap_or(4) // Default to 4 if not set
-        .max(1) // Ensure at least 1
+    // Return 4
+    4
 }
 
 /// Identifies essential Minecraft files and directories that should never be deleted
@@ -368,9 +362,10 @@ pub async fn download_and_install_files(
     // Second pass: download needed files using the download manager
     if !files_to_download.is_empty() {
         let download_manager = DownloadManager::with_concurrency(get_download_concurrency()); // Use configured concurrent downloads
-        
+
         // Prepare files for parallel download
-        let files_for_download: Vec<(String, PathBuf, String)> = files_to_download.iter()
+        let files_for_download: Vec<(String, PathBuf, String)> = files_to_download
+            .iter()
             .map(|file_entry| {
                 let target_path = minecraft_dir.join(&file_entry.path);
                 (
@@ -384,12 +379,12 @@ pub async fn download_and_install_files(
         let total_downloads = files_for_download.len();
         let instance_clone = instance.clone();
         let task_id_clone = task_id.clone();
-        
+
         // Use parallel downloads with progress callback
         download_manager
             .download_files_parallel_with_progress(
                 files_for_download,
-                |current, total, message| {
+                move |current, total, message| {
                     // Update task progress - only report progress for actual downloads
                     if let Some(ref tid) = task_id_clone {
                         let progress = (current as f32 / total as f32) * 100.0;
@@ -408,11 +403,11 @@ pub async fn download_and_install_files(
                         "instance-downloading-modpack-files",
                         &Stage::DownloadingModpackFiles { current, total },
                     );
-                }
+                },
             )
             .await
             .map_err(|e| format!("Failed to download files: {}", e))?;
-            
+
         files_processed += files_to_download.len();
     } else {
         // No files need downloading, just report that verification is complete
@@ -430,7 +425,11 @@ pub async fn download_and_install_files(
     emit_status(
         instance,
         "instance-finish-assets-download",
-        &format!("Procesados {} archivos ({} descargados)", files_processed, files_to_download.len()),
+        &format!(
+            "Procesados {} archivos ({} descargados)",
+            files_processed,
+            files_to_download.len()
+        ),
     );
 
     Ok(files_processed)
@@ -680,7 +679,7 @@ impl DownloadManager {
             .build()
             .expect("Failed to create HTTP client");
 
-        Self { 
+        Self {
             client,
             max_concurrent_downloads: max_concurrent_downloads.max(1), // Ensure at least 1
         }
@@ -699,16 +698,19 @@ impl DownloadManager {
         expected_hash: &str,
     ) -> Result<(), String> {
         const MAX_RETRIES: usize = 3;
-        
+
         for attempt in 1..=MAX_RETRIES {
-            match self.download_file_attempt(url, target_path, expected_hash).await {
+            match self
+                .download_file_attempt(url, target_path, expected_hash)
+                .await
+            {
                 Ok(()) => return Ok(()),
                 Err(e) => {
                     if attempt == MAX_RETRIES {
                         return Err(format!("Failed after {} attempts: {}", MAX_RETRIES, e));
                     }
                     log::warn!("Download attempt {} failed: {}, retrying...", attempt, e);
-                    
+
                     // Clean up partial file on retry
                     if target_path.exists() {
                         let _ = fs::remove_file(target_path);
@@ -716,7 +718,7 @@ impl DownloadManager {
                 }
             }
         }
-        
+
         unreachable!()
     }
 
@@ -755,12 +757,12 @@ impl DownloadManager {
 
         // Stream the content directly to disk while computing hash
         while let Some(chunk_result) = stream.next().await {
-            let chunk = chunk_result
-                .map_err(|e| format!("Failed to read chunk from stream: {}", e))?;
-            
+            let chunk =
+                chunk_result.map_err(|e| format!("Failed to read chunk from stream: {}", e))?;
+
             // Update hash with chunk
             hasher.update(&chunk);
-            
+
             // Write chunk to file
             file.write_all(&chunk)
                 .map_err(|e| format!("Failed to write to file: {}", e))?;
@@ -800,7 +802,13 @@ impl DownloadManager {
             progress_callback(
                 index + 1,
                 total_files,
-                &format!("Descargando {}", target_path.file_name().unwrap_or_default().to_string_lossy()),
+                &format!(
+                    "Descargando {}",
+                    target_path
+                        .file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                ),
             );
 
             // Download the file with hash verification and retry
@@ -815,11 +823,11 @@ impl DownloadManager {
     }
 
     /// Download multiple files in parallel with sequential progress reporting
-    /// 
+    ///
     /// This method downloads files concurrently using a configurable number of simultaneous connections,
     /// but ensures that progress is reported in sequential order (file 1, file 2, file 3...) regardless
     /// of the order in which downloads complete.
-    /// 
+    ///
     /// Features:
     /// - Configurable concurrency limit (set via max_concurrent_downloads)
     /// - Reuses a single reqwest::Client for all downloads
@@ -828,17 +836,17 @@ impl DownloadManager {
     /// - Automatic retry on failure (up to 3 attempts per file)
     /// - Sequential progress reporting despite parallel execution
     /// - Robust error handling for network, HTTP, disk I/O, and hash validation errors
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `files` - Vec of (url, target_path, expected_hash) tuples
     /// * `progress_callback` - Closure called for each completed file in order
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Ok(usize)` - Number of successfully downloaded files
     /// * `Err(String)` - Error message if any download fails
-    /// 
+    ///
     /// Takes Vec<(url, target_path, expected_hash)> as requested in the specification
     pub async fn download_files_parallel_with_progress<F>(
         &self,
@@ -846,7 +854,7 @@ impl DownloadManager {
         mut progress_callback: F,
     ) -> Result<usize, String>
     where
-        F: FnMut(usize, usize, &str),
+        F: FnMut(usize, usize, &str) + Send + 'static,
     {
         let total_files = files.len();
         if total_files == 0 {
@@ -855,21 +863,30 @@ impl DownloadManager {
 
         // Create semaphore to limit concurrent downloads
         let semaphore = Arc::new(Semaphore::new(self.max_concurrent_downloads));
-        
+
         // Shared state for tracking download completion in order
         let completed_downloads = Arc::new(Mutex::new(HashMap::<usize, String>::new()));
         let next_to_report = Arc::new(Mutex::new(0usize));
-        let progress_callback = Arc::new(Mutex::new(progress_callback));
+        // Box the callback into a trait object that is Send so it can be shared across spawned tasks
+        let progress_callback = Arc::new(tokio::sync::Mutex::new(
+            Box::new(progress_callback) as Box<dyn FnMut(usize, usize, &str) + Send>
+        ));
 
         // Clone file info for filename tracking
-        let file_names: Vec<String> = files.iter()
-            .map(|(_, path, _)| path.file_name().unwrap_or_default().to_string_lossy().to_string())
+        let file_names: Vec<String> = files
+            .iter()
+            .map(|(_, path, _)| {
+                path.file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string()
+            })
             .collect();
         let file_names = Arc::new(file_names);
 
         // Spawn download tasks
         let mut download_tasks = Vec::new();
-        
+
         for (index, (url, target_path, expected_hash)) in files.into_iter().enumerate() {
             let semaphore = semaphore.clone();
             let client = self.client.clone();
@@ -877,39 +894,54 @@ impl DownloadManager {
             let next_to_report = next_to_report.clone();
             let progress_callback = progress_callback.clone();
             let file_names = file_names.clone();
-            
+
             let task = tokio::spawn(async move {
                 // Acquire semaphore permit
-                let _permit = semaphore.acquire().await.map_err(|e| format!("Semaphore error: {}", e))?;
-                
+                let _permit = semaphore
+                    .acquire()
+                    .await
+                    .map_err(|e| format!("Semaphore error: {}", e))?;
+
                 // Download the file
-                let result = Self::download_file_with_hash_static(&client, &url, &target_path, &expected_hash).await;
-                
+                let result = Self::download_file_with_hash_static(
+                    &client,
+                    &url,
+                    &target_path,
+                    &expected_hash,
+                )
+                .await;
+
                 if let Err(e) = result {
-                    return Err(format!("Failed to download {}: {}", target_path.display(), e));
+                    return Err(format!(
+                        "Failed to download {}: {}",
+                        target_path.display(),
+                        e
+                    ));
                 }
 
                 // Mark this download as complete and check if we can report progress
                 {
                     let mut completed = completed_downloads.lock().await;
-                    let file_name = target_path.file_name()
+                    let file_name = target_path
+                        .file_name()
                         .unwrap_or_default()
                         .to_string_lossy()
                         .to_string();
                     completed.insert(index, file_name);
-                    
+
                     let mut next = next_to_report.lock().await;
-                    
+
                     // Report progress for all consecutive completed downloads
                     while completed.contains_key(&*next) {
-                        if let Some(completed_file_name) = completed.get(&*next) {
+                        if let Some(_completed_file_name) = completed.get(&*next) {
                             // Call progress callback with the correct filename for this index
                             {
-                                let mut callback = progress_callback.lock().await;
-                                callback(*next + 1, total_files, &format!("Descargando {}", file_names[*next]));
+                                let mut callback = progress_callback.lock().await; // Using tokio::sync::Mutex<Box<dyn FnMut...>>
+                                let msg = format!("Descargando {}", file_names[*next]);
+                                (&mut *callback)(*next + 1, total_files, &msg);
                             }
                         }
-                        
+
                         completed.remove(&*next);
                         *next += 1;
                     }
@@ -917,7 +949,7 @@ impl DownloadManager {
 
                 Ok::<(), String>(())
             });
-            
+
             download_tasks.push(task);
         }
 
@@ -942,16 +974,17 @@ impl DownloadManager {
         expected_hash: &str,
     ) -> Result<(), String> {
         const MAX_RETRIES: usize = 3;
-        
+
         for attempt in 1..=MAX_RETRIES {
-            match Self::download_file_attempt_static(client, url, target_path, expected_hash).await {
+            match Self::download_file_attempt_static(client, url, target_path, expected_hash).await
+            {
                 Ok(()) => return Ok(()),
                 Err(e) => {
                     if attempt == MAX_RETRIES {
                         return Err(format!("Failed after {} attempts: {}", MAX_RETRIES, e));
                     }
                     log::warn!("Download attempt {} failed: {}, retrying...", attempt, e);
-                    
+
                     // Clean up partial file on retry
                     if target_path.exists() {
                         let _ = fs::remove_file(target_path);
@@ -959,7 +992,7 @@ impl DownloadManager {
                 }
             }
         }
-        
+
         unreachable!()
     }
 
@@ -997,12 +1030,12 @@ impl DownloadManager {
 
         // Stream the content directly to disk while computing hash
         while let Some(chunk_result) = stream.next().await {
-            let chunk = chunk_result
-                .map_err(|e| format!("Failed to read chunk from stream: {}", e))?;
-            
+            let chunk =
+                chunk_result.map_err(|e| format!("Failed to read chunk from stream: {}", e))?;
+
             // Update hash with chunk
             hasher.update(&chunk);
-            
+
             // Write chunk to file
             file.write_all(&chunk)
                 .map_err(|e| format!("Failed to write to file: {}", e))?;
@@ -1282,7 +1315,7 @@ async fn download_modpack_files(
             .ok_or("Instance directory not set")?,
     );
     let minecraft_dir = instance_dir.join("minecraft");
-    
+
     // Create download manager for efficient reuse of HTTP client
     let download_manager = DownloadManager::with_concurrency(get_download_concurrency());
 
@@ -1313,28 +1346,29 @@ async fn download_modpack_files(
     // Use parallel downloads with progress callback for task and stage updates
     let instance_clone = instance.clone();
     let task_id_clone = task_id.clone();
-    
-    let downloaded_count = download_manager
-        .download_files_parallel_with_progress(
-            files_to_download,
-            |current, total, message| {
-                // Update task progress
-                if let Some(ref tid) = task_id_clone {
-                    let progress = (current as f32 / total as f32) * 100.0;
-                    update_task(
-                        tid,
-                        TaskStatus::Running,
-                        progress,
-                        &format!("{} ({}/{})", message, current, total),
-                        None,
-                    );
-                }
 
-                // Emit status with stage
-                let stage = Stage::DownloadingModpackFiles { current, total };
-                emit_status_with_stage(&instance_clone, "instance-downloading-modpack-files", &stage);
+    let downloaded_count = download_manager
+        .download_files_parallel_with_progress(files_to_download, move |current, total, message| {
+            // Update task progress
+            if let Some(ref tid) = task_id_clone {
+                let progress = (current as f32 / total as f32) * 100.0;
+                update_task(
+                    tid,
+                    TaskStatus::Running,
+                    progress,
+                    &format!("{} ({}/{})", message, current, total),
+                    None,
+                );
             }
-        )
+
+            // Emit status with stage
+            let stage = Stage::DownloadingModpackFiles { current, total };
+            emit_status_with_stage(
+                &instance_clone,
+                "instance-downloading-modpack-files",
+                &stage,
+            );
+        })
         .await
         .map_err(|e| format!("Parallel download failed: {}", e))?;
 
@@ -1371,9 +1405,21 @@ mod tests {
 
         // Prepare test files with mock URLs (these won't actually download)
         let files = vec![
-            ("file1.txt".to_string(), temp_dir.join("file1.txt"), "hash1".to_string()),
-            ("file2.txt".to_string(), temp_dir.join("file2.txt"), "hash2".to_string()),
-            ("file3.txt".to_string(), temp_dir.join("file3.txt"), "hash3".to_string()),
+            (
+                "file1.txt".to_string(),
+                temp_dir.join("file1.txt"),
+                "hash1".to_string(),
+            ),
+            (
+                "file2.txt".to_string(),
+                temp_dir.join("file2.txt"),
+                "hash2".to_string(),
+            ),
+            (
+                "file3.txt".to_string(),
+                temp_dir.join("file3.txt"),
+                "hash3".to_string(),
+            ),
         ];
 
         // Track progress reports
@@ -1387,12 +1433,12 @@ mod tests {
 
         // This test will fail since we're using mock URLs, but we can test the structure
         let download_manager = DownloadManager::with_concurrency(2);
-        
+
         // The test would fail on actual download, but we're testing the logic structure
         // In a real test, we'd set up a mock HTTP server
         // For now, just verify the DownloadManager is configured correctly
         assert_eq!(download_manager.max_concurrent_downloads, 2);
-        
+
         // Cleanup
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
