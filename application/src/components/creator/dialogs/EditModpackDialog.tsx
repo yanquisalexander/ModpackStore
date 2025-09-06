@@ -94,6 +94,9 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
     // NUEVO: Estado para prelaunchAppearance
     const [prelaunchAppearanceJson, setPrelaunchAppearanceJson] = useState('{}');
 
+    // NUEVO: Estado para validar el JSON
+    const [isJsonValid, setIsJsonValid] = useState(true);
+
     // Efecto para popular el formulario cuando el modpack cambia
     useEffect(() => {
         if (modpack) {
@@ -105,9 +108,43 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             setIconFile(null);
             setBannerFile(null);
             // Inicializar el JSON del prelaunchAppearance
-            setPrelaunchAppearanceJson(modpack.prelaunchAppearance || "{}");
+            try {
+                const prelaunchData = modpack.prelaunchAppearance;
+                if (typeof prelaunchData === 'string') {
+                    // Si viene como string, parsearlo y formatearlo
+                    const parsed = JSON.parse(prelaunchData);
+                    setPrelaunchAppearanceJson(JSON.stringify(parsed, null, 2));
+                } else if (prelaunchData && typeof prelaunchData === 'object') {
+                    // Si ya es un objeto, formatearlo
+                    setPrelaunchAppearanceJson(JSON.stringify(prelaunchData, null, 2));
+                } else {
+                    // Si no existe, usar objeto vacío formateado
+                    setPrelaunchAppearanceJson('{}');
+                }
+            } catch (error) {
+                console.warn('Error parsing prelaunchAppearance:', error);
+                setPrelaunchAppearanceJson('{}');
+            }
         }
     }, [modpack]);
+
+    // Efecto para formatear automáticamente el JSON cuando cambia
+    useEffect(() => {
+        if (prelaunchAppearanceJson.trim()) {
+            try {
+                const parsed = JSON.parse(prelaunchAppearanceJson);
+                const formatted = JSON.stringify(parsed, null, 2);
+                if (formatted !== prelaunchAppearanceJson) {
+                    setPrelaunchAppearanceJson(formatted);
+                }
+                setIsJsonValid(true);
+            } catch (error) {
+                setIsJsonValid(false);
+            }
+        } else {
+            setIsJsonValid(true); // Vacío se considera válido
+        }
+    }, [prelaunchAppearanceJson]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -125,11 +162,19 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             formData.append('visibility', visibility);
 
             // Añadir prelaunchAppearance si es válido
+            if (!isJsonValid) {
+                toast.error('JSON del pre-launch no es válido');
+                setLoading(false);
+                return;
+            }
+
             try {
                 const prelaunchAppearance = JSON.parse(prelaunchAppearanceJson);
                 formData.append('prelaunchAppearance', JSON.stringify(prelaunchAppearance));
             } catch (error) {
-                toast.error('JSON del pre-launch no es válido');
+                // Este catch es por si acaso, aunque isJsonValid debería prevenirlo
+                toast.error('Error inesperado al procesar el JSON del pre-launch');
+                setLoading(false);
                 return;
             }
 
@@ -228,7 +273,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
 
                     <div>
                         <label className="text-sm text-zinc-300 block mb-2">Configuración Pre-Launch (JSON)</label>
-                        <div className="border border-zinc-700 rounded-md overflow-hidden">
+                        <div className={`border rounded-md overflow-hidden ${!isJsonValid ? 'border-red-500' : 'border-zinc-700'}`}>
                             <CodeMirror
                                 value={prelaunchAppearanceJson}
                                 height="300px"
@@ -238,6 +283,11 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                 className="text-sm"
                             />
                         </div>
+                        {!isJsonValid && (
+                            <p className="text-xs text-red-400 mt-1">
+                                JSON no válido. Por favor, corrige la sintaxis.
+                            </p>
+                        )}
                         <p className="text-xs text-zinc-500 mt-1">
                             Configura la apariencia del launcher antes de iniciar Minecraft. Usa JSON válido.
                         </p>

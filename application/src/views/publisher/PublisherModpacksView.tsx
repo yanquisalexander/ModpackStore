@@ -97,6 +97,7 @@ const getStatusLabel = (status: string) => {
     switch (status.toLowerCase()) {
         case 'published': return 'Publicado';
         case 'draft': return 'Borrador';
+        case 'deleted': return 'Eliminado';
         case 'archived': return 'Archivado';
         default: return status;
     }
@@ -382,7 +383,7 @@ export const PublisherModpacksView: React.FC = () => {
                                                             Editar
                                                         </DropdownMenuItem>
 
-                                                        {['owner', 'admin'].includes(userRole) && (
+                                                        {(['owner', 'admin'].includes(userRole) && modpack.status !== 'deleted') && (
                                                             <DropdownMenuItem
                                                                 onClick={() => handleDeleteModpack(modpack)}
                                                                 className="text-destructive"
