@@ -320,7 +320,8 @@ fn is_modpack_file(relative_path: &str) -> bool {
     relative_path.starts_with("changelogs/")
 }
 
-/// Downloads and installs modpack files, reusing existing files when possible
+/// Enhanced download and install function that handles file moving when possible
+/// This implements the manifest-as-source-of-truth approach
 pub async fn download_and_install_files(
     instance: &MinecraftInstance,
     manifest: &ModpackManifest,
@@ -338,8 +339,12 @@ pub async fn download_and_install_files(
     let total_files = manifest.files.len();
     let mut files_processed = 0;
     let mut files_to_download = Vec::new();
+    let mut files_moved = 0;
 
-    // First pass: check which files need downloading
+    // Build hash-to-path map for efficient lookup of existing files
+    let hash_map = build_hash_to_path_map(&minecraft_dir)?;
+
+    // Process each file in the manifest
     for (index, file_entry) in manifest.files.iter().enumerate() {
         let target_path = minecraft_dir.join(&file_entry.path);
 
@@ -349,19 +354,52 @@ pub async fn download_and_install_files(
                 .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
         }
 
-        // Check if file already exists and has correct hash
+        // Check if file already exists at the correct location with correct hash
         if file_exists_with_correct_hash(&target_path, &file_entry.fileHash).await {
             files_processed += 1;
-            // Don't report progress for verification phase to avoid double counting
-        } else {
-            // File needs to be downloaded
-            files_to_download.push(file_entry);
+            continue;
         }
+
+        // Check if file exists elsewhere with the same hash
+        if let Some(existing_relative_path) = hash_map.get(&file_entry.fileHash) {
+            let existing_full_path = minecraft_dir.join(existing_relative_path);
+            
+            // Verify the existing file still has the correct hash (safety check)
+            if existing_full_path != target_path && 
+               file_exists_with_correct_hash(&existing_full_path, &file_entry.fileHash).await {
+                
+                // Move the file to the correct location
+                log::info!("[FileMove] Moving {} -> {}", 
+                    existing_relative_path.display(), 
+                    file_entry.path
+                );
+                
+                if let Err(e) = fs::rename(&existing_full_path, &target_path) {
+                    log::warn!("[FileMove] Failed to move file, will download instead: {}", e);
+                    files_to_download.push(file_entry);
+                } else {
+                    files_moved += 1;
+                    files_processed += 1;
+                    log::info!("[FileMove] Successfully moved file to {}", file_entry.path);
+                }
+                continue;
+            }
+        }
+
+        // File doesn't exist or doesn't have correct hash - needs download
+        files_to_download.push(file_entry);
     }
 
-    // Second pass: download needed files using the download manager
+    log::info!(
+        "[FileManager] Processed {} files: {} moved, {} need download",
+        files_processed,
+        files_moved,
+        files_to_download.len()
+    );
+
+    // Download remaining files that couldn't be moved
     if !files_to_download.is_empty() {
-        let download_manager = DownloadManager::with_concurrency(get_download_concurrency()); // Use configured concurrent downloads
+        let download_manager = DownloadManager::with_concurrency(get_download_concurrency());
 
         // Prepare files for parallel download
         let files_for_download: Vec<(String, PathBuf, String)> = files_to_download
@@ -410,13 +448,14 @@ pub async fn download_and_install_files(
 
         files_processed += files_to_download.len();
     } else {
-        // No files need downloading, just report that verification is complete
+        // No files need downloading, just report that processing is complete
         if let Some(ref tid) = task_id {
             update_task(
                 tid,
                 TaskStatus::Running,
                 100.0,
-                "Verificación completa - todos los archivos están actualizados",
+                &format!("Procesamiento completo - {} archivos organizados ({} movidos)", 
+                    files_processed, files_moved),
                 None,
             );
         }
@@ -426,8 +465,9 @@ pub async fn download_and_install_files(
         instance,
         "instance-finish-assets-download",
         &format!(
-            "Procesados {} archivos ({} descargados)",
+            "Procesados {} archivos ({} movidos, {} descargados)",
             files_processed,
+            files_moved,
             files_to_download.len()
         ),
     );
@@ -498,7 +538,7 @@ fn remove_empty_directories_safe(
             } else {
                 log::info!("[Cleanup] Removed empty directory: {}", subdir.display());
             }
-        } else {
+        } else if !is_directory_empty(&subdir)? {
             has_files = true;
         }
     }
@@ -569,6 +609,7 @@ async fn file_exists_with_correct_hash(file_path: &Path, expected_hash: &str) ->
 
 /// Validates modpack assets against the manifest
 /// Returns a list of files that need to be downloaded (missing, corrupt, or wrong size/hash)
+/// Now considers files that exist elsewhere with the same hash as valid (will be moved)
 pub async fn validate_modpack_assets(
     instance: &MinecraftInstance,
     manifest: &ModpackManifest,
@@ -592,6 +633,9 @@ pub async fn validate_modpack_assets(
             None,
         );
     }
+
+    // Build hash-to-path map for efficient lookup
+    let hash_map = build_hash_to_path_map(&minecraft_dir)?;
 
     let total_files = manifest.files.len();
 
@@ -617,11 +661,15 @@ pub async fn validate_modpack_assets(
 
         let mut needs_download = false;
 
-        // Check if file exists
+        // Check if file exists at the correct location
         if !file_path.exists() {
-            needs_download = true;
+            // Check if file exists elsewhere with the same hash
+            if !hash_map.contains_key(&file_entry.fileHash) {
+                needs_download = true;
+            }
+            // If hash exists elsewhere, it will be moved by download_and_install_files
         } else {
-            // Check file size
+            // File exists at correct location, check size and hash
             if let Ok(metadata) = fs::metadata(&file_path) {
                 if metadata.len() != file_entry.file.size {
                     needs_download = true;
@@ -634,7 +682,11 @@ pub async fn validate_modpack_assets(
             if !needs_download
                 && !file_exists_with_correct_hash(&file_path, &file_entry.fileHash).await
             {
-                needs_download = true;
+                // Check if correct hash exists elsewhere
+                if !hash_map.contains_key(&file_entry.fileHash) {
+                    needs_download = true;
+                }
+                // If hash exists elsewhere, it will be moved by download_and_install_files
             }
         }
 
@@ -1064,6 +1116,70 @@ fn compute_file_hash(contents: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+/// Builds a map of file hash -> path for all files in the instance directory
+/// This helps identify files that exist but may be in the wrong location
+fn build_hash_to_path_map(minecraft_dir: &Path) -> Result<HashMap<String, PathBuf>, String> {
+    let mut hash_map = HashMap::new();
+    
+    // Only scan modpack-related directories to avoid performance issues
+    let scan_dirs = vec![
+        "mods", "coremods", "scripts", "resources", "packmenu", 
+        "structures", "schematics", "config", "changelogs"
+    ];
+    
+    for dir_name in scan_dirs {
+        let dir_path = minecraft_dir.join(dir_name);
+        if dir_path.exists() && dir_path.is_dir() {
+            scan_directory_for_hashes(&dir_path, minecraft_dir, &mut hash_map)?;
+        }
+    }
+    
+    // Also check for standalone modpack files in the root
+    let standalone_files = vec!["manifest.json", "modlist.html"];
+    for file_name in standalone_files {
+        let file_path = minecraft_dir.join(file_name);
+        if file_path.exists() && file_path.is_file() {
+            if let Ok(contents) = fs::read(&file_path) {
+                let hash = compute_file_hash(&contents);
+                let relative_path = file_path.strip_prefix(minecraft_dir)
+                    .map_err(|_| "Failed to get relative path")?;
+                hash_map.insert(hash, relative_path.to_path_buf());
+            }
+        }
+    }
+    
+    log::info!("[HashMap] Built hash map with {} entries", hash_map.len());
+    Ok(hash_map)
+}
+
+/// Recursively scans a directory and adds file hashes to the map
+fn scan_directory_for_hashes(
+    dir: &Path, 
+    minecraft_dir: &Path, 
+    hash_map: &mut HashMap<String, PathBuf>
+) -> Result<(), String> {
+    let entries = fs::read_dir(dir)
+        .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?;
+    
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let path = entry.path();
+        
+        if path.is_file() {
+            if let Ok(contents) = fs::read(&path) {
+                let hash = compute_file_hash(&contents);
+                let relative_path = path.strip_prefix(minecraft_dir)
+                    .map_err(|_| "Failed to get relative path")?;
+                hash_map.insert(hash, relative_path.to_path_buf());
+            }
+        } else if path.is_dir() {
+            scan_directory_for_hashes(&path, minecraft_dir, hash_map)?;
+        }
+    }
+    
+    Ok(())
+}
+
 async fn download_file(url: &str, target_path: &Path) -> Result<(), String> {
     let client = reqwest::Client::new();
     let response = client
@@ -1464,5 +1580,61 @@ mod tests {
         let concurrency = get_download_concurrency();
         assert!(concurrency >= 1);
         assert!(concurrency <= 16); // Should be within reasonable bounds
+    }
+
+    #[test]
+    fn test_build_hash_to_path_map() {
+        // Create a temporary directory structure for testing
+        let temp_dir = std::env::temp_dir().join("hash_map_test");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        
+        // Create test files in mods directory
+        let mods_dir = temp_dir.join("mods");
+        let _ = std::fs::create_dir_all(&mods_dir);
+        
+        let test_content = b"test file content";
+        let test_file = mods_dir.join("test_mod.jar");
+        let _ = std::fs::write(&test_file, test_content);
+        
+        // Build hash map
+        let hash_map = build_hash_to_path_map(&temp_dir).unwrap();
+        
+        // Verify the file was found and mapped correctly
+        let expected_hash = compute_file_hash(test_content);
+        assert!(hash_map.contains_key(&expected_hash));
+        
+        let expected_path = PathBuf::from("mods/test_mod.jar");
+        assert_eq!(hash_map.get(&expected_hash), Some(&expected_path));
+        
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_is_modpack_file() {
+        // Test modpack directory files
+        assert!(is_modpack_file("mods/some_mod.jar"));
+        assert!(is_modpack_file("config/some_config.cfg"));
+        assert!(is_modpack_file("scripts/some_script.zs"));
+        assert!(is_modpack_file("resources/some_resource.png"));
+        
+        // Test files that should not be considered modpack files
+        assert!(!is_modpack_file("config/options.txt")); // Player options
+        assert!(!is_modpack_file("saves/world1/level.dat")); // World saves
+        assert!(!is_modpack_file("logs/latest.log")); // Game logs
+        
+        // Test standalone modpack files
+        assert!(is_modpack_file("manifest.json"));
+        assert!(is_modpack_file("modlist.html"));
+    }
+
+    #[test]
+    fn test_compute_file_hash() {
+        let test_content = b"Hello, World!";
+        let hash = compute_file_hash(test_content);
+        
+        // SHA1 hash of "Hello, World!" should be consistent
+        let expected_hash = "0a4d55a8d778e5022fab701977c5d840bbc486d0";
+        assert_eq!(hash, expected_hash);
     }
 }
