@@ -177,7 +177,8 @@ fn save_manifest_cache(
 }
 
 /// Cleans up obsolete files in the instance directory based on manifest comparison
-/// Only removes files that were previously managed by the launcher and are no longer needed
+/// Only removes files within modpack-controlled directories that are not in the current manifest
+/// This includes both obsolete files from previous manifests and manually added files
 pub fn cleanup_obsolete_files(
     instance: &MinecraftInstance,
     manifest: &ModpackManifest,
@@ -194,7 +195,7 @@ pub fn cleanup_obsolete_files(
     }
 
     log::info!(
-        "[Cleanup] Starting cleanup for instance: {}",
+        "[Cleanup] Starting enhanced cleanup for instance: {}",
         instance.instanceName
     );
 
@@ -204,69 +205,39 @@ pub fn cleanup_obsolete_files(
     // Get essential paths that should never be deleted
     let essential_paths = get_essential_minecraft_paths(&minecraft_dir, instance);
 
-    // Get current manifest files
+    // Get current manifest files for quick lookup
     let current_files: HashSet<String> = manifest.files.iter().map(|f| f.path.clone()).collect();
     log::info!(
         "[Cleanup] Current manifest has {} files",
         current_files.len()
     );
 
-    // Load previous manifest for comparison
-    let previous_manifest = load_previous_manifest(instance);
+    // Scan only controlled directories for existing files
+    let existing_controlled_files = scan_controlled_directories(&minecraft_dir)?;
+    
+    log::info!(
+        "[Cleanup] Found {} files in controlled directories",
+        existing_controlled_files.len()
+    );
 
-    // Determine files to clean based on manifest comparison
-    let files_to_clean = if let Some(prev_manifest) = previous_manifest {
-        let previous_files: HashSet<String> =
-            prev_manifest.files.iter().map(|f| f.path.clone()).collect();
-        log::info!(
-            "[Cleanup] Previous manifest had {} files",
-            previous_files.len()
-        );
+    // Determine files to clean: any file in controlled directories that is NOT in current manifest
+    let files_to_clean: HashSet<String> = existing_controlled_files
+        .difference(&current_files)
+        .cloned()
+        .collect();
 
-        // Only clean files that were in the previous manifest but not in current manifest
-        let obsolete_files: HashSet<String> =
-            previous_files.difference(&current_files).cloned().collect();
-        log::info!(
-            "[Cleanup] Found {} obsolete files to clean",
-            obsolete_files.len()
-        );
-
-        obsolete_files
-    } else {
-        // If no previous manifest, be more conservative - only clean files in specific modpack directories
-        log::warn!("[Cleanup] No previous manifest found, using conservative cleanup");
-
-        // Find files in modpack-specific directories that aren't in current manifest
-        let existing_files = find_files_recursively(&minecraft_dir)?;
-        let mut files_to_clean = HashSet::new();
-
-        for file_path in existing_files {
-            let relative_path = file_path
-                .strip_prefix(&minecraft_dir)
-                .map_err(|_| "Failed to get relative path")?
-                .to_string_lossy()
-                .replace("\\", "/"); // Normalize path separators
-
-            // Only consider files in known modpack directories for conservative cleanup
-            if is_modpack_file(&relative_path) && !current_files.contains(&relative_path) {
-                files_to_clean.insert(relative_path);
-            }
-        }
-
-        log::info!(
-            "[Cleanup] Conservative cleanup will process {} files",
-            files_to_clean.len()
-        );
-        files_to_clean
-    };
+    log::info!(
+        "[Cleanup] Found {} files to clean from controlled directories",
+        files_to_clean.len()
+    );
 
     // Process files for cleanup
     for file_to_clean in files_to_clean {
         let file_path = minecraft_dir.join(&file_to_clean);
 
-        // Double-check: never delete essential files
+        // Double-check: never delete essential files (though they shouldn't be in controlled dirs)
         if is_essential_path(&file_path, &essential_paths) {
-            log::warn!("[Cleanup] Skipping essential file: {}", file_to_clean);
+            log::warn!("[Cleanup] Skipping essential file in controlled directory: {}", file_to_clean);
             preserved_files.push(file_to_clean);
             continue;
         }
@@ -275,7 +246,7 @@ pub fn cleanup_obsolete_files(
         if file_path.exists() {
             match fs::remove_file(&file_path) {
                 Ok(_) => {
-                    log::info!("[Cleanup] Removed obsolete file: {}", file_to_clean);
+                    log::info!("[Cleanup] Removed file from controlled directory: {}", file_to_clean);
                     removed_files.push(file_to_clean);
                 }
                 Err(e) => {
@@ -285,8 +256,8 @@ pub fn cleanup_obsolete_files(
         }
     }
 
-    // Remove empty directories (but not essential ones)
-    remove_empty_directories_safe(&minecraft_dir, &essential_paths)?;
+    // Remove empty directories within controlled directories only
+    remove_empty_controlled_directories(&minecraft_dir)?;
 
     // Save current manifest for future comparisons
     if let Err(e) = save_manifest_cache(instance, manifest) {
@@ -294,7 +265,7 @@ pub fn cleanup_obsolete_files(
     }
 
     log::info!(
-        "[Cleanup] Cleanup complete: {} files removed, {} files preserved",
+        "[Cleanup] Enhanced cleanup complete: {} files removed, {} files preserved",
         removed_files.len(),
         preserved_files.len()
     );
@@ -318,6 +289,72 @@ fn is_modpack_file(relative_path: &str) -> bool {
     relative_path == "manifest.json" ||
     relative_path == "modlist.html" ||
     relative_path.starts_with("changelogs/")
+}
+
+/// Gets the list of directories that are controlled by the modpack manifest
+fn get_controlled_directories() -> Vec<&'static str> {
+    vec![
+        "mods",
+        "coremods", 
+        "scripts",
+        "resources",
+        "packmenu",
+        "structures",
+        "schematics",
+        "config",
+        "changelogs"
+    ]
+}
+
+/// Scans controlled directories for all files and returns their relative paths
+fn scan_controlled_directories(minecraft_dir: &Path) -> Result<HashSet<String>, String> {
+    let mut found_files = HashSet::new();
+    
+    for dir_name in get_controlled_directories() {
+        let dir_path = minecraft_dir.join(dir_name);
+        if dir_path.exists() && dir_path.is_dir() {
+            scan_directory_for_files(&dir_path, minecraft_dir, &mut found_files)?;
+        }
+    }
+    
+    // Also check for standalone modpack files in the root
+    let standalone_files = vec!["manifest.json", "modlist.html"];
+    for file_name in standalone_files {
+        let file_path = minecraft_dir.join(file_name);
+        if file_path.exists() && file_path.is_file() {
+            found_files.insert(file_name.to_string());
+        }
+    }
+    
+    log::info!("[ControlledScan] Found {} files in controlled directories", found_files.len());
+    Ok(found_files)
+}
+
+/// Recursively scans a directory and adds file paths to the set
+fn scan_directory_for_files(
+    dir: &Path, 
+    minecraft_dir: &Path, 
+    files_set: &mut HashSet<String>
+) -> Result<(), String> {
+    let entries = fs::read_dir(dir)
+        .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?;
+    
+    for entry in entries {
+        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let path = entry.path();
+        
+        if path.is_file() {
+            let relative_path = path.strip_prefix(minecraft_dir)
+                .map_err(|_| "Failed to get relative path")?
+                .to_string_lossy()
+                .replace("\\", "/"); // Normalize path separators
+            files_set.insert(relative_path);
+        } else if path.is_dir() {
+            scan_directory_for_files(&path, minecraft_dir, files_set)?;
+        }
+    }
+    
+    Ok(())
 }
 
 /// Enhanced download and install function that handles file moving when possible
@@ -497,49 +534,61 @@ fn find_files_recursively(dir: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(files)
 }
 
-fn remove_empty_directories_safe(
-    dir: &Path,
-    essential_paths: &HashSet<PathBuf>,
-) -> Result<(), String> {
-    // Don't remove essential directories
-    if is_essential_path(dir, essential_paths) {
-        return Ok(());
+fn remove_empty_controlled_directories(minecraft_dir: &Path) -> Result<(), String> {
+    // Only process controlled directories to avoid affecting essential Minecraft directories
+    for dir_name in get_controlled_directories() {
+        let dir_path = minecraft_dir.join(dir_name);
+        if dir_path.exists() && dir_path.is_dir() {
+            remove_empty_directories_in_tree(&dir_path)?;
+            
+            // Check if the top-level controlled directory is now empty and remove it
+            if is_directory_empty(&dir_path)? {
+                if let Err(e) = fs::remove_dir(&dir_path) {
+                    log::warn!(
+                        "[Cleanup] Failed to remove empty controlled directory {}: {}",
+                        dir_path.display(),
+                        e
+                    );
+                } else {
+                    log::info!("[Cleanup] Removed empty controlled directory: {}", dir_path.display());
+                }
+            }
+        }
     }
+    
+    Ok(())
+}
 
+fn remove_empty_directories_in_tree(dir: &Path) -> Result<(), String> {
     let entries = fs::read_dir(dir)
         .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?;
 
-    let mut has_files = false;
     let mut subdirs = Vec::new();
 
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let path = entry.path();
 
-        if path.is_file() {
-            has_files = true;
-        } else if path.is_dir() {
+        if path.is_dir() {
             subdirs.push(path);
         }
     }
 
     // Recursively process subdirectories
     for subdir in subdirs {
-        remove_empty_directories_safe(&subdir, essential_paths)?;
+        remove_empty_directories_in_tree(&subdir)?;
 
-        // Check if subdirectory is now empty and not essential
-        if !is_essential_path(&subdir, essential_paths) && is_directory_empty(&subdir)? {
+        // Check if subdirectory is now empty
+        if is_directory_empty(&subdir)? {
             if let Err(e) = fs::remove_dir(&subdir) {
                 log::warn!(
-                    "[Cleanup] Failed to remove empty directory {}: {}",
+                    "[Cleanup] Failed to remove empty subdirectory {}: {}",
                     subdir.display(),
                     e
                 );
             } else {
-                log::info!("[Cleanup] Removed empty directory: {}", subdir.display());
+                log::info!("[Cleanup] Removed empty subdirectory: {}", subdir.display());
             }
-        } else if !is_directory_empty(&subdir)? {
-            has_files = true;
         }
     }
 
@@ -1626,6 +1675,98 @@ mod tests {
         // Test standalone modpack files
         assert!(is_modpack_file("manifest.json"));
         assert!(is_modpack_file("modlist.html"));
+    }
+
+    #[test]
+    fn test_get_controlled_directories() {
+        let controlled_dirs = get_controlled_directories();
+        
+        // Ensure key directories are included
+        assert!(controlled_dirs.contains(&"mods"));
+        assert!(controlled_dirs.contains(&"config"));
+        assert!(controlled_dirs.contains(&"resources"));
+        assert!(controlled_dirs.contains(&"scripts"));
+        
+        // Ensure we don't control essential Minecraft directories
+        assert!(!controlled_dirs.contains(&"saves"));
+        assert!(!controlled_dirs.contains(&"logs"));
+        assert!(!controlled_dirs.contains(&"libraries"));
+        assert!(!controlled_dirs.contains(&"versions"));
+    }
+
+    #[test]
+    fn test_scan_controlled_directories() {
+        // Create a temporary directory structure for testing
+        let temp_dir = std::env::temp_dir().join("controlled_scan_test");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        
+        // Create test files in controlled directories
+        let mods_dir = temp_dir.join("mods");
+        let config_dir = temp_dir.join("config");
+        let saves_dir = temp_dir.join("saves"); // This should NOT be scanned
+        
+        let _ = std::fs::create_dir_all(&mods_dir);
+        let _ = std::fs::create_dir_all(&config_dir);
+        let _ = std::fs::create_dir_all(&saves_dir);
+        
+        // Create test files
+        let _ = std::fs::write(mods_dir.join("test_mod.jar"), "test content");
+        let _ = std::fs::write(config_dir.join("test_config.cfg"), "test config");
+        let _ = std::fs::write(saves_dir.join("world.dat"), "world data"); // Should be ignored
+        let _ = std::fs::write(temp_dir.join("manifest.json"), "manifest"); // Standalone file
+        
+        // Scan controlled directories
+        let controlled_files = scan_controlled_directories(&temp_dir).unwrap();
+        
+        // Verify correct files were found
+        assert!(controlled_files.contains("mods/test_mod.jar"));
+        assert!(controlled_files.contains("config/test_config.cfg"));
+        assert!(controlled_files.contains("manifest.json"));
+        
+        // Verify files in non-controlled directories were ignored
+        assert!(!controlled_files.contains("saves/world.dat"));
+        
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_enhanced_cleanup_logic_simulation() {
+        // This test simulates the enhanced cleanup logic without file I/O
+        
+        // Simulate current manifest files
+        let current_files: HashSet<String> = [
+            "mods/mod_a.jar".to_string(),
+            "mods/mod_b.jar".to_string(),
+            "config/config_a.cfg".to_string(),
+        ].iter().cloned().collect();
+        
+        // Simulate existing files in controlled directories (including manual additions)
+        let existing_controlled_files: HashSet<String> = [
+            "mods/mod_a.jar".to_string(),      // In manifest (keep)
+            "mods/mod_b.jar".to_string(),      // In manifest (keep)
+            "mods/old_mod.jar".to_string(),    // Not in manifest (remove - was in old manifest)
+            "mods/user_mod.jar".to_string(),   // Not in manifest (remove - manually added)
+            "config/config_a.cfg".to_string(), // In manifest (keep)
+            "config/old_config.cfg".to_string(), // Not in manifest (remove)
+        ].iter().cloned().collect();
+        
+        // Calculate files to clean (any controlled file not in current manifest)
+        let files_to_clean: HashSet<String> = existing_controlled_files
+            .difference(&current_files)
+            .cloned()
+            .collect();
+        
+        // Verify cleanup targets
+        assert_eq!(files_to_clean.len(), 3);
+        assert!(files_to_clean.contains("mods/old_mod.jar"));
+        assert!(files_to_clean.contains("mods/user_mod.jar"));
+        assert!(files_to_clean.contains("config/old_config.cfg"));
+        
+        // Verify kept files
+        assert!(!files_to_clean.contains("mods/mod_a.jar"));
+        assert!(!files_to_clean.contains("mods/mod_b.jar"));
+        assert!(!files_to_clean.contains("config/config_a.cfg"));
     }
 
     #[test]
