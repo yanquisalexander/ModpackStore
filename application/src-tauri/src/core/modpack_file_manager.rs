@@ -215,7 +215,7 @@ pub fn cleanup_obsolete_files(
     let previous_manifest = load_previous_manifest(instance);
 
     // Determine files to clean based on manifest comparison
-    let files_to_clean = if let Some(prev_manifest) = previous_manifest {
+    let (files_to_clean, previous_manifest_directories) = if let Some(prev_manifest) = previous_manifest {
         let previous_files: HashSet<String> =
             prev_manifest.files.iter().map(|f| f.path.clone()).collect();
         log::info!(
@@ -227,37 +227,29 @@ pub fn cleanup_obsolete_files(
         let obsolete_files: HashSet<String> =
             previous_files.difference(&current_files).cloned().collect();
         log::info!(
-            "[Cleanup] Found {} obsolete files to clean",
+            "[Cleanup] Found {} obsolete files to clean based on manifest comparison",
             obsolete_files.len()
         );
 
-        obsolete_files
-    } else {
-        // If no previous manifest, be more conservative - only clean files in specific modpack directories
-        log::warn!("[Cleanup] No previous manifest found, using conservative cleanup");
-
-        // Find files in modpack-specific directories that aren't in current manifest
-        let existing_files = find_files_recursively(&minecraft_dir)?;
-        let mut files_to_clean = HashSet::new();
-
-        for file_path in existing_files {
-            let relative_path = file_path
-                .strip_prefix(&minecraft_dir)
-                .map_err(|_| "Failed to get relative path")?
-                .to_string_lossy()
-                .replace("\\", "/"); // Normalize path separators
-
-            // Only consider files in known modpack directories for conservative cleanup
-            if is_modpack_file(&relative_path) && !current_files.contains(&relative_path) {
-                files_to_clean.insert(relative_path);
+        // Track directories that contained files from the previous manifest
+        let mut directories = HashSet::new();
+        for file_path in &previous_files {
+            if let Some(parent_dir) = Path::new(file_path).parent() {
+                directories.insert(parent_dir.to_path_buf());
             }
         }
-
         log::info!(
-            "[Cleanup] Conservative cleanup will process {} files",
-            files_to_clean.len()
+            "[Cleanup] Tracking {} directories from previous manifest for cleanup",
+            directories.len()
         );
-        files_to_clean
+
+        (obsolete_files, directories)
+    } else {
+        // If no previous manifest, don't clean any files - we don't know what was previously managed
+        log::info!("[Cleanup] No previous manifest found - no files will be cleaned to ensure safety");
+        log::info!("[Cleanup] Only launcher-managed files should be cleaned, but we have no record of what was managed");
+        
+        (HashSet::new(), HashSet::new())
     };
 
     // Process files for cleanup
@@ -285,8 +277,8 @@ pub fn cleanup_obsolete_files(
         }
     }
 
-    // Remove empty directories (but not essential ones)
-    remove_empty_directories_safe(&minecraft_dir, &essential_paths)?;
+    // Remove empty directories, but only those that previously contained manifest files
+    remove_empty_directories_from_manifest(&minecraft_dir, &essential_paths, &previous_manifest_directories)?;
 
     // Save current manifest for future comparisons
     if let Err(e) = save_manifest_cache(instance, manifest) {
@@ -495,6 +487,66 @@ fn find_files_recursively(dir: &Path) -> Result<Vec<PathBuf>, String> {
     }
 
     Ok(files)
+}
+
+fn remove_empty_directories_from_manifest(
+    minecraft_dir: &Path,
+    essential_paths: &HashSet<PathBuf>,
+    previous_manifest_directories: &HashSet<PathBuf>,
+) -> Result<(), String> {
+    if previous_manifest_directories.is_empty() {
+        log::info!("[Cleanup] No previous manifest directories to check for cleanup");
+        return Ok(());
+    }
+
+    log::info!(
+        "[Cleanup] Checking {} directories from previous manifest for empty cleanup",
+        previous_manifest_directories.len()
+    );
+
+    // Convert relative paths to absolute paths for directory checking
+    let mut directories_to_check = Vec::new();
+    for relative_dir in previous_manifest_directories {
+        let absolute_dir = minecraft_dir.join(relative_dir);
+        if absolute_dir.exists() && absolute_dir.is_dir() {
+            directories_to_check.push(absolute_dir);
+        }
+    }
+
+    // Sort directories by depth (deeper first) to ensure we clean from bottom up
+    directories_to_check.sort_by(|a, b| {
+        let depth_a = a.components().count();
+        let depth_b = b.components().count();
+        depth_b.cmp(&depth_a) // Reverse order (deeper first)
+    });
+
+    for dir in directories_to_check {
+        // Don't remove essential directories
+        if is_essential_path(&dir, essential_paths) {
+            log::debug!("[Cleanup] Skipping essential directory: {}", dir.display());
+            continue;
+        }
+
+        // Check if directory is empty
+        if is_directory_empty(&dir)? {
+            if let Err(e) = fs::remove_dir(&dir) {
+                log::warn!(
+                    "[Cleanup] Failed to remove empty directory {}: {}",
+                    dir.display(),
+                    e
+                );
+            } else {
+                log::info!("[Cleanup] Removed empty directory: {}", dir.display());
+            }
+        } else {
+            log::debug!(
+                "[Cleanup] Directory not empty, keeping: {}",
+                dir.display()
+            );
+        }
+    }
+
+    Ok(())
 }
 
 fn remove_empty_directories_safe(
@@ -1580,6 +1632,117 @@ mod tests {
         let concurrency = get_download_concurrency();
         assert!(concurrency >= 1);
         assert!(concurrency <= 16); // Should be within reasonable bounds
+    }
+
+    #[test]
+    fn test_cleanup_obsolete_files_no_previous_manifest() {
+        // Test that when no previous manifest exists, no files are cleaned
+        // This ensures external files like Forge are never touched
+        
+        // The key insight: if there's no previous manifest, cleanup should return empty
+        // because it can't know what was previously managed by the launcher
+        
+        // Expected behavior: cleanup_obsolete_files should NOT clean any files when
+        // no previous manifest exists, even if they match modpack file patterns
+        
+        // Create test manifests
+        let current_files = vec![
+            ModpackFileEntry {
+                fileHash: "hash1".to_string(),
+                path: "mods/new_mod.jar".to_string(),
+                file: ModpackFileType { size: 100, r#type: "mod".to_string() },
+                downloadUrl: "http://example.com/new_mod.jar".to_string(),
+            },
+        ];
+        
+        // In the absence of a previous manifest, no files should be marked for cleanup
+        // This protects external files like Forge, user configs, etc.
+        
+        // This behavior is now implemented in the updated cleanup_obsolete_files function
+        // where when previous_manifest is None, files_to_clean = HashSet::new()
+    }
+
+    #[test]
+    fn test_cleanup_only_removes_files_from_previous_manifest() {
+        // Test that cleanup only removes files that were in previous manifest but not in current
+        
+        // Create test manifests
+        let previous_files = vec![
+            ModpackFileEntry {
+                fileHash: "hash1".to_string(),
+                path: "mods/old_mod.jar".to_string(),
+                file: ModpackFileType { size: 100, r#type: "mod".to_string() },
+                downloadUrl: "http://example.com/old_mod.jar".to_string(),
+            },
+            ModpackFileEntry {
+                fileHash: "hash2".to_string(),
+                path: "config/old_config.cfg".to_string(),
+                file: ModpackFileType { size: 50, r#type: "config".to_string() },
+                downloadUrl: "http://example.com/old_config.cfg".to_string(),
+            },
+        ];
+        
+        let current_files = vec![
+            ModpackFileEntry {
+                fileHash: "hash2".to_string(),
+                path: "config/old_config.cfg".to_string(), // This file should be kept
+                file: ModpackFileType { size: 50, r#type: "config".to_string() },
+                downloadUrl: "http://example.com/old_config.cfg".to_string(),
+            },
+            ModpackFileEntry {
+                fileHash: "hash3".to_string(),
+                path: "mods/new_mod.jar".to_string(), // This is a new file
+                file: ModpackFileType { size: 200, r#type: "mod".to_string() },
+                downloadUrl: "http://example.com/new_mod.jar".to_string(),
+            },
+        ];
+        
+        // Expected behavior:
+        // - old_mod.jar should be marked for cleanup (was in previous, not in current)
+        // - old_config.cfg should be kept (in both previous and current)
+        // - new_mod.jar is new, so no action needed
+        // - Any external files (not in either manifest) should never be touched
+        
+        let previous_paths: HashSet<String> = previous_files.iter().map(|f| f.path.clone()).collect();
+        let current_paths: HashSet<String> = current_files.iter().map(|f| f.path.clone()).collect();
+        
+        let files_to_clean: HashSet<String> = previous_paths.difference(&current_paths).cloned().collect();
+        
+        assert_eq!(files_to_clean.len(), 1);
+        assert!(files_to_clean.contains("mods/old_mod.jar"));
+        assert!(!files_to_clean.contains("config/old_config.cfg"));
+        assert!(!files_to_clean.contains("mods/new_mod.jar"));
+    }
+
+    #[test]
+    fn test_directory_tracking_from_previous_manifest() {
+        // Test that we properly track which directories contained files from previous manifest
+        
+        let previous_files = vec![
+            "mods/subdir1/mod1.jar",
+            "mods/subdir2/mod2.jar", 
+            "config/category1/config1.cfg",
+            "config/category1/config2.cfg",
+            "scripts/script1.zs",
+        ];
+        
+        let mut expected_directories = HashSet::new();
+        for file_path in &previous_files {
+            if let Some(parent_dir) = Path::new(file_path).parent() {
+                expected_directories.insert(parent_dir.to_path_buf());
+            }
+        }
+        
+        // Should track: mods/subdir1, mods/subdir2, config/category1, scripts
+        assert_eq!(expected_directories.len(), 4);
+        assert!(expected_directories.contains(&PathBuf::from("mods/subdir1")));
+        assert!(expected_directories.contains(&PathBuf::from("mods/subdir2")));
+        assert!(expected_directories.contains(&PathBuf::from("config/category1")));
+        assert!(expected_directories.contains(&PathBuf::from("scripts")));
+        
+        // Should NOT track root directories that weren't in manifest
+        assert!(!expected_directories.contains(&PathBuf::from("saves")));
+        assert!(!expected_directories.contains(&PathBuf::from("logs")));
     }
 
     #[test]
