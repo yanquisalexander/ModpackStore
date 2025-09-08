@@ -17,6 +17,7 @@ interface InstallButtonProps {
     modpackId: string;
     modpackName: string;
     localInstances: TauriCommandReturns["get_instances_by_modpack_id"];
+    acquisitionMethod?: 'free' | 'paid' | 'password' | 'twitch_sub';
     isPasswordProtected?: boolean;
     isPaid?: boolean;
     isFree?: boolean;
@@ -40,6 +41,7 @@ export const InstallButton = ({
     modpackId,
     modpackName,
     localInstances,
+    acquisitionMethod = 'free',
     isPasswordProtected = false,
     isPaid = false,
     isFree = true,
@@ -104,7 +106,7 @@ export const InstallButton = ({
         }
     };
 
-    const requiresAcquisition = isPasswordProtected || isPaid || requiresTwitchSubscription;
+    const requiresAcquisition = acquisitionMethod !== 'free';
 
     const handleInstallClick = () => {
         if (requiresAcquisition && !hasAccess) {
@@ -220,10 +222,12 @@ export const InstallButton = ({
         if (isCheckingAccess) return "Verificando acceso...";
         if (isCurrentlyInstalling) return "Instalando...";
         if (requiresAcquisition && !hasAccess) {
-            if (isPaid && !isFree) return `Comprar ($${price})`;
-            if (isPasswordProtected) return "Acceder";
-            if (requiresTwitchSubscription) return "Verificar Suscripción";
-            return "Obtener Acceso";
+            switch (acquisitionMethod) {
+                case 'paid': return `Comprar ($${price})`;
+                case 'password': return "Acceder";
+                case 'twitch_sub': return "Verificar Suscripción";
+                default: return "Obtener Acceso";
+            }
         }
         return hasLocalInstances ? "Instalar" : "Instalar";
     };
@@ -280,6 +284,7 @@ export const InstallButton = ({
                 modpack={{
                     id: modpackId,
                     name: modpackName,
+                    acquisitionMethod: acquisitionMethod,
                     requiresPassword: isPasswordProtected,
                     isPaid: isPaid,
                     isFree: isFree,

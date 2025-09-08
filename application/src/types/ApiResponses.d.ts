@@ -25,6 +25,7 @@ export interface ModpackDataOverview {
     updatedAt?: Date;
     creatorUser?: CreatorUser;
     publisher?: Publisher;
+    acquisitionMethod?: 'free' | 'paid' | 'password' | 'twitch_sub';
     isPasswordProtected?: boolean;
     requiresTwitchSubscription?: boolean;
     twitchCreatorIds?: string[];

@@ -632,6 +632,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                         modpackId={modpackId}
                                         modpackName={modpackData.name!}
                                         localInstances={localInstancesOfModpack}
+                                        acquisitionMethod={modpackData.acquisitionMethod}
                                         isPasswordProtected={modpackData.isPasswordProtected}
                                         isPaid={modpackData.isPaid}
                                         isFree={modpackData.isFree}
