@@ -1384,13 +1384,13 @@ pub async fn cleanup_instance_files(instance_id: String) -> Result<Vec<String>, 
     // Fetch current manifest
     let manifest = fetch_modpack_manifest(modpack_id, version_id).await?;
 
-    log::info!("[Cleanup] Starting safe cleanup process");
+    log::info!("[Cleanup] Starting strict mods cleanup process");
 
-    // Cleanup obsolete files using improved method
-    let removed_files = cleanup_obsolete_files(&instance, &manifest)?;
+    // Use strict mods cleanup instead of the old method
+    let removed_files = strict_mods_cleanup(&instance, &manifest)?;
 
     log::info!(
-        "[Cleanup] Cleanup completed successfully, {} files removed",
+        "[Cleanup] Strict mods cleanup completed successfully, {} files removed",
         removed_files.len()
     );
 
