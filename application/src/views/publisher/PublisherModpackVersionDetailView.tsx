@@ -237,7 +237,11 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 type: string;
             }>;
         }>;
-        selectedFiles: string[];
+        selectedFiles: Array<{
+            versionId: string;
+            fileHash: string;
+            path: string;
+        }>;
         loading: boolean;
     }>({
         open: false,
@@ -544,28 +548,68 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         }
     };
 
-    const toggleFileSelection = (fileHash: string) => {
+    const toggleFileSelection = (versionId: string, fileHash: string, path: string) => {
+        const fileIdentifier = { versionId, fileHash, path };
         setReuseDialog(prev => ({
             ...prev,
-            selectedFiles: prev.selectedFiles.includes(fileHash)
-                ? prev.selectedFiles.filter(hash => hash !== fileHash)
-                : [...prev.selectedFiles, fileHash]
+            selectedFiles: prev.selectedFiles.some(f => f.versionId === versionId && f.fileHash === fileHash && f.path === path)
+                ? prev.selectedFiles.filter(f => !(f.versionId === versionId && f.fileHash === fileHash && f.path === path))
+                : [...prev.selectedFiles, fileIdentifier]
         }));
     };
 
     const toggleFolderSelection = (folderPath: string, fileHashes: string[]) => {
-        const allSelected = fileHashes.every(hash => reuseDialog.selectedFiles.includes(hash));
+        // For folder selection, we need to find all files in the folder across all versions
+        const folderFiles: Array<{ versionId: string, fileHash: string, path: string }> = [];
+
+        reuseDialog.previousFiles.forEach(versionData => {
+            versionData.files.forEach(file => {
+                if (fileHashes.includes(file.fileHash)) {
+                    folderFiles.push({
+                        versionId: versionData.versionId,
+                        fileHash: file.fileHash,
+                        path: file.path
+                    });
+                }
+            });
+        });
+
+        const allSelected = folderFiles.every(file =>
+            reuseDialog.selectedFiles.some(f => f.fileHash === file.fileHash && f.versionId === file.versionId)
+        );
+
         setReuseDialog(prev => ({
             ...prev,
             selectedFiles: allSelected
-                ? prev.selectedFiles.filter(hash => !fileHashes.includes(hash))
-                : [...new Set([...prev.selectedFiles, ...fileHashes])]
+                ? prev.selectedFiles.filter(f =>
+                    !folderFiles.some(ff =>
+                        ff.versionId === f.versionId &&
+                        ff.fileHash === f.fileHash &&
+                        ff.path === f.path
+                    )
+                )
+                : [...prev.selectedFiles, ...folderFiles.filter(ff =>
+                    !prev.selectedFiles.some(f =>
+                        f.versionId === ff.versionId &&
+                        f.fileHash === ff.fileHash &&
+                        f.path === ff.path
+                    )
+                )]
         }));
     };
 
     const selectAllFiles = () => {
-        const allFileHashes = reuseDialog.previousFiles.flatMap(version => version.files.map(file => file.fileHash));
-        setReuseDialog(prev => ({ ...prev, selectedFiles: [...new Set(allFileHashes)] }));
+        const allFiles: Array<{ versionId: string, fileHash: string, path: string }> = [];
+        reuseDialog.previousFiles.forEach(versionData => {
+            versionData.files.forEach(file => {
+                allFiles.push({
+                    versionId: versionData.versionId,
+                    fileHash: file.fileHash,
+                    path: file.path
+                });
+            });
+        });
+        setReuseDialog(prev => ({ ...prev, selectedFiles: allFiles }));
     };
 
     const deselectAllFiles = () => {
@@ -599,7 +643,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     };
 
     const confirmFileReuse = async () => {
-        const uniqueFileHashes = [...new Set(reuseDialog.selectedFiles)];
+        const uniqueFileHashes = [...new Set(reuseDialog.selectedFiles.map(f => f.fileHash))];
         if (uniqueFileHashes.length === 0) {
             toast.error('Selecciona al menos un archivo para reutilizar');
             return;
@@ -637,8 +681,12 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         expandedFolders: { [key: string]: boolean };
         setExpandedFolders: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>;
         path: string;
-        selectedFiles: string[];
-        onToggleSelection: (fileHash: string) => void;
+        selectedFiles: Array<{
+            versionId: string;
+            fileHash: string;
+            path: string;
+        }>;
+        onToggleSelection: (versionId: string, fileHash: string, path: string) => void;
         onToggleFolderSelection: (folderPath: string, fileHashes: string[]) => void;
         versionId?: string; // Add versionId for identification
     }> = ({ name, node, expandedFolders, setExpandedFolders, path, selectedFiles, onToggleSelection, onToggleFolderSelection, versionId }) => {
@@ -660,8 +708,12 @@ const PublisherModpackVersionDetailView: React.FC = () => {
             };
 
             const folderFileHashes = getAllFileHashes(node);
-            const allSelected = folderFileHashes.length > 0 && folderFileHashes.every(hash => selectedFiles.includes(hash));
-            const someSelected = folderFileHashes.some(hash => selectedFiles.includes(hash));
+            const allSelected = folderFileHashes.length > 0 && folderFileHashes.every(hash =>
+                selectedFiles.some(f => f.fileHash === hash && f.versionId === versionId)
+            );
+            const someSelected = folderFileHashes.some(hash =>
+                selectedFiles.some(f => f.fileHash === hash && f.versionId === versionId)
+            );
 
             const handleFolderCheckboxChange = () => {
                 onToggleFolderSelection(path, folderFileHashes);
@@ -716,7 +768,11 @@ const PublisherModpackVersionDetailView: React.FC = () => {
 
         // It's a file
         const fileData = node.data;
-        const isSelected = selectedFiles.includes(fileData.fileHash);
+        const isSelected = selectedFiles.some(f =>
+            f.versionId === versionId &&
+            f.fileHash === fileData.fileHash &&
+            f.path === fileData.path
+        );
 
         return (
             <div className="flex items-center justify-between p-1 ml-4 group hover:bg-gray-100 rounded">
@@ -724,7 +780,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => onToggleSelection(fileData.fileHash)}
+                        onChange={() => onToggleSelection(versionId!, fileData.fileHash, fileData.path)}
                         className="mr-2 rounded border-gray-300 flex-shrink-0"
                     />
                     <div className="w-4 mr-2 flex-shrink-0"></div> {/* Indent spacer */}
@@ -1078,8 +1134,20 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                 {reuseDialog.selectedFiles.length} archivo(s) seleccionado(s)
                             </div>
                             {(() => {
-                                const allFileHashes = reuseDialog.previousFiles.flatMap(version => version.files.map(file => file.fileHash));
-                                const allSelected = allFileHashes.length > 0 && allFileHashes.every(hash => reuseDialog.selectedFiles.includes(hash));
+                                const allFiles = reuseDialog.previousFiles.flatMap(version =>
+                                    version.files.map(file => ({
+                                        versionId: version.versionId,
+                                        fileHash: file.fileHash,
+                                        path: file.path
+                                    }))
+                                );
+                                const allSelected = allFiles.length > 0 && allFiles.every(file =>
+                                    reuseDialog.selectedFiles.some(f =>
+                                        f.versionId === file.versionId &&
+                                        f.fileHash === file.fileHash &&
+                                        f.path === file.path
+                                    )
+                                );
                                 const noneSelected = reuseDialog.selectedFiles.length === 0;
                                 return (
                                     <>
@@ -1106,9 +1174,9 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                             </Button>
                             <Button
                                 onClick={confirmFileReuse}
-                                disabled={new Set(reuseDialog.selectedFiles).size === 0}
+                                disabled={reuseDialog.selectedFiles.length === 0}
                             >
-                                Reutilizar {new Set(reuseDialog.selectedFiles).size} archivo(s)
+                                Reutilizar {reuseDialog.selectedFiles.length} archivo(s)
                             </Button>
                         </div>
                     </DialogFooter>
