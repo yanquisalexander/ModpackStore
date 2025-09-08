@@ -4,9 +4,11 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::command;
-use tauri_plugin_http::reqwest;
+// use tauri_plugin_http::reqwest;
 
 // Función auxiliar para obtener (y crear si no existe) el directorio de íconos.
+// NOTA: Esta función está comentada porque por ahora no descargamos íconos personalizados
+/*
 fn get_icons_dir() -> Result<PathBuf, String> {
     // Usamos el directorio de datos locales de la aplicación para almacenar los íconos.
     let data_dir =
@@ -16,6 +18,7 @@ fn get_icons_dir() -> Result<PathBuf, String> {
         .map_err(|e| format!("No se pudo crear el directorio de íconos: {}", e))?;
     Ok(icons_dir)
 }
+*/
 
 #[command]
 pub async fn create_shortcut(instance_id: String) -> Result<String, String> {
@@ -34,7 +37,10 @@ pub async fn create_shortcut(instance_id: String) -> Result<String, String> {
     // Usar el nombre de la instancia para el archivo de acceso directo.
     let shortcut_name = &instance.instanceName;
 
-    // 2. Manejar el ícono: Descargar desde URL si es necesario.
+    // 2. Manejar el ícono: Por ahora usaremos el ícono predeterminado del ejecutable
+    // TODO: Implementar descarga y uso de íconos personalizados más tarde
+    // La lógica de descarga de íconos está comentada para evitar errores
+    /*
     let mut downloaded_icon_path: Option<PathBuf> = None;
     if let Some(ref icon_url) = instance.iconUrl {
         if !icon_url.is_empty() {
@@ -74,27 +80,30 @@ pub async fn create_shortcut(instance_id: String) -> Result<String, String> {
 
     // Decidir qué ruta de ícono usar: la descargada tiene prioridad.
     let specific_icon_path = downloaded_icon_path.as_deref();
+    */
+    let icon_path = exe_path.clone();
 
     #[cfg(target_os = "windows")]
     {
         let lnk_path = desktop_path.join(format!("{}.lnk", shortcut_name));
-        // Si no hay un ícono específico, usar el del propio ejecutable como fallback.
-        let icon_to_use = specific_icon_path.or(Some(&exe_path));
-        create_windows_shortcut(&exe_path, &lnk_path, &instance_id, icon_to_use)?;
+        create_windows_shortcut(
+            &exe_path,
+            &lnk_path,
+            &instance_id,
+            Some(icon_path.as_path()),
+        )?;
         return Ok(lnk_path.to_string_lossy().to_string());
     }
 
     #[cfg(target_os = "linux")]
     {
         let desktop_file = desktop_path.join(format!("{}.desktop", shortcut_name));
-        // Si no hay un ícono específico, usar el del propio ejecutable como fallback.
-        let icon_to_use = specific_icon_path.or(Some(&exe_path));
         create_linux_shortcut(
             &exe_path,
             &desktop_file,
             &instance_id,
             shortcut_name,
-            icon_to_use,
+            Some(icon_path.as_path()),
         )?;
         return Ok(desktop_file.to_string_lossy().to_string());
     }
@@ -102,13 +111,12 @@ pub async fn create_shortcut(instance_id: String) -> Result<String, String> {
     #[cfg(target_os = "macos")]
     {
         let app_bundle_path = desktop_path.join(format!("{}.app", shortcut_name));
-        // Para macOS, la función create_macos_shortcut ya tiene un fallback interno a "AppIcon.icns".
         create_macos_shortcut(
             &exe_path,
             &app_bundle_path,
             &instance_id,
             shortcut_name,
-            specific_icon_path,
+            Some(icon_path.as_path()),
         )?;
         return Ok(app_bundle_path.to_string_lossy().to_string());
     }
@@ -130,10 +138,10 @@ fn create_windows_shortcut(
     let mut builder = ShellLink::new(exe).map_err(|e| format!("Error creando el enlace: {}", e))?;
     builder.set_arguments(Some(format!("--instance={}", instance_id)));
 
-    if let Some(icon_path) = icon {
-        if let Some(icon_str) = icon_path.to_str() {
-            builder.set_icon_location(Some(icon_str.to_string()));
-        }
+    // Usar el ícono proporcionado o el del ejecutable como fallback
+    let icon_to_use = icon.unwrap_or(exe);
+    if let Some(icon_str) = icon_to_use.to_str() {
+        builder.set_icon_location(Some(icon_str.to_string()));
     }
 
     builder
@@ -150,8 +158,10 @@ fn create_linux_shortcut(
     name: &str,
     icon: Option<&Path>,
 ) -> Result<(), String> {
-    // Usar la ruta del ícono si está disponible, de lo contrario un valor por defecto.
-    let icon_entry = icon.map_or("modstore".to_string(), |p| p.to_string_lossy().to_string());
+    // Usar el ícono proporcionado o un ícono genérico del sistema
+    let icon_entry = icon
+        .and_then(|p| p.to_str())
+        .unwrap_or("application-x-executable");
 
     let content = format!(
         "[Desktop Entry]\n\
@@ -193,12 +203,9 @@ fn create_macos_shortcut(
 ) -> Result<(), String> {
     let contents_path = app_bundle.join("Contents");
     let macos_path = contents_path.join("MacOS");
-    let resources_path = contents_path.join("Resources");
 
     fs::create_dir_all(&macos_path)
         .map_err(|e| format!("Error creando la estructura del bundle: {}", e))?;
-    fs::create_dir_all(&resources_path)
-        .map_err(|e| format!("Error creando la carpeta de recursos: {}", e))?;
 
     // 1. Crear el script lanzador
     let script_path = macos_path.join(name);
@@ -223,20 +230,7 @@ fn create_macos_shortcut(
         fs::set_permissions(&script_path, perms).map_err(|e| e.to_string())?;
     }
 
-    // 2. Copiar el ícono si existe
-    let icon_filename = if let Some(icon_path) = icon {
-        let filename = icon_path.file_name().unwrap_or_default();
-        let dest_icon_path = resources_path.join(filename);
-        fs::copy(icon_path, &dest_icon_path)
-            .map_err(|e| format!("No se pudo copiar el ícono: {}", e))?;
-        filename.to_string_lossy().to_string()
-    } else {
-        // Un ícono por defecto si no se proporciona uno.
-        // macOS buscará un .icns con este nombre en Resources.
-        "AppIcon.icns".to_string()
-    };
-
-    // 3. Crear el archivo Info.plist
+    // 2. Crear el archivo Info.plist (sin ícono personalizado por ahora)
     let info_plist_path = contents_path.join("Info.plist");
     let info_plist_content = format!(
         "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
@@ -244,8 +238,6 @@ fn create_macos_shortcut(
          <plist version=\"1.0\">\n\
          <dict>\n\
          \t<key>CFBundleExecutable</key>\n\
-         \t<string>{}</string>\n\
-         \t<key>CFBundleIconFile</key>\n\
          \t<string>{}</string>\n\
          \t<key>CFBundleIdentifier</key>\n\
          \t<string>dev.alexitoo.modpackstore.instance.{}</string>\n\
@@ -256,8 +248,7 @@ fn create_macos_shortcut(
          </dict>\n\
          </plist>",
         name,
-        icon_filename,
-        instance_id, // Usar un identificador único
+        instance_id,
         name
     );
     fs::write(info_plist_path, info_plist_content)
