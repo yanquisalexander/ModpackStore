@@ -3,7 +3,9 @@ use crate::core::bootstrap::tasks::{
 };
 use crate::core::minecraft::paths::MinecraftPaths;
 use crate::core::minecraft_instance::MinecraftInstance;
-use crate::core::tasks_manager::{add_task, add_task_with_auto_start, remove_task, task_exists, update_task, TaskStatus};
+use crate::core::tasks_manager::{
+    add_task, add_task_with_auto_start, remove_task, task_exists, update_task, TaskStatus,
+};
 use crate::utils::config_manager::get_config_manager;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -216,7 +218,7 @@ pub fn cleanup_obsolete_files(
 
     // Scan only controlled directories for existing files
     let existing_controlled_files = scan_controlled_directories(&minecraft_dir)?;
-    
+
     log::info!(
         "[Cleanup] Found {} files in controlled directories",
         existing_controlled_files.len()
@@ -239,7 +241,10 @@ pub fn cleanup_obsolete_files(
 
         // Double-check: never delete essential files (though they shouldn't be in controlled dirs)
         if is_essential_path(&file_path, &essential_paths) {
-            log::warn!("[Cleanup] Skipping essential file in controlled directory: {}", file_to_clean);
+            log::warn!(
+                "[Cleanup] Skipping essential file in controlled directory: {}",
+                file_to_clean
+            );
             preserved_files.push(file_to_clean);
             continue;
         }
@@ -254,7 +259,11 @@ pub fn cleanup_obsolete_files(
                         removed_files.push(file_to_clean);
                     }
                     Err(e) => {
-                        log::error!("[Cleanup] Failed to remove mod file {}: {}", file_to_clean, e);
+                        log::error!(
+                            "[Cleanup] Failed to remove mod file {}: {}",
+                            file_to_clean,
+                            e
+                        );
                     }
                 }
             } else {
@@ -262,14 +271,25 @@ pub fn cleanup_obsolete_files(
                 let file_hash = match calculate_file_hash(&file_path) {
                     Ok(hash) => hash,
                     Err(e) => {
-                        log::warn!("[Cleanup] Could not calculate hash for {}: {}. Removing file.", file_to_clean, e);
+                        log::warn!(
+                            "[Cleanup] Could not calculate hash for {}: {}. Removing file.",
+                            file_to_clean,
+                            e
+                        );
                         match fs::remove_file(&file_path) {
                             Ok(_) => {
-                                log::info!("[Cleanup] Removed file with hash calculation error: {}", file_to_clean);
+                                log::info!(
+                                    "[Cleanup] Removed file with hash calculation error: {}",
+                                    file_to_clean
+                                );
                                 removed_files.push(file_to_clean);
                             }
                             Err(e) => {
-                                log::error!("[Cleanup] Failed to remove file {}: {}", file_to_clean, e);
+                                log::error!(
+                                    "[Cleanup] Failed to remove file {}: {}",
+                                    file_to_clean,
+                                    e
+                                );
                             }
                         }
                         continue;
@@ -277,25 +297,38 @@ pub fn cleanup_obsolete_files(
                 };
 
                 // Check if this file hash is needed somewhere else in the manifest
-                let target_location = manifest.files.iter()
-                    .find(|f| f.sha1 == file_hash && f.path != file_to_clean);
+                let target_location = manifest
+                    .files
+                    .iter()
+                    .find(|f| f.fileHash == file_hash && f.path != file_to_clean);
 
                 if let Some(target_file) = target_location {
                     // File should be moved to new location
                     let target_path = minecraft_dir.join(&target_file.path);
-                    
+
                     // Ensure target directory exists
                     if let Some(parent) = target_path.parent() {
                         if let Err(e) = fs::create_dir_all(parent) {
-                            log::error!("[Cleanup] Failed to create target directory for {}: {}", target_file.path, e);
+                            log::error!(
+                                "[Cleanup] Failed to create target directory for {}: {}",
+                                target_file.path,
+                                e
+                            );
                             // Fall back to removal
                             match fs::remove_file(&file_path) {
                                 Ok(_) => {
-                                    log::info!("[Cleanup] Removed file (move failed): {}", file_to_clean);
+                                    log::info!(
+                                        "[Cleanup] Removed file (move failed): {}",
+                                        file_to_clean
+                                    );
                                     removed_files.push(file_to_clean);
                                 }
                                 Err(e) => {
-                                    log::error!("[Cleanup] Failed to remove file {}: {}", file_to_clean, e);
+                                    log::error!(
+                                        "[Cleanup] Failed to remove file {}: {}",
+                                        file_to_clean,
+                                        e
+                                    );
                                 }
                             }
                             continue;
@@ -305,20 +338,35 @@ pub fn cleanup_obsolete_files(
                     // Attempt to move the file
                     match fs::rename(&file_path, &target_path) {
                         Ok(_) => {
-                            log::info!("[Cleanup] Moved file {} -> {}", file_to_clean, target_file.path);
+                            log::info!(
+                                "[Cleanup] Moved file {} -> {}",
+                                file_to_clean,
+                                target_file.path
+                            );
                             moved_files.push(format!("{} -> {}", file_to_clean, target_file.path));
                         }
                         Err(e) => {
-                            log::warn!("[Cleanup] Failed to move file {} -> {}: {}. Removing instead.", 
-                                     file_to_clean, target_file.path, e);
+                            log::warn!(
+                                "[Cleanup] Failed to move file {} -> {}: {}. Removing instead.",
+                                file_to_clean,
+                                target_file.path,
+                                e
+                            );
                             // Fall back to removal
                             match fs::remove_file(&file_path) {
                                 Ok(_) => {
-                                    log::info!("[Cleanup] Removed file (move failed): {}", file_to_clean);
+                                    log::info!(
+                                        "[Cleanup] Removed file (move failed): {}",
+                                        file_to_clean
+                                    );
                                     removed_files.push(file_to_clean);
                                 }
                                 Err(e) => {
-                                    log::error!("[Cleanup] Failed to remove file {}: {}", file_to_clean, e);
+                                    log::error!(
+                                        "[Cleanup] Failed to remove file {}: {}",
+                                        file_to_clean,
+                                        e
+                                    );
                                 }
                             }
                         }
@@ -379,28 +427,28 @@ fn is_modpack_file(relative_path: &str) -> bool {
 fn get_controlled_directories() -> Vec<&'static str> {
     vec![
         "mods",
-        "coremods", 
+        "coremods",
         "scripts",
         "resources",
         "packmenu",
         "structures",
         "schematics",
         "config",
-        "changelogs"
+        "changelogs",
     ]
 }
 
 /// Scans controlled directories for all files and returns their relative paths
 fn scan_controlled_directories(minecraft_dir: &Path) -> Result<HashSet<String>, String> {
     let mut found_files = HashSet::new();
-    
+
     for dir_name in get_controlled_directories() {
         let dir_path = minecraft_dir.join(dir_name);
         if dir_path.exists() && dir_path.is_dir() {
             scan_directory_for_files(&dir_path, minecraft_dir, &mut found_files)?;
         }
     }
-    
+
     // Also check for standalone modpack files in the root
     let standalone_files = vec!["manifest.json", "modlist.html"];
     for file_name in standalone_files {
@@ -409,26 +457,30 @@ fn scan_controlled_directories(minecraft_dir: &Path) -> Result<HashSet<String>, 
             found_files.insert(file_name.to_string());
         }
     }
-    
-    log::info!("[ControlledScan] Found {} files in controlled directories", found_files.len());
+
+    log::info!(
+        "[ControlledScan] Found {} files in controlled directories",
+        found_files.len()
+    );
     Ok(found_files)
 }
 
 /// Recursively scans a directory and adds file paths to the set
 fn scan_directory_for_files(
-    dir: &Path, 
-    minecraft_dir: &Path, 
-    files_set: &mut HashSet<String>
+    dir: &Path,
+    minecraft_dir: &Path,
+    files_set: &mut HashSet<String>,
 ) -> Result<(), String> {
     let entries = fs::read_dir(dir)
         .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?;
-    
+
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let path = entry.path();
-        
+
         if path.is_file() {
-            let relative_path = path.strip_prefix(minecraft_dir)
+            let relative_path = path
+                .strip_prefix(minecraft_dir)
                 .map_err(|_| "Failed to get relative path")?
                 .to_string_lossy()
                 .replace("\\", "/"); // Normalize path separators
@@ -437,7 +489,7 @@ fn scan_directory_for_files(
             scan_directory_for_files(&path, minecraft_dir, files_set)?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -484,19 +536,23 @@ pub async fn download_and_install_files(
         // Check if file exists elsewhere with the same hash
         if let Some(existing_relative_path) = hash_map.get(&file_entry.fileHash) {
             let existing_full_path = minecraft_dir.join(existing_relative_path);
-            
+
             // Verify the existing file still has the correct hash (safety check)
-            if existing_full_path != target_path && 
-               file_exists_with_correct_hash(&existing_full_path, &file_entry.fileHash).await {
-                
+            if existing_full_path != target_path
+                && file_exists_with_correct_hash(&existing_full_path, &file_entry.fileHash).await
+            {
                 // Move the file to the correct location
-                log::info!("[FileMove] Moving {} -> {}", 
-                    existing_relative_path.display(), 
+                log::info!(
+                    "[FileMove] Moving {} -> {}",
+                    existing_relative_path.display(),
                     file_entry.path
                 );
-                
+
                 if let Err(e) = fs::rename(&existing_full_path, &target_path) {
-                    log::warn!("[FileMove] Failed to move file, will download instead: {}", e);
+                    log::warn!(
+                        "[FileMove] Failed to move file, will download instead: {}",
+                        e
+                    );
                     files_to_download.push(file_entry);
                 } else {
                     files_moved += 1;
@@ -575,8 +631,10 @@ pub async fn download_and_install_files(
                 tid,
                 TaskStatus::Running,
                 100.0,
-                &format!("Procesamiento completo - {} archivos organizados ({} movidos)", 
-                    files_processed, files_moved),
+                &format!(
+                    "Procesamiento completo - {} archivos organizados ({} movidos)",
+                    files_processed, files_moved
+                ),
                 None,
             );
         }
@@ -624,7 +682,7 @@ fn remove_empty_controlled_directories(minecraft_dir: &Path) -> Result<(), Strin
         let dir_path = minecraft_dir.join(dir_name);
         if dir_path.exists() && dir_path.is_dir() {
             remove_empty_directories_in_tree(&dir_path)?;
-            
+
             // Check if the top-level controlled directory is now empty and remove it
             if is_directory_empty(&dir_path)? {
                 if let Err(e) = fs::remove_dir(&dir_path) {
@@ -634,12 +692,15 @@ fn remove_empty_controlled_directories(minecraft_dir: &Path) -> Result<(), Strin
                         e
                     );
                 } else {
-                    log::info!("[Cleanup] Removed empty controlled directory: {}", dir_path.display());
+                    log::info!(
+                        "[Cleanup] Removed empty controlled directory: {}",
+                        dir_path.display()
+                    );
                 }
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -1260,20 +1321,27 @@ fn calculate_file_hash(file_path: &Path) -> Result<String, String> {
 /// This helps identify files that exist but may be in the wrong location
 fn build_hash_to_path_map(minecraft_dir: &Path) -> Result<HashMap<String, PathBuf>, String> {
     let mut hash_map = HashMap::new();
-    
+
     // Only scan modpack-related directories to avoid performance issues
     let scan_dirs = vec![
-        "mods", "coremods", "scripts", "resources", "packmenu", 
-        "structures", "schematics", "config", "changelogs"
+        "mods",
+        "coremods",
+        "scripts",
+        "resources",
+        "packmenu",
+        "structures",
+        "schematics",
+        "config",
+        "changelogs",
     ];
-    
+
     for dir_name in scan_dirs {
         let dir_path = minecraft_dir.join(dir_name);
         if dir_path.exists() && dir_path.is_dir() {
             scan_directory_for_hashes(&dir_path, minecraft_dir, &mut hash_map)?;
         }
     }
-    
+
     // Also check for standalone modpack files in the root
     let standalone_files = vec!["manifest.json", "modlist.html"];
     for file_name in standalone_files {
@@ -1281,34 +1349,36 @@ fn build_hash_to_path_map(minecraft_dir: &Path) -> Result<HashMap<String, PathBu
         if file_path.exists() && file_path.is_file() {
             if let Ok(contents) = fs::read(&file_path) {
                 let hash = compute_file_hash(&contents);
-                let relative_path = file_path.strip_prefix(minecraft_dir)
+                let relative_path = file_path
+                    .strip_prefix(minecraft_dir)
                     .map_err(|_| "Failed to get relative path")?;
                 hash_map.insert(hash, relative_path.to_path_buf());
             }
         }
     }
-    
+
     log::info!("[HashMap] Built hash map with {} entries", hash_map.len());
     Ok(hash_map)
 }
 
 /// Recursively scans a directory and adds file hashes to the map
 fn scan_directory_for_hashes(
-    dir: &Path, 
-    minecraft_dir: &Path, 
-    hash_map: &mut HashMap<String, PathBuf>
+    dir: &Path,
+    minecraft_dir: &Path,
+    hash_map: &mut HashMap<String, PathBuf>,
 ) -> Result<(), String> {
     let entries = fs::read_dir(dir)
         .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?;
-    
+
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let path = entry.path();
-        
+
         if path.is_file() {
             if let Ok(contents) = fs::read(&path) {
                 let hash = compute_file_hash(&contents);
-                let relative_path = path.strip_prefix(minecraft_dir)
+                let relative_path = path
+                    .strip_prefix(minecraft_dir)
                     .map_err(|_| "Failed to get relative path")?;
                 hash_map.insert(hash, relative_path.to_path_buf());
             }
@@ -1316,7 +1386,7 @@ fn scan_directory_for_hashes(
             scan_directory_for_hashes(&path, minecraft_dir, hash_map)?;
         }
     }
-    
+
     Ok(())
 }
 
@@ -1401,9 +1471,15 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         .ok_or("Instance does not have a version ID")?;
 
     // Create a task for this operation with proper title
-    let task_title = format!("Validación de assets - {}", 
-        instance.instanceName.as_deref().unwrap_or("Modpack"));
-    
+    let task_title = format!(
+        "Validación de assets - {}",
+        if instance.instanceName.is_empty() {
+            "Modpack"
+        } else {
+            instance.instanceName.as_str()
+        }
+    );
+
     let task_id = add_task_with_auto_start(
         &task_title,
         Some(serde_json::json!({
@@ -1461,7 +1537,10 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
     );
 
     let removed_files = cleanup_obsolete_files(&instance, &manifest)?;
-    log::info!("Cleaned up {} obsolete files before validation", removed_files.len());
+    log::info!(
+        "Cleaned up {} obsolete files before validation",
+        removed_files.len()
+    );
 
     // Emit event to indicate we're downloading modpack assets
     if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
@@ -1747,25 +1826,25 @@ mod tests {
         // Create a temporary directory structure for testing
         let temp_dir = std::env::temp_dir().join("hash_map_test");
         let _ = std::fs::create_dir_all(&temp_dir);
-        
+
         // Create test files in mods directory
         let mods_dir = temp_dir.join("mods");
         let _ = std::fs::create_dir_all(&mods_dir);
-        
+
         let test_content = b"test file content";
         let test_file = mods_dir.join("test_mod.jar");
         let _ = std::fs::write(&test_file, test_content);
-        
+
         // Build hash map
         let hash_map = build_hash_to_path_map(&temp_dir).unwrap();
-        
+
         // Verify the file was found and mapped correctly
         let expected_hash = compute_file_hash(test_content);
         assert!(hash_map.contains_key(&expected_hash));
-        
+
         let expected_path = PathBuf::from("mods/test_mod.jar");
         assert_eq!(hash_map.get(&expected_hash), Some(&expected_path));
-        
+
         // Cleanup
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
@@ -1777,12 +1856,12 @@ mod tests {
         assert!(is_modpack_file("config/some_config.cfg"));
         assert!(is_modpack_file("scripts/some_script.zs"));
         assert!(is_modpack_file("resources/some_resource.png"));
-        
+
         // Test files that should not be considered modpack files
         assert!(!is_modpack_file("config/options.txt")); // Player options
         assert!(!is_modpack_file("saves/world1/level.dat")); // World saves
         assert!(!is_modpack_file("logs/latest.log")); // Game logs
-        
+
         // Test standalone modpack files
         assert!(is_modpack_file("manifest.json"));
         assert!(is_modpack_file("modlist.html"));
@@ -1791,13 +1870,13 @@ mod tests {
     #[test]
     fn test_get_controlled_directories() {
         let controlled_dirs = get_controlled_directories();
-        
+
         // Ensure key directories are included
         assert!(controlled_dirs.contains(&"mods"));
         assert!(controlled_dirs.contains(&"config"));
         assert!(controlled_dirs.contains(&"resources"));
         assert!(controlled_dirs.contains(&"scripts"));
-        
+
         // Ensure we don't control essential Minecraft directories
         assert!(!controlled_dirs.contains(&"saves"));
         assert!(!controlled_dirs.contains(&"logs"));
@@ -1810,33 +1889,33 @@ mod tests {
         // Create a temporary directory structure for testing
         let temp_dir = std::env::temp_dir().join("controlled_scan_test");
         let _ = std::fs::create_dir_all(&temp_dir);
-        
+
         // Create test files in controlled directories
         let mods_dir = temp_dir.join("mods");
         let config_dir = temp_dir.join("config");
         let saves_dir = temp_dir.join("saves"); // This should NOT be scanned
-        
+
         let _ = std::fs::create_dir_all(&mods_dir);
         let _ = std::fs::create_dir_all(&config_dir);
         let _ = std::fs::create_dir_all(&saves_dir);
-        
+
         // Create test files
         let _ = std::fs::write(mods_dir.join("test_mod.jar"), "test content");
         let _ = std::fs::write(config_dir.join("test_config.cfg"), "test config");
         let _ = std::fs::write(saves_dir.join("world.dat"), "world data"); // Should be ignored
         let _ = std::fs::write(temp_dir.join("manifest.json"), "manifest"); // Standalone file
-        
+
         // Scan controlled directories
         let controlled_files = scan_controlled_directories(&temp_dir).unwrap();
-        
+
         // Verify correct files were found
         assert!(controlled_files.contains("mods/test_mod.jar"));
         assert!(controlled_files.contains("config/test_config.cfg"));
         assert!(controlled_files.contains("manifest.json"));
-        
+
         // Verify files in non-controlled directories were ignored
         assert!(!controlled_files.contains("saves/world.dat"));
-        
+
         // Cleanup
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
@@ -1844,36 +1923,42 @@ mod tests {
     #[test]
     fn test_enhanced_cleanup_logic_simulation() {
         // This test simulates the enhanced cleanup logic without file I/O
-        
+
         // Simulate current manifest files
         let current_files: HashSet<String> = [
             "mods/mod_a.jar".to_string(),
             "mods/mod_b.jar".to_string(),
             "config/config_a.cfg".to_string(),
-        ].iter().cloned().collect();
-        
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
         // Simulate existing files in controlled directories (including manual additions)
         let existing_controlled_files: HashSet<String> = [
-            "mods/mod_a.jar".to_string(),      // In manifest (keep)
-            "mods/mod_b.jar".to_string(),      // In manifest (keep)
-            "mods/old_mod.jar".to_string(),    // Not in manifest (remove - was in old manifest)
-            "mods/user_mod.jar".to_string(),   // Not in manifest (remove - manually added)
-            "config/config_a.cfg".to_string(), // In manifest (keep)
+            "mods/mod_a.jar".to_string(),        // In manifest (keep)
+            "mods/mod_b.jar".to_string(),        // In manifest (keep)
+            "mods/old_mod.jar".to_string(),      // Not in manifest (remove - was in old manifest)
+            "mods/user_mod.jar".to_string(),     // Not in manifest (remove - manually added)
+            "config/config_a.cfg".to_string(),   // In manifest (keep)
             "config/old_config.cfg".to_string(), // Not in manifest (remove)
-        ].iter().cloned().collect();
-        
+        ]
+        .iter()
+        .cloned()
+        .collect();
+
         // Calculate files to clean (any controlled file not in current manifest)
         let files_to_clean: HashSet<String> = existing_controlled_files
             .difference(&current_files)
             .cloned()
             .collect();
-        
+
         // Verify cleanup targets
         assert_eq!(files_to_clean.len(), 3);
         assert!(files_to_clean.contains("mods/old_mod.jar"));
         assert!(files_to_clean.contains("mods/user_mod.jar"));
         assert!(files_to_clean.contains("config/old_config.cfg"));
-        
+
         // Verify kept files
         assert!(!files_to_clean.contains("mods/mod_a.jar"));
         assert!(!files_to_clean.contains("mods/mod_b.jar"));
@@ -1884,7 +1969,7 @@ mod tests {
     fn test_compute_file_hash() {
         let test_content = b"Hello, World!";
         let hash = compute_file_hash(test_content);
-        
+
         // SHA1 hash of "Hello, World!" should be consistent
         let expected_hash = "0a4d55a8d778e5022fab701977c5d840bbc486d0";
         assert_eq!(hash, expected_hash);
@@ -1898,10 +1983,10 @@ mod tests {
 
         // Simulate files in different directories
         let files_to_clean = vec![
-            "mods/old_mod.jar",           // Should be strictly removed
-            "mods/user_added_mod.jar",    // Should be strictly removed  
-            "config/old_config.cfg",      // Should be removed or moved if hash matches
-            "resources/old_texture.png",  // Should be removed or moved if hash matches
+            "mods/old_mod.jar",          // Should be strictly removed
+            "mods/user_added_mod.jar",   // Should be strictly removed
+            "config/old_config.cfg",     // Should be removed or moved if hash matches
+            "resources/old_texture.png", // Should be removed or moved if hash matches
         ];
 
         // Verify that we can differentiate between mods and other directories
@@ -1923,20 +2008,20 @@ mod tests {
         // Create a temporary file to test hash calculation
         let temp_dir = std::env::temp_dir().join("hash_test");
         let _ = std::fs::create_dir_all(&temp_dir);
-        
+
         let test_file = temp_dir.join("test.txt");
         let test_content = "Test content for hash calculation";
-        
+
         // Write test content
         let _ = std::fs::write(&test_file, test_content);
-        
+
         // Calculate hash using our function
         if let Ok(calculated_hash) = calculate_file_hash(&test_file) {
             // Calculate expected hash manually
             let expected_hash = compute_file_hash(test_content.as_bytes());
             assert_eq!(calculated_hash, expected_hash);
         }
-        
+
         // Cleanup
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
