@@ -50,7 +50,7 @@ export const UpdateInstanceDialog = ({
                             <SelectValue placeholder="Seleccionar instancia" />
                         </SelectTrigger>
                         <SelectContent className="bg-zinc-800 border-zinc-700 text-white">
-                            {localInstances.map(instance => (
+                            {localInstances?.map(instance => (
                                 <SelectItem key={instance.instanceId} value={instance.instanceId}>
                                     {instance.instanceName}
                                 </SelectItem>

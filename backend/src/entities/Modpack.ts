@@ -260,4 +260,8 @@ export class Modpack extends BaseEntity {
     getRequiredTwitchCreatorIds(): string[] {
         return this.twitchCreatorIds || [];
     }
+
+    requiresPassword(): boolean {
+        return this.password !== null && this.password !== undefined && this.password.trim() !== "";
+    }
 }

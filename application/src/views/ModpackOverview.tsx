@@ -64,11 +64,27 @@ const useModpackAccess = (modpackId: string, requiresTwitchSubscription: boolean
                 }
 
                 const data = await response.json();
+                // Debug: log API response to help diagnose mismatches
+                console.debug('check-access response', data);
+
+                // Normalize server response: support { canAccess } or { hasAccess }
+                let canAccess = typeof data.canAccess !== 'undefined' ? data.canAccess : (typeof data.hasAccess !== 'undefined' ? data.hasAccess : false);
+
+                // If server returned a list of subscribedChannels, infer access when it's non-empty
+                const hasSubscribedChannels = Array.isArray(data.subscribedChannels) && data.subscribedChannels.length > 0;
+                if (!canAccess && hasSubscribedChannels) {
+                    // If user is subscribed to any required channel, consider they have access
+                    canAccess = true;
+                }
+
+                const requiredChannels = data.requiredChannels ?? (Array.isArray(data.subscribedChannels) ? data.subscribedChannels.map((c: any) => c.username || c.displayName || c.id) : undefined);
+                const reason = data.reason ?? data.message;
+
                 setAccessState({
-                    canAccess: data.canAccess,
+                    canAccess,
                     loading: false,
-                    reason: data.reason,
-                    requiredChannels: data.requiredChannels
+                    reason,
+                    requiredChannels
                 });
             } catch (error) {
                 console.error('Error checking modpack access:', error);
@@ -599,7 +615,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
 
                             {/* Controles a la derecha: requisitos de Twitch + botón */}
                             <div className="flex flex-col items-end gap-3 w-full md:w-auto">
-                                {modpackData.requiresTwitchSubscription && (
+                                {modpackData.requiresTwitchSubscription && !modpackData.isPasswordProtected && (
                                     <div className="w-full md:max-w-sm">
                                         <TwitchRequirements
                                             requiresTwitchSubscription={modpackData.requiresTwitchSubscription}
