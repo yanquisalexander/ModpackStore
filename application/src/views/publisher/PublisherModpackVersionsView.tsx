@@ -124,6 +124,7 @@ const getStatusLabel = (status: string) => {
         case 'published': return 'Publicado';
         case 'draft': return 'Borrador';
         case 'archived': return 'Archivado';
+        case 'deleted': return 'Eliminado';
         default: return status;
     }
 };
@@ -212,8 +213,9 @@ export const PublisherModpackVersionsView: React.FC = () => {
             await PublisherVersionsAPI.deleteVersion(publisherId!, modpackId!, version.id, sessionTokens!.accessToken);
 
             toast.success(`Versión "${version.version}" eliminada correctamente`);
-            setVersions(prev => prev.filter(v => v.id !== version.id));
             setDeleteDialog({ open: false, version: null });
+            // Refresh the list
+            loadVersions();
         } catch (error) {
             console.error('Error deleting version:', error);
             toast.error(error instanceof Error ? error.message : 'Error al eliminar la versión');
@@ -245,8 +247,8 @@ export const PublisherModpackVersionsView: React.FC = () => {
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Esta acción eliminará permanentemente la versión "{deleteDialog.version?.version}"
-                            y todos los archivos asociados a ella. Esta operación no se puede deshacer.
+                            Esta acción eliminará la versión "{deleteDialog.version?.version}" del modpack "{modpack?.name}".
+                            Esta operación no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -369,7 +371,7 @@ export const PublisherModpackVersionsView: React.FC = () => {
                                                             <LucideEye className="h-4 w-4 mr-2" />
                                                             Ver/Editar
                                                         </DropdownMenuItem>
-                                                        {version.status !== 'published' && canDeleteVersions && (
+                                                        {canDeleteVersions && !['published', 'deleted'].includes(version.status.toLowerCase()) && (
                                                             <DropdownMenuItem
                                                                 onClick={() => handleDeleteVersion(version)}
                                                                 className="text-destructive"

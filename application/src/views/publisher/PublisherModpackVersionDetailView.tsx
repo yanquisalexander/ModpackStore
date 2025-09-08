@@ -109,6 +109,27 @@ const formatFileSize = (bytes: number): string => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
 
+// Status helpers to match PublisherModpackVersionsView
+const getStatusBadgeVariant = (status: string) => {
+    switch (status.toLowerCase()) {
+        case 'published': return 'default';
+        case 'draft': return 'secondary';
+        case 'archived': return 'outline';
+        case 'deleted': return 'destructive';
+        default: return 'outline';
+    }
+};
+
+const getStatusLabel = (status: string) => {
+    switch (status.toLowerCase()) {
+        case 'published': return 'Publicado';
+        case 'draft': return 'Borrador';
+        case 'archived': return 'Archivado';
+        case 'deleted': return 'Eliminado';
+        default: return status;
+    }
+};
+
 const FileTreeNode: React.FC<{
     name: string;
     node: TreeNode;
@@ -127,7 +148,7 @@ const FileTreeNode: React.FC<{
                 <div onClick={toggleExpand} className="flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded transition-colors">
                     {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" />}
                     <LucideFolder className="h-4 w-4 mr-2 text-sky-600 flex-shrink-0" />
-                    <span className="text-gray-800 font-medium">{name}</span>
+                    <span className="text-gray-200 font-medium">{name}</span>
                 </div>
                 {isExpanded && (
                     <div className="pl-6 border-l border-gray-200 ml-2">
@@ -162,7 +183,7 @@ const FileTreeNode: React.FC<{
             <div className="flex items-center min-w-0">
                 <div className="w-4 mr-2 flex-shrink-0"></div> {/* Indent spacer */}
                 {getFileIcon(name)}
-                <span className="text-gray-700 truncate" title={fileData.path}>{name}</span>
+                <span className="text-gray-400 truncate" title={fileData.path}>{name}</span>
             </div>
             {versionStatus !== 'published' && (
                 <Button
@@ -221,7 +242,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     });
 
     const [publishDialog, setPublishDialog] = useState(false);
-    const [unpublishDialog, setUnpublishDialog] = useState(false);
+    const [deleteVersionDialog, setDeleteVersionDialog] = useState(false);
+    const [archiveDialog, setArchiveDialog] = useState(false);
 
     // New state for file reuse functionality
     const [reuseDialog, setReuseDialog] = useState<{
@@ -359,13 +381,46 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         }
     };
 
-    const confirmUnpublishVersion = async () => {
+
+
+    const confirmDeleteVersion = async () => {
         if (!version) return;
 
         setPublishing(true);
         try {
             const res = await fetch(
-                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/unpublish`,
+                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}`,
+                {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                        'Content-Type': 'application/json',
+                    }
+                }
+            );
+
+            if (!res.ok) {
+                throw new Error('Error al eliminar la versión');
+            }
+
+            setVersion({ ...version, status: 'deleted' });
+            toast.success('Versión eliminada correctamente');
+            setDeleteVersionDialog(false);
+        } catch (error) {
+            console.error('Error deleting version:', error);
+            toast.error('Error al eliminar la versión');
+        } finally {
+            setPublishing(false);
+        }
+    };
+
+    const confirmArchiveVersion = async () => {
+        if (!version) return;
+
+        setPublishing(true);
+        try {
+            const res = await fetch(
+                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/archive`,
                 {
                     method: 'PATCH',
                     headers: {
@@ -376,15 +431,15 @@ const PublisherModpackVersionDetailView: React.FC = () => {
             );
 
             if (!res.ok) {
-                throw new Error('Error al despublicar la versión');
+                throw new Error('Error al archivar la versión');
             }
 
-            setVersion({ ...version, status: 'draft', releaseDate: undefined });
-            toast.success('Versión despublicada correctamente');
-            setUnpublishDialog(false);
+            setVersion({ ...version, status: 'archived' });
+            toast.success('Versión archivada correctamente');
+            setArchiveDialog(false);
         } catch (error) {
-            console.error('Error unpublishing version:', error);
-            toast.error('Error al despublicar la versión');
+            console.error('Error archiving version:', error);
+            toast.error('Error al archivar la versión');
         } finally {
             setPublishing(false);
         }
@@ -749,7 +804,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                             className="mr-2 rounded border-gray-300"
                         />
                         <div onClick={toggleExpand} className="flex items-center flex-1">
-                            {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" />}
+                            {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-gray-200 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" />}
                             <LucideFolder className="h-4 w-4 mr-2 text-sky-600 flex-shrink-0" />
                             <span className="text-gray-800 font-medium">{name}</span>
                             <span className="text-xs text-gray-500 ml-2">({folderFileHashes.length} archivos)</span>
@@ -803,7 +858,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     <div className="w-4 mr-2 flex-shrink-0"></div> {/* Indent spacer */}
                     {getFileIcon(name)}
                     <span
-                        className="text-gray-700 truncate"
+                        className="text-gray-500 truncate"
                         title={`Versión: ${versionId} - Path: ${fileData.path}`} // Show versionId and full path on hover
                     >
                         {name}
@@ -886,7 +941,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 </CardHeader>
                 <CardContent>
                     <div className="space-y-4">
-                        {versionStatus !== 'published' && (
+                        {versionStatus === 'draft' && (
                             <div className="flex flex-col items-center space-y-2">
                                 <div className="flex gap-2">
                                     <Button variant="outline" size="sm" onClick={() => openUploadDialog(type)} disabled={uploadingFile}>
@@ -945,8 +1000,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Versión no encontrada</h2>
-                    <p className="text-gray-600">La versión que buscas no existe o no tienes permisos para verla.</p>
+                    <h2 className="text-2xl font-bold text-gray-200 mb-2">Versión no encontrada</h2>
+                    <p className="text-gray-500">La versión que buscas no existe o no tienes permisos para verla.</p>
                 </div>
             </div>
         );
@@ -968,6 +1023,24 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                         <AlertDialogAction onClick={confirmDeleteFile} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                             Eliminar Archivo
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* AlertDialog for Archive Confirmation */}
+            <AlertDialog open={archiveDialog} onOpenChange={setArchiveDialog}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Archivar esta versión?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Archivar la versión {version.version} la retirará de la lista pública pero conservará los datos.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={publishing}>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmArchiveVersion} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                            Archivar Versión
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -996,25 +1069,21 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 </AlertDialogContent>
             </AlertDialog>
 
-            {/* AlertDialog for Unpublish Confirmation */}
-            <AlertDialog open={unpublishDialog} onOpenChange={setUnpublishDialog}>
+
+
+            {/* AlertDialog for Delete Version Confirmation */}
+            <AlertDialog open={deleteVersionDialog} onOpenChange={setDeleteVersionDialog}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>¿Despublicar esta versión?</AlertDialogTitle>
+                        <AlertDialogTitle>¿Eliminar esta versión?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Esta acción hará que la versión {version.version} ya no esté disponible públicamente.
-                            Los usuarios que ya la tengan descargada podrán seguir usándola, pero no estará
-                            disponible para nuevas descargas.
+                            Esto marcará la versión {version.version} como eliminada de forma permanente. No se podrá restaurar.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={publishing}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={confirmUnpublishVersion}
-                            disabled={publishing}
-                            className="bg-orange-600 text-white hover:bg-orange-700"
-                        >
-                            {publishing ? 'Despublicando...' : 'Confirmar y Despublicar'}
+                        <AlertDialogAction onClick={confirmDeleteVersion} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                            Eliminar Versión
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -1151,17 +1220,9 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                 {reuseDialog.selectedFiles.length} archivo(s) seleccionado(s)
                             </div>
                             {(() => {
-                                const allFiles = reuseDialog.previousFiles.flatMap(version =>
-                                    version.files.map(file => ({
-                                        versionId: version.versionId,
-                                        fileHash: file.fileHash,
-                                        path: file.path
-                                    }))
-                                );
                                 const noneSelected = reuseDialog.selectedFiles.length === 0;
                                 return (
                                     <>
-
                                         {!noneSelected && (
                                             <Button variant="outline" size="sm" onClick={deselectAllFiles}>
                                                 Deseleccionar todo
@@ -1193,21 +1254,11 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold text-gray-900">{version.modpack.name}</h1>
-                        <p className="text-gray-500">Versión {version.version}</p>
+                        <h1 className="text-3xl font-bold text-white">{version.modpack.name}</h1>
+                        <p className="text-gray-400">Versión {version.version}</p>
                     </div>
                     <div className="flex items-center space-x-4">
-                        {version.status === 'published' ? (
-                            <Button
-                                onClick={() => setUnpublishDialog(true)}
-                                disabled={publishing}
-                                variant="outline"
-                                className="border-orange-300 text-orange-700 hover:bg-orange-50"
-                            >
-                                <LucideTrash2 className="h-4 w-4 mr-2" />
-                                {publishing ? 'Despublicando...' : 'Despublicar'}
-                            </Button>
-                        ) : (
+                        {version.status === 'draft' && (
                             <Button
                                 onClick={() => setPublishDialog(true)}
                                 disabled={publishing}
@@ -1217,11 +1268,46 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                 {publishing ? 'Publicando...' : 'Publicar'}
                             </Button>
                         )}
-                        <Badge
-                            variant={version.status === 'published' ? 'default' : 'secondary'}
-                            className={version.status === 'published' ? 'bg-green-100 text-green-800' : ''}
-                        >
-                            {version.status === 'published' ? 'Publicado' : 'Borrador'}
+
+
+
+                        {/* Action buttons depending on status: draft -> Publish, published -> Archive, archived -> Delete. No actions when deleted */}
+                        {version.status === 'draft' && (
+                            <Button
+                                onClick={() => setPublishDialog(true)}
+                                disabled={publishing}
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                                <LucideSend className="h-4 w-4 mr-2" />
+                                {publishing ? 'Publicando...' : 'Publicar'}
+                            </Button>
+                        )}
+
+                        {version.status === 'published' && (
+                            <Button
+                                onClick={() => setArchiveDialog(true)}
+                                disabled={publishing}
+                                variant="outline"
+                                className="border-sky-300 text-sky-700 hover:bg-sky-50"
+                            >
+                                <LucideFolder className="h-4 w-4 mr-2" />
+                                Archivar
+                            </Button>
+                        )}
+
+                        {version.status === 'archived' && (
+                            <Button
+                                onClick={() => setDeleteVersionDialog(true)}
+                                disabled={publishing}
+                                variant="destructive"
+                            >
+                                <LucideTrash2 className="h-4 w-4 mr-2" />
+                                Eliminar Versión
+                            </Button>
+                        )}
+
+                        <Badge variant={getStatusBadgeVariant(version.status)}>
+                            {getStatusLabel(version.status)}
                         </Badge>
                     </div>
                 </div>
@@ -1294,7 +1380,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                             Describe los cambios en esta versión
                                         </CardDescription>
                                     </div>
-                                    {!editingChangelog && version.status !== 'published' ? (
+                                    {!editingChangelog && version.status === 'draft' ? (
                                         <Button
                                             variant="outline"
                                             size="sm"
@@ -1336,8 +1422,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                         className="w-full"
                                     />
                                 ) : (
-                                    <div className="prose max-w-none text-sm p-4 bg-gray-50 rounded-md border max-h-60 overflow-auto">
-                                        <pre className="whitespace-pre-wrap font-sans text-gray-800">
+                                    <div className="prose max-w-none text-sm p-4 bg-gray-500/10 rounded-md border max-h-60 overflow-auto">
+                                        <pre className="whitespace-pre-wrap font-sans text-gray-100">
                                             {version.changelog || 'No hay changelog disponible.'}
                                         </pre>
                                     </div>
