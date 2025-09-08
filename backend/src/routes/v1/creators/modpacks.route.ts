@@ -465,26 +465,18 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
         throw new APIError(400, "Se requiere un array de hashes de archivos");
     }
 
-    await ModpackVersionFile.createQueryBuilder()
-        .delete()
-        .where(
-            `("modpack_version_id", "file_hash") IN ` +
-            ModpackVersionFile.createQueryBuilder("mvf")
-                .subQuery()
-                .select(["mvf.modpack_version_id", "mvf.file_hash"])
-                .from(ModpackVersionFile, "mvf")
-                .innerJoin("modpack_files", "file", "file.hash = mvf.file_hash")
-                .where("mvf.modpack_version_id = :versionId")
-                .andWhere("file.type = :type")
-                .getQuery()
-        )
-        .setParameters({ versionId, type })
-        .execute();
+    // Get existing files in the current version for this type to check for duplicates
+    const existingFiles = await ModpackVersionFile.find({
+        where: { modpackVersionId: versionId },
+        relations: ["file"],
+    }).then(files => files.filter(f => f.file.type === type));
 
+    const existingFileHashes = new Set(existingFiles.map(f => f.fileHash));
+    const existingPaths = new Set(existingFiles.map(f => f.path));
 
     console.log("Reusing files with hashes:", fileHashes, "for version:", versionId);
 
-    // Get the actual files and their paths from a previous version
+    // Get the actual files and their paths from previous versions
     const filesToReuse = await ModpackVersionFile.find({
         where: {
             fileHash: In(fileHashes)
@@ -492,10 +484,17 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
         relations: ["file"],
     });
 
-    // Create new ModpackVersionFile entries for this version
+    // Filter out files that are already in the current version (by fileHash or path)
     const newVersionFiles = fileHashes.map(fileHash => {
         const originalFile = filesToReuse.find(f => f.fileHash === fileHash);
         if (!originalFile) return null;
+
+        // Skip if fileHash or path already exists in current version
+        if (existingFileHashes.has(fileHash) || existingPaths.has(originalFile.path)) {
+            console.log(`Skipping duplicate file: ${fileHash} or path: ${originalFile.path}`);
+            return null;
+        }
+
         return {
             modpackVersionId: versionId,
             fileHash,
@@ -503,14 +502,16 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
         };
     }).filter((v): v is { modpackVersionId: string; fileHash: string; path: string } => v !== null);
 
-    if (newVersionFiles.length > 0) {
-        await ModpackVersionFile.insert(newVersionFiles as Partial<ModpackVersionFile>[]);
+    if (newVersionFiles.length === 0) {
+        return c.json({ message: "No se añadieron archivos nuevos (todos ya existen o son inválidos)" });
     }
 
+    // Insert only the new files
+    await ModpackVersionFile.insert(newVersionFiles as Partial<ModpackVersionFile>[]);
 
     return c.json({
-        message: `${fileHashes.length} archivos reutilizados para ${type}`,
-        reusedFiles: fileHashes.length
+        message: `${newVersionFiles.length} archivos reutilizados para ${type}`,
+        reusedFiles: newVersionFiles.length
     });
 });
 

@@ -622,7 +622,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 return;
             }
 
-            toast.success(`Reutilizados ${uniqueFileHashes.length} archivo(s) correctamente`);
+            toast.success(`Añadidos ${uniqueFileHashes.length} archivo(s) de versiones anteriores (sin reemplazar existentes)`);
             fetchVersionDetails();
             setReuseDialog(prev => ({ ...prev, open: false, selectedFiles: [] }));
         } catch (error) {
@@ -640,7 +640,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         selectedFiles: string[];
         onToggleSelection: (fileHash: string) => void;
         onToggleFolderSelection: (folderPath: string, fileHashes: string[]) => void;
-    }> = ({ name, node, expandedFolders, setExpandedFolders, path, selectedFiles, onToggleSelection, onToggleFolderSelection }) => {
+        versionId?: string; // Add versionId for identification
+    }> = ({ name, node, expandedFolders, setExpandedFolders, path, selectedFiles, onToggleSelection, onToggleFolderSelection, versionId }) => {
         if (node.type === 'folder') {
             const isExpanded = expandedFolders[path];
             const toggleExpand = () => setExpandedFolders(prev => ({ ...prev, [path]: !isExpanded }));
@@ -704,6 +705,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                         selectedFiles={selectedFiles}
                                         onToggleSelection={onToggleSelection}
                                         onToggleFolderSelection={onToggleFolderSelection}
+                                        versionId={versionId} // Pass versionId for identification
                                     />
                                 ))}
                         </div>
@@ -727,7 +729,12 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     />
                     <div className="w-4 mr-2 flex-shrink-0"></div> {/* Indent spacer */}
                     {getFileIcon(name)}
-                    <span className="text-gray-700 truncate" title={fileData.path}>{name}</span>
+                    <span
+                        className="text-gray-700 truncate"
+                        title={`Versión: ${versionId} - Path: ${fileData.path}`} // Show versionId and full path on hover
+                    >
+                        {name}
+                    </span>
                 </div>
                 <div className="text-xs text-gray-500 flex-shrink-0 ml-2">
                     {formatFileSize(fileData.size || 0)}
@@ -1054,6 +1061,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                                         selectedFiles={reuseDialog.selectedFiles}
                                                         onToggleSelection={toggleFileSelection}
                                                         onToggleFolderSelection={toggleFolderSelection}
+                                                        versionId={versionData.versionId} // Pass versionId for identification
                                                     />
                                                 ))
                                             }
