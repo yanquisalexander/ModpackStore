@@ -144,7 +144,7 @@ export class Modpack extends BaseEntity {
         name: "acquisition_method",
         type: "enum",
         enum: AcquisitionMethod,
-        enumName: "acquisition_method",
+        enumName: "modpack_acquisition_method",
         default: AcquisitionMethod.FREE
     })
     acquisitionMethod: AcquisitionMethod;

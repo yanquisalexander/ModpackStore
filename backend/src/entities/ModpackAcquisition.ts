@@ -21,7 +21,7 @@ export class ModpackAcquisition extends BaseEntity {
         name: "method",
         type: "enum",
         enum: AcquisitionMethod,
-        enumName: "acquisition_method"
+        enumName: "acquisition_method_enum"
     })
     method: AcquisitionMethod;
 

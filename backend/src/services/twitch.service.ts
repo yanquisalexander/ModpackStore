@@ -1,6 +1,7 @@
 import { ApiClient } from '@twurple/api';
 import { AppTokenAuthProvider } from '@twurple/auth';
 import { RefreshingAuthProvider } from '@twurple/auth';
+import { StaticAuthProvider } from '@twurple/auth';
 import { AccessToken, RefreshingAuthProviderConfig } from '@twurple/auth';
 import { APIError } from '@/lib/APIError';
 import { User } from '@/entities/User';
@@ -78,8 +79,11 @@ export class TwitchService {
                 expiresIn: 0, // Will be determined automatically
                 obtainmentTimestamp: Date.now()
             }, ['user:read:email']);
+        } else if (accessToken) {
+            // Use StaticAuthProvider with user's access token
+            authProvider = new StaticAuthProvider(this.clientId, accessToken, ['user:read:email']);
         } else {
-            // Use AppTokenAuthProvider for simple access
+            // Fallback to AppTokenAuthProvider when no user tokens available
             authProvider = new AppTokenAuthProvider(this.clientId, this.clientSecret);
         }
 
@@ -247,10 +251,11 @@ export class TwitchService {
     static async checkUserSubscriptions(
         userId: string,
         userAccessToken: string,
-        channelIds: string[]
+        channelIds: string[],
+        refreshToken?: string
     ): Promise<boolean> {
         try {
-            const apiClient = await this.getUserApiClient(userId, userAccessToken);
+            const apiClient = await this.getUserApiClient(userId, userAccessToken, refreshToken);
 
             const helixUser = await apiClient.users.getUserById(userId);
 
@@ -432,7 +437,8 @@ export class TwitchService {
             return await this.checkUserSubscriptions(
                 user.twitchId!,
                 user.twitchAccessToken!,
-                requiredChannelIds
+                requiredChannelIds,
+                user.twitchRefreshToken || undefined
             );
         } catch (error) {
             console.error('Error checking user access to modpack:', error);

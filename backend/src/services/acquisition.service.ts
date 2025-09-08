@@ -34,7 +34,8 @@ export class AcquisitionService {
                 const hasActiveSubscription = await TwitchService.checkUserSubscriptions(
                     user.twitchId!,
                     user.twitchAccessToken!,
-                    modpack.getRequiredTwitchCreatorIds()
+                    modpack.getRequiredTwitchCreatorIds(),
+                    user.twitchRefreshToken || undefined
                 );
 
                 if (!hasActiveSubscription) {
@@ -121,7 +122,8 @@ export class AcquisitionService {
         const hasActiveSubscription = await TwitchService.checkUserSubscriptions(
             user.twitchId!,
             user.twitchAccessToken!,
-            modpack.getRequiredTwitchCreatorIds()
+            modpack.getRequiredTwitchCreatorIds(),
+            user.twitchRefreshToken || undefined
         );
 
         if (!hasActiveSubscription) {
