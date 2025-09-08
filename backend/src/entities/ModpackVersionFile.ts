@@ -1,14 +1,18 @@
-import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn, BaseEntity } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, BaseEntity, Unique } from "typeorm";
 import { ModpackVersion } from "./ModpackVersion";
 import { ModpackFile } from "./ModpackFile";
 
 @Entity({ name: "modpack_version_files" })
+@Unique(["modpackVersionId", "fileHash", "path"])
 export class ModpackVersionFile extends BaseEntity {
 
-    @PrimaryColumn({ name: "modpack_version_id", type: "uuid" })
+    @PrimaryGeneratedColumn("uuid", { name: "id" })
+    id: string;
+
+    @Column({ name: "modpack_version_id", type: "uuid" })
     modpackVersionId: string;
 
-    @PrimaryColumn({ name: "file_hash", type: "varchar", length: 64 })
+    @Column({ name: "file_hash", type: "varchar", length: 64 })
     fileHash: string;
 
     @Column({ name: "path", type: "text" })
