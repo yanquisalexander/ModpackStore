@@ -617,6 +617,11 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                         modpackName={modpackData.name!}
                                         localInstances={localInstancesOfModpack}
                                         isPasswordProtected={modpackData.isPasswordProtected}
+                                        isPaid={modpackData.isPaid}
+                                        isFree={modpackData.isFree}
+                                        price={modpackData.price}
+                                        requiresTwitchSubscription={modpackData.requiresTwitchSubscription}
+                                        requiredTwitchChannels={modpackData.requiredTwitchChannels}
                                         selectedVersionId={selectedVersionId}
                                         disabled={modpackData.requiresTwitchSubscription && !accessLoading && !userCanAccess}
                                     />

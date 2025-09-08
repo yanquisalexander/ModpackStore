@@ -29,6 +29,9 @@ export interface ModpackDataOverview {
     requiresTwitchSubscription?: boolean;
     twitchCreatorIds?: string[];
     requiredTwitchChannels?: string[];
+    isPaid?: boolean;
+    isFree?: boolean;
+    price?: string;
 }
 
 export interface CreatorUser {
