@@ -95,7 +95,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
         <div className="relative" ref={containerRef}>
             <div
                 onClick={toggleMenu}
-                className={`${baseClasses} ${titleBarOpaque ? darkMode : lightMode}`}
+                className={`${baseClasses} !rounded-none !hover:bg-white/5 !transition-none ${titleBarOpaque ? darkMode : lightMode}`}
                 title="Usuario actual"
             >
                 <img src={session?.avatarUrl} alt="Avatar" className="size-5 rounded-md object-cover" />
