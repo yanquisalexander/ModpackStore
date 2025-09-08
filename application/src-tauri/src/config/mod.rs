@@ -171,7 +171,7 @@ impl ConfigManager {
     }
 
     pub fn get_minecraft_memory(&self) -> Option<u32> {
-        self.get("memory").and_then(Value::as_u64).map(|v| v as u32)
+        self.get("ramAllocation").and_then(Value::as_u64).map(|v| v as u32)
     }
 }
 

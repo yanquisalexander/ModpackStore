@@ -365,8 +365,14 @@ ModpackCreatorsRoute.patch("/publishers/:publisherId/modpacks/:modpackId/version
 
     const userRole = await user.getRoleInPublisher(publisherId);
 
+    // Members can only edit versions they created
     if (userRole === PublisherMemberRole.MEMBER && version.createdBy !== user.id) {
         throw new APIError(403, "No tienes permiso para editar esta versión");
+    }
+
+    // Only DRAFT versions can be edited
+    if (version.status !== ModpackVersionStatus.DRAFT) {
+        throw new APIError(400, "Solo las versiones en estado 'draft' se pueden editar");
     }
 
     const { changelog } = await c.req.json();
@@ -378,6 +384,74 @@ ModpackCreatorsRoute.patch("/publishers/:publisherId/modpacks/:modpackId/version
     await version.save();
 
     return c.json({ version });
+});
+
+
+// Logical delete - mark version as DELETED (irreversible)
+ModpackCreatorsRoute.delete("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId", isOrganizationMember, async (c) => {
+    const user = c.get(USER_CONTEXT_KEY) as User;
+    const { publisherId, modpackId, versionId } = c.req.param();
+
+    const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
+    if (!modpack) return c.notFound();
+
+    const version = await ModpackVersion.findOneBy({ id: versionId, modpackId: modpack.id });
+    if (!version) return c.notFound();
+
+    const userRole = await user.getRoleInPublisher(publisherId);
+
+    // Only admin/owner or creator can delete
+    if (
+        userRole !== PublisherMemberRole.ADMIN &&
+        userRole !== PublisherMemberRole.OWNER &&
+        version.createdBy !== user.id
+    ) {
+        throw new APIError(403, "No tienes permiso para eliminar esta versión");
+    }
+
+    // If already deleted, return error
+    if (version.status === ModpackVersionStatus.DELETED) {
+        throw new APIError(400, "Esta versión ya ha sido eliminada");
+    }
+
+    // Mark as deleted (irreversible)
+    version.status = ModpackVersionStatus.DELETED;
+    await version.save();
+
+    return c.json({ success: true });
+});
+
+
+// Archive version (logical archive, can be reversible if needed)
+ModpackCreatorsRoute.patch("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId/archive", isOrganizationMember, async (c) => {
+    const user = c.get(USER_CONTEXT_KEY) as User;
+    const { publisherId, modpackId, versionId } = c.req.param();
+
+    const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
+    if (!modpack) return c.notFound();
+
+    const version = await ModpackVersion.findOneBy({ id: versionId, modpackId: modpack.id });
+    if (!version) return c.notFound();
+
+    const userRole = await user.getRoleInPublisher(publisherId);
+
+    // Only admin/owner or creator can archive
+    if (
+        userRole !== PublisherMemberRole.ADMIN &&
+        userRole !== PublisherMemberRole.OWNER &&
+        version.createdBy !== user.id
+    ) {
+        throw new APIError(403, "No tienes permiso para archivar esta versión");
+    }
+
+    if (version.status === ModpackVersionStatus.DELETED) {
+        throw new APIError(400, "No se puede archivar una versión eliminada");
+    }
+
+    version.status = ModpackVersionStatus.ARCHIVED;
+    await version.save();
+
+    return c.json({ success: true });
 });
 
 

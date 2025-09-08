@@ -23,7 +23,8 @@ export enum ModpackStatus {
 export enum ModpackVersionStatus {
     DRAFT = 'draft',
     PUBLISHED = 'published',
-    ARCHIVED = 'archived'
+    ARCHIVED = 'archived',
+    DELETED = 'deleted'
 }
 
 export enum PublisherMemberRole {
