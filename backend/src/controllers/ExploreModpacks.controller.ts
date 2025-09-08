@@ -8,7 +8,10 @@ import { Modpack } from "@/entities/Modpack";
 import { tryParseJSON } from "@/utils/tryParseJSON";
 import { TwitchService } from "@/services/twitch.service";
 import { ModpackAccessService } from "@/services/modpack-access.service";
+import { AcquisitionService } from "@/services/acquisition.service";
+import { PaymentService } from "@/services/payment.service";
 import { AuthVariables } from "@/middlewares/auth.middleware";
+import { User } from "@/entities/User";
 
 export class ExploreModpacksController {
     static async getHomepage(c: Context): Promise<Response> {
@@ -323,9 +326,10 @@ export class ExploreModpacksController {
         }
     }
 
-    static async validateModpackPassword(c: Context): Promise<Response> {
+    static async validateModpackPassword(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
         const modpackId = c.req.param('modpackId');
         const { password } = await c.req.json();
+        const user = c.get('user');
 
         if (!password) {
             return c.json(serializeError({
@@ -333,6 +337,14 @@ export class ExploreModpacksController {
                 title: 'Bad Request',
                 detail: 'Password is required.',
             }), 400);
+        }
+
+        if (!user) {
+            return c.json(serializeError({
+                status: '401',
+                title: 'Unauthorized',
+                detail: 'Authentication required.',
+            }), 401);
         }
 
         try {
@@ -350,8 +362,6 @@ export class ExploreModpacksController {
 
             console.log(`[CONTROLLER_EXPLORE] Validating password for modpack ID ${modpackId}`);
 
-            console.log(`[CONTROLLER_EXPLORE] Modpack password: ${modpack.password}, Provided password: ${password}`);
-
             // Check if modpack requires password
             if (!modpack.password) {
                 return c.json({
@@ -360,13 +370,26 @@ export class ExploreModpacksController {
                 }, 200);
             }
 
-            // Validate password
-            const isValid = modpack.password === password;
-
-            return c.json({
-                valid: isValid,
-                message: isValid ? "Password is correct." : "Invalid password."
-            }, 200);
+            // Validate password and create acquisition if correct
+            if (modpack.password === password) {
+                const acquisition = await AcquisitionService.acquireWithPassword(user, modpack, password);
+                
+                return c.json({
+                    valid: true,
+                    message: "Password is correct. Access granted.",
+                    acquisition: {
+                        id: acquisition.id,
+                        method: acquisition.method,
+                        status: acquisition.status,
+                        createdAt: acquisition.createdAt
+                    }
+                }, 200);
+            } else {
+                return c.json({
+                    valid: false,
+                    message: "Invalid password."
+                }, 200);
+            }
 
         } catch (error: any) {
             console.error(`[CONTROLLER_EXPLORE] Error in validateModpackPassword for ID ${modpackId}:`, error);
@@ -375,6 +398,188 @@ export class ExploreModpacksController {
                 status: statusCode.toString(),
                 title: error.name || 'Password Validation Error',
                 detail: error.message || "Failed to validate password."
+            }), statusCode);
+        }
+    }
+
+    static async acquireWithTwitch(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
+        const modpackId = c.req.param('modpackId');
+        const user = c.get('user');
+
+        if (!user) {
+            return c.json(serializeError({
+                status: '401',
+                title: 'Unauthorized',
+                detail: 'Authentication required.',
+            }), 401);
+        }
+
+        try {
+            const modpack = await Modpack.findOne({
+                where: { id: modpackId }
+            });
+
+            if (!modpack) {
+                return c.json(serializeError({
+                    status: '404',
+                    title: 'Not Found',
+                    detail: "Modpack not found.",
+                }), 404);
+            }
+
+            const acquisition = await AcquisitionService.acquireWithTwitch(user, modpack);
+
+            return c.json({
+                success: true,
+                message: "Access granted through Twitch subscription.",
+                acquisition: {
+                    id: acquisition.id,
+                    method: acquisition.method,
+                    status: acquisition.status,
+                    createdAt: acquisition.createdAt
+                }
+            }, 200);
+
+        } catch (error: any) {
+            console.error(`[CONTROLLER_EXPLORE] Error in acquireWithTwitch for ID ${modpackId}:`, error);
+            const statusCode = error.statusCode || 403;
+            return c.json(serializeError({
+                status: statusCode.toString(),
+                title: error.name || 'Twitch Acquisition Error',
+                detail: error.message || "Failed to acquire through Twitch."
+            }), statusCode);
+        }
+    }
+
+    static async acquireWithPurchase(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
+        const modpackId = c.req.param('modpackId');
+        const user = c.get('user');
+        const { returnUrl, cancelUrl } = await c.req.json();
+
+        if (!user) {
+            return c.json(serializeError({
+                status: '401',
+                title: 'Unauthorized',
+                detail: 'Authentication required.',
+            }), 401);
+        }
+
+        if (!returnUrl || !cancelUrl) {
+            return c.json(serializeError({
+                status: '400',
+                title: 'Bad Request',
+                detail: 'returnUrl and cancelUrl are required.',
+            }), 400);
+        }
+
+        try {
+            const modpack = await Modpack.findOne({
+                where: { id: modpackId }
+            });
+
+            if (!modpack) {
+                return c.json(serializeError({
+                    status: '404',
+                    title: 'Not Found',
+                    detail: "Modpack not found.",
+                }), 404);
+            }
+
+            // For free modpacks, create acquisition immediately
+            if (!modpack.isPaid || parseFloat(modpack.price) === 0) {
+                const acquisition = await AcquisitionService.acquireWithPurchase(user, modpack);
+                
+                return c.json({
+                    success: true,
+                    isFree: true,
+                    message: "Free modpack acquired successfully.",
+                    acquisition: {
+                        id: acquisition.id,
+                        method: acquisition.method,
+                        status: acquisition.status,
+                        createdAt: acquisition.createdAt
+                    }
+                }, 200);
+            }
+
+            // For paid modpacks, create PayPal payment
+            const paymentRequest = {
+                amount: modpack.price,
+                currency: 'USD',
+                description: `Purchase of ${modpack.name}`,
+                returnUrl,
+                cancelUrl,
+                modpackId: modpack.id,
+                userId: user.id
+            };
+
+            const paymentResponse = await PaymentService.createPayment(paymentRequest);
+
+            return c.json({
+                success: true,
+                isFree: false,
+                paymentId: paymentResponse.paymentId,
+                approvalUrl: paymentResponse.approvalUrl,
+                qrCodeUrl: paymentResponse.qrCodeUrl,
+                amount: modpack.price,
+                currency: 'USD'
+            }, 200);
+
+        } catch (error: any) {
+            console.error(`[CONTROLLER_EXPLORE] Error in acquireWithPurchase for ID ${modpackId}:`, error);
+            const statusCode = error.statusCode || 500;
+            return c.json(serializeError({
+                status: statusCode.toString(),
+                title: error.name || 'Purchase Error',
+                detail: error.message || "Failed to process purchase."
+            }), statusCode);
+        }
+    }
+
+    static async paypalWebhook(c: Context): Promise<Response> {
+        try {
+            const payload = await c.req.json();
+            await PaymentService.handleWebhook(payload);
+            
+            return c.json({ success: true }, 200);
+        } catch (error: any) {
+            console.error('[CONTROLLER_EXPLORE] PayPal webhook error:', error);
+            return c.json({ error: 'Webhook processing failed' }, 500);
+        }
+    }
+
+    static async getUserAcquisitions(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
+        const user = c.get('user');
+        const page = parseInt(c.req.query('page') || '1');
+        const limit = parseInt(c.req.query('limit') || '20');
+
+        if (!user) {
+            return c.json(serializeError({
+                status: '401',
+                title: 'Unauthorized',
+                detail: 'Authentication required.',
+            }), 401);
+        }
+
+        try {
+            const result = await AcquisitionService.getUserAcquisitions(user.id, page, limit);
+
+            return c.json({
+                data: result.acquisitions,
+                meta: {
+                    page: result.page,
+                    totalPages: result.totalPages,
+                    total: result.total
+                }
+            }, 200);
+
+        } catch (error: any) {
+            console.error('[CONTROLLER_EXPLORE] Error getting user acquisitions:', error);
+            const statusCode = error.statusCode || 500;
+            return c.json(serializeError({
+                status: statusCode.toString(),
+                title: error.name || 'Acquisitions Error',
+                detail: error.message || "Failed to fetch user acquisitions."
             }), statusCode);
         }
     }

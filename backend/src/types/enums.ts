@@ -46,3 +46,15 @@ export enum TicketStatus {
     IN_REVIEW = 'in_review',
     CLOSED = 'closed'
 }
+
+export enum AcquisitionMethod {
+    PASSWORD = 'password',
+    PURCHASE = 'purchase',
+    TWITCH = 'twitch'
+}
+
+export enum AcquisitionStatus {
+    ACTIVE = 'active',
+    REVOKED = 'revoked',
+    SUSPENDED = 'suspended'
+}

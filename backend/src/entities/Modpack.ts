@@ -7,6 +7,7 @@ import { Scope } from "./Scope";
 import { UserPurchase } from "./UserPurchase";
 import { WalletTransaction } from "./WalletTransaction";
 import { ModpackVisibility, ModpackStatus } from "../types/enums";
+import { ModpackAcquisition } from "./ModpackAcquisition";
 
 @Entity({ name: "modpacks" })
 @Index(["visibility", "status"])
@@ -181,6 +182,9 @@ export class Modpack extends BaseEntity {
 
     @OneToMany(() => WalletTransaction, transaction => transaction.relatedModpack, { cascade: true })
     relatedTransactions: WalletTransaction[];
+
+    @OneToMany(() => ModpackAcquisition, acquisition => acquisition.modpack, { cascade: true })
+    acquisitions: ModpackAcquisition[];
 
     // Métodos de búsqueda y consulta
     static async search(query: string, limit: number = 25): Promise<Modpack[]> {

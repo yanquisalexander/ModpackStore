@@ -1,6 +1,7 @@
 import { Modpack } from '@/entities/Modpack';
 import { User } from '@/entities/User';
 import { TwitchService } from './twitch.service';
+import { AcquisitionService } from './acquisition.service';
 import { APIError } from '@/lib/APIError';
 
 export class ModpackAccessService {
@@ -12,52 +13,42 @@ export class ModpackAccessService {
         reason?: string;
         requiredChannels?: string[];
     }> {
-        // If modpack doesn't require Twitch subscription, check other requirements
-        if (!modpack.requiresTwitchSub) {
-            // Could add other access checks here (payment, etc.)
+        // Check basic visibility requirements
+        if (modpack.visibility === 'public' && !modpack.requiresPassword() && !modpack.isPaid && !modpack.requiresTwitchSub) {
             return { canAccess: true };
         }
 
-        // User must be authenticated for Twitch-protected content
+        // User must be authenticated for protected content
         if (!user) {
             return {
                 canAccess: false,
-                reason: 'Authentication required',
-                requiredChannels: modpack.getRequiredTwitchCreatorIds()
+                reason: 'Authentication required'
             };
         }
 
-        // User must have Twitch linked
-        if (!user.hasTwitchLinked()) {
-            return {
-                canAccess: false,
-                reason: 'Twitch account must be linked',
-                requiredChannels: modpack.getRequiredTwitchCreatorIds()
-            };
-        }
-
-        // Check Twitch subscriptions
-        const requiredChannelIds = modpack.getRequiredTwitchCreatorIds();
-        try {
-            const hasSubscription = await TwitchService.canUserAccessModpack(user, requiredChannelIds);
-
-            if (!hasSubscription) {
-                return {
-                    canAccess: false,
-                    reason: 'Must be subscribed to at least one of the required Twitch channels',
-                    requiredChannels: requiredChannelIds
-                };
-            }
-
+        // Check if user has an active acquisition
+        const accessResult = await AcquisitionService.hasActiveAccess(user.id, modpack.id);
+        if (accessResult.hasAccess) {
             return { canAccess: true };
-        } catch (error) {
-            console.error('Error checking Twitch subscriptions:', error);
-            return {
-                canAccess: false,
-                reason: 'Unable to verify Twitch subscriptions',
-                requiredChannels: requiredChannelIds
-            };
         }
+
+        // If no active acquisition, return access requirements
+        const info = AcquisitionService.getModpackAcquisitionInfo(modpack);
+        let reason = 'Access not acquired';
+        
+        if (info.requiresPassword) {
+            reason = 'Password required';
+        } else if (info.isPaid) {
+            reason = 'Purchase required';
+        } else if (info.requiresTwitchSubscription) {
+            reason = 'Twitch subscription required';
+        }
+
+        return {
+            canAccess: false,
+            reason,
+            requiredChannels: info.requiredTwitchChannels
+        };
     }
 
     /**
@@ -68,12 +59,17 @@ export class ModpackAccessService {
         requiredTwitchChannels: string[];
         isPaid: boolean;
         price?: string;
+        requiresPassword: boolean;
+        isFree: boolean;
     } {
+        const info = AcquisitionService.getModpackAcquisitionInfo(modpack);
         return {
-            requiresTwitchSubscription: modpack.requiresTwitchSub,
-            requiredTwitchChannels: modpack.getRequiredTwitchCreatorIds(),
-            isPaid: modpack.isPaid,
-            price: modpack.isPaid ? modpack.price : undefined
+            requiresTwitchSubscription: info.requiresTwitchSubscription,
+            requiredTwitchChannels: info.requiredTwitchChannels,
+            isPaid: info.isPaid,
+            price: info.price,
+            requiresPassword: info.requiresPassword,
+            isFree: info.isFree
         };
     }
 
