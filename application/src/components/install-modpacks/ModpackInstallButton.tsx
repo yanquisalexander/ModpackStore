@@ -224,7 +224,7 @@ export const InstallButton = ({
     const handleAcquisitionSuccess = () => {
         setHasAccess(true);
         setIsAcquisitionDialogOpen(false);
-        
+
         // Execute pending action if any
         if (pendingAction) {
             if (pendingAction.type === 'update' && pendingAction.instanceId) {
@@ -238,7 +238,7 @@ export const InstallButton = ({
     const getButtonText = () => {
         if (isCheckingAccess) return "Verificando acceso...";
         if (isCurrentlyInstalling) return "Instalando...";
-        
+
         // If user doesn't have access to a protected modpack, show "Adquirir"
         if (requiresAcquisition && !hasAccess) {
 
@@ -249,7 +249,7 @@ export const InstallButton = ({
                 default: return "Obtener Acceso";
             }
         }
-        
+
         // If user has access or no acquisition required, show "Instalar"
         return "Instalar";
     };
@@ -282,21 +282,24 @@ export const InstallButton = ({
                 onInstallNew={handleInstallNew}
                 modpackName={modpackName}
                 localInstances={localInstances}
+                modpackId={modpackId}
             />
 
             <UpdateInstanceDialog
                 isOpen={isUpdateDialogOpen}
                 onClose={() => setIsUpdateDialogOpen(false)}
-                onConfirm={handleConfirmUpdate}
+                onConfirmUpdate={handleConfirmUpdate}
                 modpackName={modpackName}
-                instances={localInstances}
+                localInstances={localInstances}
+                modpackId={modpackId}
             />
 
             <CreateInstanceDialog
                 isOpen={isCreateDialogOpen}
                 onClose={() => setIsCreateDialogOpen(false)}
-                onConfirm={handleConfirmCreate}
+                onConfirmCreate={handleConfirmCreate}
                 modpackName={modpackName}
+                modpackId={modpackId}
             />
 
             <ModpackAcquisitionDialog
