@@ -37,6 +37,7 @@ export const AcquisitionSystemDemo = () => {
         password: {
             id: "password-demo-1",
             name: "Secret Modpack",
+            acquisitionMethod: 'password' as const,
             requiresPassword: true,
             isPaid: false,
             isFree: true,
@@ -44,6 +45,7 @@ export const AcquisitionSystemDemo = () => {
         paid: {
             id: "paid-demo-1", 
             name: "Premium Modpack",
+            acquisitionMethod: 'paid' as const,
             requiresPassword: false,
             isPaid: true,
             isFree: false,
@@ -52,6 +54,7 @@ export const AcquisitionSystemDemo = () => {
         free: {
             id: "free-demo-1",
             name: "Community Modpack",
+            acquisitionMethod: 'free' as const,
             requiresPassword: false,
             isPaid: false,
             isFree: true,
@@ -59,6 +62,7 @@ export const AcquisitionSystemDemo = () => {
         twitch: {
             id: "twitch-demo-1",
             name: "Streamer Exclusive",
+            acquisitionMethod: 'twitch_sub' as const,
             requiresPassword: false,
             isPaid: false,
             isFree: true,
