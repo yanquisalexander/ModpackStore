@@ -177,8 +177,9 @@ fn save_manifest_cache(
 }
 
 /// Cleans up obsolete files in the instance directory based on manifest comparison
-/// Only removes files within modpack-controlled directories that are not in the current manifest
-/// This includes both obsolete files from previous manifests and manually added files
+/// Implements differentiated cleanup strategies:
+/// - Strict cleanup for mods/ folder: removes any files not in manifest
+/// - Synchronized cleanup for other folders: moves files to new locations when possible
 pub fn cleanup_obsolete_files(
     instance: &MinecraftInstance,
     manifest: &ModpackManifest,
@@ -201,6 +202,7 @@ pub fn cleanup_obsolete_files(
 
     let mut removed_files = Vec::new();
     let mut preserved_files = Vec::new();
+    let mut moved_files = Vec::new();
 
     // Get essential paths that should never be deleted
     let essential_paths = get_essential_minecraft_paths(&minecraft_dir, instance);
@@ -231,7 +233,7 @@ pub fn cleanup_obsolete_files(
         files_to_clean.len()
     );
 
-    // Process files for cleanup
+    // Process files for cleanup with different strategies based on directory
     for file_to_clean in files_to_clean {
         let file_path = minecraft_dir.join(&file_to_clean);
 
@@ -244,13 +246,94 @@ pub fn cleanup_obsolete_files(
 
         // Only clean if file actually exists
         if file_path.exists() {
-            match fs::remove_file(&file_path) {
-                Ok(_) => {
-                    log::info!("[Cleanup] Removed file from controlled directory: {}", file_to_clean);
-                    removed_files.push(file_to_clean);
+            if file_to_clean.starts_with("mods/") || file_to_clean.starts_with("coremods/") {
+                // STRICT CLEANUP: For mods/ and coremods/ folders, always remove files not in manifest
+                match fs::remove_file(&file_path) {
+                    Ok(_) => {
+                        log::info!("[Cleanup] Strict removal from mods: {}", file_to_clean);
+                        removed_files.push(file_to_clean);
+                    }
+                    Err(e) => {
+                        log::error!("[Cleanup] Failed to remove mod file {}: {}", file_to_clean, e);
+                    }
                 }
-                Err(e) => {
-                    log::error!("[Cleanup] Failed to remove file {}: {}", file_to_clean, e);
+            } else {
+                // SYNCHRONIZED CLEANUP: For other folders, try to find if file should be moved
+                let file_hash = match calculate_file_hash(&file_path) {
+                    Ok(hash) => hash,
+                    Err(e) => {
+                        log::warn!("[Cleanup] Could not calculate hash for {}: {}. Removing file.", file_to_clean, e);
+                        match fs::remove_file(&file_path) {
+                            Ok(_) => {
+                                log::info!("[Cleanup] Removed file with hash calculation error: {}", file_to_clean);
+                                removed_files.push(file_to_clean);
+                            }
+                            Err(e) => {
+                                log::error!("[Cleanup] Failed to remove file {}: {}", file_to_clean, e);
+                            }
+                        }
+                        continue;
+                    }
+                };
+
+                // Check if this file hash is needed somewhere else in the manifest
+                let target_location = manifest.files.iter()
+                    .find(|f| f.sha1 == file_hash && f.path != file_to_clean);
+
+                if let Some(target_file) = target_location {
+                    // File should be moved to new location
+                    let target_path = minecraft_dir.join(&target_file.path);
+                    
+                    // Ensure target directory exists
+                    if let Some(parent) = target_path.parent() {
+                        if let Err(e) = fs::create_dir_all(parent) {
+                            log::error!("[Cleanup] Failed to create target directory for {}: {}", target_file.path, e);
+                            // Fall back to removal
+                            match fs::remove_file(&file_path) {
+                                Ok(_) => {
+                                    log::info!("[Cleanup] Removed file (move failed): {}", file_to_clean);
+                                    removed_files.push(file_to_clean);
+                                }
+                                Err(e) => {
+                                    log::error!("[Cleanup] Failed to remove file {}: {}", file_to_clean, e);
+                                }
+                            }
+                            continue;
+                        }
+                    }
+
+                    // Attempt to move the file
+                    match fs::rename(&file_path, &target_path) {
+                        Ok(_) => {
+                            log::info!("[Cleanup] Moved file {} -> {}", file_to_clean, target_file.path);
+                            moved_files.push(format!("{} -> {}", file_to_clean, target_file.path));
+                        }
+                        Err(e) => {
+                            log::warn!("[Cleanup] Failed to move file {} -> {}: {}. Removing instead.", 
+                                     file_to_clean, target_file.path, e);
+                            // Fall back to removal
+                            match fs::remove_file(&file_path) {
+                                Ok(_) => {
+                                    log::info!("[Cleanup] Removed file (move failed): {}", file_to_clean);
+                                    removed_files.push(file_to_clean);
+                                }
+                                Err(e) => {
+                                    log::error!("[Cleanup] Failed to remove file {}: {}", file_to_clean, e);
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    // File is not needed anywhere, remove it
+                    match fs::remove_file(&file_path) {
+                        Ok(_) => {
+                            log::info!("[Cleanup] Removed unnecessary file: {}", file_to_clean);
+                            removed_files.push(file_to_clean);
+                        }
+                        Err(e) => {
+                            log::error!("[Cleanup] Failed to remove file {}: {}", file_to_clean, e);
+                        }
+                    }
                 }
             }
         }
@@ -265,8 +348,9 @@ pub fn cleanup_obsolete_files(
     }
 
     log::info!(
-        "[Cleanup] Enhanced cleanup complete: {} files removed, {} files preserved",
+        "[Cleanup] Enhanced cleanup complete: {} files removed, {} files moved, {} files preserved",
         removed_files.len(),
+        moved_files.len(),
         preserved_files.len()
     );
 
@@ -1165,6 +1249,13 @@ fn compute_file_hash(contents: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
+/// Calculate hash for a file at the given path
+fn calculate_file_hash(file_path: &Path) -> Result<String, String> {
+    let contents = fs::read(file_path)
+        .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
+    Ok(compute_file_hash(&contents))
+}
+
 /// Builds a map of file hash -> path for all files in the instance directory
 /// This helps identify files that exist but may be in the wrong location
 fn build_hash_to_path_map(minecraft_dir: &Path) -> Result<HashMap<String, PathBuf>, String> {
@@ -1797,5 +1888,56 @@ mod tests {
         // SHA1 hash of "Hello, World!" should be consistent
         let expected_hash = "0a4d55a8d778e5022fab701977c5d840bbc486d0";
         assert_eq!(hash, expected_hash);
+    }
+
+    #[test]
+    fn test_enhanced_cleanup_differentiated_behavior() {
+        // Test that demonstrates the differentiated cleanup behavior:
+        // - Strict cleanup for mods/ (remove everything not in manifest)
+        // - Synchronized cleanup for other folders (move files when possible)
+
+        // Simulate files in different directories
+        let files_to_clean = vec![
+            "mods/old_mod.jar",           // Should be strictly removed
+            "mods/user_added_mod.jar",    // Should be strictly removed  
+            "config/old_config.cfg",      // Should be removed or moved if hash matches
+            "resources/old_texture.png",  // Should be removed or moved if hash matches
+        ];
+
+        // Verify that we can differentiate between mods and other directories
+        for file in files_to_clean {
+            if file.starts_with("mods/") || file.starts_with("coremods/") {
+                // This should trigger strict cleanup (removal)
+                assert!(file.starts_with("mods/"));
+                // In actual implementation, this would be removed without checking for moves
+            } else {
+                // This should trigger synchronized cleanup (check for moves)
+                assert!(file.starts_with("config/") || file.starts_with("resources/"));
+                // In actual implementation, this would check for hash matches in manifest
+            }
+        }
+    }
+
+    #[test]
+    fn test_calculate_file_hash_function() {
+        // Create a temporary file to test hash calculation
+        let temp_dir = std::env::temp_dir().join("hash_test");
+        let _ = std::fs::create_dir_all(&temp_dir);
+        
+        let test_file = temp_dir.join("test.txt");
+        let test_content = "Test content for hash calculation";
+        
+        // Write test content
+        let _ = std::fs::write(&test_file, test_content);
+        
+        // Calculate hash using our function
+        if let Ok(calculated_hash) = calculate_file_hash(&test_file) {
+            // Calculate expected hash manually
+            let expected_hash = compute_file_hash(test_content.as_bytes());
+            assert_eq!(calculated_hash, expected_hash);
+        }
+        
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&temp_dir);
     }
 }

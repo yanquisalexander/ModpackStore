@@ -502,3 +502,29 @@ pub fn add_task_with_auto_start(label: &str, data: Option<serde_json::Value>) ->
     
     task_id
 }
+
+/// Start a background task to periodically check for and cleanup stuck tasks
+/// This should be called once when the application starts
+pub fn start_periodic_task_cleanup() {
+    tokio::spawn(async {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300)); // Check every 5 minutes
+        
+        loop {
+            interval.tick().await;
+            
+            // Cleanup tasks stuck in pending state for more than 2 minutes
+            let stuck_count = cleanup_stuck_pending_tasks(120);
+            if stuck_count > 0 {
+                warn!("Periodic cleanup: Auto-failed {} stuck pending tasks", stuck_count);
+            }
+            
+            // Also cleanup old completed/failed tasks older than 1 hour
+            let old_count = cleanup_old_tasks(3600);
+            if old_count > 0 {
+                info!("Periodic cleanup: Removed {} old completed tasks", old_count);
+            }
+        }
+    });
+    
+    info!("Started periodic task cleanup service");
+}
