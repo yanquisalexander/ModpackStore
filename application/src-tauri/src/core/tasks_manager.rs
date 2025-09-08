@@ -166,6 +166,12 @@ pub fn update_task(
     message: &str,
     data: Option<serde_json::Value>,
 ) {
+    // Early validation - check if task exists before attempting to update
+    if !task_exists(id) {
+        warn!("Attempted to update non-existent task: {}", id);
+        return;
+    }
+
     let updated_task = match TASKS.lock() {
         Ok(mut tasks) => {
             match tasks.get_mut(id) {
@@ -219,7 +225,7 @@ pub fn update_task(
                     Some(task.clone())
                 }
                 None => {
-                    warn!("Attempted to update non-existent task: {}", id);
+                    warn!("Task {} was deleted while attempting to update it", id);
                     None
                 }
             }
@@ -409,4 +415,116 @@ pub fn update_task_with_bootstrap_error(
         &format!("Error en {}: {}", error.step, error.message),
         Some(error_data),
     );
+}
+
+/// Check for tasks that have been stuck in Pending state for too long and mark them as failed
+/// This prevents tasks from getting permanently stuck in "En espera" state
+pub fn cleanup_stuck_pending_tasks(max_pending_seconds: u64) -> usize {
+    let cutoff_time = chrono::Utc::now() - chrono::Duration::seconds(max_pending_seconds as i64);
+    let mut stuck_tasks = Vec::new();
+
+    // First pass: identify stuck tasks
+    match TASKS.lock() {
+        Ok(tasks) => {
+            for task in tasks.values() {
+                if task.status == TaskStatus::Pending {
+                    match chrono::DateTime::parse_from_rfc3339(&task.created_at) {
+                        Ok(created_time) => {
+                            if created_time.with_timezone(&chrono::Utc) < cutoff_time {
+                                stuck_tasks.push(task.id.clone());
+                            }
+                        }
+                        Err(_) => {
+                            warn!(
+                                "Could not parse created_at for task {}: {}",
+                                task.id, task.created_at
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        Err(e) => {
+            error!("Failed to lock TASKS mutex for stuck task cleanup: {}", e);
+            return 0;
+        }
+    }
+
+    // Second pass: update stuck tasks to failed status
+    let stuck_count = stuck_tasks.len();
+    for task_id in stuck_tasks {
+        update_task(
+            &task_id,
+            TaskStatus::Failed,
+            0.0,
+            "La tarea se quedó bloqueada en estado de espera y fue cancelada automáticamente",
+            Some(serde_json::json!({
+                "auto_failed": true,
+                "reason": "stuck_in_pending"
+            })),
+        );
+        warn!("Auto-failed stuck pending task: {}", task_id);
+    }
+
+    if stuck_count > 0 {
+        info!("Auto-failed {} tasks that were stuck in pending state", stuck_count);
+    }
+
+    stuck_count
+}
+
+/// Enhanced add_task that ensures tasks don't get stuck in pending state
+/// Automatically transitions to Running state after a brief delay if still pending
+pub fn add_task_with_auto_start(label: &str, data: Option<serde_json::Value>) -> String {
+    let task_id = add_task(label, data);
+    
+    // Clone task_id for the async task
+    let task_id_clone = task_id.clone();
+    
+    // Spawn a task to auto-start if still pending after 2 seconds
+    tokio::spawn(async move {
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        
+        // Check if task is still pending and auto-start it
+        if let Some(task) = get_task(&task_id_clone) {
+            if task.status == TaskStatus::Pending {
+                update_task(
+                    &task_id_clone,
+                    TaskStatus::Running,
+                    0.0,
+                    "Iniciando tarea...",
+                    None,
+                );
+                info!("Auto-started pending task: {} ({})", task_id_clone, task.label);
+            }
+        }
+    });
+    
+    task_id
+}
+
+/// Start a background task to periodically check for and cleanup stuck tasks
+/// This should be called once when the application starts
+pub fn start_periodic_task_cleanup() {
+    tokio::spawn(async {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300)); // Check every 5 minutes
+        
+        loop {
+            interval.tick().await;
+            
+            // Cleanup tasks stuck in pending state for more than 2 minutes
+            let stuck_count = cleanup_stuck_pending_tasks(120);
+            if stuck_count > 0 {
+                warn!("Periodic cleanup: Auto-failed {} stuck pending tasks", stuck_count);
+            }
+            
+            // Also cleanup old completed/failed tasks older than 1 hour
+            let old_count = cleanup_old_tasks(3600);
+            if old_count > 0 {
+                info!("Periodic cleanup: Removed {} old completed tasks", old_count);
+            }
+        }
+    });
+    
+    info!("Started periodic task cleanup service");
 }
