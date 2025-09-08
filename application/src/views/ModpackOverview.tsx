@@ -632,7 +632,11 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                         modpackId={modpackId}
                                         modpackName={modpackData.name!}
                                         localInstances={localInstancesOfModpack}
-                                        acquisitionMethod={modpackData.acquisitionMethod}
+                                        acquisitionMethod={modpackData.acquisitionMethod || 
+                                            (modpackData.isPasswordProtected ? 'password' :
+                                             modpackData.requiresTwitchSubscription ? 'twitch_sub' :
+                                             modpackData.isPaid ? 'paid' : 'free')
+                                        }
                                         isPasswordProtected={modpackData.isPasswordProtected}
                                         isPaid={modpackData.isPaid}
                                         isFree={modpackData.isFree}

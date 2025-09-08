@@ -2,7 +2,7 @@ import { type Context } from 'hono';
 import { getExploreModpacks, getModpackById, searchModpacks } from "@/services/modpacks";
 import { serializeCollection, serializeResource, serializeError } from "../utils/jsonapi";
 import { ModpackVersion } from "@/entities/ModpackVersion";
-import { ModpackVersionStatus } from "@/types/enums";
+import { ModpackVersionStatus, AcquisitionMethod } from "@/types/enums";
 import { DOWNLOAD_PREFIX_URL } from "@/services/r2UploadService";
 import { Modpack } from "@/entities/Modpack";
 import { tryParseJSON } from "@/utils/tryParseJSON";
@@ -362,6 +362,14 @@ export class ExploreModpacksController {
 
             console.log(`[CONTROLLER_EXPLORE] Validating password for modpack ID ${modpackId}`);
 
+            // Check if modpack supports password acquisition
+            if (modpack.acquisitionMethod !== AcquisitionMethod.PASSWORD) {
+                return c.json({
+                    valid: true,
+                    message: "Modpack does not require password."
+                }, 200);
+            }
+
             // Check if modpack requires password
             if (!modpack.password) {
                 return c.json({
@@ -427,6 +435,15 @@ export class ExploreModpacksController {
                 }), 404);
             }
 
+            // Check if modpack supports Twitch subscription acquisition
+            if (modpack.acquisitionMethod !== AcquisitionMethod.TWITCH_SUB) {
+                return c.json(serializeError({
+                    status: '400',
+                    title: 'Bad Request',
+                    detail: 'This modpack does not support Twitch subscription acquisition.',
+                }), 400);
+            }
+
             const acquisition = await AcquisitionService.acquireWithTwitch(user, modpack);
 
             return c.json({
@@ -485,8 +502,17 @@ export class ExploreModpacksController {
                 }), 404);
             }
 
+            // Check if modpack allows purchase acquisition method
+            if (modpack.acquisitionMethod !== AcquisitionMethod.FREE && modpack.acquisitionMethod !== AcquisitionMethod.PAID) {
+                return c.json(serializeError({
+                    status: '400',
+                    title: 'Bad Request',
+                    detail: 'This modpack does not support purchase acquisition.',
+                }), 400);
+            }
+
             // For free modpacks, create acquisition immediately
-            if (!modpack.isPaid || parseFloat(modpack.price) === 0) {
+            if (modpack.acquisitionMethod === AcquisitionMethod.FREE) {
                 const acquisition = await AcquisitionService.acquireWithPurchase(user, modpack);
                 
                 return c.json({
