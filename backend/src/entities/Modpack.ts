@@ -6,7 +6,7 @@ import { ModpackVersion } from "./ModpackVersion";
 import { Scope } from "./Scope";
 import { UserPurchase } from "./UserPurchase";
 import { WalletTransaction } from "./WalletTransaction";
-import { ModpackVisibility, ModpackStatus } from "../types/enums";
+import { ModpackVisibility, ModpackStatus, AcquisitionMethod } from "../types/enums";
 import { ModpackAcquisition } from "./ModpackAcquisition";
 
 @Entity({ name: "modpacks" })
@@ -140,6 +140,15 @@ export class Modpack extends BaseEntity {
     })
     status: ModpackStatus;
 
+    @Column({
+        name: "acquisition_method",
+        type: "enum",
+        enum: AcquisitionMethod,
+        enumName: "acquisition_method",
+        default: AcquisitionMethod.FREE
+    })
+    acquisitionMethod: AcquisitionMethod;
+
     @Column({ name: "is_paid", type: "boolean", default: false })
     isPaid: boolean;
 
@@ -241,19 +250,14 @@ export class Modpack extends BaseEntity {
         return query.getMany();
     }
 
-    // Método para verificar si el modpack requiere contraseña
-    isPasswordProtected(): boolean {
-        return this.password !== null && this.password !== undefined && this.password.trim() !== "";
-    }
-
-    // Método para validar contraseña
+    // Method to validate contraseña
     validatePassword(inputPassword: string): boolean {
         return this.password === inputPassword;
     }
 
     // Method to check if modpack requires Twitch subscription
     get requiresTwitchSub(): boolean {
-        return this.requiresTwitchSubscription && Array.isArray(this.twitchCreatorIds) && this.twitchCreatorIds.length > 0;
+        return this.acquisitionMethod === AcquisitionMethod.TWITCH_SUB;
     }
 
     // Method to get required Twitch creator IDs
@@ -262,6 +266,21 @@ export class Modpack extends BaseEntity {
     }
 
     requiresPassword(): boolean {
-        return this.password !== null && this.password !== undefined && this.password.trim() !== "";
+        return this.acquisitionMethod === AcquisitionMethod.PASSWORD;
+    }
+
+    // New method to check if modpack is free
+    isFreeMethod(): boolean {
+        return this.acquisitionMethod === AcquisitionMethod.FREE;
+    }
+
+    // New method to check if modpack is paid
+    isPaidMethod(): boolean {
+        return this.acquisitionMethod === AcquisitionMethod.PAID;
+    }
+
+    // Backward compatibility - maintain existing method names but use new logic
+    isPasswordProtected(): boolean {
+        return this.requiresPassword();
     }
 }

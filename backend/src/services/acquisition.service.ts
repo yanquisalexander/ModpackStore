@@ -21,7 +21,7 @@ export class AcquisitionService {
         }
 
         // For Twitch acquisitions, verify subscription is still active
-        if (acquisition.method === AcquisitionMethod.TWITCH) {
+        if (acquisition.method === AcquisitionMethod.TWITCH_SUB) {
             const user = await User.findOne({ where: { id: userId } });
             const modpack = await Modpack.findOne({ where: { id: modpackId } });
             
@@ -93,7 +93,7 @@ export class AcquisitionService {
         }
 
         // For paid modpacks, transaction ID is required
-        if (modpack.isPaid && parseFloat(modpack.price) > 0 && !transactionId) {
+        if (modpack.acquisitionMethod === AcquisitionMethod.PAID && parseFloat(modpack.price) > 0 && !transactionId) {
             throw new APIError(400, 'Transaction ID required for paid modpack');
         }
 
@@ -101,7 +101,7 @@ export class AcquisitionService {
         const acquisition = new ModpackAcquisition();
         acquisition.userId = user.id;
         acquisition.modpackId = modpack.id;
-        acquisition.method = AcquisitionMethod.PURCHASE;
+        acquisition.method = modpack.acquisitionMethod; // Use the modpack's defined method
         acquisition.status = AcquisitionStatus.ACTIVE;
         acquisition.transactionId = transactionId || null;
 
@@ -145,7 +145,7 @@ export class AcquisitionService {
         const acquisition = new ModpackAcquisition();
         acquisition.userId = user.id;
         acquisition.modpackId = modpack.id;
-        acquisition.method = AcquisitionMethod.TWITCH;
+        acquisition.method = AcquisitionMethod.TWITCH_SUB;
         acquisition.status = AcquisitionStatus.ACTIVE;
 
         return await acquisition.save();
@@ -175,14 +175,16 @@ export class AcquisitionService {
         price?: string;
         requiresTwitchSubscription: boolean;
         requiredTwitchChannels: string[];
+        acquisitionMethod: AcquisitionMethod;
     } {
         return {
-            requiresPassword: modpack.isPasswordProtected(),
-            isPaid: modpack.isPaid && parseFloat(modpack.price) > 0,
-            isFree: !modpack.isPaid || parseFloat(modpack.price) === 0,
-            price: modpack.isPaid ? modpack.price : undefined,
-            requiresTwitchSubscription: modpack.requiresTwitchSub,
-            requiredTwitchChannels: modpack.getRequiredTwitchCreatorIds()
+            acquisitionMethod: modpack.acquisitionMethod,
+            requiresPassword: modpack.acquisitionMethod === AcquisitionMethod.PASSWORD,
+            isPaid: modpack.acquisitionMethod === AcquisitionMethod.PAID,
+            isFree: modpack.acquisitionMethod === AcquisitionMethod.FREE,
+            price: modpack.acquisitionMethod === AcquisitionMethod.PAID ? modpack.price : undefined,
+            requiresTwitchSubscription: modpack.acquisitionMethod === AcquisitionMethod.TWITCH_SUB,
+            requiredTwitchChannels: modpack.acquisitionMethod === AcquisitionMethod.TWITCH_SUB ? modpack.getRequiredTwitchCreatorIds() : []
         };
     }
 

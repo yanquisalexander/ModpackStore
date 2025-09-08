@@ -40,7 +40,7 @@ interface ModpackAcquisition {
         iconUrl?: string;
         slug: string;
     };
-    method: 'password' | 'purchase' | 'twitch';
+    method: 'free' | 'paid' | 'password' | 'twitch_sub';
     status: 'active' | 'revoked' | 'suspended';
     createdAt: string;
     transactionId?: string;
@@ -97,16 +97,18 @@ export const ModpackAccessStatus = () => {
     const getMethodIcon = (method: ModpackAcquisition['method']) => {
         switch (method) {
             case 'password': return <LucideShield className="w-4 h-4" />;
-            case 'purchase': return <LucideShoppingCart className="w-4 h-4" />;
-            case 'twitch': return <MdiTwitch className="w-4 h-4" />;
+            case 'free':
+            case 'paid': return <LucideShoppingCart className="w-4 h-4" />;
+            case 'twitch_sub': return <MdiTwitch className="w-4 h-4" />;
         }
     };
 
     const getMethodText = (method: ModpackAcquisition['method']) => {
         switch (method) {
             case 'password': return 'Contraseña';
-            case 'purchase': return 'Compra';
-            case 'twitch': return 'Twitch';
+            case 'free': return 'Gratuito';
+            case 'paid': return 'Compra';
+            case 'twitch_sub': return 'Twitch';
         }
     };
 

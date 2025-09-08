@@ -48,9 +48,10 @@ export enum TicketStatus {
 }
 
 export enum AcquisitionMethod {
+    FREE = 'free',
+    PAID = 'paid',
     PASSWORD = 'password',
-    PURCHASE = 'purchase',
-    TWITCH = 'twitch'
+    TWITCH_SUB = 'twitch_sub'
 }
 
 export enum AcquisitionStatus {
