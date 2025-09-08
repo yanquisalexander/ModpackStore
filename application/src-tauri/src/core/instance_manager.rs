@@ -933,17 +933,17 @@ fn spawn_modpack_update_task(
     task_id: String,
 ) {
     std::thread::spawn(move || {
+        // Step 1: Strict cleanup of mods/ directory BEFORE verification/download
         update_task(
             &task_id,
             TaskStatus::Running,
-            25.0,
-            "Descargando archivos actualizados...",
+            10.0,
+            "Limpiando archivos obsoletos en mods/...",
             None,
         );
 
-        // Limpiar archivos obsoletos
         let removed_files =
-            crate::core::modpack_file_manager::cleanup_obsolete_files(&instance, &manifest);
+            crate::core::modpack_file_manager::strict_mods_cleanup(&instance, &manifest);
 
         let removed_files = match removed_files {
             Ok(files) => files,
@@ -962,12 +962,20 @@ fn spawn_modpack_update_task(
         update_task(
             &task_id,
             TaskStatus::Running,
-            50.0,
-            &format!("Eliminados {} archivos obsoletos", removed_files.len()),
+            25.0,
+            &format!("Eliminados {} archivos obsoletos de mods/", removed_files.len()),
             None,
         );
 
-        // Instalar archivos actualizados
+        // Step 2: Verify and download updated files
+        update_task(
+            &task_id,
+            TaskStatus::Running,
+            30.0,
+            "Verificando y descargando archivos actualizados...",
+            None,
+        );
+
         let files_processed = tokio::runtime::Runtime::new().unwrap().block_on(async {
             crate::core::modpack_file_manager::download_and_install_files(
                 &instance,

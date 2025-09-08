@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { boolean, integer, jsonb, numeric, pgEnum, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, integer, jsonb, numeric, pgEnum, timestamp, uuid, unique } from "drizzle-orm/pg-core";
 import { pgTable, serial, text, varchar } from "drizzle-orm/pg-core";
 
 // Enums
@@ -158,7 +158,9 @@ export const ModpackVersionFilesTable = pgTable('modpack_version_files', {
     modpackVersionId: uuid('modpack_version_id').references(() => ModpackVersionsTable.id).notNull(),
     fileHash: varchar('file_hash', { length: 64 }).references(() => ModpackFilesTable.hash).notNull(),
     path: text('path').notNull(), // ej: "mods/jei.jar" dentro del pack
-});
+}, (table) => ({
+    uniqueVersionFileHashPath: unique().on(table.modpackVersionId, table.fileHash, table.path),
+}));
 
 // Categorías
 export const CategoriesTable = pgTable('categories', {

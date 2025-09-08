@@ -306,6 +306,111 @@ fn get_controlled_directories() -> Vec<&'static str> {
     ]
 }
 
+/// Performs strict cleanup of the mods/ directory only
+/// Removes ALL files in mods/ that are not in the current manifest
+/// Also removes empty subdirectories after cleanup
+pub fn strict_mods_cleanup(
+    instance: &MinecraftInstance,
+    manifest: &ModpackManifest,
+) -> Result<Vec<String>, String> {
+    let instance_dir = instance
+        .instanceDirectory
+        .as_ref()
+        .ok_or("Instance directory not set")?;
+
+    let minecraft_dir = Path::new(instance_dir).join("minecraft");
+    let mods_dir = minecraft_dir.join("mods");
+    
+    if !mods_dir.exists() {
+        log::info!("[Strict Cleanup] Mods directory does not exist, nothing to clean");
+        return Ok(vec![]);
+    }
+
+    log::info!("[Strict Cleanup] Starting strict cleanup of mods/ directory");
+
+    let mut removed_files = Vec::new();
+
+    // Get current manifest files that are in mods/ directory
+    let current_mods_files: HashSet<String> = manifest.files
+        .iter()
+        .filter(|f| f.path.starts_with("mods/"))
+        .map(|f| f.path.clone())
+        .collect();
+    
+    log::info!(
+        "[Strict Cleanup] Current manifest has {} mods files",
+        current_mods_files.len()
+    );
+
+    // Scan mods directory for existing files
+    let existing_mods_files = scan_mods_directory(&mods_dir)?;
+    
+    log::info!(
+        "[Strict Cleanup] Found {} files in mods/ directory",
+        existing_mods_files.len()
+    );
+
+    // Determine files to clean: any file in mods/ that is NOT in current manifest
+    let files_to_clean: HashSet<String> = existing_mods_files
+        .difference(&current_mods_files)
+        .cloned()
+        .collect();
+
+    log::info!(
+        "[Strict Cleanup] Found {} files to clean from mods/ directory",
+        files_to_clean.len()
+    );
+
+    // Remove obsolete files
+    for file_to_clean in files_to_clean {
+        let file_path = minecraft_dir.join(&file_to_clean);
+
+        if file_path.exists() {
+            match fs::remove_file(&file_path) {
+                Ok(_) => {
+                    log::info!("[Strict Cleanup] Removed file from mods/: {}", file_to_clean);
+                    removed_files.push(file_to_clean);
+                }
+                Err(e) => {
+                    log::error!("[Strict Cleanup] Failed to remove file {}: {}", file_to_clean, e);
+                }
+            }
+        }
+    }
+
+    // Remove empty directories within mods/ only
+    remove_empty_directories_in_tree(&mods_dir)?;
+    
+    // Check if mods/ directory itself is empty and remove it if so
+    if is_directory_empty(&mods_dir)? {
+        if let Err(e) = fs::remove_dir(&mods_dir) {
+            log::warn!("[Strict Cleanup] Failed to remove empty mods directory: {}", e);
+        } else {
+            log::info!("[Strict Cleanup] Removed empty mods/ directory");
+        }
+    }
+
+    log::info!(
+        "[Strict Cleanup] Strict mods cleanup complete: {} files removed",
+        removed_files.len()
+    );
+
+    Ok(removed_files)
+}
+
+/// Scans the mods directory for all files and returns their relative paths
+fn scan_mods_directory(mods_dir: &Path) -> Result<HashSet<String>, String> {
+    let mut found_files = HashSet::new();
+    
+    // Get the minecraft directory (parent of mods)
+    let minecraft_dir = mods_dir.parent()
+        .ok_or("Could not get minecraft directory from mods path")?;
+    
+    scan_directory_for_files(mods_dir, minecraft_dir, &mut found_files)?;
+    
+    Ok(found_files)
+}
+
 /// Scans controlled directories for all files and returns their relative paths
 fn scan_controlled_directories(minecraft_dir: &Path) -> Result<HashSet<String>, String> {
     let mut found_files = HashSet::new();
@@ -1321,15 +1426,25 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         remove_task(&base_task_id);
     }
 
-    let task_id = base_task_id;
-    add_task(
-        &task_id.clone(),
+    // Create task with a proper title to prevent "En espera" state
+    let task_title = format!("Validando assets - {}", instance.instanceName);
+    let task_id = add_task(
+        &task_title,
         Some(serde_json::json!({
             "status": "Validando assets del modpack",
             "progress": 0.0,
             "message": "Iniciando validación...",
             "instanceId": instance_id.clone()
         })),
+    );
+    
+    // Immediately update task to running state to prevent stuck "En espera" state
+    update_task(
+        &task_id,
+        TaskStatus::Running,
+        0.0,
+        "Obteniendo manifest del modpack...",
+        None,
     );
 
     // Fetch current manifest
@@ -1725,6 +1840,81 @@ mod tests {
         
         // Verify files in non-controlled directories were ignored
         assert!(!controlled_files.contains("saves/world.dat"));
+        
+        // Cleanup
+        let _ = std::fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_strict_mods_cleanup_logic() {
+        // This test simulates the strict mods cleanup logic
+        
+        // Simulate files currently in mods/ directory
+        let existing_mods_files: std::collections::HashSet<String> = vec![
+            "mods/jei-1.0.0.jar".to_string(),
+            "mods/optifine.jar".to_string(),
+            "mods/user-added-mod.jar".to_string(), // User added this manually
+            "mods/old-mod.jar".to_string(), // From previous version
+            "mods/subfolder/some-mod.jar".to_string(),
+        ].into_iter().collect();
+        
+        // Simulate files that should be in the new manifest (mods/ only)
+        let manifest_mods_files: std::collections::HashSet<String> = vec![
+            "mods/jei-1.0.0.jar".to_string(),
+            "mods/new-mod.jar".to_string(), // New in this version
+            "mods/subfolder/some-mod.jar".to_string(),
+        ].into_iter().collect();
+        
+        // Calculate what should be cleaned (files in existing but not in manifest)
+        let files_to_clean: std::collections::HashSet<String> = existing_mods_files
+            .difference(&manifest_mods_files)
+            .cloned()
+            .collect();
+        
+        // Verify cleanup targets
+        assert!(files_to_clean.contains("mods/optifine.jar")); // Should be removed
+        assert!(files_to_clean.contains("mods/user-added-mod.jar")); // User added, should be removed
+        assert!(files_to_clean.contains("mods/old-mod.jar")); // From old version, should be removed
+        
+        // Verify files that should be preserved
+        assert!(!files_to_clean.contains("mods/jei-1.0.0.jar")); // In new manifest
+        assert!(!files_to_clean.contains("mods/subfolder/some-mod.jar")); // In new manifest
+        
+        assert_eq!(files_to_clean.len(), 3); // Only 3 files should be marked for removal
+    }
+
+    #[test]
+    fn test_scan_mods_directory_logic() {
+        // Create a temporary directory structure for testing
+        let temp_dir = std::env::temp_dir().join("mods_scan_test");
+        let minecraft_dir = temp_dir.join("minecraft");
+        let mods_dir = minecraft_dir.join("mods");
+        let _ = std::fs::create_dir_all(&mods_dir);
+        
+        // Create test files in mods directory
+        let _ = std::fs::write(mods_dir.join("test_mod.jar"), "test content");
+        let _ = std::fs::write(mods_dir.join("another_mod.jar"), "another mod");
+        
+        // Create subdirectory with mod
+        let mods_subdir = mods_dir.join("1.20.1");
+        let _ = std::fs::create_dir_all(&mods_subdir);
+        let _ = std::fs::write(mods_subdir.join("version_specific.jar"), "version mod");
+        
+        // Create a file outside mods directory (should not be scanned)
+        let _ = std::fs::write(minecraft_dir.join("outside_mod.jar"), "outside");
+        
+        // Scan mods directory
+        if let Ok(mods_files) = scan_mods_directory(&mods_dir) {
+            // Verify correct files were found
+            assert!(mods_files.contains("mods/test_mod.jar"));
+            assert!(mods_files.contains("mods/another_mod.jar"));
+            assert!(mods_files.contains("mods/1.20.1/version_specific.jar"));
+            
+            // Verify files outside mods/ were ignored
+            assert!(!mods_files.contains("outside_mod.jar"));
+            
+            assert_eq!(mods_files.len(), 3);
+        }
         
         // Cleanup
         let _ = std::fs::remove_dir_all(&temp_dir);
