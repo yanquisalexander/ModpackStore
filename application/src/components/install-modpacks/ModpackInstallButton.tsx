@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { LucideDownload, LucideRefreshCw } from "lucide-react"
+import { LucideDownload, LucideRefreshCw, LucideAlertTriangle, LucideLogIn } from "lucide-react"
 import { InstallOptionsDialog } from "./InstallOptionsDialog"
 import { UpdateInstanceDialog } from "./UpdateInstanceDialog"
 import { CreateInstanceDialog } from "./CreateInstanceDialog"
@@ -12,6 +12,16 @@ import { toast } from "sonner"
 import { useNavigate } from "react-router-dom"
 import { useAuthentication } from "@/stores/AuthContext"
 import { API_ENDPOINT } from "@/consts"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface InstallButtonProps {
     modpackId: string;
@@ -53,12 +63,13 @@ export const InstallButton = ({
     const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState<boolean>(false)
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState<boolean>(false)
     const [isAcquisitionDialogOpen, setIsAcquisitionDialogOpen] = useState<boolean>(false)
+    const [isAuthAlertOpen, setIsAuthAlertOpen] = useState<boolean>(false)
     const [isInstalling, setIsInstalling] = useState<boolean>(false)
     const [hasAccess, setHasAccess] = useState<boolean>(false)
     const [isCheckingAccess, setIsCheckingAccess] = useState<boolean>(true)
 
     const navigate = useNavigate();
-    const { sessionTokens } = useAuthentication();
+    const { sessionTokens, isAuthenticated, startDiscordAuth } = useAuthentication();
 
     // Para almacenar temporalmente la acción pendiente después de adquirir acceso
     const [pendingAction, setPendingAction] = useState<{
@@ -107,7 +118,13 @@ export const InstallButton = ({
     const requiresAcquisition = isPasswordProtected || isPaid || requiresTwitchSubscription;
 
     const handleInstallClick = () => {
+        // If requires acquisition and user doesn't have access
         if (requiresAcquisition && !hasAccess) {
+            // Check if user is authenticated first
+            if (!isAuthenticated) {
+                setIsAuthAlertOpen(true);
+                return;
+            }
             setIsAcquisitionDialogOpen(true);
             return;
         }
@@ -219,13 +236,14 @@ export const InstallButton = ({
     const getButtonText = () => {
         if (isCheckingAccess) return "Verificando acceso...";
         if (isCurrentlyInstalling) return "Instalando...";
+        
+        // If user doesn't have access to a protected modpack, show "Adquirir"
         if (requiresAcquisition && !hasAccess) {
-            if (isPaid && !isFree) return `Comprar ($${price})`;
-            if (isPasswordProtected) return "Acceder";
-            if (requiresTwitchSubscription) return "Verificar Suscripción";
-            return "Obtener Acceso";
+            return "Adquirir";
         }
-        return hasLocalInstances ? "Instalar" : "Instalar";
+        
+        // If user has access or no acquisition required, show "Instalar"
+        return "Instalar";
     };
 
     return (
@@ -288,6 +306,51 @@ export const InstallButton = ({
                     requiredTwitchChannels: requiredTwitchChannels,
                 }}
             />
+
+            {/* Authentication Alert Dialog */}
+            <AlertDialog open={isAuthAlertOpen} onOpenChange={setIsAuthAlertOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                            <LucideAlertTriangle className="w-5 h-5 text-amber-500" />
+                            Autenticación Requerida
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Para adquirir el modpack "{modpackName}" necesitas iniciar sesión en tu cuenta.
+                            {isPaid && !isFree && (
+                                <span className="block mt-2 font-medium">
+                                    Este modpack cuesta ${price} y requiere autenticación para completar la compra.
+                                </span>
+                            )}
+                            {isPasswordProtected && (
+                                <span className="block mt-2 font-medium">
+                                    Este modpack está protegido con contraseña.
+                                </span>
+                            )}
+                            {requiresTwitchSubscription && (
+                                <span className="block mt-2 font-medium">
+                                    Este modpack requiere una suscripción activa de Twitch.
+                                </span>
+                            )}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => setIsAuthAlertOpen(false)}>
+                            Cancelar
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => {
+                                setIsAuthAlertOpen(false);
+                                startDiscordAuth();
+                            }}
+                            className="bg-indigo-600 hover:bg-indigo-700"
+                        >
+                            <LucideLogIn className="w-4 h-4 mr-2" />
+                            Iniciar Sesión
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 };
