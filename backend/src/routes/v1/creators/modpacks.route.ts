@@ -459,10 +459,12 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
         throw new APIError(403, "No tienes permiso para editar esta versión");
     }
 
-    const { fileHashes } = await c.req.json();
 
-    if (!Array.isArray(fileHashes) || fileHashes.length === 0) {
-        throw new APIError(400, "Se requiere un array de hashes de archivos");
+    const body = await c.req.json();
+    const fileRefs: Array<{ versionId: string; fileHash: string }> = body.fileRefs;
+
+    if (!Array.isArray(fileRefs) || fileRefs.length === 0) {
+        throw new APIError(400, "Se requiere un array de referencias de archivos (versionId + fileHash)");
     }
 
     // Get existing files in the current version for this type to check for duplicates
@@ -474,20 +476,21 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
     const existingFileHashes = new Set(existingFiles.map(f => f.fileHash));
     const existingPaths = new Set(existingFiles.map(f => f.path));
 
-    console.log("Reusing files with hashes:", fileHashes, "for version:", versionId);
+    console.log("Reusing fileRefs:", fileRefs, "for version:", versionId);
 
-    // Get the actual files and their paths from previous versions
-    const filesToReuse = await ModpackVersionFile.find({
-        where: {
-            fileHash: In(fileHashes)
-        },
-        relations: ["file"],
+    // For each fileRef, find the original file by versionId + fileHash
+    const filesToReusePromises = fileRefs.map(async (ref) => {
+        return ModpackVersionFile.findOne({
+            where: { fileHash: ref.fileHash, modpackVersionId: ref.versionId },
+            relations: ["file"],
+        });
     });
 
+    const filesToReuse = (await Promise.all(filesToReusePromises)).filter(Boolean) as ModpackVersionFile[];
+
     // Filter out files that are already in the current version (by fileHash or path)
-    const newVersionFiles = fileHashes.map(fileHash => {
-        const originalFile = filesToReuse.find(f => f.fileHash === fileHash);
-        if (!originalFile) return null;
+    const newVersionFiles = filesToReuse.map(originalFile => {
+        const fileHash = originalFile.fileHash;
 
         // Skip if fileHash or path already exists in current version
         if (existingFileHashes.has(fileHash) || existingPaths.has(originalFile.path)) {

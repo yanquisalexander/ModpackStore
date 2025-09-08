@@ -558,59 +558,70 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         }));
     };
 
-    const toggleFolderSelection = (folderPath: string, fileHashes: string[]) => {
-        // For folder selection, we need to find all files in the folder across all versions
+    const toggleFolderSelection = (_folderPath: string, fileHashes: string[], versionId?: string) => {
+        // For folder selection, prefer selecting files within the given versionId
+        // If no versionId is provided, fall back to searching across all previous versions.
         const folderFiles: Array<{ versionId: string, fileHash: string, path: string }> = [];
 
-        reuseDialog.previousFiles.forEach(versionData => {
-            versionData.files.forEach(file => {
-                if (fileHashes.includes(file.fileHash)) {
-                    folderFiles.push({
-                        versionId: versionData.versionId,
-                        fileHash: file.fileHash,
-                        path: file.path
-                    });
-                }
+        if (versionId) {
+            const versionData = reuseDialog.previousFiles.find(v => v.versionId === versionId);
+            if (versionData) {
+                versionData.files.forEach(file => {
+                    if (fileHashes.includes(file.fileHash)) {
+                        folderFiles.push({
+                            versionId: versionData.versionId,
+                            fileHash: file.fileHash,
+                            path: file.path
+                        });
+                    }
+                });
+            }
+        } else {
+            reuseDialog.previousFiles.forEach(versionData => {
+                versionData.files.forEach(file => {
+                    if (fileHashes.includes(file.fileHash)) {
+                        folderFiles.push({
+                            versionId: versionData.versionId,
+                            fileHash: file.fileHash,
+                            path: file.path
+                        });
+                    }
+                });
             });
-        });
+        }
 
-        const allSelected = folderFiles.every(file =>
-            reuseDialog.selectedFiles.some(f => f.fileHash === file.fileHash && f.versionId === file.versionId)
-        );
 
-        setReuseDialog(prev => ({
-            ...prev,
-            selectedFiles: allSelected
-                ? prev.selectedFiles.filter(f =>
+
+        setReuseDialog(prev => {
+            const currentlySelected = prev.selectedFiles;
+            const isAllSelected = folderFiles.length > 0 && folderFiles.every(ff =>
+                currentlySelected.some(f =>
+                    f.versionId === ff.versionId &&
+                    f.fileHash === ff.fileHash &&
+                    f.path === ff.path
+                )
+            );
+
+            const newSelected = isAllSelected
+                ? currentlySelected.filter(f =>
                     !folderFiles.some(ff =>
                         ff.versionId === f.versionId &&
                         ff.fileHash === f.fileHash &&
                         ff.path === f.path
                     )
                 )
-                : [...prev.selectedFiles, ...folderFiles.filter(ff =>
-                    !prev.selectedFiles.some(f =>
+                : [...currentlySelected, ...folderFiles.filter(ff =>
+                    !currentlySelected.some(f =>
                         f.versionId === ff.versionId &&
                         f.fileHash === ff.fileHash &&
                         f.path === ff.path
                     )
-                )]
-        }));
+                )];
+
+            return { ...prev, selectedFiles: newSelected };
+        });
     };
 
-    const selectAllFiles = () => {
-        const allFiles: Array<{ versionId: string, fileHash: string, path: string }> = [];
-        reuseDialog.previousFiles.forEach(versionData => {
-            versionData.files.forEach(file => {
-                allFiles.push({
-                    versionId: versionData.versionId,
-                    fileHash: file.fileHash,
-                    path: file.path
-                });
-            });
-        });
-        setReuseDialog(prev => ({ ...prev, selectedFiles: allFiles }));
-    };
 
     const deselectAllFiles = () => {
         setReuseDialog(prev => ({ ...prev, selectedFiles: [] }));
@@ -643,8 +654,16 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     };
 
     const confirmFileReuse = async () => {
-        const uniqueFileHashes = [...new Set(reuseDialog.selectedFiles.map(f => f.fileHash))];
-        if (uniqueFileHashes.length === 0) {
+        // Build unique list of { versionId, fileHash }
+        const uniquePairsMap = new Map<string, { versionId: string; fileHash: string }>();
+        reuseDialog.selectedFiles.forEach(f => {
+            const key = `${f.versionId}::${f.fileHash}`;
+            if (!uniquePairsMap.has(key)) uniquePairsMap.set(key, { versionId: f.versionId, fileHash: f.fileHash });
+        });
+
+        const fileRefs = Array.from(uniquePairsMap.values());
+
+        if (fileRefs.length === 0) {
             toast.error('Selecciona al menos un archivo para reutilizar');
             return;
         }
@@ -656,9 +675,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     'Authorization': `Bearer ${sessionTokens?.accessToken}`,
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    fileHashes: uniqueFileHashes
-                })
+                body: JSON.stringify({ fileRefs })
             });
 
             if (!res.ok) {
@@ -666,7 +683,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 return;
             }
 
-            toast.success(`Añadidos ${uniqueFileHashes.length} archivo(s) de versiones anteriores (sin reemplazar existentes)`);
+            toast.success(`Añadidos ${fileRefs.length} archivo(s) de versiones anteriores (sin reemplazar existentes)`);
             fetchVersionDetails();
             setReuseDialog(prev => ({ ...prev, open: false, selectedFiles: [] }));
         } catch (error) {
@@ -687,7 +704,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
             path: string;
         }>;
         onToggleSelection: (versionId: string, fileHash: string, path: string) => void;
-        onToggleFolderSelection: (folderPath: string, fileHashes: string[]) => void;
+        onToggleFolderSelection: (folderPath: string, fileHashes: string[], versionId?: string) => void;
         versionId?: string; // Add versionId for identification
     }> = ({ name, node, expandedFolders, setExpandedFolders, path, selectedFiles, onToggleSelection, onToggleFolderSelection, versionId }) => {
         if (node.type === 'folder') {
@@ -716,7 +733,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
             );
 
             const handleFolderCheckboxChange = () => {
-                onToggleFolderSelection(path, folderFileHashes);
+                onToggleFolderSelection(path, folderFileHashes, versionId);
             };
 
             return (
@@ -1141,21 +1158,10 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                         path: file.path
                                     }))
                                 );
-                                const allSelected = allFiles.length > 0 && allFiles.every(file =>
-                                    reuseDialog.selectedFiles.some(f =>
-                                        f.versionId === file.versionId &&
-                                        f.fileHash === file.fileHash &&
-                                        f.path === file.path
-                                    )
-                                );
                                 const noneSelected = reuseDialog.selectedFiles.length === 0;
                                 return (
                                     <>
-                                        {!allSelected && (
-                                            <Button variant="outline" size="sm" onClick={selectAllFiles}>
-                                                Seleccionar todo
-                                            </Button>
-                                        )}
+
                                         {!noneSelected && (
                                             <Button variant="outline" size="sm" onClick={deselectAllFiles}>
                                                 Deseleccionar todo
