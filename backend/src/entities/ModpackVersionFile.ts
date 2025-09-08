@@ -5,13 +5,13 @@ import { ModpackFile } from "./ModpackFile";
 @Entity({ name: "modpack_version_files" })
 export class ModpackVersionFile extends BaseEntity {
 
-    @PrimaryColumn({ name: "modpack_version_id", type: "uuid" })
-    modpackVersionId: string;
-
     @PrimaryColumn({ name: "file_hash", type: "varchar", length: 64 })
     fileHash: string;
 
-    @Column({ name: "path", type: "text" })
+    @PrimaryColumn({ name: "modpack_version_id", type: "uuid" })
+    modpackVersionId: string;
+
+    @PrimaryColumn({ name: "path", type: "text" })
     path: string; // e.g., "mods/jei.jar" inside the pack
 
     // Relations

@@ -3,7 +3,7 @@ use crate::core::bootstrap::tasks::{
 };
 use crate::core::minecraft::paths::MinecraftPaths;
 use crate::core::minecraft_instance::MinecraftInstance;
-use crate::core::tasks_manager::{add_task, remove_task, task_exists, update_task, TaskStatus};
+use crate::core::tasks_manager::{add_task, add_task_with_auto_start, remove_task, task_exists, update_task, TaskStatus};
 use crate::utils::config_manager::get_config_manager;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
@@ -1309,27 +1309,27 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         .as_ref()
         .ok_or("Instance does not have a version ID")?;
 
-    // Create a task for this operation - prevent duplicates
-    let base_task_id = format!("validate_modpack_assets_{}", instance_id);
-
-    // Check if task already exists, if so, remove it first to create a fresh one
-    if task_exists(&base_task_id) {
-        log::info!(
-            "Removing existing task for instance {} before creating new one",
-            instance_id
-        );
-        remove_task(&base_task_id);
-    }
-
-    let task_id = base_task_id;
-    add_task(
-        &task_id.clone(),
+    // Create a task for this operation with proper title
+    let task_title = format!("Validación de assets - {}", 
+        instance.instanceName.as_deref().unwrap_or("Modpack"));
+    
+    let task_id = add_task_with_auto_start(
+        &task_title,
         Some(serde_json::json!({
             "status": "Validando assets del modpack",
             "progress": 0.0,
             "message": "Iniciando validación...",
             "instanceId": instance_id.clone()
         })),
+    );
+
+    // Update task status to Running to prevent it from staying in Pending
+    update_task(
+        &task_id,
+        TaskStatus::Running,
+        0.0,
+        "Iniciando validación de assets...",
+        None,
     );
 
     // Fetch current manifest
@@ -1360,6 +1360,18 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         }
     };
 
+    // FIRST: Clean up obsolete files before validation and download
+    update_task(
+        &task_id,
+        TaskStatus::Running,
+        10.0,
+        "Limpiando archivos obsoletos...",
+        None,
+    );
+
+    let removed_files = cleanup_obsolete_files(&instance, &manifest)?;
+    log::info!("Cleaned up {} obsolete files before validation", removed_files.len());
+
     // Emit event to indicate we're downloading modpack assets
     if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
         if let Some(app_handle) = guard.as_ref() {
@@ -1375,6 +1387,14 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
     }
 
     // Validate assets and get files that need downloading
+    update_task(
+        &task_id,
+        TaskStatus::Running,
+        30.0,
+        "Validando integridad de archivos...",
+        None,
+    );
+
     let files_to_download =
         match validate_modpack_assets(&instance, &manifest, Some(task_id.clone())).await {
             Ok(files) => files,
