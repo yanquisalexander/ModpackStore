@@ -32,6 +32,7 @@ interface ModpackAcquisitionDialogProps {
     modpack: {
         id: string;
         name: string;
+        acquisitionMethod: AcquisitionMethod;
         requiresPassword?: boolean;
         isPaid?: boolean;
         isFree?: boolean;
@@ -41,7 +42,7 @@ interface ModpackAcquisitionDialogProps {
     };
 }
 
-type AcquisitionMethod = 'password' | 'purchase' | 'twitch';
+type AcquisitionMethod = 'free' | 'paid' | 'password' | 'twitch_sub';
 
 interface PaymentResponse {
     success: boolean;
@@ -59,23 +60,13 @@ export const ModpackAcquisitionDialog = ({
     onSuccess,
     modpack,
 }: ModpackAcquisitionDialogProps) => {
-    const [selectedMethod, setSelectedMethod] = useState<AcquisitionMethod | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
     const [password, setPassword] = useState("");
     const [paymentData, setPaymentData] = useState<PaymentResponse | null>(null);
     const { sessionTokens } = useAuthentication();
 
-    const availableMethods: AcquisitionMethod[] = [];
-    if (modpack.requiresPassword) availableMethods.push('password');
-    if (modpack.isPaid || modpack.isFree) availableMethods.push('purchase');
-    if (modpack.requiresTwitchSubscription) availableMethods.push('twitch');
-
-    // Auto-select if only one method available
-    useEffect(() => {
-        if (availableMethods.length === 1 && !selectedMethod) {
-            setSelectedMethod(availableMethods[0]);
-        }
-    }, [availableMethods, selectedMethod]);
+    // Use the single acquisition method directly
+    const selectedMethod = modpack.acquisitionMethod;
 
     const handlePasswordAcquisition = async () => {
         if (!password.trim()) {
@@ -130,7 +121,7 @@ export const ModpackAcquisitionDialog = ({
             const data: PaymentResponse = await response.json();
 
             if (response.ok && data.success) {
-                if (data.isFree) {
+                if (modpack.acquisitionMethod === 'free') {
                     toast.success('¡Modpack gratuito adquirido!');
                     onSuccess();
                     handleClose();
@@ -179,7 +170,6 @@ export const ModpackAcquisitionDialog = ({
 
     const handleClose = () => {
         setPassword("");
-        setSelectedMethod(null);
         setPaymentData(null);
         setIsProcessing(false);
         onClose();
@@ -188,28 +178,31 @@ export const ModpackAcquisitionDialog = ({
     const getMethodIcon = (method: AcquisitionMethod) => {
         switch (method) {
             case 'password': return <LucideShieldAlert className="w-5 h-5" />;
-            case 'purchase': return <LucideShoppingCart className="w-5 h-5" />;
-            case 'twitch': return <MdiTwitch className="w-5 h-5" />;
+            case 'free':
+            case 'paid': return <LucideShoppingCart className="w-5 h-5" />;
+            case 'twitch_sub': return <MdiTwitch className="w-5 h-5" />;
         }
     };
 
     const getMethodTitle = (method: AcquisitionMethod) => {
         switch (method) {
             case 'password': return 'Acceso con Contraseña';
-            case 'purchase': return modpack.isFree ? 'Obtener Gratis' : `Comprar por $${modpack.price}`;
-            case 'twitch': return 'Acceso con Suscripción de Twitch';
+            case 'free': return 'Obtener Gratis';
+            case 'paid': return `Comprar por $${modpack.price}`;
+            case 'twitch_sub': return 'Acceso con Suscripción de Twitch';
         }
     };
 
     const getMethodDescription = (method: AcquisitionMethod) => {
         switch (method) {
             case 'password': return 'Ingresa la contraseña proporcionada por el creador';
-            case 'purchase': return modpack.isFree ? 'Este modpack es gratuito' : 'Pago único a través de PayPal';
-            case 'twitch': return 'Requiere suscripción activa a los canales especificados';
+            case 'free': return 'Este modpack es gratuito';
+            case 'paid': return 'Pago único a través de PayPal';
+            case 'twitch_sub': return 'Requiere suscripción activa a los canales especificados';
         }
     };
 
-    if (paymentData && !paymentData.isFree) {
+    if (paymentData && modpack.acquisitionMethod === 'paid') {
         return (
             <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
                 <DialogContent className="sm:max-w-md">
@@ -280,84 +273,58 @@ export const ModpackAcquisitionDialog = ({
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>Obtener Acceso al Modpack</DialogTitle>
+                    <DialogTitle className="flex items-center gap-2">
+                        {getMethodIcon(selectedMethod)}
+                        {getMethodTitle(selectedMethod)}
+                    </DialogTitle>
                     <DialogDescription>
-                        {modpack.name} requiere una de las siguientes formas de acceso:
+                        {getMethodDescription(selectedMethod)}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
-                    {!selectedMethod ? (
+                    {selectedMethod === 'password' && (
                         <div className="space-y-2">
-                            {availableMethods.map((method) => (
-                                <Button
-                                    key={method}
-                                    variant="outline"
-                                    onClick={() => setSelectedMethod(method)}
-                                    className="w-full justify-start h-auto p-4"
-                                >
-                                    <div className="flex items-center gap-3">
-                                        {getMethodIcon(method)}
-                                        <div className="text-left">
-                                            <div className="font-medium">{getMethodTitle(method)}</div>
-                                            <div className="text-sm text-muted-foreground">
-                                                {getMethodDescription(method)}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Button>
-                            ))}
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                {getMethodIcon(selectedMethod)}
-                                {getMethodTitle(selectedMethod)}
-                            </div>
-
-                            {selectedMethod === 'password' && (
-                                <div className="space-y-2">
-                                    <Label htmlFor="password">Contraseña</Label>
-                                    <Input
-                                        id="password"
-                                        type="password"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === "Enter" && password.trim() && !isProcessing) {
-                                                handlePasswordAcquisition();
-                                            }
-                                        }}
-                                        placeholder="Ingresa la contraseña del modpack"
-                                    />
-                                </div>
-                            )}
-
-                            <div className="flex gap-2">
-                                <Button
-                                    variant="outline"
-                                    onClick={() => setSelectedMethod(null)}
-                                    className="flex-1"
-                                >
-                                    Atrás
-                                </Button>
-                                <Button
-                                    onClick={
-                                        selectedMethod === 'password' ? handlePasswordAcquisition :
-                                        selectedMethod === 'purchase' ? handlePurchaseAcquisition :
-                                        handleTwitchAcquisition
+                            <Label htmlFor="password">Contraseña</Label>
+                            <Input
+                                id="password"
+                                type="password"
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter" && password.trim() && !isProcessing) {
+                                        handlePasswordAcquisition();
                                     }
-                                    disabled={isProcessing || (selectedMethod === 'password' && !password.trim())}
-                                    className="flex-1"
-                                >
-                                    {isProcessing && <LucideLoader2 className="w-4 h-4 mr-2 animate-spin" />}
-                                    {selectedMethod === 'password' ? 'Validar Contraseña' :
-                                     selectedMethod === 'purchase' ? (modpack.isFree ? 'Obtener' : 'Comprar') :
-                                     'Verificar Suscripción'}
-                                </Button>
-                            </div>
+                                }}
+                                placeholder="Ingresa la contraseña del modpack"
+                            />
                         </div>
                     )}
+
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            onClick={handleClose}
+                            className="flex-1"
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={
+                                selectedMethod === 'password' ? handlePasswordAcquisition :
+                                selectedMethod === 'free' || selectedMethod === 'paid' ? handlePurchaseAcquisition :
+                                handleTwitchAcquisition
+                            }
+                            disabled={isProcessing || (selectedMethod === 'password' && !password.trim())}
+                            className="flex-1"
+                        >
+                            {isProcessing && <LucideLoader2 className="w-4 h-4 mr-2 animate-spin" />}
+                            {selectedMethod === 'password' ? 'Validar Contraseña' :
+                             selectedMethod === 'free' ? 'Obtener' :
+                             selectedMethod === 'paid' ? 'Comprar' :
+                             'Verificar Suscripción'}
+                        </Button>
+                    </div>
                 </div>
             </DialogContent>
         </Dialog>

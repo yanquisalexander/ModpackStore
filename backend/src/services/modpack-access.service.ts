@@ -3,6 +3,7 @@ import { User } from '@/entities/User';
 import { TwitchService } from './twitch.service';
 import { AcquisitionService } from './acquisition.service';
 import { APIError } from '@/lib/APIError';
+import { AcquisitionMethod } from '@/types/enums';
 
 export class ModpackAccessService {
     /**
@@ -14,7 +15,7 @@ export class ModpackAccessService {
         requiredChannels?: string[];
     }> {
         // Check basic visibility requirements
-        if (modpack.visibility === 'public' && !modpack.requiresPassword() && !modpack.isPaid && !modpack.requiresTwitchSub) {
+        if (modpack.visibility === 'public' && modpack.acquisitionMethod === AcquisitionMethod.FREE) {
             return { canAccess: true };
         }
 
@@ -36,12 +37,16 @@ export class ModpackAccessService {
         const info = AcquisitionService.getModpackAcquisitionInfo(modpack);
         let reason = 'Access not acquired';
         
-        if (info.requiresPassword) {
-            reason = 'Password required';
-        } else if (info.isPaid) {
-            reason = 'Purchase required';
-        } else if (info.requiresTwitchSubscription) {
-            reason = 'Twitch subscription required';
+        switch (modpack.acquisitionMethod) {
+            case AcquisitionMethod.PASSWORD:
+                reason = 'Password required';
+                break;
+            case AcquisitionMethod.PAID:
+                reason = 'Purchase required';
+                break;
+            case AcquisitionMethod.TWITCH_SUB:
+                reason = 'Twitch subscription required';
+                break;
         }
 
         return {
@@ -61,9 +66,11 @@ export class ModpackAccessService {
         price?: string;
         requiresPassword: boolean;
         isFree: boolean;
+        acquisitionMethod: AcquisitionMethod;
     } {
         const info = AcquisitionService.getModpackAcquisitionInfo(modpack);
         return {
+            acquisitionMethod: info.acquisitionMethod,
             requiresTwitchSubscription: info.requiresTwitchSubscription,
             requiredTwitchChannels: info.requiredTwitchChannels,
             isPaid: info.isPaid,
