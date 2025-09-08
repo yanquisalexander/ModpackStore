@@ -1,23 +1,39 @@
 import { Button } from "@/components/ui/button"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { LucideDownload, LucideRefreshCw } from "lucide-react"
 import { InstallOptionsDialog } from "./InstallOptionsDialog"
 import { UpdateInstanceDialog } from "./UpdateInstanceDialog"
 import { CreateInstanceDialog } from "./CreateInstanceDialog"
+import { ModpackAcquisitionDialog } from "./ModpackAcquisitionDialog"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { useTasksContext } from "@/stores/TasksContext"
 import { toast } from "sonner"
-import { PasswordDialog } from "./ModpackPasswordDialog"
 import { useNavigate } from "react-router-dom"
+import { useAuthentication } from "@/stores/AuthContext"
+import { API_ENDPOINT } from "@/consts"
 
 interface InstallButtonProps {
     modpackId: string;
     modpackName: string;
     localInstances: TauriCommandReturns["get_instances_by_modpack_id"];
     isPasswordProtected?: boolean;
-    selectedVersionId?: string; // New prop for version selection
-    disabled?: boolean; // New prop to disable the button
+    isPaid?: boolean;
+    isFree?: boolean;
+    price?: string;
+    requiresTwitchSubscription?: boolean;
+    requiredTwitchChannels?: string[];
+    selectedVersionId?: string;
+    disabled?: boolean;
+}
+
+interface ModpackAccess {
+    requiresPassword?: boolean;
+    isPaid?: boolean;
+    isFree?: boolean;
+    price?: string;
+    requiresTwitchSubscription?: boolean;
+    requiredTwitchChannels?: string[];
 }
 
 export const InstallButton = ({
@@ -25,18 +41,26 @@ export const InstallButton = ({
     modpackName,
     localInstances,
     isPasswordProtected = false,
+    isPaid = false,
+    isFree = true,
+    price,
+    requiresTwitchSubscription = false,
+    requiredTwitchChannels = [],
     selectedVersionId,
     disabled = false
 }: InstallButtonProps) => {
     const [isInstallOptionsOpen, setIsInstallOptionsOpen] = useState<boolean>(false)
     const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState<boolean>(false)
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState<boolean>(false)
-    const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState<boolean>(false)
+    const [isAcquisitionDialogOpen, setIsAcquisitionDialogOpen] = useState<boolean>(false)
     const [isInstalling, setIsInstalling] = useState<boolean>(false)
+    const [hasAccess, setHasAccess] = useState<boolean>(false)
+    const [isCheckingAccess, setIsCheckingAccess] = useState<boolean>(true)
 
     const navigate = useNavigate();
+    const { sessionTokens } = useAuthentication();
 
-    // Para almacenar temporalmente la acción pendiente que requiere contraseña
+    // Para almacenar temporalmente la acción pendiente después de adquirir acceso
     const [pendingAction, setPendingAction] = useState<{
         type: 'update' | 'create';
         instanceId?: string;
@@ -48,7 +72,46 @@ export const InstallButton = ({
 
     const hasLocalInstances = localInstances.length > 0
 
+    // Check if user has access to the modpack
+    useEffect(() => {
+        checkModpackAccess();
+    }, [modpackId, sessionTokens]);
+
+    const checkModpackAccess = async () => {
+        if (!sessionTokens?.accessToken) {
+            setIsCheckingAccess(false);
+            return;
+        }
+
+        try {
+            const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpackId}/check-access`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${sessionTokens.accessToken}`,
+                },
+            });
+
+            if (response.ok) {
+                setHasAccess(true);
+            } else {
+                setHasAccess(false);
+            }
+        } catch (error) {
+            console.error('Error checking modpack access:', error);
+            setHasAccess(false);
+        } finally {
+            setIsCheckingAccess(false);
+        }
+    };
+
+    const requiresAcquisition = isPasswordProtected || isPaid || requiresTwitchSubscription;
+
     const handleInstallClick = () => {
+        if (requiresAcquisition && !hasAccess) {
+            setIsAcquisitionDialogOpen(true);
+            return;
+        }
+
         if (hasLocalInstances) {
             setIsInstallOptionsOpen(true)
         } else {
@@ -67,18 +130,17 @@ export const InstallButton = ({
     }
 
     const handleConfirmUpdate = async (instanceId: string) => {
-        // Si el modpack está protegido, solicitar contraseña antes de actualizar
-        if (isPasswordProtected) {
+        // Check access before updating
+        if (requiresAcquisition && !hasAccess) {
             setPendingAction({
                 type: 'update',
                 instanceId
             });
             setIsUpdateDialogOpen(false);
-            setIsPasswordDialogOpen(true);
+            setIsAcquisitionDialogOpen(true);
             return;
         }
 
-        // Si no está protegido, proceder directamente con la actualización
         await executeUpdate(instanceId);
     }
 
@@ -93,7 +155,6 @@ export const InstallButton = ({
             console.log(`Instancia ${instanceId} actualizada exitosamente`);
         } catch (err) {
             console.error("Error al actualizar la instancia:", err);
-            // Manejar otros errores que no sean de contraseña
         } finally {
             setIsInstalling(false);
             setIsUpdateDialogOpen(false);
@@ -102,18 +163,17 @@ export const InstallButton = ({
     }
 
     const handleConfirmCreate = async (instanceName: string) => {
-        // Si el modpack está protegido, solicitar contraseña antes de crear
-        if (isPasswordProtected) {
+        // Check access before creating
+        if (requiresAcquisition && !hasAccess) {
             setPendingAction({
                 type: 'create',
                 instanceName
             });
             setIsCreateDialogOpen(false);
-            setIsPasswordDialogOpen(true);
+            setIsAcquisitionDialogOpen(true);
             return;
         }
 
-        // Si no está protegido, proceder directamente con la creación
         await executeCreate(instanceName);
     }
 
@@ -123,7 +183,7 @@ export const InstallButton = ({
             await invoke("create_modpack_instance", {
                 instanceName,
                 modpackId,
-                versionId: selectedVersionId, // Use the selected version
+                versionId: selectedVersionId,
                 password: null
             });
 
@@ -131,11 +191,10 @@ export const InstallButton = ({
                 description: `Tu instancia "${instanceName}" del modpack "${modpackName}" está siendo instalada. Verifica el progreso en el Task Manager.`,
             });
 
-            navigate("/my-instances"); // Navegar a "My Instances" después de iniciar la creación
+            navigate("/my-instances");
 
         } catch (err) {
             console.error("Error al crear la instancia:", err);
-            // Manejar otros errores que no sean de contraseña
         } finally {
             setIsInstalling(false);
             setIsCreateDialogOpen(false);
@@ -143,28 +202,49 @@ export const InstallButton = ({
         }
     }
 
+    const handleAcquisitionSuccess = () => {
+        setHasAccess(true);
+        setIsAcquisitionDialogOpen(false);
+        
+        // Execute pending action if any
+        if (pendingAction) {
+            if (pendingAction.type === 'update' && pendingAction.instanceId) {
+                executeUpdate(pendingAction.instanceId);
+            } else if (pendingAction.type === 'create' && pendingAction.instanceName) {
+                executeCreate(pendingAction.instanceName);
+            }
+        }
+    };
+
+    const getButtonText = () => {
+        if (isCheckingAccess) return "Verificando acceso...";
+        if (isCurrentlyInstalling) return "Instalando...";
+        if (requiresAcquisition && !hasAccess) {
+            if (isPaid && !isFree) return `Comprar ($${price})`;
+            if (isPasswordProtected) return "Acceder";
+            if (requiresTwitchSubscription) return "Verificar Suscripción";
+            return "Obtener Acceso";
+        }
+        return hasLocalInstances ? "Instalar" : "Instalar";
+    };
+
     return (
         <>
             <Button
                 variant="default"
                 className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
+                disabled={disabled || isCurrentlyInstalling || isCheckingAccess}
                 onClick={handleInstallClick}
-                disabled={isCurrentlyInstalling || disabled}
             >
                 {isCurrentlyInstalling ? (
                     <>
-                        <LucideRefreshCw className="w-4 h-4 animate-spin" />
-                        Instalando...
-                    </>
-                ) : disabled ? (
-                    <>
-                        <LucideDownload className="w-4 h-4" />
-                        Requiere suscripción de Twitch
+                        <LucideRefreshCw className="animate-spin" size={18} />
+                        {getButtonText()}
                     </>
                 ) : (
                     <>
-                        <LucideDownload className="w-4 h-4" />
-                        Instalar
+                        <LucideDownload size={18} />
+                        {getButtonText()}
                     </>
                 )}
             </Button>
@@ -172,47 +252,42 @@ export const InstallButton = ({
             <InstallOptionsDialog
                 isOpen={isInstallOptionsOpen}
                 onClose={() => setIsInstallOptionsOpen(false)}
-                modpackId={modpackId}
-                modpackName={modpackName}
-                localInstances={localInstances}
                 onUpdateExisting={handleUpdateExisting}
                 onInstallNew={handleInstallNew}
+                modpackName={modpackName}
+                localInstances={localInstances}
             />
 
             <UpdateInstanceDialog
                 isOpen={isUpdateDialogOpen}
                 onClose={() => setIsUpdateDialogOpen(false)}
-                modpackId={modpackId}
+                onConfirm={handleConfirmUpdate}
                 modpackName={modpackName}
-                localInstances={localInstances}
-                onConfirmUpdate={handleConfirmUpdate}
+                instances={localInstances}
             />
 
             <CreateInstanceDialog
                 isOpen={isCreateDialogOpen}
                 onClose={() => setIsCreateDialogOpen(false)}
-                modpackId={modpackId}
+                onConfirm={handleConfirmCreate}
                 modpackName={modpackName}
-                onConfirmCreate={handleConfirmCreate}
             />
 
-            <PasswordDialog
-                isOpen={isPasswordDialogOpen}
-                onClose={() => {
-                    setIsPasswordDialogOpen(false)
-                    setPendingAction(null)
+            <ModpackAcquisitionDialog
+                isOpen={isAcquisitionDialogOpen}
+                onClose={() => setIsAcquisitionDialogOpen(false)}
+                onSuccess={handleAcquisitionSuccess}
+                modpack={{
+                    id: modpackId,
+                    name: modpackName,
+                    requiresPassword: isPasswordProtected,
+                    isPaid: isPaid,
+                    isFree: isFree,
+                    price: price,
+                    requiresTwitchSubscription: requiresTwitchSubscription,
+                    requiredTwitchChannels: requiredTwitchChannels,
                 }}
-                onSuccess={() => {
-                    // Ejecutar la acción pendiente después de validación exitosa
-                    if (pendingAction?.type === 'update' && pendingAction.instanceId) {
-                        executeUpdate(pendingAction.instanceId);
-                    } else if (pendingAction?.type === 'create' && pendingAction.instanceName) {
-                        executeCreate(pendingAction.instanceName);
-                    }
-                }}
-                modpackId={modpackId}
-                modpackName={modpackName}
             />
         </>
-    )
-}
+    );
+};

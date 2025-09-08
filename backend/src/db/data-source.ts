@@ -14,6 +14,7 @@ import { ModpackCategory } from "../entities/ModpackCategory";
 import { Wallet } from "../entities/Wallet";
 import { WalletTransaction } from "../entities/WalletTransaction";
 import { UserPurchase } from "../entities/UserPurchase";
+import { ModpackAcquisition } from "../entities/ModpackAcquisition";
 import { AuditLog } from "../entities/AuditLog";
 import { Ticket } from "../entities/Ticket";
 import { TicketMessage } from "../entities/TicketMessage";
@@ -43,6 +44,7 @@ export const AppDataSource = new DataSource({
         Wallet,
         WalletTransaction,
         UserPurchase,
+        ModpackAcquisition,
         AuditLog,
         Ticket,
         TicketMessage

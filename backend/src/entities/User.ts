@@ -10,6 +10,7 @@ import { PublisherMemberRole, UserRole } from "@/types/enums";
 import { sign } from "jsonwebtoken";
 import { TwitchService } from "@/services/twitch.service";
 import { Ticket } from "./Ticket";
+import { ModpackAcquisition } from "./ModpackAcquisition";
 
 @Entity({ name: "users" })
 export class User extends BaseEntity {
@@ -96,6 +97,9 @@ export class User extends BaseEntity {
 
     @OneToMany(() => Ticket, ticket => ticket.user)
     tickets: Ticket[];
+
+    @OneToMany(() => ModpackAcquisition, acquisition => acquisition.user)
+    modpackAcquisitions: ModpackAcquisition[];
 
     async getPublishers(): Promise<Publisher[]> {
         const memberships = await PublisherMember.find({ where: { user: { id: this.id } }, relations: ["publisher"] });

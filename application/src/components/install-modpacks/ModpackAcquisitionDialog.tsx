@@ -1,0 +1,365 @@
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { 
+    LucideShieldAlert, 
+    LucideShoppingCart, 
+    LucideCreditCard,
+    LucideQrCode,
+    LucideExternalLink,
+    LucideCheck,
+    LucideLoader2
+} from "lucide-react";
+import { MdiTwitch } from "@/icons/MdiTwitch";
+import { toast } from "sonner";
+import { useAuthentication } from "@/stores/AuthContext";
+import { API_ENDPOINT } from "@/consts";
+
+interface ModpackAcquisitionDialogProps {
+    isOpen: boolean;
+    onClose: () => void;
+    onSuccess: () => void;
+    modpack: {
+        id: string;
+        name: string;
+        requiresPassword?: boolean;
+        isPaid?: boolean;
+        isFree?: boolean;
+        price?: string;
+        requiresTwitchSubscription?: boolean;
+        requiredTwitchChannels?: string[];
+    };
+}
+
+type AcquisitionMethod = 'password' | 'purchase' | 'twitch';
+
+interface PaymentResponse {
+    success: boolean;
+    isFree?: boolean;
+    paymentId?: string;
+    approvalUrl?: string;
+    qrCodeUrl?: string;
+    amount?: string;
+    currency?: string;
+}
+
+export const ModpackAcquisitionDialog = ({
+    isOpen,
+    onClose,
+    onSuccess,
+    modpack,
+}: ModpackAcquisitionDialogProps) => {
+    const [selectedMethod, setSelectedMethod] = useState<AcquisitionMethod | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
+    const [password, setPassword] = useState("");
+    const [paymentData, setPaymentData] = useState<PaymentResponse | null>(null);
+    const { sessionTokens } = useAuthentication();
+
+    const availableMethods: AcquisitionMethod[] = [];
+    if (modpack.requiresPassword) availableMethods.push('password');
+    if (modpack.isPaid || modpack.isFree) availableMethods.push('purchase');
+    if (modpack.requiresTwitchSubscription) availableMethods.push('twitch');
+
+    // Auto-select if only one method available
+    useEffect(() => {
+        if (availableMethods.length === 1 && !selectedMethod) {
+            setSelectedMethod(availableMethods[0]);
+        }
+    }, [availableMethods, selectedMethod]);
+
+    const handlePasswordAcquisition = async () => {
+        if (!password.trim()) {
+            toast.error("Por favor ingresa la contraseña");
+            return;
+        }
+
+        setIsProcessing(true);
+        try {
+            const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpack.id}/validate-password`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                },
+                body: JSON.stringify({ password: password.trim() }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.valid) {
+                toast.success('¡Acceso concedido con contraseña!');
+                onSuccess();
+                handleClose();
+            } else {
+                toast.error(data.message || 'Contraseña incorrecta');
+            }
+        } catch (error) {
+            console.error('Error validating password:', error);
+            toast.error('Error al validar la contraseña');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handlePurchaseAcquisition = async () => {
+        setIsProcessing(true);
+        try {
+            const currentUrl = window.location.origin;
+            const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpack.id}/acquire/purchase`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                },
+                body: JSON.stringify({
+                    returnUrl: `${currentUrl}/modpack/${modpack.id}?payment=success`,
+                    cancelUrl: `${currentUrl}/modpack/${modpack.id}?payment=cancelled`,
+                }),
+            });
+
+            const data: PaymentResponse = await response.json();
+
+            if (response.ok && data.success) {
+                if (data.isFree) {
+                    toast.success('¡Modpack gratuito adquirido!');
+                    onSuccess();
+                    handleClose();
+                } else {
+                    setPaymentData(data);
+                    toast.success('Pago iniciado. Completa el pago para obtener acceso.');
+                }
+            } else {
+                toast.error('Error al procesar la compra');
+            }
+        } catch (error) {
+            console.error('Error processing purchase:', error);
+            toast.error('Error al procesar la compra');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleTwitchAcquisition = async () => {
+        setIsProcessing(true);
+        try {
+            const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpack.id}/acquire/twitch`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                },
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+                toast.success('¡Acceso concedido con suscripción de Twitch!');
+                onSuccess();
+                handleClose();
+            } else {
+                toast.error(data.message || 'Suscripción de Twitch requerida');
+            }
+        } catch (error) {
+            console.error('Error processing Twitch acquisition:', error);
+            toast.error('Error al verificar suscripción de Twitch');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleClose = () => {
+        setPassword("");
+        setSelectedMethod(null);
+        setPaymentData(null);
+        setIsProcessing(false);
+        onClose();
+    };
+
+    const getMethodIcon = (method: AcquisitionMethod) => {
+        switch (method) {
+            case 'password': return <LucideShieldAlert className="w-5 h-5" />;
+            case 'purchase': return <LucideShoppingCart className="w-5 h-5" />;
+            case 'twitch': return <MdiTwitch className="w-5 h-5" />;
+        }
+    };
+
+    const getMethodTitle = (method: AcquisitionMethod) => {
+        switch (method) {
+            case 'password': return 'Acceso con Contraseña';
+            case 'purchase': return modpack.isFree ? 'Obtener Gratis' : `Comprar por $${modpack.price}`;
+            case 'twitch': return 'Acceso con Suscripción de Twitch';
+        }
+    };
+
+    const getMethodDescription = (method: AcquisitionMethod) => {
+        switch (method) {
+            case 'password': return 'Ingresa la contraseña proporcionada por el creador';
+            case 'purchase': return modpack.isFree ? 'Este modpack es gratuito' : 'Pago único a través de PayPal';
+            case 'twitch': return 'Requiere suscripción activa a los canales especificados';
+        }
+    };
+
+    if (paymentData && !paymentData.isFree) {
+        return (
+            <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <LucideCreditCard className="w-5 h-5" />
+                            Completar Pago
+                        </DialogTitle>
+                        <DialogDescription>
+                            Completa tu pago de ${paymentData.amount} {paymentData.currency} para obtener acceso al modpack.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <Card>
+                            <CardContent className="p-4 space-y-4">
+                                <div className="text-center">
+                                    <div className="text-2xl font-bold">
+                                        ${paymentData.amount} {paymentData.currency}
+                                    </div>
+                                    <div className="text-sm text-muted-foreground">
+                                        {modpack.name}
+                                    </div>
+                                </div>
+
+                                <Separator />
+
+                                <div className="space-y-3">
+                                    <Button 
+                                        onClick={() => window.open(paymentData.approvalUrl, '_blank')}
+                                        className="w-full"
+                                        size="lg"
+                                    >
+                                        <LucideExternalLink className="w-4 h-4 mr-2" />
+                                        Pagar con PayPal
+                                    </Button>
+
+                                    {paymentData.qrCodeUrl && (
+                                        <div className="text-center">
+                                            <div className="text-sm text-muted-foreground mb-2">
+                                                O escanea el código QR:
+                                            </div>
+                                            <img 
+                                                src={paymentData.qrCodeUrl} 
+                                                alt="QR Code for payment"
+                                                className="mx-auto border rounded"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="text-xs text-muted-foreground text-center">
+                                    Serás redirigido a PayPal para completar el pago de forma segura.
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Button variant="outline" onClick={handleClose} className="w-full">
+                            Cancelar
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        );
+    }
+
+    return (
+        <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                    <DialogTitle>Obtener Acceso al Modpack</DialogTitle>
+                    <DialogDescription>
+                        {modpack.name} requiere una de las siguientes formas de acceso:
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                    {!selectedMethod ? (
+                        <div className="space-y-2">
+                            {availableMethods.map((method) => (
+                                <Button
+                                    key={method}
+                                    variant="outline"
+                                    onClick={() => setSelectedMethod(method)}
+                                    className="w-full justify-start h-auto p-4"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        {getMethodIcon(method)}
+                                        <div className="text-left">
+                                            <div className="font-medium">{getMethodTitle(method)}</div>
+                                            <div className="text-sm text-muted-foreground">
+                                                {getMethodDescription(method)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Button>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                {getMethodIcon(selectedMethod)}
+                                {getMethodTitle(selectedMethod)}
+                            </div>
+
+                            {selectedMethod === 'password' && (
+                                <div className="space-y-2">
+                                    <Label htmlFor="password">Contraseña</Label>
+                                    <Input
+                                        id="password"
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter" && password.trim() && !isProcessing) {
+                                                handlePasswordAcquisition();
+                                            }
+                                        }}
+                                        placeholder="Ingresa la contraseña del modpack"
+                                    />
+                                </div>
+                            )}
+
+                            <div className="flex gap-2">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setSelectedMethod(null)}
+                                    className="flex-1"
+                                >
+                                    Atrás
+                                </Button>
+                                <Button
+                                    onClick={
+                                        selectedMethod === 'password' ? handlePasswordAcquisition :
+                                        selectedMethod === 'purchase' ? handlePurchaseAcquisition :
+                                        handleTwitchAcquisition
+                                    }
+                                    disabled={isProcessing || (selectedMethod === 'password' && !password.trim())}
+                                    className="flex-1"
+                                >
+                                    {isProcessing && <LucideLoader2 className="w-4 h-4 mr-2 animate-spin" />}
+                                    {selectedMethod === 'password' ? 'Validar Contraseña' :
+                                     selectedMethod === 'purchase' ? (modpack.isFree ? 'Obtener' : 'Comprar') :
+                                     'Verificar Suscripción'}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};

@@ -285,7 +285,140 @@ app.get('/modpacks/:modpackId/check-update', ExploreModpacksController.checkForU
  *       500:
  *         description: Internal Server Error.
  */
-app.post('/modpacks/:modpackId/validate-password', ExploreModpacksController.validateModpackPassword);
+app.post('/modpacks/:modpackId/validate-password', requireAuth, ExploreModpacksController.validateModpackPassword);
+
+/**
+ * @openapi
+ * /explore/modpacks/{modpackId}/acquire/twitch:
+ *   post:
+ *     summary: Acquire modpack access through Twitch subscription
+ *     tags: [Explore]
+ *     description: Grants access to a modpack if user has an active Twitch subscription to required channels.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: modpackId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The unique identifier of the modpack.
+ *     responses:
+ *       200:
+ *         description: Twitch acquisition successful.
+ *       401:
+ *         description: Unauthorized.
+ *       403:
+ *         description: Twitch subscription required or not active.
+ *       404:
+ *         description: Modpack not found.
+ *       500:
+ *         description: Internal Server Error.
+ */
+app.post('/modpacks/:modpackId/acquire/twitch', requireAuth, ExploreModpacksController.acquireWithTwitch);
+
+/**
+ * @openapi
+ * /explore/modpacks/{modpackId}/acquire/purchase:
+ *   post:
+ *     summary: Acquire modpack access through purchase
+ *     tags: [Explore]
+ *     description: Initiates purchase flow for paid modpacks or grants immediate access for free modpacks.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: modpackId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The unique identifier of the modpack.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               returnUrl:
+ *                 type: string
+ *                 format: uri
+ *                 description: URL to redirect to after successful payment.
+ *               cancelUrl:
+ *                 type: string
+ *                 format: uri
+ *                 description: URL to redirect to if payment is cancelled.
+ *             required:
+ *               - returnUrl
+ *               - cancelUrl
+ *     responses:
+ *       200:
+ *         description: Purchase initiated or free modpack acquired.
+ *       400:
+ *         description: Bad Request.
+ *       401:
+ *         description: Unauthorized.
+ *       404:
+ *         description: Modpack not found.
+ *       500:
+ *         description: Internal Server Error.
+ */
+app.post('/modpacks/:modpackId/acquire/purchase', requireAuth, ExploreModpacksController.acquireWithPurchase);
+
+/**
+ * @openapi
+ * /explore/paypal-webhook:
+ *   post:
+ *     summary: PayPal webhook endpoint
+ *     tags: [Explore]
+ *     description: Handles PayPal payment completion webhooks.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Webhook processed successfully.
+ *       500:
+ *         description: Webhook processing failed.
+ */
+app.post('/paypal-webhook', ExploreModpacksController.paypalWebhook);
+
+/**
+ * @openapi
+ * /explore/user/acquisitions:
+ *   get:
+ *     summary: Get user's modpack acquisitions
+ *     tags: [Explore]
+ *     description: Retrieves a list of modpacks the authenticated user has acquired.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number for pagination.
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Number of acquisitions per page.
+ *     responses:
+ *       200:
+ *         description: User acquisitions retrieved successfully.
+ *       401:
+ *         description: Unauthorized.
+ *       500:
+ *         description: Internal Server Error.
+ */
+app.get('/user/acquisitions', requireAuth, ExploreModpacksController.getUserAcquisitions);
 
 /**
  * @openapi
