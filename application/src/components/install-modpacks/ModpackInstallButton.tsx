@@ -70,12 +70,20 @@ export const InstallButton = ({
     const [hasAccess, setHasAccess] = useState<boolean>(false)
     const [isCheckingAccess, setIsCheckingAccess] = useState<boolean>(true)
 
+    const [acquisitionMethodState, setAcquisitionMethodState] = useState<'free' | 'paid' | 'password' | 'twitch_sub'>(acquisitionMethod);
+    const [requiresPasswordState, setRequiresPasswordState] = useState(isPasswordProtected);
+    const [requiresTwitchState, setRequiresTwitchState] = useState(requiresTwitchSubscription);
+    const [isPaidState, setIsPaidState] = useState(isPaid);
+    const [isFreeState, setIsFreeState] = useState(isFree);
+    const [priceState, setPriceState] = useState(price);
+    const [requiredTwitchChannelsState, setRequiredTwitchChannelsState] = useState(requiredTwitchChannels);
+
     const navigate = useNavigate();
     const { sessionTokens, isAuthenticated, startDiscordAuth } = useAuthentication();
 
     // Para almacenar temporalmente la acción pendiente después de adquirir acceso
     const [pendingAction, setPendingAction] = useState<{
-        type: 'update' | 'create';
+        type: 'update' | 'create' | 'show_options' | 'show_create';
         instanceId?: string;
         instanceName?: string;
     } | null>(null)
@@ -104,10 +112,23 @@ export const InstallButton = ({
                 },
             });
 
-            if (response.ok) {
-                setHasAccess(true);
-            } else {
-                setHasAccess(false);
+            const data = await response.json();
+
+            console.log('API Response:', data);
+
+            // Update access status
+            setHasAccess(data.canAccess || false);
+
+            // Update local state with API response if available
+            if (data.modpackAccessInfo) {
+                console.log('Updating local state with modpackAccessInfo:', data.modpackAccessInfo);
+                setAcquisitionMethodState(data.modpackAccessInfo.acquisitionMethod || 'free');
+                setRequiresPasswordState(data.modpackAccessInfo.requiresPassword || false);
+                setRequiresTwitchState(data.modpackAccessInfo.requiresTwitchSubscription || false);
+                setIsPaidState(data.modpackAccessInfo.isPaid || false);
+                setIsFreeState(data.modpackAccessInfo.isFree || true);
+                setPriceState(data.modpackAccessInfo.price || price);
+                setRequiredTwitchChannelsState(data.modpackAccessInfo.requiredTwitchChannels || requiredTwitchChannels);
             }
         } catch (error) {
             console.error('Error checking modpack access:', error);
@@ -117,7 +138,9 @@ export const InstallButton = ({
         }
     };
 
-    const requiresAcquisition = acquisitionMethod !== 'free';
+    const requiresAcquisition = acquisitionMethodState !== 'free';
+
+    console.log('Access state:', { hasAccess, requiresAcquisition, acquisitionMethodState });
 
     const handleInstallClick = () => {
         // If requires acquisition and user doesn't have access
@@ -127,6 +150,17 @@ export const InstallButton = ({
                 setIsAuthAlertOpen(true);
                 return;
             }
+
+            // Set default pending action based on whether user has local instances
+            // Only set if there's no pending action already
+            if (!pendingAction) {
+                if (hasLocalInstances) {
+                    setPendingAction({ type: 'show_options' });
+                } else {
+                    setPendingAction({ type: 'show_create' });
+                }
+            }
+
             setIsAcquisitionDialogOpen(true);
             return;
         }
@@ -231,8 +265,15 @@ export const InstallButton = ({
                 executeUpdate(pendingAction.instanceId);
             } else if (pendingAction.type === 'create' && pendingAction.instanceName) {
                 executeCreate(pendingAction.instanceName);
+            } else if (pendingAction.type === 'show_options') {
+                setIsInstallOptionsOpen(true);
+            } else if (pendingAction.type === 'show_create') {
+                setIsCreateDialogOpen(true);
             }
         }
+
+        // Clear pending action
+        setPendingAction(null);
     };
 
     const getButtonText = () => {
@@ -242,8 +283,8 @@ export const InstallButton = ({
         // If user doesn't have access to a protected modpack, show "Adquirir"
         if (requiresAcquisition && !hasAccess) {
 
-            switch (acquisitionMethod) {
-                case 'paid': return `Comprar ($${price})`;
+            switch (acquisitionMethodState) {
+                case 'paid': return `Comprar ($${priceState})`;
                 case 'password': return "Acceder";
                 case 'twitch_sub': return "Verificar Suscripción";
                 default: return "Obtener Acceso";
@@ -309,13 +350,13 @@ export const InstallButton = ({
                 modpack={{
                     id: modpackId,
                     name: modpackName,
-                    acquisitionMethod: acquisitionMethod,
-                    requiresPassword: isPasswordProtected,
-                    isPaid: isPaid,
-                    isFree: isFree,
-                    price: price,
-                    requiresTwitchSubscription: requiresTwitchSubscription,
-                    requiredTwitchChannels: requiredTwitchChannels,
+                    acquisitionMethod: acquisitionMethodState,
+                    requiresPassword: requiresPasswordState,
+                    isPaid: isPaidState,
+                    isFree: isFreeState,
+                    price: priceState,
+                    requiresTwitchSubscription: requiresTwitchState,
+                    requiredTwitchChannels: requiredTwitchChannelsState,
                 }}
             />
 
@@ -329,17 +370,17 @@ export const InstallButton = ({
                         </AlertDialogTitle>
                         <AlertDialogDescription>
                             Para adquirir el modpack "{modpackName}" necesitas iniciar sesión en tu cuenta.
-                            {isPaid && !isFree && (
+                            {isPaidState && !isFreeState && (
                                 <span className="block mt-2 font-medium">
-                                    Este modpack cuesta ${price} y requiere autenticación para completar la compra.
+                                    Este modpack cuesta ${priceState} y requiere autenticación para completar la compra.
                                 </span>
                             )}
-                            {isPasswordProtected && (
+                            {requiresPasswordState && (
                                 <span className="block mt-2 font-medium">
                                     Este modpack está protegido con contraseña.
                                 </span>
                             )}
-                            {requiresTwitchSubscription && (
+                            {requiresTwitchState && (
                                 <span className="block mt-2 font-medium">
                                     Este modpack requiere una suscripción activa de Twitch.
                                 </span>

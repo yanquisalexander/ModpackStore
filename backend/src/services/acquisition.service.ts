@@ -15,7 +15,7 @@ export class AcquisitionService {
         reason?: string;
     }> {
         const acquisition = await ModpackAcquisition.findActiveUserAcquisition(userId, modpackId);
-        
+
         if (!acquisition) {
             return { hasAccess: false, reason: 'No acquisition found' };
         }
@@ -24,7 +24,7 @@ export class AcquisitionService {
         if (acquisition.method === AcquisitionMethod.TWITCH_SUB) {
             const user = await User.findOne({ where: { id: userId } });
             const modpack = await Modpack.findOne({ where: { id: modpackId } });
-            
+
             if (!user || !modpack) {
                 return { hasAccess: false, reason: 'User or modpack not found' };
             }
@@ -58,7 +58,7 @@ export class AcquisitionService {
     static async acquireWithPassword(user: User, modpack: Modpack, password: string): Promise<ModpackAcquisition> {
         // Validate password
         if (!modpack.validatePassword(password)) {
-            throw new APIError(403, 'Invalid password');
+            throw new APIError(403, 'La contraseña ingresada es incorrecta.');
         }
 
         // Check if acquisition already exists

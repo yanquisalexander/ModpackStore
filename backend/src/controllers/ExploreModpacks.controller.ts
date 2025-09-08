@@ -381,7 +381,7 @@ export class ExploreModpacksController {
             // Validate password and create acquisition if correct
             if (modpack.password === password) {
                 const acquisition = await AcquisitionService.acquireWithPassword(user, modpack, password);
-                
+
                 return c.json({
                     valid: true,
                     message: "Password is correct. Access granted.",
@@ -395,7 +395,7 @@ export class ExploreModpacksController {
             } else {
                 return c.json({
                     valid: false,
-                    message: "Invalid password."
+                    message: "La contraseña ingresada es incorrecta."
                 }, 200);
             }
 
@@ -514,7 +514,7 @@ export class ExploreModpacksController {
             // For free modpacks, create acquisition immediately
             if (modpack.acquisitionMethod === AcquisitionMethod.FREE) {
                 const acquisition = await AcquisitionService.acquireWithPurchase(user, modpack);
-                
+
                 return c.json({
                     success: true,
                     isFree: true,
@@ -566,7 +566,7 @@ export class ExploreModpacksController {
         try {
             const payload = await c.req.json();
             await PaymentService.handleWebhook(payload);
-            
+
             return c.json({ success: true }, 200);
         } catch (error: any) {
             console.error('[CONTROLLER_EXPLORE] PayPal webhook error:', error);
