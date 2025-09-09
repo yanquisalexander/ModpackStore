@@ -6,19 +6,38 @@ use crate::core::bootstrap::download::download_file;
 use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
 use crate::core::bootstrap::filesystem::create_asset_directories;
 use crate::core::bootstrap::manifest::get_asset_index_info;
+use serde::{Serialize, Deserialize};
 use serde_json::Value;
 use std::fs;
 use std::io::{self, Result as IoResult};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tauri_plugin_http::reqwest;
 
-/// Revalidates and downloads missing assets for a Minecraft instance
-pub fn revalidate_assets(
+/// Represents a missing asset that needs to be downloaded
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssetDownloadRequest {
+    pub url: String,
+    pub target_path: PathBuf,
+    pub hash: String,
+    pub asset_name: String,
+}
+
+/// Result of asset validation containing missing assets to download
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssetValidationResult {
+    pub total_assets: usize,
+    pub validated_assets: usize,
+    pub missing_assets: Vec<AssetDownloadRequest>,
+}
+
+/// Validates assets and returns list of missing assets for download
+/// This replaces revalidate_assets to use the DownloadManager approach
+pub fn validate_assets_and_collect_missing(
     client: &reqwest::blocking::Client,
     instance: &MinecraftInstance,
     version_details: &Value,
-) -> IoResult<()> {
-    log::info!("Revalidando assets para: {}", instance.instanceName);
+) -> IoResult<AssetValidationResult> {
+    log::info!("Validando assets para: {}", instance.instanceName);
 
     // Verificar si la versión de Minecraft está disponible
     if instance.minecraftVersion.is_empty() {
@@ -76,32 +95,28 @@ pub fn revalidate_assets(
             )
         })?;
 
-    download_missing_assets(client, instance, &assets_objects_dir, objects)?;
+    // Validate and collect missing assets instead of downloading them immediately
+    let validation_result = collect_missing_assets(instance, &assets_objects_dir, objects)?;
 
-    log::info!("Asset revalidation completed");
-
-    // Emitir evento de finalización
-    emit_status(
-        instance,
-        "instance-finish-assets-download",
-        &format!(
-            "Validación de assets completada para {}",
-            instance.instanceName
-        ),
+    log::info!(
+        "Asset validation completed: {} total, {} validated, {} missing",
+        validation_result.total_assets,
+        validation_result.validated_assets,
+        validation_result.missing_assets.len()
     );
-    Ok(())
+
+    Ok(validation_result)
 }
 
-/// Downloads missing assets from the assets index
-fn download_missing_assets(
-    client: &reqwest::blocking::Client,
+/// Collects missing assets that need to be downloaded
+fn collect_missing_assets(
     instance: &MinecraftInstance,
     assets_objects_dir: &Path,
     objects: &serde_json::Map<String, Value>,
-) -> IoResult<()> {
+) -> IoResult<AssetValidationResult> {
     let total_assets = objects.len();
     let mut processed_assets = 0;
-    let mut missing_assets = 0;
+    let mut missing_assets = Vec::new();
 
     log::info!("Validando {} assets...", total_assets);
 
@@ -122,53 +137,94 @@ fn download_missing_assets(
         let hash_prefix = &hash[0..2];
         let asset_file = assets_objects_dir.join(hash_prefix).join(hash);
 
-        // Informar progreso
+        // Informar progreso durante validación
         let stage = Stage::ValidatingAssets {
             current: processed_assets,
             total: total_assets,
         };
         
-        emit_status_with_stage(instance, "instance-downloading-assets", &stage);
+        emit_status_with_stage(instance, "instance-validating-assets", &stage);
 
+        // Si el asset no existe, agregarlo a la lista de descarga
         if !asset_file.exists() {
-            missing_assets += 1;
-            download_single_asset(client, hash, hash_prefix, &asset_file, asset_name)?;
+            let asset_url = format!(
+                "https://resources.download.minecraft.net/{}/{}",
+                hash_prefix, hash
+            );
+
+            missing_assets.push(AssetDownloadRequest {
+                url: asset_url,
+                target_path: asset_file,
+                hash: hash.to_string(),
+                asset_name: asset_name.clone(),
+            });
         }
     }
 
-    if missing_assets > 0 {
-        log::info!("Se han descargado {} assets faltantes.", missing_assets);
+    let validated_assets = total_assets - missing_assets.len();
+
+    log::info!(
+        "Validation complete: {} total, {} validated, {} missing",
+        total_assets,
+        validated_assets,
+        missing_assets.len()
+    );
+
+    Ok(AssetValidationResult {
+        total_assets,
+        validated_assets,
+        missing_assets,
+    })
+}
+
+/// Legacy function for backward compatibility
+/// Revalidates and downloads missing assets for a Minecraft instance
+/// This function is deprecated - use validate_assets_and_collect_missing + DownloadManager instead
+pub fn revalidate_assets(
+    client: &reqwest::blocking::Client,
+    instance: &MinecraftInstance,
+    version_details: &Value,
+) -> IoResult<()> {
+    log::warn!("Using legacy revalidate_assets function - consider migrating to DownloadManager");
+    
+    // Get validation result
+    let validation_result = validate_assets_and_collect_missing(client, instance, version_details)?;
+    
+    // If there are missing assets, download them using the old method for compatibility
+    if !validation_result.missing_assets.is_empty() {
+        log::info!("Downloading {} missing assets using legacy method", validation_result.missing_assets.len());
+        
+        for asset_request in &validation_result.missing_assets {
+            // Create parent directories if they don't exist
+            if let Some(parent) = asset_request.target_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            
+            download_file(client, &asset_request.url, &asset_request.target_path)
+                .map_err(|e| {
+                    io::Error::new(
+                        io::ErrorKind::Other,
+                        format!("Error al descargar asset {}: {}", asset_request.asset_name, e),
+                    )
+                })?;
+        }
+        
+        log::info!("Se han descargado {} assets faltantes.", validation_result.missing_assets.len());
     } else {
         log::info!("Todos los assets están validados.");
     }
 
-    Ok(())
-}
-
-/// Downloads a single asset file
-fn download_single_asset(
-    client: &reqwest::blocking::Client,
-    hash: &str,
-    hash_prefix: &str,
-    asset_file: &Path,
-    asset_name: &str,
-) -> IoResult<()> {
-    let asset_url = format!(
-        "https://resources.download.minecraft.net/{}/{}",
-        hash_prefix, hash
+    // Emitir evento de finalización
+    emit_status(
+        instance,
+        "instance-finish-assets-download",
+        &format!(
+            "Validación de assets completada para {}",
+            instance.instanceName
+        ),
     );
     
-    let target_dir = asset_file.parent().unwrap();
-    if !target_dir.exists() {
-        fs::create_dir_all(target_dir)?;
-    }
-
-    download_file(client, &asset_url, asset_file).map_err(|e| {
-        io::Error::new(
-            io::ErrorKind::Other,
-            format!("Error al descargar asset {}: {}", asset_name, e),
-        )
-    })
+    Ok(())
 }
 
 /// Validates that a file exists and optionally checks its size/hash
@@ -217,4 +273,48 @@ pub fn validate_json_file(file_path: &Path) -> Result<Value, String> {
         
     serde_json::from_str(&content)
         .map_err(|e| format!("Error parsing JSON file {}: {}", file_path.display(), e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_asset_download_request_creation() {
+        let asset_request = AssetDownloadRequest {
+            url: "https://resources.download.minecraft.net/12/1234567890abcdef".to_string(),
+            target_path: PathBuf::from("/tmp/assets/objects/12/1234567890abcdef"),
+            hash: "1234567890abcdef".to_string(),
+            asset_name: "test_asset.png".to_string(),
+        };
+
+        assert_eq!(asset_request.url, "https://resources.download.minecraft.net/12/1234567890abcdef");
+        assert_eq!(asset_request.hash, "1234567890abcdef");
+        assert_eq!(asset_request.asset_name, "test_asset.png");
+    }
+
+    #[test]
+    fn test_asset_validation_result_creation() {
+        let validation_result = AssetValidationResult {
+            total_assets: 100,
+            validated_assets: 95,
+            missing_assets: vec![],
+        };
+
+        assert_eq!(validation_result.total_assets, 100);
+        assert_eq!(validation_result.validated_assets, 95);
+        assert_eq!(validation_result.missing_assets.len(), 0);
+    }
+
+    #[test]
+    fn test_validate_file_exists() {
+        // Test with a file that should exist (current file)
+        let current_file = std::env::current_exe().unwrap();
+        assert!(validate_file_exists(&current_file));
+
+        // Test with a file that doesn't exist
+        let non_existent_file = PathBuf::from("/tmp/this_file_does_not_exist.txt");
+        assert!(!validate_file_exists(&non_existent_file));
+    }
 }
