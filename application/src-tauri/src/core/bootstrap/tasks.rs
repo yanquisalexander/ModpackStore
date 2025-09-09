@@ -18,6 +18,7 @@ pub enum Stage {
     ValidatingAssets { current: usize, total: usize },
     DownloadingForgeLibraries { current: usize, total: usize },
     DownloadingModpackFiles { current: usize, total: usize },
+    InstallingJava { progress: f32, message: String },
 }
 
 /// Emits a status update event to the frontend.
@@ -158,6 +159,9 @@ fn format_stage_message(stage: &Stage) -> String {
                 "Descargando archivos del modpack: {}/{} ({:.1}%)",
                 current, total, percentage
             )
+        }
+        Stage::InstallingJava { progress, message } => {
+            format!("Instalando Java: {} ({:.1}%)", message, progress)
         }
     }
 }

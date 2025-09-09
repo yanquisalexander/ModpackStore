@@ -6,6 +6,7 @@ use crate::core::bootstrap::manifest::get_asset_index_info;
 use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::modpack_file_manager::DownloadManager;
+use crate::core::tasks_manager::{add_task, update_task, TaskStatus};
 use serde_json::Value;
 use std::fs;
 use std::io::{self, Result as IoResult};
@@ -14,6 +15,7 @@ use std::sync::Arc;
 use tauri_plugin_http::reqwest;
 
 /// Synchronous wrapper for revalidate_assets for backward compatibility
+/// DEPRECATED: Use revalidate_assets_async for new code
 pub fn revalidate_assets_sync(
     instance: &MinecraftInstance,
     version_details: &Value,
@@ -27,6 +29,64 @@ pub fn revalidate_assets_sync(
     })?;
 
     rt.block_on(revalidate_assets(instance, version_details))
+}
+
+/// Executes asset revalidation asynchronously using the task manager system
+/// This is the preferred method as it doesn't block the main thread
+pub fn revalidate_assets_async(
+    instance: &MinecraftInstance,
+    version_details: &Value,
+) -> String {
+    let task_id = add_task(
+        &format!("Validando assets para {}", instance.instanceName),
+        Some(serde_json::json!({
+            "instanceId": instance.instanceId,
+            "instanceName": instance.instanceName,
+            "minecraftVersion": instance.minecraftVersion,
+        }))
+    );
+
+    // Clone data for the async task
+    let instance_clone = instance.clone();
+    let version_details_clone = version_details.clone();
+    let task_id_clone = task_id.clone();
+
+    // Spawn the async task
+    tokio::spawn(async move {
+        update_task(
+            &task_id_clone,
+            TaskStatus::Running,
+            0.0,
+            "Iniciando validación de assets",
+            None,
+        );
+
+        match revalidate_assets(&instance_clone, &version_details_clone).await {
+            Ok(()) => {
+                update_task(
+                    &task_id_clone,
+                    TaskStatus::Completed,
+                    100.0,
+                    "Validación de assets completada",
+                    None,
+                );
+            }
+            Err(e) => {
+                update_task(
+                    &task_id_clone,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error en validación de assets: {}", e),
+                    Some(serde_json::json!({
+                        "error": e.to_string(),
+                        "error_type": "asset_validation"
+                    })),
+                );
+            }
+        }
+    });
+
+    task_id
 }
 
 /// Revalidates and downloads missing assets for a Minecraft instance using DownloadManager
@@ -394,6 +454,36 @@ mod tests {
         // We expect this to fail due to fake URL, but the function should execute
         // The important thing is that it doesn't panic and handles the async runtime correctly
         assert!(result.is_err());
+
+        // Cleanup
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_revalidate_assets_async() {
+        // Create a minimal MinecraftInstance for testing
+        let mut instance = MinecraftInstance::new();
+        instance.instanceName = "test_async_instance".to_string();
+        instance.minecraftVersion = "1.20.1".to_string();
+
+        // Create a temporary directory for the instance
+        let temp_dir = std::env::temp_dir().join("revalidate_async_test");
+        instance.instanceDirectory = Some(temp_dir.to_string_lossy().to_string());
+
+        // Create a mock version details JSON
+        let version_details = serde_json::json!({
+            "assetIndex": {
+                "id": "1.20",
+                "url": "https://launchermeta.mojang.com/v1/packages/test/1.20.json"
+            }
+        });
+
+        // Test that the async function returns a task ID
+        let task_id = revalidate_assets_async(&instance, &version_details);
+
+        // Should return a valid UUID string
+        assert!(!task_id.is_empty());
+        assert!(task_id.len() > 10); // UUIDs are longer than 10 characters
 
         // Cleanup
         let _ = fs::remove_dir_all(&temp_dir);
