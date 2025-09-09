@@ -13,6 +13,7 @@ use std::io::{self, Result as IoResult};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tauri_plugin_http::reqwest;
+use tokio::runtime::Handle;
 
 /// Synchronous wrapper for revalidate_assets for backward compatibility
 /// DEPRECATED: Use revalidate_assets_async for new code
@@ -20,30 +21,37 @@ pub fn revalidate_assets_sync(
     instance: &MinecraftInstance,
     version_details: &Value,
 ) -> IoResult<()> {
-    // Create a new tokio runtime for this synchronous call
-    let rt = tokio::runtime::Runtime::new().map_err(|e| {
-        io::Error::new(
-            io::ErrorKind::Other,
-            format!("Failed to create async runtime: {}", e),
-        )
-    })?;
+    // Check if we're already in a Tokio runtime
+    if let Ok(handle) = Handle::try_current() {
+        // We're already in a Tokio runtime, spawn the task
+        let instance = instance.clone();
+        let version_details = version_details.clone();
 
-    rt.block_on(revalidate_assets(instance, version_details))
+        // Block on the future using the existing runtime
+        handle.block_on(async move { revalidate_assets(&instance, &version_details).await })
+    } else {
+        // No runtime exists, create a new one
+        let rt = tokio::runtime::Runtime::new().map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to create async runtime: {}", e),
+            )
+        })?;
+
+        rt.block_on(revalidate_assets(instance, version_details))
+    }
 }
 
 /// Executes asset revalidation asynchronously using the task manager system
 /// This is the preferred method as it doesn't block the main thread
-pub fn revalidate_assets_async(
-    instance: &MinecraftInstance,
-    version_details: &Value,
-) -> String {
+pub fn revalidate_assets_async(instance: &MinecraftInstance, version_details: &Value) -> String {
     let task_id = add_task(
         &format!("Validando assets para {}", instance.instanceName),
         Some(serde_json::json!({
             "instanceId": instance.instanceId,
             "instanceName": instance.instanceName,
             "minecraftVersion": instance.minecraftVersion,
-        }))
+        })),
     );
 
     // Clone data for the async task
