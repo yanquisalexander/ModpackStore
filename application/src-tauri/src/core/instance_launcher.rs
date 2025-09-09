@@ -283,9 +283,7 @@ impl InstanceLauncher {
         // For now, we assume revalidate_assets can work with a mutable copy.
         let mut instance_clone_for_bootstrap = (*self.instance).clone();
         let mut instance_bootstrap = InstanceBootstrap::new();
-        
-        // Use the new DownloadManager-based asset validation for better performance
-        instance_bootstrap.revalidate_assets_with_download_manager_sync(&mut instance_clone_for_bootstrap, None)?;
+        instance_bootstrap.revalidate_assets(&mut instance_clone_for_bootstrap)?;
 
         info!(
             "[Instance: {}] Asset revalidation completed.",
