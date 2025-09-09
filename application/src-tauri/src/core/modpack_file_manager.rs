@@ -1,6 +1,7 @@
 use crate::core::bootstrap::tasks::{
     emit_bootstrap_complete, emit_status, emit_status_with_stage, Stage,
 };
+use crate::core::bootstrap::validate::{AssetDownloadRequest, AssetValidationResult};
 use crate::core::minecraft::paths::MinecraftPaths;
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::tasks_manager::{
@@ -1302,6 +1303,173 @@ impl DownloadManager {
 
         Ok(())
     }
+
+    /// Downloads vanilla Minecraft assets using the unified DownloadManager approach
+    /// This method provides the same benefits as modpack downloads: concurrency, retries, and progress tracking
+    pub async fn download_assets_with_progress<F>(
+        &self,
+        assets: Vec<AssetDownloadRequest>,
+        mut progress_callback: F,
+    ) -> Result<usize, String>
+    where
+        F: FnMut(usize, usize, &str) + Send + 'static,
+    {
+        let total_assets = assets.len();
+        if total_assets == 0 {
+            return Ok(0);
+        }
+
+        log::info!("Starting download of {} assets using DownloadManager", total_assets);
+
+        // Convert AssetDownloadRequest to the format expected by download_files_parallel_with_progress
+        let files_for_download: Vec<(String, PathBuf, String)> = assets
+            .iter()
+            .map(|asset| (asset.url.clone(), asset.target_path.clone(), asset.hash.clone()))
+            .collect();
+
+        // Use the existing parallel download infrastructure
+        self.download_files_parallel_with_progress(files_for_download, progress_callback)
+            .await
+    }
+
+    /// Downloads assets and integrates with TaskManager for unified progress reporting
+    pub async fn download_assets_with_task_integration(
+        &self,
+        assets: Vec<AssetDownloadRequest>,
+        instance: &MinecraftInstance,
+        task_id: Option<String>,
+    ) -> Result<usize, String> {
+        let total_assets = assets.len();
+        
+        if total_assets == 0 {
+            log::info!("No assets to download for instance {}", instance.instanceName);
+            return Ok(0);
+        }
+
+        log::info!(
+            "Downloading {} assets for instance {} using DownloadManager", 
+            total_assets, 
+            instance.instanceName
+        );
+
+        // Emit initial stage for downloading assets
+        let initial_stage = Stage::ValidatingAssets {
+            current: 0,
+            total: total_assets,
+        };
+        emit_status_with_stage(instance, "instance-downloading-assets", &initial_stage);
+
+        // Clone for progress callback
+        let instance_clone = instance.clone();
+        let task_id_clone = task_id.clone();
+
+        // Use the asset download method with progress callback
+        let downloaded_count = self
+            .download_assets_with_progress(assets, move |current, total, message| {
+                // Update task progress
+                if let Some(ref tid) = task_id_clone {
+                    let progress = (current as f32 / total as f32) * 100.0;
+                    update_task(
+                        tid,
+                        TaskStatus::Running,
+                        progress,
+                        &format!("Descargando assets: {}/{}", current, total),
+                        Some(serde_json::json!({
+                            "instanceName": instance_clone.instanceName,
+                            "instanceId": instance_clone.instanceId,
+                            "assetsDownloaded": current,
+                            "totalAssets": total,
+                            "currentFile": message
+                        })),
+                    );
+                }
+
+                // Update stage for real-time frontend updates
+                let stage = Stage::ValidatingAssets { current, total };
+                emit_status_with_stage(&instance_clone, "instance-downloading-assets", &stage);
+            })
+            .await?;
+
+        log::info!(
+            "Successfully downloaded {} assets for instance {}",
+            downloaded_count,
+            instance.instanceName
+        );
+
+        // Emit completion event
+        emit_status(
+            instance,
+            "instance-finish-assets-download",
+            &format!(
+                "Descarga de {} assets completada para {}",
+                downloaded_count,
+                instance.instanceName
+            ),
+        );
+
+        Ok(downloaded_count)
+    }
+}
+
+impl Default for DownloadManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// High-level function to validate and download assets using the DownloadManager approach
+/// This replaces the legacy revalidate_assets workflow with a two-phase approach:
+/// 1. Validate assets and collect missing ones
+/// 2. Use DownloadManager to download missing assets with concurrency and progress tracking
+pub async fn revalidate_assets_with_download_manager(
+    instance: &MinecraftInstance,
+    version_details: &serde_json::Value,
+    task_id: Option<String>,
+) -> Result<(), String> {
+    log::info!("Starting asset validation and download for instance: {}", instance.instanceName);
+
+    // Phase 1: Validate assets and collect missing ones
+    let client = reqwest::blocking::Client::new();
+    let validation_result = crate::core::bootstrap::validate::validate_assets_and_collect_missing(
+        &client, 
+        instance, 
+        version_details
+    ).map_err(|e| format!("Asset validation failed: {}", e))?;
+
+    log::info!(
+        "Asset validation complete: {} total, {} validated, {} missing",
+        validation_result.total_assets,
+        validation_result.validated_assets,
+        validation_result.missing_assets.len()
+    );
+
+    // Phase 2: Download missing assets if any
+    if !validation_result.missing_assets.is_empty() {
+        let download_manager = DownloadManager::with_concurrency(get_download_concurrency());
+        
+        download_manager
+            .download_assets_with_task_integration(
+                validation_result.missing_assets,
+                instance,
+                task_id,
+            )
+            .await
+            .map_err(|e| format!("Asset download failed: {}", e))?;
+    } else {
+        log::info!("All assets are already validated - no downloads needed");
+        
+        // Still emit completion event for consistency
+        emit_status(
+            instance,
+            "instance-finish-assets-download",
+            &format!(
+                "Validación de assets completada para {} - no se requieren descargas",
+                instance.instanceName
+            ),
+        );
+    }
+
+    Ok(())
 }
 
 fn compute_file_hash(contents: &[u8]) -> String {
