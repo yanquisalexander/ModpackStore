@@ -25,6 +25,9 @@
       "icons/icon.ico"
     ],
     "windows": {
+      "certificateThumbprint": "4211dd22e92904001788b6e7ae9d2485d3deec86",
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "http://timestamp.comodoca.com",
       "nsis": {
         "installMode": "currentUser",
         "sidebarImage": "./resources/installer_bg.bmp"
