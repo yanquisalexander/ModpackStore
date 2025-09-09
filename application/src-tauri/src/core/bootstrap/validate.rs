@@ -274,3 +274,47 @@ pub fn validate_json_file(file_path: &Path) -> Result<Value, String> {
     serde_json::from_str(&content)
         .map_err(|e| format!("Error parsing JSON file {}: {}", file_path.display(), e))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_asset_download_request_creation() {
+        let asset_request = AssetDownloadRequest {
+            url: "https://resources.download.minecraft.net/12/1234567890abcdef".to_string(),
+            target_path: PathBuf::from("/tmp/assets/objects/12/1234567890abcdef"),
+            hash: "1234567890abcdef".to_string(),
+            asset_name: "test_asset.png".to_string(),
+        };
+
+        assert_eq!(asset_request.url, "https://resources.download.minecraft.net/12/1234567890abcdef");
+        assert_eq!(asset_request.hash, "1234567890abcdef");
+        assert_eq!(asset_request.asset_name, "test_asset.png");
+    }
+
+    #[test]
+    fn test_asset_validation_result_creation() {
+        let validation_result = AssetValidationResult {
+            total_assets: 100,
+            validated_assets: 95,
+            missing_assets: vec![],
+        };
+
+        assert_eq!(validation_result.total_assets, 100);
+        assert_eq!(validation_result.validated_assets, 95);
+        assert_eq!(validation_result.missing_assets.len(), 0);
+    }
+
+    #[test]
+    fn test_validate_file_exists() {
+        // Test with a file that should exist (current file)
+        let current_file = std::env::current_exe().unwrap();
+        assert!(validate_file_exists(&current_file));
+
+        // Test with a file that doesn't exist
+        let non_existent_file = PathBuf::from("/tmp/this_file_does_not_exist.txt");
+        assert!(!validate_file_exists(&non_existent_file));
+    }
+}
