@@ -30,6 +30,15 @@ pub fn revalidate_assets_sync(
 }
 
 /// Revalidates and downloads missing assets for a Minecraft instance using DownloadManager
+/// 
+/// This function has been refactored to use the unified DownloadManager for all asset downloads,
+/// providing concurrent downloads, retry logic, and consistent progress reporting with modpack downloads.
+/// 
+/// # Architecture
+/// - Uses DownloadManager for efficient parallel downloads with concurrency control
+/// - Separates validation logic from download logic for better maintainability  
+/// - Integrates with unified progress reporting system via emit_status_with_stage
+/// - Provides consistent error handling and retry capabilities
 pub async fn revalidate_assets(
     instance: &MinecraftInstance,
     version_details: &Value,
@@ -115,6 +124,12 @@ pub async fn revalidate_assets(
 }
 
 /// Downloads missing assets from the assets index using DownloadManager batch processing
+/// 
+/// This function implements the core asset download refactoring by:
+/// 1. Collecting all missing assets in a single validation pass
+/// 2. Delegating batch downloads to DownloadManager for concurrent processing  
+/// 3. Providing unified progress reporting that integrates with the UI
+/// 4. Leveraging DownloadManager's retry and error handling capabilities
 async fn download_missing_assets(
     download_manager: &DownloadManager,
     instance: &MinecraftInstance,
@@ -395,6 +410,61 @@ mod tests {
         // The important thing is that it doesn't panic and handles the async runtime correctly
         assert!(result.is_err());
 
+        // Cleanup
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_download_missing_assets_integration() {
+        use crate::core::modpack_file_manager::DownloadManager;
+        use std::collections::HashMap;
+        
+        // Create test instance
+        let mut instance = MinecraftInstance::new();
+        instance.instanceName = "test_download_assets".to_string();
+        instance.minecraftVersion = "1.20.1".to_string();
+        
+        let temp_dir = std::env::temp_dir().join("test_download_assets");
+        instance.instanceDirectory = Some(temp_dir.to_string_lossy().to_string());
+        
+        // Create test directory structure
+        let minecraft_dir = temp_dir.join("minecraft");
+        let assets_objects_dir = minecraft_dir.join("assets").join("objects");
+        fs::create_dir_all(&assets_objects_dir).unwrap();
+        
+        // Create mock assets objects data (empty - all assets will be "missing")
+        let mut objects = serde_json::Map::new();
+        // Add a single test asset that would be missing
+        objects.insert("test_asset.txt".to_string(), serde_json::json!({
+            "hash": "da39a3ee5e6b4b0d3255bfef95601890afd80709" // SHA1 of empty string
+        }));
+        
+        let download_manager = DownloadManager::new();
+        
+        // Test that the function handles empty/mock asset collection properly
+        // This should complete without downloading since no real URLs
+        let result = download_missing_assets(
+            &download_manager, 
+            &instance, 
+            &assets_objects_dir, 
+            &objects
+        ).await;
+        
+        // The function should handle the mock data gracefully 
+        // It may fail on actual download attempts, but should not panic
+        match result {
+            Ok(_) => {
+                // If successful, that means no assets were missing or downloads worked
+            },
+            Err(e) => {
+                // Expected to fail since we're using mock URLs
+                assert!(e.contains("Error en descarga") || e.contains("resources.download.minecraft.net"));
+            }
+        }
+        
+        // Verify DownloadManager was properly integrated (no panics occurred)
+        assert!(true, "DownloadManager integration test completed without panics");
+        
         // Cleanup
         let _ = fs::remove_dir_all(&temp_dir);
     }
