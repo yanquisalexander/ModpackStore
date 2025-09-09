@@ -254,3 +254,142 @@ pub fn validate_json_file(file_path: &Path) -> Result<Value, String> {
     serde_json::from_str(&content)
         .map_err(|e| format!("Error parsing JSON file {}: {}", file_path.display(), e))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::path::PathBuf;
+
+    #[test]
+    fn test_validate_file_exists() {
+        // Create a temporary file for testing
+        let temp_dir = std::env::temp_dir().join("validate_test");
+        let _ = fs::create_dir_all(&temp_dir);
+        let test_file = temp_dir.join("test.txt");
+        
+        // Write some content to the file
+        fs::write(&test_file, "test content").unwrap();
+        
+        // Test that the function correctly identifies an existing file
+        assert!(validate_file_exists(&test_file));
+        
+        // Test with non-existent file
+        let non_existent = temp_dir.join("non_existent.txt");
+        assert!(!validate_file_exists(&non_existent));
+        
+        // Cleanup
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_validate_minecraft_directories() {
+        // Create a temporary minecraft directory structure
+        let temp_dir = std::env::temp_dir().join("minecraft_validate_test");
+        let minecraft_dir = temp_dir.join("minecraft");
+        
+        // Create required directories
+        let required_dirs = [
+            minecraft_dir.join("versions"),
+            minecraft_dir.join("libraries"),
+            minecraft_dir.join("assets"),
+            minecraft_dir.join("versions").join("1.20.1"),
+        ];
+        
+        for dir in &required_dirs {
+            fs::create_dir_all(dir).unwrap();
+        }
+        
+        // Test that validation passes when all directories exist
+        assert!(validate_minecraft_directories(&minecraft_dir, "1.20.1").is_ok());
+        
+        // Test that validation fails when a directory is missing
+        fs::remove_dir_all(&minecraft_dir.join("libraries")).unwrap();
+        assert!(validate_minecraft_directories(&minecraft_dir, "1.20.1").is_err());
+        
+        // Cleanup
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_validate_minecraft_files() {
+        // Create a temporary version directory
+        let temp_dir = std::env::temp_dir().join("minecraft_files_test");
+        let version_dir = temp_dir.join("versions").join("1.20.1");
+        fs::create_dir_all(&version_dir).unwrap();
+        
+        // Create required files
+        let version_json = version_dir.join("1.20.1.json");
+        let client_jar = version_dir.join("1.20.1.jar");
+        
+        fs::write(&version_json, r#"{"id":"1.20.1"}"#).unwrap();
+        fs::write(&client_jar, "mock jar content").unwrap();
+        
+        // Test that validation passes when all files exist
+        assert!(validate_minecraft_files(&version_dir, "1.20.1").is_ok());
+        
+        // Test that validation fails when a file is missing
+        fs::remove_file(&client_jar).unwrap();
+        assert!(validate_minecraft_files(&version_dir, "1.20.1").is_err());
+        
+        // Cleanup
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[test]
+    fn test_validate_json_file() {
+        // Create a temporary JSON file for testing
+        let temp_dir = std::env::temp_dir().join("json_validate_test");
+        fs::create_dir_all(&temp_dir).unwrap();
+        let json_file = temp_dir.join("test.json");
+        
+        // Write valid JSON
+        fs::write(&json_file, r#"{"version":"1.20.1","assets":"1.20"}"#).unwrap();
+        
+        // Test that valid JSON is parsed correctly
+        let result = validate_json_file(&json_file);
+        assert!(result.is_ok());
+        let json = result.unwrap();
+        assert_eq!(json["version"], "1.20.1");
+        
+        // Write invalid JSON
+        fs::write(&json_file, r#"{"version":"1.20.1","assets":"1.20""#).unwrap();
+        
+        // Test that invalid JSON returns an error
+        assert!(validate_json_file(&json_file).is_err());
+        
+        // Cleanup
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+
+    #[tokio::test]
+    async fn test_revalidate_assets_sync_wrapper() {
+        // Create a minimal MinecraftInstance for testing
+        let mut instance = MinecraftInstance::new();
+        instance.instanceName = "test_instance".to_string();
+        instance.minecraftVersion = "1.20.1".to_string();
+        
+        // Create a temporary directory for the instance
+        let temp_dir = std::env::temp_dir().join("revalidate_test");
+        instance.instanceDirectory = Some(temp_dir.to_string_lossy().to_string());
+        
+        // Create a mock version details JSON
+        let version_details = serde_json::json!({
+            "assetIndex": {
+                "id": "1.20",
+                "url": "https://launchermeta.mojang.com/v1/packages/test/1.20.json"
+            }
+        });
+        
+        // Test that the synchronous wrapper doesn't panic
+        // Note: This will fail to download because the URL is fake, but we're testing the wrapper logic
+        let result = revalidate_assets_sync(&instance, &version_details);
+        
+        // We expect this to fail due to fake URL, but the function should execute
+        // The important thing is that it doesn't panic and handles the async runtime correctly
+        assert!(result.is_err());
+        
+        // Cleanup
+        let _ = fs::remove_dir_all(&temp_dir);
+    }
+}
