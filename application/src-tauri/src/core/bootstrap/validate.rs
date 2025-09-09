@@ -21,25 +21,17 @@ pub fn revalidate_assets_sync(
     instance: &MinecraftInstance,
     version_details: &Value,
 ) -> IoResult<()> {
-    // Check if we're already in a Tokio runtime
-    if let Ok(handle) = Handle::try_current() {
-        // We're already in a Tokio runtime, spawn the task
-        let instance = instance.clone();
-        let version_details = version_details.clone();
+    // Always create a new runtime to avoid nested runtime issues
+    // This ensures consistent behavior regardless of the calling context
+    let rt = tokio::runtime::Runtime::new().map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to create async runtime: {}", e),
+        )
+    })?;
 
-        // Block on the future using the existing runtime
-        handle.block_on(async move { revalidate_assets(&instance, &version_details).await })
-    } else {
-        // No runtime exists, create a new one
-        let rt = tokio::runtime::Runtime::new().map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::Other,
-                format!("Failed to create async runtime: {}", e),
-            )
-        })?;
-
-        rt.block_on(revalidate_assets(instance, version_details))
-    }
+    rt.block_on(revalidate_assets(instance, version_details))
+        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
 }
 
 /// Executes asset revalidation asynchronously using the task manager system
@@ -436,8 +428,8 @@ mod tests {
         let _ = fs::remove_dir_all(&temp_dir);
     }
 
-    #[tokio::test]
-    async fn test_revalidate_assets_sync_wrapper() {
+    #[test]
+    fn test_revalidate_assets_sync_wrapper() {
         // Create a minimal MinecraftInstance for testing
         let mut instance = MinecraftInstance::new();
         instance.instanceName = "test_instance".to_string();
@@ -467,8 +459,8 @@ mod tests {
         let _ = fs::remove_dir_all(&temp_dir);
     }
 
-    #[test]
-    fn test_revalidate_assets_async() {
+    #[tokio::test]
+    async fn test_revalidate_assets_async() {
         // Create a minimal MinecraftInstance for testing
         let mut instance = MinecraftInstance::new();
         instance.instanceName = "test_async_instance".to_string();

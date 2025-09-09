@@ -779,7 +779,8 @@ pub async fn update_modpack_instance(
 
 // Funciones auxiliares para tareas en segundo plano
 fn spawn_instance_creation_task(instance: MinecraftInstance, task_id: String) {
-    std::thread::spawn(move || {
+    tokio::task::spawn_blocking(move || {
+        log::debug!("Instance creation task started in Tokio blocking context");
         let mut bootstrap = InstanceBootstrap::new();
 
         update_task(
@@ -836,7 +837,8 @@ fn spawn_modpack_creation_task(
     manifest: ModpackManifest,
     task_id: String,
 ) {
-    std::thread::spawn(move || {
+    tokio::task::spawn_blocking(move || {
+        log::debug!("Modpack creation task started in Tokio blocking context");
         let mut bootstrap = InstanceBootstrap::new();
 
         update_task(
@@ -932,7 +934,8 @@ fn spawn_modpack_update_task(
     manifest: ModpackManifest,
     task_id: String,
 ) {
-    std::thread::spawn(move || {
+    tokio::task::spawn_blocking(move || {
+        log::debug!("Modpack update task started in Tokio blocking context");
         update_task(
             &task_id,
             TaskStatus::Running,

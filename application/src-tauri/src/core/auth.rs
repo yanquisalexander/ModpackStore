@@ -585,7 +585,8 @@ pub async fn start_discord_auth(auth_state: State<'_, Arc<AuthState>>) -> AuthRe
     );
 
     println!("Abriendo URL de autenticación: {}", discord_url);
-    std::thread::spawn(move || {
+    tokio::spawn(async move {
+        log::debug!("Opening Discord auth URL in Tokio runtime");
         if let Err(e) = tauri_plugin_opener::open_url(discord_url, None::<String>) {
             eprintln!("Error al abrir URL: {}", e);
             events::emit_auth_error("Error al abrir URL de autenticación".to_string());
@@ -613,7 +614,8 @@ pub async fn start_twitch_auth(auth_state: State<'_, Arc<AuthState>>) -> AuthRes
     );
 
     println!("Opening Twitch authorization URL: {}", twitch_url);
-    std::thread::spawn(move || {
+    tokio::spawn(async move {
+        log::debug!("Opening Twitch auth URL in Tokio runtime");
         if let Err(e) = tauri_plugin_opener::open_url(twitch_url, None::<String>) {
             eprintln!("Error opening Twitch URL: {}", e);
             events::emit_auth_error("Error opening Twitch authorization URL".to_string());

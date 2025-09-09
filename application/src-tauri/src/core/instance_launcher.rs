@@ -6,7 +6,6 @@ use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Arc;
-use std::thread;
 
 // --- Crate Imports ---
 use crate::core::instance_bootstrap::InstanceBootstrap;
@@ -162,7 +161,8 @@ impl InstanceLauncher {
             instance: Arc::clone(&instance),
         };
 
-        thread::spawn(move || {
+        tokio::task::spawn_blocking(move || {
+            log::debug!("Process monitoring started in Tokio blocking task");
             info!(
                 "[Monitor: {}] Started monitoring process.",
                 instance.instanceId
@@ -363,7 +363,7 @@ impl InstanceLauncher {
             "[Launch Thread: {}] Closing launcher as configured.",
             self.instance.instanceId
         );
-        thread::sleep(std::time::Duration::from_secs(5)); // Give MC time to load
+        std::thread::sleep(std::time::Duration::from_secs(5)); // Give MC time to load
 
         if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
             if let Some(app_handle) = guard.as_ref() {
@@ -382,7 +382,8 @@ impl InstanceLauncher {
             instance_arc_clone.instanceId
         );
 
-        thread::spawn(move || {
+        tokio::task::spawn_blocking(move || {
+            log::debug!("Instance launch started in Tokio blocking task");
             let thread_launcher = Self {
                 instance: instance_arc_clone,
             };
