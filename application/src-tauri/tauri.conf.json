@@ -7,6 +7,8 @@
     "devUrl": "http://localhost:1420"
   },
   "bundle": {
+    "publisher": "Alexitoo.DEV",
+    "category": "Utility",
     "createUpdaterArtifacts": true,
     "active": true,
     "targets": [
@@ -50,6 +52,7 @@
     }
   },
   "app": {
+    "enableGTKAppId": true,
     "security": {
       "csp": null,
       "capabilities": [

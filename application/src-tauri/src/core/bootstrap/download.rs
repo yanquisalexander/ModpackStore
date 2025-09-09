@@ -1,5 +1,15 @@
 // src/core/bootstrap/download.rs
 // Download-related functionality extracted from instance_bootstrap.rs
+// 
+// NOTE: Asset downloads have been successfully migrated to use DownloadManager for
+// concurrent downloads, retries, and unified progress reporting. The functions in this 
+// module still use the legacy blocking download approach for libraries, JARs, and manifests.
+// 
+// TODO: Consider migrating remaining download types to DownloadManager for full consistency:
+//   - Library downloads (download_libraries, download_forge_libraries)
+//   - JAR downloads (client JARs, forge installers)
+//   - Manifest downloads (version JSON files)
+// This would provide the same performance benefits and unified UX for all download types.
 
 use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
 use crate::core::minecraft_instance::MinecraftInstance;
