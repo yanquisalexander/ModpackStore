@@ -45,8 +45,17 @@ pub enum LaunchError {
     #[error("Failed to revalidate assets: {0}")]
     AssetRevalidationFailed(#[from] IoError),
 
+    #[error("Asset revalidation error: {0}")]
+    AssetRevalidationError(String),
+
     #[error("The Minecraft launcher failed to start the process.")]
     ProcessStartFailed,
+}
+
+impl From<String> for LaunchError {
+    fn from(error: String) -> Self {
+        LaunchError::AssetRevalidationError(error)
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -283,9 +292,12 @@ impl InstanceLauncher {
         // For now, we assume revalidate_assets can work with a mutable copy.
         let mut instance_clone_for_bootstrap = (*self.instance).clone();
         let mut instance_bootstrap = InstanceBootstrap::new();
-        
+
         // Use the new DownloadManager-based asset validation for better performance
-        instance_bootstrap.revalidate_assets_with_download_manager_sync(&mut instance_clone_for_bootstrap, None)?;
+        instance_bootstrap.revalidate_assets_with_download_manager_sync(
+            &mut instance_clone_for_bootstrap,
+            None,
+        )?;
 
         info!(
             "[Instance: {}] Asset revalidation completed.",

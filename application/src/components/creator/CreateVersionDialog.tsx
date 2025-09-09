@@ -280,7 +280,7 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                                     <SelectItem value="none">Sin Forge (Vanilla)</SelectItem>
                                     {compatibleForgeVersions.map((version) => (
                                         <SelectItem key={version} value={version}>
-                                            Forge {version}
+                                            {version}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
