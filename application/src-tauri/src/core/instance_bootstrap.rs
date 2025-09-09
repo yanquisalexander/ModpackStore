@@ -7,14 +7,19 @@ use crate::core::bootstrap::{
         build_forge_installer_url, get_java_version_requirement, get_version_details,
         get_version_manifest,
     },
-    tasks::{emit_bootstrap_complete, emit_bootstrap_start, emit_status, emit_status_with_stage, emit_bootstrap_error, Stage},
-    validate::revalidate_assets,
+    tasks::{
+        emit_bootstrap_complete, emit_bootstrap_error, emit_bootstrap_start, emit_status,
+        emit_status_with_stage, Stage,
+    },
+    validate::revalidate_assets_sync,
 };
 use crate::core::bootstrap_error::{BootstrapError, BootstrapStep, ErrorCategory};
 use crate::core::instance_manager::get_instance_by_id;
 use crate::core::java_manager::JavaManager;
 use crate::core::minecraft_instance::MinecraftInstance;
-use crate::core::tasks_manager::{add_task, remove_task, update_task, update_task_with_bootstrap_error, TaskStatus};
+use crate::core::tasks_manager::{
+    add_task, remove_task, update_task, update_task_with_bootstrap_error, TaskStatus,
+};
 use crate::GLOBAL_APP_HANDLE;
 use serde_json::{json, Value};
 use std::fs;
@@ -40,12 +45,20 @@ impl InstanceBootstrap {
     }
 
     // --- Error handling helpers ---
-    
-    fn handle_network_error(&self, step: BootstrapStep, error: impl std::fmt::Display) -> BootstrapError {
+
+    fn handle_network_error(
+        &self,
+        step: BootstrapStep,
+        error: impl std::fmt::Display,
+    ) -> BootstrapError {
         BootstrapError::network_error(step, error.to_string())
     }
-    
-    fn handle_filesystem_error(&self, step: BootstrapStep, error: impl std::fmt::Display) -> BootstrapError {
+
+    fn handle_filesystem_error(
+        &self,
+        step: BootstrapStep,
+        error: impl std::fmt::Display,
+    ) -> BootstrapError {
         BootstrapError::filesystem_error(step, error.to_string())
     }
 
@@ -63,7 +76,7 @@ impl InstanceBootstrap {
             })?;
 
         // Use the modular revalidate_assets function
-        revalidate_assets(&self.client, instance, &version_details)
+        revalidate_assets_sync(instance, &version_details)
     }
 
     // Método para obtener detalles de la versión
@@ -126,11 +139,12 @@ impl InstanceBootstrap {
         }
 
         if !minecraft_dir.exists() {
-            fs::create_dir_all(&minecraft_dir)
-                .map_err(|e| self.handle_filesystem_error(
+            fs::create_dir_all(&minecraft_dir).map_err(|e| {
+                self.handle_filesystem_error(
                     BootstrapStep::CreatingDirectories,
-                    format!("Error creating minecraft directory: {}", e)
-                ))?;
+                    format!("Error creating minecraft directory: {}", e),
+                )
+            })?;
         }
 
         // Create required subdirectories using modular function
@@ -176,10 +190,12 @@ impl InstanceBootstrap {
 
         let version_details = self
             .get_version_details(&instance.minecraftVersion)
-            .map_err(|e| self.handle_network_error(
-                BootstrapStep::DownloadingManifest,
-                format!("Error fetching version details: {}", e)
-            ))?;
+            .map_err(|e| {
+                self.handle_network_error(
+                    BootstrapStep::DownloadingManifest,
+                    format!("Error fetching version details: {}", e),
+                )
+            })?;
 
         // Update task status after manifest download - 20%
         if let Some(task_id) = &task_id {
@@ -250,10 +266,12 @@ impl InstanceBootstrap {
             );
 
             self.download_file(version_url, &version_json_path)
-                .map_err(|e| self.handle_network_error(
-                    BootstrapStep::DownloadingVersionJson,
-                    format!("Error downloading version JSON: {}", e)
-                ))?;
+                .map_err(|e| {
+                    self.handle_network_error(
+                        BootstrapStep::DownloadingVersionJson,
+                        format!("Error downloading version JSON: {}", e),
+                    )
+                })?;
         } else {
             // Update task status if file already exists
             if let Some(task_id) = &task_id {
@@ -312,10 +330,12 @@ impl InstanceBootstrap {
             );
 
             self.download_file(client_url, &client_jar_path)
-                .map_err(|e| self.handle_network_error(
-                    BootstrapStep::DownloadingClientJar,
-                    format!("Error downloading client jar: {}", e)
-                ))?;
+                .map_err(|e| {
+                    self.handle_network_error(
+                        BootstrapStep::DownloadingClientJar,
+                        format!("Error downloading client jar: {}", e),
+                    )
+                })?;
         } else {
             // Update task status if file already exists
             if let Some(task_id) = &task_id {
@@ -517,7 +537,7 @@ impl InstanceBootstrap {
             minecraft_version,
             forge_version
         );
-        
+
         // Determinar la ruta de Java
         let java_path = self.find_java_path()?;
         log::debug!(
@@ -542,18 +562,17 @@ impl InstanceBootstrap {
             install_profile.display()
         );
 
-        fs::write(&install_profile, install_profile_content.to_string())
-            .map_err(|e| {
-                log::error!(
-                    "[Instance: {}] Failed to create install profile: {}",
-                    instance.instanceId,
-                    e
-                );
-                BootstrapError::filesystem_error(
-                    BootstrapStep::RunningForgeInstaller,
-                    format!("Error al crear archivo de perfil de instalación: {}", e)
-                )
-            })?;
+        fs::write(&install_profile, install_profile_content.to_string()).map_err(|e| {
+            log::error!(
+                "[Instance: {}] Failed to create install profile: {}",
+                instance.instanceId,
+                e
+            );
+            BootstrapError::filesystem_error(
+                BootstrapStep::RunningForgeInstaller,
+                format!("Error al crear archivo de perfil de instalación: {}", e),
+            )
+        })?;
 
         // Lista de opciones de instalación para probar secuencialmente
         let install_options = ["--installClient", "--installDir", "--installServer"];
@@ -571,7 +590,7 @@ impl InstanceBootstrap {
         // Intentar cada opción de instalación hasta que una tenga éxito
         for &option in &install_options {
             attempted_options.push(option);
-            
+
             // Preparar comando para ejecutar el instalador con la opción actual
             let mut install_cmd = Command::new(&java_path);
             install_cmd
@@ -601,7 +620,7 @@ impl InstanceBootstrap {
                     } else {
                         let error_msg = String::from_utf8_lossy(&output.stderr);
                         let stdout_msg = String::from_utf8_lossy(&output.stdout);
-                        
+
                         log::warn!(
                             "[Instance: {}] Forge installation failed with option '{}' - Exit code: {:?}",
                             instance.instanceId,
@@ -618,7 +637,7 @@ impl InstanceBootstrap {
                             instance.instanceId,
                             stdout_msg
                         );
-                        
+
                         last_error = format!(
                             "Error en instalación de Forge con {}: {}",
                             option, error_msg
@@ -670,48 +689,44 @@ impl InstanceBootstrap {
                 attempted_options,
                 last_error
             );
-            Err(BootstrapError::forge_error(last_error)
-                .with_technical_details(format!(
+            Err(
+                BootstrapError::forge_error(last_error).with_technical_details(format!(
                     "Tried installation options: {:?}. All failed.",
                     attempted_options
-                )))
+                )),
+            )
         }
     }
 
     fn find_java_path(&self) -> Result<String, BootstrapError> {
         log::debug!("Starting Java path resolution");
-        
-        let config_lock = get_config_manager()
-            .lock()
-            .map_err(|e| {
-                log::error!("Failed to lock config manager: {}", e);
-                BootstrapError::new(
-                    BootstrapStep::CheckingJavaVersion,
-                    ErrorCategory::Configuration,
-                    format!("Failed to lock config manager: {}", e)
-                )
-            })?;
 
-        let config = config_lock
-            .as_ref()
-            .map_err(|e| {
-                log::error!("Config manager failed to initialize: {}", e);
-                BootstrapError::new(
-                    BootstrapStep::CheckingJavaVersion,
-                    ErrorCategory::Configuration,
-                    format!("Config manager failed to initialize: {}", e)
-                )
-            })?;
+        let config_lock = get_config_manager().lock().map_err(|e| {
+            log::error!("Failed to lock config manager: {}", e);
+            BootstrapError::new(
+                BootstrapStep::CheckingJavaVersion,
+                ErrorCategory::Configuration,
+                format!("Failed to lock config manager: {}", e),
+            )
+        })?;
 
-        let java_dir = config
-            .get_java_dir()
-            .ok_or_else(|| {
-                log::warn!("Java path is not set in configuration");
-                BootstrapError::java_error(
-                    BootstrapStep::CheckingJavaVersion,
-                    "Java path is not set in configuration"
-                ).with_suggestion("Ve a Configuración → Java y configura la ruta de Java")
-            })?;
+        let config = config_lock.as_ref().map_err(|e| {
+            log::error!("Config manager failed to initialize: {}", e);
+            BootstrapError::new(
+                BootstrapStep::CheckingJavaVersion,
+                ErrorCategory::Configuration,
+                format!("Config manager failed to initialize: {}", e),
+            )
+        })?;
+
+        let java_dir = config.get_java_dir().ok_or_else(|| {
+            log::warn!("Java path is not set in configuration");
+            BootstrapError::java_error(
+                BootstrapStep::CheckingJavaVersion,
+                "Java path is not set in configuration",
+            )
+            .with_suggestion("Ve a Configuración → Java y configura la ruta de Java")
+        })?;
 
         log::debug!("Java directory from config: {}", java_dir.display());
 
@@ -722,27 +737,42 @@ impl InstanceBootstrap {
         log::debug!("Expected Java executable path: {}", java_path.display());
 
         if !java_path.exists() {
-            log::error!("Java executable not found at expected path: {}", java_path.display());
-            
+            log::error!(
+                "Java executable not found at expected path: {}",
+                java_path.display()
+            );
+
             // Try to provide more helpful information
             let bin_dir = java_dir.join("bin");
             if !bin_dir.exists() {
                 log::debug!("Java bin directory does not exist: {}", bin_dir.display());
                 return Err(BootstrapError::java_error(
                     BootstrapStep::CheckingJavaVersion,
-                    format!("Java bin directory not found at: {}", bin_dir.display())
-                ).with_suggestion("Verifica que la ruta de Java apunte a una instalación válida de Java")
-                .with_technical_details(format!("Expected Java executable at: {}", java_path.display())));
+                    format!("Java bin directory not found at: {}", bin_dir.display()),
+                )
+                .with_suggestion(
+                    "Verifica que la ruta de Java apunte a una instalación válida de Java",
+                )
+                .with_technical_details(format!(
+                    "Expected Java executable at: {}",
+                    java_path.display()
+                )));
             } else {
                 log::debug!("Java bin directory exists, but executable is missing");
                 return Err(BootstrapError::java_error(
                     BootstrapStep::CheckingJavaVersion,
-                    format!("Java executable not found at: {}", java_path.display())
-                ).with_suggestion("Verifica que Java esté instalado correctamente en la ruta configurada")
-                .with_technical_details(format!("Bin directory exists at: {}, but executable is missing", bin_dir.display())));
+                    format!("Java executable not found at: {}", java_path.display()),
+                )
+                .with_suggestion(
+                    "Verifica que Java esté instalado correctamente en la ruta configurada",
+                )
+                .with_technical_details(format!(
+                    "Bin directory exists at: {}, but executable is missing",
+                    bin_dir.display()
+                )));
             }
         }
-        
+
         let java_path_string = java_path.to_string_lossy().to_string();
         log::info!("Java executable found at: {}", java_path_string);
         Ok(java_path_string)
@@ -900,12 +930,12 @@ impl InstanceBootstrap {
             Err(bootstrap_error) => {
                 // Emit bootstrap error event
                 emit_bootstrap_error(instance, &bootstrap_error);
-                
+
                 // Update task with error information
                 if let Some(task_id) = &task_id {
                     update_task_with_bootstrap_error(task_id, &bootstrap_error);
                 }
-                
+
                 return Err(bootstrap_error.into());
             }
         }

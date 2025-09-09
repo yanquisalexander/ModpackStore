@@ -936,6 +936,81 @@ impl DownloadManager {
         self.max_concurrent_downloads
     }
 
+    /// Download a single file without hash verification (for cases like asset indexes)
+    pub async fn download_file_simple(
+        &self,
+        url: &str,
+        target_path: &Path,
+    ) -> Result<(), String> {
+        const MAX_RETRIES: usize = 3;
+
+        for attempt in 1..=MAX_RETRIES {
+            match self.download_file_attempt_simple(url, target_path).await {
+                Ok(()) => return Ok(()),
+                Err(e) => {
+                    if attempt == MAX_RETRIES {
+                        return Err(format!("Failed after {} attempts: {}", MAX_RETRIES, e));
+                    }
+                    log::warn!("Download attempt {} failed: {}, retrying...", attempt, e);
+
+                    // Clean up partial file on retry
+                    if target_path.exists() {
+                        let _ = fs::remove_file(target_path);
+                    }
+                }
+            }
+        }
+
+        unreachable!()
+    }
+
+    /// Single download attempt without hash verification
+    async fn download_file_attempt_simple(
+        &self,
+        url: &str,
+        target_path: &Path,
+    ) -> Result<(), String> {
+        // Create parent directories if needed
+        if let Some(parent) = target_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
+        }
+
+        // Start the download
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .map_err(|e| format!("Failed to connect to {}: {}", url, e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("HTTP error {} for {}", response.status(), url));
+        }
+
+        // Create the output file
+        let mut file = fs::File::create(target_path)
+            .map_err(|e| format!("Failed to create file {}: {}", target_path.display(), e))?;
+
+        let mut stream = response.bytes_stream();
+
+        // Stream the content directly to disk without hash verification
+        while let Some(chunk_result) = stream.next().await {
+            let chunk =
+                chunk_result.map_err(|e| format!("Failed to read chunk from stream: {}", e))?;
+
+            // Write chunk to file
+            file.write_all(&chunk)
+                .map_err(|e| format!("Failed to write to file: {}", e))?;
+        }
+
+        // Ensure all data is written to disk
+        file.sync_all()
+            .map_err(|e| format!("Failed to sync file to disk: {}", e))?;
+
+        Ok(())
+    }
+
     /// Download a single file with streaming and hash verification
     pub async fn download_file_with_hash(
         &self,
