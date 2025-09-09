@@ -10,6 +10,10 @@ use tar::Archive;
 use tauri_plugin_http::reqwest;
 use zip::ZipArchive;
 
+// Import bootstrap tasks for progress reporting
+use crate::core::bootstrap::tasks::{emit_status_with_stage, Stage};
+use crate::core::minecraft_instance::MinecraftInstance;
+
 // Estructuras para deserializar la información de java
 #[derive(Debug, Deserialize)]
 pub struct JavaVersion {
@@ -45,6 +49,16 @@ impl JavaManager {
     /// Obtiene la ruta al ejecutable de Java para una versión específica
     /// Si la versión no está instalada, la descarga
     pub async fn get_java_path(&self, major_version: &str) -> Result<PathBuf> {
+        self.get_java_path_with_progress(major_version, None).await
+    }
+
+    /// Obtiene la ruta al ejecutable de Java para una versión específica con reporte de progreso
+    /// Si la versión no está instalada, la descarga
+    pub async fn get_java_path_with_progress(
+        &self, 
+        major_version: &str, 
+        instance: Option<&MinecraftInstance>
+    ) -> Result<PathBuf> {
         let version_num = major_version
             .parse::<u8>()
             .context("La versión de Java no es un número válido")?;
@@ -53,7 +67,7 @@ impl JavaManager {
         // Comprobar si la versión ya está instalada
         if !self.is_java_installed(&version_dir) {
             // Si no está instalada, la descargamos
-            self.download_java(version_num, &version_dir).await?;
+            self.download_java_with_progress(version_num, &version_dir, instance).await?;
         }
 
         Ok(self.get_java_directory(major_version))
@@ -96,10 +110,34 @@ impl JavaManager {
 
     /// Descarga e instala la versión de Java especificada
     async fn download_java(&self, version: u8, target_dir: &PathBuf) -> Result<()> {
+        self.download_java_with_progress(version, target_dir, None).await
+    }
+
+    /// Descarga e instala la versión de Java especificada con reporte de progreso
+    async fn download_java_with_progress(
+        &self, 
+        version: u8, 
+        target_dir: &PathBuf, 
+        instance: Option<&MinecraftInstance>
+    ) -> Result<()> {
+        // Helper function to emit progress
+        let emit_progress = |progress: f32, message: &str| {
+            if let Some(inst) = instance {
+                let stage = Stage::InstallingJava {
+                    progress,
+                    message: message.to_string(),
+                };
+                emit_status_with_stage(inst, "instance-installing-java", &stage);
+            }
+            log::info!("Java {}: {} ({:.1}%)", version, message, progress);
+        };
+
         // Determinar la URL de descarga según la plataforma y arquitectura
+        emit_progress(5.0, "Obteniendo información de descarga");
         let download_url = self.get_download_url(version).await?;
 
-        println!("Descargando Java {} desde {}", version, download_url);
+        emit_progress(10.0, "Preparando descarga");
+        log::info!("Descargando Java {} desde {}", version, download_url);
 
         // Crear el directorio si no existe
         if !target_dir.exists() {
@@ -125,6 +163,7 @@ impl JavaManager {
             .build()?;
 
         // Iniciar la descarga
+        emit_progress(15.0, "Iniciando descarga");
         let response = client
             .get(&download_url)
             .send()
@@ -136,7 +175,7 @@ impl JavaManager {
         }
 
         let total_size = response.content_length().unwrap_or(0);
-        println!("Tamaño total: {} bytes", total_size);
+        emit_progress(20.0, &format!("Tamaño: {} bytes", total_size));
 
         // Preparar archivo para guardar
         let mut file = File::create(&temp_file).context("No se pudo crear el archivo temporal")?;
@@ -151,20 +190,21 @@ impl JavaManager {
             downloaded += chunk.len() as u64;
 
             if total_size > 0 {
-                let progress = (downloaded as f64 / total_size as f64) * 100.0;
-                println!(
-                    "Descargado: {:.2}% ({}/{} bytes)",
-                    progress, downloaded, total_size
+                let download_progress = (downloaded as f64 / total_size as f64) * 60.0; // 60% of total for download
+                let total_progress = 20.0 + download_progress; // Start at 20% + download progress
+                emit_progress(
+                    total_progress as f32,
+                    &format!("Descargado: {}/{} bytes", downloaded, total_size)
                 );
             } else {
-                println!("Descargado: {} bytes", downloaded);
+                emit_progress(50.0, &format!("Descargado: {} bytes", downloaded));
             }
         }
 
-        println!("Descarga completada. Extrayendo...");
+        emit_progress(80.0, "Descarga completada. Extrayendo...");
 
         // Extraer el archivo según su tipo
-        self.extract_java_archive(&temp_file, target_dir)?;
+        self.extract_java_archive_with_progress(&temp_file, target_dir, instance).await?;
 
         // Eliminar el archivo temporal
         fs::remove_file(&temp_file).context("No se pudo eliminar el archivo temporal")?;
@@ -174,7 +214,7 @@ impl JavaManager {
             return Err(anyhow!("La instalación de Java {} falló", version));
         }
 
-        println!("Java {} instalado correctamente", version);
+        emit_progress(100.0, "Java instalado correctamente");
         Ok(())
     }
 
@@ -279,6 +319,45 @@ impl JavaManager {
             return Err(anyhow!("Formato de archivo no soportado: {}", archive_str));
         }
 
+        // Mover los archivos del subdirectorio al directorio principal
+        self.fix_extracted_directory(target_dir)?;
+
+        Ok(())
+    }
+
+    /// Extrae el archivo de Java descargado con reporte de progreso
+    async fn extract_java_archive_with_progress(
+        &self, 
+        archive_path: &PathBuf, 
+        target_dir: &PathBuf,
+        instance: Option<&MinecraftInstance>
+    ) -> Result<()> {
+        let emit_progress = |progress: f32, message: &str| {
+            if let Some(inst) = instance {
+                let stage = Stage::InstallingJava {
+                    progress,
+                    message: message.to_string(),
+                };
+                emit_status_with_stage(inst, "instance-installing-java", &stage);
+            }
+            log::info!("Java extraction: {} ({:.1}%)", message, progress);
+        };
+
+        let archive_str = archive_path.to_string_lossy().to_string();
+
+        if archive_str.ends_with(".zip") {
+            emit_progress(85.0, "Extrayendo archivo ZIP");
+            // En Windows, extraer ZIP usando la biblioteca zip-rs
+            self.extract_zip(archive_path, target_dir)?;
+        } else if archive_str.ends_with(".tar.gz") {
+            emit_progress(85.0, "Extrayendo archivo tar.gz");
+            // En macOS y Linux, extraer tar.gz usando las bibliotecas flate2 y tar
+            self.extract_tar_gz(archive_path, target_dir)?;
+        } else {
+            return Err(anyhow!("Formato de archivo no soportado: {}", archive_str));
+        }
+
+        emit_progress(95.0, "Organizando archivos");
         // Mover los archivos del subdirectorio al directorio principal
         self.fix_extracted_directory(target_dir)?;
 

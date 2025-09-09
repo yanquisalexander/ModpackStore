@@ -254,14 +254,15 @@ impl InstanceLauncher {
     }
 
     /// Revalidates or downloads necessary game assets, libraries, etc.
+    /// Now uses async validation to prevent blocking the main thread
     fn revalidate_assets(&self) -> Result<(), LaunchError> {
         info!(
-            "[Instance: {}] Revalidating assets...",
+            "[Instance: {}] Starting async asset revalidation...",
             self.instance.instanceName
         );
         self.emit_status(
             EVENT_DOWNLOADING_ASSETS,
-            "Verificando/Descargando assets...",
+            "Verificando/Descargando assets (asíncrono)...",
             None,
         );
 
@@ -278,17 +279,19 @@ impl InstanceLauncher {
             return Ok(());
         }
 
-        // This is tricky because revalidate_assets needs a mutable instance.
-        // For this to work, we might need a Mutex around the instance data if it's to be modified.
-        // For now, we assume revalidate_assets can work with a mutable copy.
-        let mut instance_clone_for_bootstrap = (*self.instance).clone();
+        // Start async asset validation - this won't block the main thread
         let mut instance_bootstrap = InstanceBootstrap::new();
-        instance_bootstrap.revalidate_assets(&mut instance_clone_for_bootstrap)?;
+        let _task_id = instance_bootstrap.revalidate_assets_async(&self.instance)
+            .map_err(|e| LaunchError::AssetRevalidationFailed(
+                std::io::Error::new(std::io::ErrorKind::Other, e)
+            ))?;
 
         info!(
-            "[Instance: {}] Asset revalidation completed.",
-            self.instance.instanceName
+            "[Instance: {}] Async asset revalidation started with task ID: {}",
+            self.instance.instanceName, _task_id
         );
+        
+        // Note: Asset validation now runs asynchronously and won't block the launch process
         Ok(())
     }
 

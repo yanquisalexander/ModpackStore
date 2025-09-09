@@ -11,7 +11,7 @@ use crate::core::bootstrap::{
         emit_bootstrap_complete, emit_bootstrap_error, emit_bootstrap_start, emit_status,
         emit_status_with_stage, Stage,
     },
-    validate::revalidate_assets_sync,
+    validate::revalidate_assets_sync, validate::revalidate_assets_async,
 };
 use crate::core::bootstrap_error::{BootstrapError, BootstrapStep, ErrorCategory};
 use crate::core::instance_manager::get_instance_by_id;
@@ -77,6 +77,18 @@ impl InstanceBootstrap {
 
         // Use the modular revalidate_assets function
         revalidate_assets_sync(instance, &version_details)
+    }
+
+    /// Revalidates assets asynchronously without blocking the main thread
+    /// Returns a task ID that can be used to track progress
+    pub fn revalidate_assets_async(&mut self, instance: &MinecraftInstance) -> Result<String, String> {
+        // Get version details first
+        let version_details = self
+            .get_version_details(&instance.minecraftVersion)
+            .map_err(|e| format!("Error al obtener detalles de versión: {}", e))?;
+
+        // Use the async revalidate_assets function
+        Ok(revalidate_assets_async(instance, &version_details))
     }
 
     // Método para obtener detalles de la versión
@@ -458,10 +470,26 @@ impl InstanceBootstrap {
             );
         }
 
-        // Validate assets
+        // Validate assets - using async version to prevent blocking
         emit_status(instance, "instance-downloading-assets", "Validando assets");
-        self.revalidate_assets(instance)
-            .map_err(|e| format!("Error validating assets: {}", e))?;
+        
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                75.0,
+                "Iniciando validación asíncrona de assets",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone(),
+                    "step": "asset_validation_async"
+                })),
+            );
+        }
+
+        // Start async asset validation - this won't block
+        let _asset_task_id = self.revalidate_assets_async(instance)
+            .map_err(|e| format!("Error starting async asset validation: {}", e))?;
 
         // Create launcher profiles.json if it doesn't exist
         create_launcher_profiles(&minecraft_dir)?;
