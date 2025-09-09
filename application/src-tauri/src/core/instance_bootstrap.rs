@@ -8,9 +8,8 @@ use crate::core::bootstrap::{
         get_version_manifest,
     },
     tasks::{emit_bootstrap_complete, emit_bootstrap_start, emit_status, emit_status_with_stage, emit_bootstrap_error, Stage},
-    validate::{revalidate_assets, validate_assets_and_collect_missing},
+    validate::revalidate_assets,
 };
-use crate::core::modpack_file_manager::revalidate_assets_with_download_manager;
 use crate::core::bootstrap_error::{BootstrapError, BootstrapStep, ErrorCategory};
 use crate::core::instance_manager::get_instance_by_id;
 use crate::core::java_manager::JavaManager;
@@ -65,42 +64,6 @@ impl InstanceBootstrap {
 
         // Use the modular revalidate_assets function
         revalidate_assets(&self.client, instance, &version_details)
-    }
-
-    /// New method using DownloadManager approach for better performance and concurrency
-    pub async fn revalidate_assets_with_download_manager(
-        &mut self, 
-        instance: &MinecraftInstance,
-        task_id: Option<String>,
-    ) -> Result<(), String> {
-        // Get version details first
-        let version_details = self
-            .get_version_details(&instance.minecraftVersion)
-            .map_err(|e| format!("Error al obtener detalles de versión: {}", e))?;
-
-        // Use the new DownloadManager-based asset validation and download
-        revalidate_assets_with_download_manager(instance, &version_details, task_id).await
-    }
-
-    /// Sync wrapper for the new asset validation that uses DownloadManager
-    /// This allows gradual migration from sync to async methods
-    pub fn revalidate_assets_with_download_manager_sync(
-        &mut self,
-        instance: &MinecraftInstance,
-        task_id: Option<String>,
-    ) -> Result<(), String> {
-        // Get version details first
-        let version_details = self
-            .get_version_details(&instance.minecraftVersion)
-            .map_err(|e| format!("Error al obtener detalles de versión: {}", e))?;
-
-        // Create a new tokio runtime for this operation
-        let rt = tokio::runtime::Runtime::new()
-            .map_err(|e| format!("Failed to create tokio runtime: {}", e))?;
-        
-        rt.block_on(async {
-            revalidate_assets_with_download_manager(instance, &version_details, task_id).await
-        })
     }
 
     // Método para obtener detalles de la versión
@@ -475,9 +438,9 @@ impl InstanceBootstrap {
             );
         }
 
-        // Validate assets using the new DownloadManager approach
+        // Validate assets
         emit_status(instance, "instance-downloading-assets", "Validando assets");
-        self.revalidate_assets_with_download_manager_sync(instance, task_id.clone())
+        self.revalidate_assets(instance)
             .map_err(|e| format!("Error validating assets: {}", e))?;
 
         // Create launcher profiles.json if it doesn't exist
