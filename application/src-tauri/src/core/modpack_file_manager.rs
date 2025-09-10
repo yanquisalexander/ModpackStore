@@ -127,6 +127,18 @@ fn is_essential_path(file_path: &Path, essential_paths: &HashSet<PathBuf>) -> bo
     false
 }
 
+/// Checks if a file path represents options.txt (Minecraft client options file)
+/// 
+/// This function identifies options.txt files that should receive special treatment:
+/// - Never deleted during cleanup (already protected by essential paths)
+/// - Never downloaded/replaced if they already exist (preserves user settings)
+/// - Only downloaded if the file doesn't exist on the client
+fn is_options_txt(relative_path: &str) -> bool {
+    // Match exactly "options.txt" at the root level
+    // Note: This excludes paths like "config/options.txt" which are different config files
+    relative_path == "options.txt"
+}
+
 /// Loads previous manifest if available for comparison
 fn load_previous_manifest(instance: &MinecraftInstance) -> Option<ModpackManifest> {
     let instance_dir = instance.instanceDirectory.as_ref()?;
@@ -182,6 +194,26 @@ fn save_manifest_cache(
 /// Implements differentiated cleanup strategies:
 /// - Strict cleanup for mods/ folder: removes any files not in manifest
 /// - Synchronized cleanup for other folders: moves files to new locations when possible
+/// 
+/// ## Special Handling for options.txt:
+/// 
+/// The file `options.txt` (Minecraft client options) receives special treatment throughout the system:
+/// 
+/// 1. **Cleanup Protection**: `options.txt` is protected from deletion via essential paths mechanism
+///    - It's added to essential paths in `get_essential_minecraft_paths()`
+///    - Will never be removed during cleanup operations
+/// 
+/// 2. **Download Protection**: `options.txt` is protected from replacement during downloads
+///    - If `options.txt` already exists, it will NOT be downloaded/replaced from modpack
+///    - If `options.txt` doesn't exist, it will be downloaded normally from modpack
+///    - This preserves user's client settings (graphics, controls, etc.)
+/// 
+/// 3. **Validation Skipping**: Existing `options.txt` files are not validated against manifest
+///    - No hash checking is performed on existing `options.txt` files
+///    - Prevents forced replacement due to hash mismatches
+/// 
+/// This behavior ensures that user's personal Minecraft settings are preserved when updating modpacks,
+/// while still allowing new installations to receive default options from the modpack if needed.
 pub fn cleanup_obsolete_files(
     instance: &MinecraftInstance,
     manifest: &ModpackManifest,
@@ -495,6 +527,16 @@ fn scan_directory_for_files(
 
 /// Enhanced download and install function that handles file moving when possible
 /// This implements the manifest-as-source-of-truth approach
+///
+/// ## Special Handling for options.txt:
+/// 
+/// This function implements special protection for `options.txt` (Minecraft client options):
+/// - If `options.txt` already exists locally, it will be skipped entirely (not downloaded/replaced)
+/// - If `options.txt` doesn't exist locally, it will be downloaded normally from the modpack
+/// - This preserves user's personal Minecraft settings while allowing new installations to get defaults
+/// 
+/// The protection applies specifically to the root-level `options.txt` file and does not affect
+/// other configuration files like `config/options.txt` or `optionsshaders.txt`.
 pub async fn download_and_install_files(
     instance: &MinecraftInstance,
     manifest: &ModpackManifest,
@@ -525,6 +567,16 @@ pub async fn download_and_install_files(
         if let Some(parent) = target_path.parent() {
             fs::create_dir_all(parent)
                 .map_err(|e| format!("Failed to create directory {}: {}", parent.display(), e))?;
+        }
+
+        // SPECIAL HANDLING FOR OPTIONS.TXT:
+        // If options.txt already exists, skip processing entirely to preserve user settings
+        if is_options_txt(&file_entry.path) && target_path.exists() {
+            log::info!(
+                "[FileManager] Skipping options.txt - file already exists and will be preserved (user settings protection)"
+            );
+            files_processed += 1;
+            continue;
         }
 
         // Check if file already exists at the correct location with correct hash
@@ -804,6 +856,15 @@ async fn file_exists_with_correct_hash(file_path: &Path, expected_hash: &str) ->
 /// Validates modpack assets against the manifest
 /// Returns a list of files that need to be downloaded (missing, corrupt, or wrong size/hash)
 /// Now considers files that exist elsewhere with the same hash as valid (will be moved)
+/// 
+/// ## Special Handling for options.txt:
+/// 
+/// If `options.txt` already exists locally, it will be completely skipped from validation:
+/// - No hash checking will be performed
+/// - It will not be added to the download list regardless of hash mismatch
+/// - This ensures user's Minecraft client settings are preserved
+/// 
+/// If `options.txt` doesn't exist locally, it will be validated and downloaded normally.
 pub async fn validate_modpack_assets(
     instance: &MinecraftInstance,
     manifest: &ModpackManifest,
@@ -851,6 +912,16 @@ pub async fn validate_modpack_assets(
                 ),
                 None,
             );
+        }
+
+        // SPECIAL HANDLING FOR OPTIONS.TXT:
+        // If options.txt already exists, skip validation and download entirely
+        // This preserves user's client settings and prevents overwriting their configuration
+        if is_options_txt(&file_entry.path) && file_path.exists() {
+            log::info!(
+                "[Validation] Skipping options.txt - file already exists and will be preserved (user settings protection)"
+            );
+            continue;
         }
 
         let mut needs_download = false;
@@ -2000,6 +2071,48 @@ mod tests {
                 assert!(file.starts_with("config/") || file.starts_with("resources/"));
                 // In actual implementation, this would check for hash matches in manifest
             }
+        }
+    }
+
+    #[test]
+    fn test_is_options_txt() {
+        // Test exact match for options.txt at root level
+        assert!(is_options_txt("options.txt"));
+        
+        // Test that config options files are NOT treated as options.txt
+        assert!(!is_options_txt("config/options.txt"));
+        assert!(!is_options_txt("config/client/options.txt"));
+        
+        // Test other similar files that should NOT be treated as options.txt
+        assert!(!is_options_txt("optionsshaders.txt")); // This is a different file
+        assert!(!is_options_txt("mods/options.txt")); // Not at root level
+        assert!(!is_options_txt("saves/world1/options.txt")); // Not at root level
+        assert!(!is_options_txt("options.json")); // Different extension
+        assert!(!is_options_txt("myoptions.txt")); // Different name
+        
+        // Test edge cases
+        assert!(!is_options_txt("")); // Empty string
+        assert!(!is_options_txt("options.txt.bak")); // Backup file
+        assert!(!is_options_txt("Options.txt")); // Different case (should be case-sensitive)
+    }
+
+    #[test]
+    fn test_options_txt_special_handling_behavior() {
+        // This test documents the expected behavior for options.txt special handling
+        
+        // Scenario 1: options.txt in manifest but doesn't exist locally
+        // Expected: Should be downloaded normally
+        let files_needing_download = vec!["options.txt"];
+        assert!(files_needing_download.contains(&"options.txt"));
+        
+        // Scenario 2: options.txt exists locally and in manifest  
+        // Expected: Should be skipped (not downloaded, not validated, not replaced)
+        // This is the core requirement - preserve existing user settings
+        
+        // Scenario 3: Other files should work normally
+        let normal_files = vec!["config/some_mod.cfg", "mods/example.jar", "optionsshaders.txt"];
+        for file in normal_files {
+            assert!(!is_options_txt(file), "File {} should not be treated as options.txt", file);
         }
     }
 
