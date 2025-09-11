@@ -927,6 +927,22 @@ fn spawn_modpack_creation_task(
     });
 }
 
+/// Spawns a background task to update a modpack instance using incremental validation
+/// 
+/// This function implements the enhanced modpack update approach that reuses the proven
+/// incremental validation logic from the "Play Now" functionality. Instead of performing
+/// a destructive reinstall, this approach:
+/// 
+/// 1. Validates existing files against the new manifest
+/// 2. Downloads only files that are missing, corrupt, or have changed
+/// 3. Moves files with correct hashes to new locations when possible
+/// 4. Cleans up obsolete files after the update
+/// 
+/// Benefits:
+/// - Significantly faster updates (only downloads changed content)
+/// - Preserves unchanged files (no unnecessary re-downloading)
+/// - Maintains user settings like options.txt
+/// - More reliable and efficient than destructive reinstall
 fn spawn_modpack_update_task(
     instance: MinecraftInstance,
     manifest: ModpackManifest,
@@ -936,45 +952,98 @@ fn spawn_modpack_update_task(
         update_task(
             &task_id,
             TaskStatus::Running,
-            25.0,
-            "Descargando archivos actualizados...",
+            10.0,
+            "Iniciando actualización incremental...",
             None,
         );
 
-        // Limpiar archivos obsoletos
-        let removed_files =
-            crate::core::modpack_file_manager::cleanup_obsolete_files(&instance, &manifest);
-
-        let removed_files = match removed_files {
-            Ok(files) => files,
-            Err(e) => {
-                update_task(
-                    &task_id,
-                    TaskStatus::Failed,
-                    0.0,
-                    &format!("Error limpiando archivos: {}", e),
-                    None,
-                );
-                return;
-            }
-        };
-
-        update_task(
-            &task_id,
-            TaskStatus::Running,
-            50.0,
-            &format!("Eliminados {} archivos obsoletos", removed_files.len()),
-            None,
-        );
-
-        // Instalar archivos actualizados
+        // Use the same incremental validation and download logic as "Play Now"
+        // This will validate existing files and only download/update what's needed
         let files_processed = tokio::runtime::Runtime::new().unwrap().block_on(async {
-            crate::core::modpack_file_manager::download_and_install_files(
+            // First, validate existing files and get only those that need downloading
+            update_task(
+                &task_id,
+                TaskStatus::Running,
+                25.0,
+                "Validando archivos existentes...",
+                None,
+            );
+
+            let files_to_download = match crate::core::modpack_file_manager::validate_modpack_assets(
                 &instance,
                 &manifest,
                 Some(task_id.clone()),
-            )
-            .await
+            ).await {
+                Ok(files) => files,
+                Err(e) => {
+                    update_task(
+                        &task_id,
+                        TaskStatus::Failed,
+                        0.0,
+                        &format!("Error validando archivos: {}", e),
+                        None,
+                    );
+                    return Err(e);
+                }
+            };
+
+            update_task(
+                &task_id,
+                TaskStatus::Running,
+                50.0,
+                &format!("Encontrados {} archivos para actualizar", files_to_download.len()),
+                None,
+            );
+
+            // Download and install only files that need updating
+            // This function will also move existing files with correct hashes to new locations
+            let processed_count = if files_to_download.is_empty() {
+                0
+            } else {
+                match crate::core::modpack_file_manager::download_and_install_files(
+                    &instance,
+                    &manifest,
+                    Some(task_id.clone()),
+                ).await {
+                    Ok(count) => count,
+                    Err(e) => {
+                        update_task(
+                            &task_id,
+                            TaskStatus::Failed,
+                            0.0,
+                            &format!("Error descargando archivos: {}", e),
+                            None,
+                        );
+                        return Err(e);
+                    }
+                }
+            };
+
+            // Clean up obsolete files after processing the updates
+            update_task(
+                &task_id,
+                TaskStatus::Running,
+                85.0,
+                "Limpiando archivos obsoletos...",
+                None,
+            );
+
+            let removed_files = match crate::core::modpack_file_manager::cleanup_obsolete_files(&instance, &manifest) {
+                Ok(files) => files,
+                Err(e) => {
+                    log::warn!("Error during cleanup (non-fatal): {}", e);
+                    // Don't fail the update for cleanup errors, just log them
+                    Vec::new()
+                }
+            };
+
+            log::info!(
+                "Incremental update completed: {} files processed, {} obsolete files removed", 
+                processed_count, 
+                removed_files.len()
+            );
+
+            Ok(processed_count)
         });
 
         let files_processed = match files_processed {
@@ -995,7 +1064,7 @@ fn spawn_modpack_update_task(
             &task_id,
             TaskStatus::Running,
             90.0,
-            &format!("Descargados {} archivos", files_processed),
+            &format!("Actualización incremental completada - {} archivos procesados", files_processed),
             None,
         );
 
@@ -1003,7 +1072,7 @@ fn spawn_modpack_update_task(
             &task_id,
             TaskStatus::Completed,
             100.0,
-            &format!("Modpack {} actualizado exitosamente", instance.instanceName),
+            &format!("Modpack {} actualizado exitosamente mediante actualización incremental", instance.instanceName),
             None,
         );
 
