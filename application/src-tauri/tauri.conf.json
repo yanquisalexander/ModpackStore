@@ -36,7 +36,7 @@
   },
   "productName": "Modpack Store",
   "mainBinaryName": "ModpackStore",
-  "version": "0.1.209",
+  "version": "0.1.210",
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {
     "updater": {
@@ -74,7 +74,7 @@
         "label": "splash",
         "title": "Cargando Modpack Store...",
         "width": 400,
-        "height": 300,
+        "height": 320,
         "resizable": false,
         "fullscreen": false,
         "center": true,
