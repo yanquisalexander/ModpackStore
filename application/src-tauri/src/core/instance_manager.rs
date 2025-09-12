@@ -6,7 +6,7 @@ use crate::core::instance_bootstrap::InstanceBootstrap;
 use crate::core::minecraft_instance::{self, MinecraftInstance};
 use crate::core::modpack_file_manager::ModpackManifest;
 use crate::core::tasks_manager::{
-    add_task, remove_task, update_task, update_task_with_bootstrap_error, TaskStatus,
+    add_task, add_task_with_auto_start, remove_task, update_task, update_task_with_bootstrap_error, TaskStatus,
 };
 use crate::API_ENDPOINT;
 use base64::{engine::general_purpose, Engine as _};
@@ -312,14 +312,13 @@ async fn validate_modpack_assets_for_launch(instance: &MinecraftInstance) -> Res
         version_id.clone()
     };
 
-    // Emit status update
+    // Emit status update using the correct event pattern that InstancesContext listens to
     if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
         if let Some(app_handle) = guard.as_ref() {
             let _ = app_handle.emit(
-                &format!("instance-{}", instance.instanceId),
+                "instance-downloading-assets",
                 serde_json::json!({
                     "id": instance.instanceId,
-                    "status": "downloading-assets",
                     "message": "Validando archivos del modpack..."
                 }),
             );
@@ -331,6 +330,19 @@ async fn validate_modpack_assets_for_launch(instance: &MinecraftInstance) -> Res
         instance.instanceId.clone(),
     )
     .await?;
+
+    // Emit completion event after validation/download
+    if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
+        if let Some(app_handle) = guard.as_ref() {
+            let _ = app_handle.emit(
+                "instance-finish-assets-download",
+                serde_json::json!({
+                    "id": instance.instanceId,
+                    "message": "Validación completada"
+                }),
+            );
+        }
+    }
 
     Ok(())
 }
@@ -698,7 +710,7 @@ pub async fn update_modpack_instance(
         .ok_or("Instance is not a modpack instance")?
         .clone();
 
-    let task_id = add_task(
+    let task_id = add_task_with_auto_start(
         &format!("Actualizando modpack: {}", instance.instanceName),
         Some(serde_json::json!({
             "type": "modpack_update",
