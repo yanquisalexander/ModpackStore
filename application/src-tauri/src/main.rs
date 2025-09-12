@@ -166,6 +166,7 @@ pub fn main() {
             core::instance_manager::validate_modpack_password,
             core::modpack_file_manager::cleanup_instance_files,
             core::modpack_file_manager::validate_and_download_modpack_assets,
+            core::modpack_file_manager::audit_user_data_protection_command,
             core::instance_manager::search_instances,
             core::instance_manager::remove_instance,
             core::accounts_manager::get_all_accounts,

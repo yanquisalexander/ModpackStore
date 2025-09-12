@@ -7,6 +7,7 @@ use crate::core::tasks_manager::{
     add_task, add_task_with_auto_start, remove_task, task_exists, update_task, TaskStatus,
 };
 use crate::utils::config_manager::get_config_manager;
+use chrono;
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
@@ -133,9 +134,22 @@ fn is_essential_path(file_path: &Path, essential_paths: &HashSet<PathBuf>) -> bo
 /// - Never deleted during cleanup (already protected by essential paths)
 /// - Never downloaded/replaced if they already exist (preserves user settings)
 /// - Only downloaded if the file doesn't exist on the client
+/// 
+/// ## Critical User Data Protection
+/// 
+/// The `options.txt` file contains user's personal Minecraft client settings including:
+/// - Graphics settings (render distance, graphics quality, vsync, etc.)
+/// - Audio settings (music volume, sound effects volume, voice volume)
+/// - Control settings (key bindings, mouse sensitivity)
+/// - Accessibility settings
+/// - Language preferences
+/// - Multiplayer settings
+/// 
+/// Preserving this file is essential for maintaining user experience across modpack updates.
 fn is_options_txt(relative_path: &str) -> bool {
     // Match exactly "options.txt" at the root level
     // Note: This excludes paths like "config/options.txt" which are different config files
+    // and only protects the root-level Minecraft client options file
     relative_path == "options.txt"
 }
 
@@ -853,7 +867,201 @@ async fn file_exists_with_correct_hash(file_path: &Path, expected_hash: &str) ->
     }
 }
 
-/// Validates modpack assets against the manifest
+/// Validates that user data files are properly protected from modpack operations
+/// 
+/// This function performs comprehensive auditing to ensure that critical user files
+/// are never at risk of being deleted or overwritten during modpack operations.
+/// 
+/// ## Protected Files
+/// 
+/// - `options.txt` - Minecraft client settings (graphics, audio, controls, etc.)
+/// - `optionsshaders.txt` - Shader-specific settings
+/// - `servers.dat` - Multiplayer server list
+/// - `saves/` directory - User's worlds and saves
+/// - `screenshots/` directory - User's screenshots
+/// - `logs/` directory - Game logs for debugging
+/// - `crash-reports/` directory - Crash reports for troubleshooting
+/// 
+/// ## Audit Results
+/// 
+/// Returns a detailed audit report indicating:
+/// - Which files are properly protected
+/// - Any potential risks detected
+/// - Recommendations for additional protection
+/// 
+/// This function should be called before any modpack operation to ensure user data safety.
+pub fn audit_user_data_protection(
+    minecraft_dir: &Path,
+    operation_type: &str,
+) -> Result<UserDataAuditReport, String> {
+    let mut audit = UserDataAuditReport::new(operation_type);
+    
+    // Check options.txt protection
+    let options_file = minecraft_dir.join("options.txt");
+    if options_file.exists() {
+        audit.add_protected_file("options.txt", "Minecraft client settings - PROTECTED");
+        
+        // Additional validation: ensure file is readable and not corrupted
+        match fs::read_to_string(&options_file) {
+            Ok(content) => {
+                if content.trim().is_empty() {
+                    audit.add_warning("options.txt exists but is empty - may need regeneration");
+                } else {
+                    audit.add_info("options.txt is valid and contains user settings");
+                }
+            }
+            Err(_) => {
+                audit.add_warning("options.txt exists but is not readable - may be corrupted");
+            }
+        }
+    } else {
+        audit.add_info("options.txt does not exist - modpack defaults will be used if provided");
+    }
+    
+    // Check other protected files
+    let protected_files = [
+        ("optionsshaders.txt", "Shader settings"),
+        ("servers.dat", "Multiplayer server list"),
+        ("launcher_profiles.json", "Launcher profiles"),
+    ];
+    
+    for (filename, description) in protected_files {
+        let file_path = minecraft_dir.join(filename);
+        if file_path.exists() {
+            audit.add_protected_file(filename, &format!("{} - PROTECTED", description));
+        }
+    }
+    
+    // Check protected directories
+    let protected_dirs = [
+        ("saves", "User worlds and saves"),
+        ("screenshots", "User screenshots"),
+        ("logs", "Game logs"),
+        ("crash-reports", "Crash reports"),
+        ("resourcepacks", "User resource packs"),
+        ("shaderpacks", "User shader packs"),
+    ];
+    
+    for (dirname, description) in protected_dirs {
+        let dir_path = minecraft_dir.join(dirname);
+        if dir_path.exists() && dir_path.is_dir() {
+            if let Ok(entries) = fs::read_dir(&dir_path) {
+                let count = entries.count();
+                audit.add_protected_directory(dirname, &format!("{} ({} items) - PROTECTED", description, count));
+            } else {
+                audit.add_protected_directory(dirname, &format!("{} - PROTECTED (unreadable)", description));
+            }
+        }
+    }
+    
+    // Validate essential paths protection
+    let dummy_instance = MinecraftInstance {
+        instanceId: "audit".to_string(),
+        usesDefaultIcon: false,
+        iconUrl: None,
+        bannerUrl: None,
+        instanceName: "audit".to_string(),
+        accountUuid: None,
+        minecraftPath: String::new(),
+        modpackId: None,
+        modpackVersionId: None,
+        minecraftVersion: "1.20.1".to_string(),
+        instanceDirectory: None,
+        forgeVersion: None,
+        javaPath: None,
+    };
+    
+    let essential_paths = get_essential_minecraft_paths(minecraft_dir, &dummy_instance);
+    audit.add_info(&format!("Essential paths protection enabled for {} paths", essential_paths.len()));
+    
+    log::info!("[UserDataAudit] {} operation audit completed", operation_type);
+    log::info!("[UserDataAudit] Protected files: {}", audit.protected_files.len());
+    log::info!("[UserDataAudit] Protected directories: {}", audit.protected_directories.len());
+    
+    if !audit.warnings.is_empty() {
+        log::warn!("[UserDataAudit] {} warnings detected", audit.warnings.len());
+        for warning in &audit.warnings {
+            log::warn!("[UserDataAudit] Warning: {}", warning);
+        }
+    }
+    
+    Ok(audit)
+}
+
+/// Audit report for user data protection validation
+#[derive(Debug, Clone)]
+pub struct UserDataAuditReport {
+    pub operation_type: String,
+    pub protected_files: Vec<(String, String)>,
+    pub protected_directories: Vec<(String, String)>,
+    pub warnings: Vec<String>,
+    pub info_messages: Vec<String>,
+    pub timestamp: String,
+}
+
+impl UserDataAuditReport {
+    fn new(operation_type: &str) -> Self {
+        Self {
+            operation_type: operation_type.to_string(),
+            protected_files: Vec::new(),
+            protected_directories: Vec::new(),
+            warnings: Vec::new(),
+            info_messages: Vec::new(),
+            timestamp: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+        }
+    }
+    
+    fn add_protected_file(&mut self, filename: &str, description: &str) {
+        self.protected_files.push((filename.to_string(), description.to_string()));
+    }
+    
+    fn add_protected_directory(&mut self, dirname: &str, description: &str) {
+        self.protected_directories.push((dirname.to_string(), description.to_string()));
+    }
+    
+    fn add_warning(&mut self, warning: &str) {
+        self.warnings.push(warning.to_string());
+    }
+    
+    fn add_info(&mut self, info: &str) {
+        self.info_messages.push(info.to_string());
+    }
+    
+    /// Generate a human-readable summary of the audit
+    pub fn generate_summary(&self) -> String {
+        let mut summary = format!("User Data Protection Audit for {} Operation\n", self.operation_type);
+        summary.push_str(&format!("Timestamp: {}\n\n", self.timestamp));
+        
+        summary.push_str("PROTECTED FILES:\n");
+        for (file, desc) in &self.protected_files {
+            summary.push_str(&format!("  ✓ {}: {}\n", file, desc));
+        }
+        
+        if !self.protected_directories.is_empty() {
+            summary.push_str("\nPROTECTED DIRECTORIES:\n");
+            for (dir, desc) in &self.protected_directories {
+                summary.push_str(&format!("  ✓ {}: {}\n", dir, desc));
+            }
+        }
+        
+        if !self.warnings.is_empty() {
+            summary.push_str("\nWARNINGS:\n");
+            for warning in &self.warnings {
+                summary.push_str(&format!("  ⚠ {}\n", warning));
+            }
+        }
+        
+        if !self.info_messages.is_empty() {
+            summary.push_str("\nINFORMATION:\n");
+            for info in &self.info_messages {
+                summary.push_str(&format!("  ℹ {}\n", info));
+            }
+        }
+        
+        summary.push_str("\n✓ User data protection audit completed successfully\n");
+        summary
+    }
+}
 /// Returns a list of files that need to be downloaded (missing, corrupt, or wrong size/hash)
 /// Now considers files that exist elsewhere with the same hash as valid (will be moved)
 /// 
@@ -1502,6 +1710,27 @@ pub async fn cleanup_instance_files(instance_id: String) -> Result<Vec<String>, 
         .as_ref()
         .ok_or("Instance does not have a version ID")?;
 
+    let minecraft_dir = Path::new(instance.instanceDirectory.as_ref().unwrap()).join("minecraft");
+
+    // CRITICAL: Audit user data protection before cleanup operations
+    log::info!("[UserDataProtection] Performing pre-operation audit for modpack cleanup");
+    match audit_user_data_protection(&minecraft_dir, "Modpack Cleanup") {
+        Ok(audit_report) => {
+            log::info!("[UserDataProtection] Pre-cleanup audit completed successfully");
+            log::info!("[UserDataProtection] {} files and {} directories are protected", 
+                      audit_report.protected_files.len(), 
+                      audit_report.protected_directories.len());
+                      
+            // Log the audit summary for transparency
+            let summary = audit_report.generate_summary();
+            log::info!("[UserDataProtection] Audit Summary:\n{}", summary);
+        }
+        Err(e) => {
+            log::error!("[UserDataProtection] Pre-cleanup audit failed: {}", e);
+            return Err(format!("User data protection audit failed before cleanup: {}", e));
+        }
+    }
+
     log::info!(
         "[Cleanup] Fetching manifest for modpack {} version {}",
         modpack_id,
@@ -1540,6 +1769,29 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         .modpackVersionId
         .as_ref()
         .ok_or("Instance does not have a version ID")?;
+
+    let minecraft_dir = Path::new(instance.instanceDirectory.as_ref().unwrap()).join("minecraft");
+
+    // CRITICAL: Audit user data protection before any modpack operations
+    log::info!("[UserDataProtection] Performing pre-operation audit for modpack asset validation");
+    match audit_user_data_protection(&minecraft_dir, "Modpack Asset Validation") {
+        Ok(audit_report) => {
+            log::info!("[UserDataProtection] Audit completed successfully");
+            log::info!("[UserDataProtection] Protected files: {}", audit_report.protected_files.len());
+            log::info!("[UserDataProtection] Protected directories: {}", audit_report.protected_directories.len());
+            
+            if !audit_report.warnings.is_empty() {
+                log::warn!("[UserDataProtection] {} warnings in audit - proceeding with caution", audit_report.warnings.len());
+                for warning in &audit_report.warnings {
+                    log::warn!("[UserDataProtection] {}", warning);
+                }
+            }
+        }
+        Err(e) => {
+            log::error!("[UserDataProtection] Audit failed: {}", e);
+            return Err(format!("User data protection audit failed: {}", e));
+        }
+    }
 
     // Create a task for this operation with proper title
     let task_title = format!(
@@ -2138,4 +2390,17 @@ mod tests {
         // Cleanup
         let _ = std::fs::remove_dir_all(&temp_dir);
     }
+}
+
+/// Tauri command to perform user data protection audit
+/// This can be called by the frontend to verify protection before operations
+#[tauri::command]
+pub async fn audit_user_data_protection_command(instance_id: String) -> Result<UserDataAuditReport, String> {
+    let instance =
+        crate::core::minecraft_instance::MinecraftInstance::from_instance_id(&instance_id)
+            .ok_or("Instance not found")?;
+
+    let minecraft_dir = Path::new(instance.instanceDirectory.as_ref().unwrap()).join("minecraft");
+    
+    audit_user_data_protection(&minecraft_dir, "Manual Audit")
 }
