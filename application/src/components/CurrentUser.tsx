@@ -130,14 +130,6 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         Configuración
                     </button>
 
-                    <Link
-                        to="/tickets"
-                        onClick={closeMenu}
-                        className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-neutral-800/60 rounded text-left cursor-pointer whitespace-nowrap font-medium"
-                    >
-                        <LucideTicket size={16} />
-                        Mis tickets
-                    </Link>
 
                     <button
                         onClick={handleOpenConfig}
