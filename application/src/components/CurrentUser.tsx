@@ -1,5 +1,5 @@
 import { useAuthentication } from "@/stores/AuthContext";
-import { LucideAppWindowMac, LucideLogOut, LucidePackageOpen, LucideSettings2, LucideSquareUserRound } from "lucide-react";
+import { LucideAppWindowMac, LucideLogOut, LucidePackageOpen, LucideSettings2, LucideSquareUserRound, LucideTicket } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useConfigDialog } from "@/stores/ConfigDialogContext";
@@ -120,6 +120,23 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                     >
                         <LucideSquareUserRound size={16} />
                         Ver perfil
+                    </Link>
+
+                    <button
+                        onClick={handleOpenConfig}
+                        className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-neutral-800/60 rounded text-left cursor-pointer whitespace-nowrap font-medium"
+                    >
+                        <LucideSettings2 size={16} />
+                        Configuración
+                    </button>
+
+                    <Link
+                        to="/tickets"
+                        onClick={closeMenu}
+                        className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-neutral-800/60 rounded text-left cursor-pointer whitespace-nowrap font-medium"
+                    >
+                        <LucideTicket size={16} />
+                        Mis tickets
                     </Link>
 
                     <button
