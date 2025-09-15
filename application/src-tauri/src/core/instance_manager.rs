@@ -121,29 +121,55 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
         }
     }
 
-    // Handle modpack instances with special logic
+    // Handle modpack instances with optimized logic
     if let (Some(modpack_id), Some(version_id)) = (&instance.modpackId, &instance.modpackVersionId)
     {
         let modpack_id = modpack_id.clone(); // Extract modpack_id to avoid immutable borrow conflict
-                                             // Check if version is "latest" and handle updates
+        
+        // Optimized flow: Check if modpack is already up to date
         if version_id == "latest" {
-            match handle_latest_version_update(&mut instance, &modpack_id).await {
-                Ok(updated) => {
-                    if updated {
-                        // Save the updated instance
-                        instance
-                            .save()
-                            .map_err(|e| format!("Failed to save updated instance: {}", e))?;
+            // Check if instance is already up to date
+            let is_up_to_date = match check_if_modpack_is_up_to_date(&instance, &modpack_id).await {
+                Ok(up_to_date) => up_to_date,
+                Err(e) => {
+                    eprintln!("Warning: Failed to check modpack status: {}", e);
+                    false // Assume not up to date if check fails
+                }
+            };
+
+            if !is_up_to_date {
+                // Modpack is not up to date: perform full update process
+                match handle_latest_version_update(&mut instance, &modpack_id).await {
+                    Ok(updated) => {
+                        if updated {
+                            // Save the updated instance
+                            instance
+                                .save()
+                                .map_err(|e| format!("Failed to save updated instance: {}", e))?;
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Warning: Failed to check for latest version updates: {}", e);
+                        // Continue with launch even if update check fails
                     }
                 }
-                Err(e) => {
-                    eprintln!("Warning: Failed to check for latest version updates: {}", e);
-                    // Continue with launch even if update check fails
+            } else {
+                // Modpack is already up to date: emit validation status
+                if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
+                    if let Some(app_handle) = guard.as_ref() {
+                        let _ = app_handle.emit(
+                            "instance-downloading-assets",
+                            serde_json::json!({
+                                "id": instance.instanceId,
+                                "message": "Validando archivos..."
+                            }),
+                        );
+                    }
                 }
             }
         }
 
-        // Validate modpack assets before launch
+        // Validate modpack assets before launch (this is always necessary)
         match validate_modpack_assets_for_launch(&instance).await {
             Ok(_) => {
                 // Assets are valid, proceed with launch
@@ -345,6 +371,35 @@ async fn validate_modpack_assets_for_launch(instance: &MinecraftInstance) -> Res
     }
 
     Ok(())
+}
+
+/// Checks if a modpack instance is already up to date
+/// Returns true if the instance is current with the latest version
+async fn check_if_modpack_is_up_to_date(
+    instance: &MinecraftInstance,
+    modpack_id: &str,
+) -> Result<bool, String> {
+    // Get the last known version stored locally
+    let last_known_version = match get_instance_last_known_version(instance) {
+        Some(version) => version,
+        None => {
+            // No last known version means this is the first time or needs update
+            return Ok(false);
+        }
+    };
+
+    // Get the current latest version from the server
+    let current_latest_version = match fetch_latest_version(modpack_id).await {
+        Ok(version) => version,
+        Err(e) => {
+            eprintln!("Warning: Failed to fetch latest version: {}", e);
+            // If we can't check the server, assume it's up to date to avoid unnecessary updates
+            return Ok(true);
+        }
+    };
+
+    // Compare versions
+    Ok(last_known_version == current_latest_version)
 }
 
 /// Gets the last known version for a "latest" instance
