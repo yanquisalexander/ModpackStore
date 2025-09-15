@@ -6,6 +6,7 @@ import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance";
 import { BackgroundVideo } from "@/components/LauncherBackgroundVideo";
 import PreLaunchQuickActions from "@/components/PreLaunchQuickActions";
 import { InstanceCrashDialog } from "@/components/InstanceCrashDialog";
+import { AccountSelectionDialog } from "@/components/AccountSelectionDialog";
 import { useParams } from "react-router-dom";
 
 
@@ -183,9 +184,12 @@ export const PreLaunchInstance = () => {
         isInstanceBootstraping,
         IS_FORGE,
         showConfig,
+        showAccountSelection,
+        setShowAccountSelection,
         crashErrorState,
         setCrashErrorState,
         handlePlayButtonClick,
+        handleAccountSelected,
         fetchInstanceData,
         handleResourceError,
         navigate
@@ -250,6 +254,13 @@ export const PreLaunchInstance = () => {
                     errorMessage={crashErrorState.message}
                     data={crashErrorState.data}
                     exitCode={crashErrorState.exitCode}
+                />
+                
+                <AccountSelectionDialog
+                    open={showAccountSelection}
+                    onOpenChange={setShowAccountSelection}
+                    onAccountSelected={handleAccountSelected}
+                    instanceId={instanceId}
                 />
             </div>
         </div>

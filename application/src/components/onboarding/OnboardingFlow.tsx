@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { OnboardingStep, OnboardingStepProps } from '@/types/onboarding';
 import { RAMConfigurationStep } from './RAMConfigurationStep';
 import { JavaValidationStep } from './JavaValidationStep';
+import { AccountCreationStep } from './AccountCreationStep';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
@@ -41,8 +42,8 @@ const WelcomeStep: React.FC<OnboardingStepProps> = ({ onNext, onSkip }) => {
                 <ul className="list-disc ml-6 text-sm text-muted-foreground">
                   <li>Verificar e instalar Java si es necesario</li>
                   <li>Asignar memoria recomendada para Minecraft</li>
+                  <li>Crear tu primera cuenta de jugador</li>
                   <li>Configurar opciones iniciales del launcher</li>
-                  <li>Preparar tu cuenta y descargas</li>
                 </ul>
               </motion.div>
 
@@ -68,6 +69,7 @@ interface OnboardingFlowProps {
 export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [completingOnboarding, setCompletingOnboarding] = useState(false);
+  const [ramAllocation, setRamAllocation] = useState<number>(4096); // Store RAM allocation
 
   // Define the onboarding steps
   const steps: OnboardingStep[] = [
@@ -86,6 +88,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
       title: 'Configuración de RAM',
       component: RAMConfigurationStep,
     },
+    {
+      id: 'account-creation',
+      title: 'Crear Primera Cuenta',
+      component: AccountCreationStep,
+    },
     // More steps can be added here in the future
   ];
 
@@ -93,9 +100,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
 
   const handleNext = async (data?: any) => {
     if (currentStepIndex === steps.length - 1) {
-      // This is the last step, complete onboarding
-      await completeOnboarding(data);
+      // This is the last step (account creation), complete onboarding
+      await completeOnboarding(ramAllocation);
     } else {
+      // Store RAM allocation if this is the RAM configuration step
+      if (steps[currentStepIndex].id === 'ram-configuration' && typeof data === 'number') {
+        setRamAllocation(data);
+      }
       // Move to next step
       setCurrentStepIndex(prev => prev + 1);
     }
