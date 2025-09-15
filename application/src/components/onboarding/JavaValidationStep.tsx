@@ -32,13 +32,13 @@ export const JavaValidationStep: React.FC<OnboardingStepProps> = ({
       const { invoke } = await import('@tauri-apps/api/core');
       const result = await invoke<JavaValidationResult>('validate_java_installation');
       setJavaValidation(result);
-      
+
       if (result.is_installed) {
         // Java found, auto-advance after a brief delay
         setValidationComplete(true);
         setTimeout(() => {
           onNext();
-        }, 1500);
+        }, 3500);
       }
     } catch (error) {
       console.error('Error validating Java:', error);
@@ -53,7 +53,7 @@ export const JavaValidationStep: React.FC<OnboardingStepProps> = ({
     try {
       setInstalling(true);
       setInstallProgress(0);
-      
+
       // Simulate progress during installation
       const progressInterval = setInterval(() => {
         setInstallProgress((prev) => {
@@ -67,27 +67,27 @@ export const JavaValidationStep: React.FC<OnboardingStepProps> = ({
 
       const { invoke } = await import('@tauri-apps/api/core');
       const javaPath = await invoke<string>('install_java');
-      
+
       clearInterval(progressInterval);
       setInstallProgress(100);
-      
+
       toast.success('Java instalado correctamente', {
         description: `Instalado en: ${javaPath}`,
       });
-      
+
       setJavaValidation({
         is_installed: true,
         java_path: javaPath,
         version: '8',
       });
-      
+
       setValidationComplete(true);
-      
+
       // Auto-advance after installation complete
       setTimeout(() => {
         onNext();
       }, 2000);
-      
+
     } catch (error) {
       console.error('Error installing Java:', error);
       toast.error('Error al instalar Java', {
@@ -117,7 +117,7 @@ export const JavaValidationStep: React.FC<OnboardingStepProps> = ({
       <OnboardingStepWrapper
         title="Verificación de Java"
         description="Detectando instalación de Java..."
-        onNext={() => {}}
+        onNext={() => { }}
         nextDisabled={true}
       >
         <div className="flex items-center justify-center py-12">
@@ -132,7 +132,7 @@ export const JavaValidationStep: React.FC<OnboardingStepProps> = ({
       <OnboardingStepWrapper
         title="Java Verificado"
         description="Java está correctamente instalado"
-        onNext={() => {}}
+        onNext={() => { }}
         nextDisabled={true}
       >
         <div className="flex flex-col items-center justify-center py-12">
@@ -162,7 +162,7 @@ export const JavaValidationStep: React.FC<OnboardingStepProps> = ({
       <OnboardingStepWrapper
         title="Instalando Java"
         description="Descargando e instalando Java 8..."
-        onNext={() => {}}
+        onNext={() => { }}
         nextDisabled={true}
       >
         <div className="space-y-6">
