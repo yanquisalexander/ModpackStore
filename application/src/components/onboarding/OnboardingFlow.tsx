@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { OnboardingStep, OnboardingStepProps } from '@/types/onboarding';
 import { RAMConfigurationStep } from './RAMConfigurationStep';
+import { JavaValidationStep } from './JavaValidationStep';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ const WelcomeStep: React.FC<OnboardingStepProps> = ({ onNext, onSkip }) => {
               <motion.div className="mt-4 space-y-3 text-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12 }}>
                 <p className="text-sm text-muted-foreground">Este asistente te ayudará a:</p>
                 <ul className="list-disc ml-6 text-sm text-muted-foreground">
+                  <li>Verificar e instalar Java si es necesario</li>
                   <li>Asignar memoria recomendada para Minecraft</li>
                   <li>Configurar opciones iniciales del launcher</li>
                   <li>Preparar tu cuenta y descargas</li>
@@ -73,6 +75,11 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
       id: 'welcome',
       title: 'Bienvenida',
       component: WelcomeStep,
+    },
+    {
+      id: 'java-validation',
+      title: 'Verificación de Java',
+      component: JavaValidationStep,
     },
     {
       id: 'ram-configuration',

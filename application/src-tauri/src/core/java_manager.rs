@@ -417,6 +417,115 @@ impl JavaManager {
         let version_dir = self.base_path.join(format!("{}", version));
         version_dir.exists()
     }
+
+    /// Verifica si Java está disponible en el sistema
+    /// Prioriza JAVA_HOME, luego busca en PATH
+    pub fn validate_system_java(&self) -> Result<Option<String>, String> {
+        // Primero verificar JAVA_HOME
+        if let Ok(java_home) = std::env::var("JAVA_HOME") {
+            let java_exe = if cfg!(target_os = "windows") {
+                std::path::PathBuf::from(&java_home).join("bin").join("java.exe")
+            } else {
+                std::path::PathBuf::from(&java_home).join("bin").join("java")
+            };
+            
+            if java_exe.exists() {
+                // Verificar que es una versión válida ejecutando java -version
+                if let Ok(version) = self.get_java_version(&java_exe) {
+                    if self.is_java_version_supported(&version) {
+                        return Ok(Some(java_home));
+                    }
+                }
+            }
+        }
+
+        // Si JAVA_HOME no funciona, buscar en PATH
+        let java_command = if cfg!(target_os = "windows") { "java.exe" } else { "java" };
+        
+        match std::process::Command::new(java_command)
+            .arg("-version")
+            .output()
+        {
+            Ok(output) => {
+                if output.status.success() {
+                    let version_output = String::from_utf8_lossy(&output.stderr);
+                    if let Some(version) = self.parse_java_version(&version_output) {
+                        if self.is_java_version_supported(&version) {
+                            // Si java está en PATH pero no tenemos JAVA_HOME, intentar encontrar la instalación
+                            if let Ok(java_path) = which::which(java_command) {
+                                if let Some(java_home) = java_path.parent().and_then(|p| p.parent()) {
+                                    return Ok(Some(java_home.to_string_lossy().to_string()));
+                                }
+                            }
+                            return Ok(Some("java".to_string())); // Fallback: usar 'java' desde PATH
+                        }
+                    }
+                }
+            }
+            Err(_) => {
+                // Java no está disponible en PATH
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// Obtiene la versión de Java ejecutando java -version
+    pub fn get_java_version(&self, java_exe: &std::path::Path) -> Result<String, String> {
+        match std::process::Command::new(java_exe)
+            .arg("-version")
+            .output()
+        {
+            Ok(output) => {
+                if output.status.success() {
+                    let version_output = String::from_utf8_lossy(&output.stderr);
+                    if let Some(version) = self.parse_java_version(&version_output) {
+                        Ok(version)
+                    } else {
+                        Err("No se pudo parsear la versión de Java".to_string())
+                    }
+                } else {
+                    Err("Error al ejecutar java -version".to_string())
+                }
+            }
+            Err(e) => Err(format!("Error al ejecutar java: {}", e)),
+        }
+    }
+
+    /// Parsea la salida de java -version para obtener el número de versión
+    fn parse_java_version(&self, version_output: &str) -> Option<String> {
+        // Buscar patrones como "java version "1.8.0_XXX"" o "openjdk version "11.0.X""
+        for line in version_output.lines() {
+            if line.contains("version") {
+                if let Some(start) = line.find('"') {
+                    if let Some(end) = line[start + 1..].find('"') {
+                        let version = &line[start + 1..start + 1 + end];
+                        // Extraer el número de versión principal
+                        if version.starts_with("1.") {
+                            // Java 8 y anteriores: "1.8.0_XXX" -> "8"
+                            if let Some(major) = version.split('.').nth(1) {
+                                return Some(major.to_string());
+                            }
+                        } else {
+                            // Java 9+: "11.0.X" -> "11"
+                            if let Some(major) = version.split('.').nth(0) {
+                                return Some(major.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Verifica si la versión de Java es compatible (Java 8 o superior)
+    fn is_java_version_supported(&self, version: &str) -> bool {
+        match version.parse::<u8>() {
+            Ok(version_num) => version_num >= 8,
+            Err(_) => false,
+        }
+    }
 }
 
 // Ejemplo de uso:

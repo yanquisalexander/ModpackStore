@@ -1,4 +1,5 @@
 use crate::config::get_config_manager;
+use crate::core::java_manager::JavaManager;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sysinfo::System;
@@ -15,6 +16,13 @@ pub struct SystemMemoryInfo {
     pub recommended_mb: u32,
     pub min_mb: u32,
     pub max_mb: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct JavaValidationResult {
+    pub is_installed: bool,
+    pub java_path: Option<String>,
+    pub version: Option<String>,
 }
 
 /// Obtiene el estado del onboarding
@@ -114,4 +122,78 @@ pub fn skip_onboarding() -> Result<(), String> {
 
     // Usar el valor recomendado para completar el onboarding
     complete_onboarding(system_memory.recommended_mb)
+}
+
+/// Valida si Java está instalado en el sistema
+#[tauri::command]
+pub fn validate_java_installation() -> Result<JavaValidationResult, String> {
+    let java_manager = JavaManager::new()
+        .map_err(|e| format!("Error al inicializar JavaManager: {}", e))?;
+    
+    match java_manager.validate_system_java() {
+        Ok(Some(java_path)) => {
+            // Java encontrado, obtener versión si es posible
+            let version = match std::env::var("JAVA_HOME") {
+                Ok(java_home) => {
+                    let java_exe = if cfg!(target_os = "windows") {
+                        std::path::PathBuf::from(&java_home).join("bin").join("java.exe")
+                    } else {
+                        std::path::PathBuf::from(&java_home).join("bin").join("java")
+                    };
+                    
+                    match java_manager.get_java_version(&java_exe) {
+                        Ok(version) => Some(version),
+                        Err(_) => None,
+                    }
+                }
+                Err(_) => None,
+            };
+            
+            Ok(JavaValidationResult {
+                is_installed: true,
+                java_path: Some(java_path),
+                version,
+            })
+        }
+        Ok(None) => {
+            Ok(JavaValidationResult {
+                is_installed: false,
+                java_path: None,
+                version: None,
+            })
+        }
+        Err(e) => Err(format!("Error al validar Java: {}", e)),
+    }
+}
+
+/// Instala Java 8 automáticamente
+#[tauri::command]
+pub async fn install_java() -> Result<String, String> {
+    let java_manager = JavaManager::new()
+        .map_err(|e| format!("Error al inicializar JavaManager: {}", e))?;
+    
+    // Descargar e instalar Java 8
+    let java_path = java_manager.get_java_path("8").await
+        .map_err(|e| format!("Error al instalar Java: {}", e))?;
+    
+    let java_home = java_path.to_string_lossy().to_string();
+    
+    // Guardar la ruta de Java en la configuración
+    match get_config_manager().lock() {
+        Ok(mut config_result) => match &mut *config_result {
+            Ok(config) => {
+                config
+                    .set("javaDir", &java_home)
+                    .map_err(|e| format!("Error al establecer javaDir: {}", e))?;
+                
+                config
+                    .save()
+                    .map_err(|e| format!("Error al guardar configuración: {}", e))?;
+                
+                Ok(java_home)
+            }
+            Err(e) => Err(e.clone()),
+        },
+        Err(_) => Err("Error al obtener el bloqueo del gestor de configuración".to_string()),
+    }
 }
