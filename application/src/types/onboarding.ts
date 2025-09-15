@@ -10,6 +10,12 @@ export interface SystemMemoryInfo {
   max_mb: number;
 }
 
+export interface JavaValidationResult {
+  is_installed: boolean;
+  java_path?: string;
+  version?: string;
+}
+
 export interface OnboardingStep {
   id: string;
   title: string;
