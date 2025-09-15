@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, Download, X, Search, LucideSparkles } from 'lucide-react';
+import { AlertCircle, Download, X, Search, LucideSparkles, LucideWandSparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useJavaValidation } from '@/hooks/useJavaValidation';
 import { Button } from '@/components/ui/button';
@@ -74,7 +74,7 @@ export const JavaStatusBanner: React.FC<JavaStatusBannerProps> = ({ className = 
 
     return (
       <>
-        <LucideSparkles className="h-4 w-4" />
+        <LucideWandSparkles className="h-4 w-4" />
         Reparar automáticamente
       </>
     );
