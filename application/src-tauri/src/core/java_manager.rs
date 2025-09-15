@@ -422,23 +422,23 @@ impl JavaManager {
     /// Verifica tanto la existencia de la ruta como la funcionalidad del ejecutable
     pub fn validate_configured_java(&self, java_path: &str) -> Result<bool, String> {
         let java_dir = std::path::PathBuf::from(java_path);
-        
+
         // Verificación 1: La ruta debe existir
         if !java_dir.exists() {
             return Ok(false);
         }
-        
+
         // Verificación 2: El ejecutable debe existir y funcionar
         let java_exe = if cfg!(target_os = "windows") {
             java_dir.join("bin").join("java.exe")
         } else {
             java_dir.join("bin").join("java")
         };
-        
+
         if !java_exe.exists() {
             return Ok(false);
         }
-        
+
         // Verificación 3: Intentar ejecutar java -version
         match self.get_java_version(&java_exe) {
             Ok(version) => {
@@ -456,31 +456,39 @@ impl JavaManager {
     /// Retorna la primera instalación funcional encontrada
     pub fn scan_local_java_installations(&self) -> Result<Option<String>, String> {
         let mut search_paths = Vec::new();
-        
+
         // Agregar rutas comunes según el sistema operativo
         #[cfg(target_os = "windows")]
         {
             if let Ok(program_files) = std::env::var("ProgramFiles") {
-                search_paths.push(std::path::PathBuf::from(program_files).join("Java"));
-                search_paths.push(std::path::PathBuf::from(program_files).join("Eclipse Adoptium"));
-                search_paths.push(std::path::PathBuf::from(program_files).join("OpenJDK"));
+                search_paths.push(std::path::PathBuf::from(program_files.clone()).join("Java"));
+                search_paths
+                    .push(std::path::PathBuf::from(program_files.clone()).join("Eclipse Adoptium"));
+                search_paths.push(std::path::PathBuf::from(program_files.clone()).join("OpenJDK"));
             }
             if let Ok(program_files_x86) = std::env::var("ProgramFiles(x86)") {
-                search_paths.push(std::path::PathBuf::from(program_files_x86).join("Java"));
-                search_paths.push(std::path::PathBuf::from(program_files_x86).join("Eclipse Adoptium"));
-                search_paths.push(std::path::PathBuf::from(program_files_x86).join("OpenJDK"));
+                search_paths.push(std::path::PathBuf::from(program_files_x86.clone()).join("Java"));
+                search_paths.push(
+                    std::path::PathBuf::from(program_files_x86.clone()).join("Eclipse Adoptium"),
+                );
+                search_paths
+                    .push(std::path::PathBuf::from(program_files_x86.clone()).join("OpenJDK"));
             }
         }
-        
+
         #[cfg(target_os = "macos")]
         {
-            search_paths.push(std::path::PathBuf::from("/Library/Java/JavaVirtualMachines"));
-            search_paths.push(std::path::PathBuf::from("/System/Library/Java/JavaVirtualMachines"));
+            search_paths.push(std::path::PathBuf::from(
+                "/Library/Java/JavaVirtualMachines",
+            ));
+            search_paths.push(std::path::PathBuf::from(
+                "/System/Library/Java/JavaVirtualMachines",
+            ));
             if let Some(home) = dirs::home_dir() {
                 search_paths.push(home.join("Library/Java/JavaVirtualMachines"));
             }
         }
-        
+
         #[cfg(target_os = "linux")]
         {
             search_paths.push(std::path::PathBuf::from("/usr/lib/jvm"));
@@ -492,7 +500,7 @@ impl JavaManager {
                 search_paths.push(home.join(".jenv/versions"));
             }
         }
-        
+
         // Buscar en cada ruta
         for search_path in search_paths {
             if let Ok(entries) = std::fs::read_dir(&search_path) {
@@ -503,13 +511,15 @@ impl JavaManager {
                         if let Ok(true) = self.validate_configured_java(&path.to_string_lossy()) {
                             return Ok(Some(path.to_string_lossy().to_string()));
                         }
-                        
+
                         // En macOS, las instalaciones están en Contents/Home
                         #[cfg(target_os = "macos")]
                         {
                             let macos_java_home = path.join("Contents/Home");
                             if macos_java_home.exists() {
-                                if let Ok(true) = self.validate_configured_java(&macos_java_home.to_string_lossy()) {
+                                if let Ok(true) = self
+                                    .validate_configured_java(&macos_java_home.to_string_lossy())
+                                {
                                     return Ok(Some(macos_java_home.to_string_lossy().to_string()));
                                 }
                             }
@@ -518,7 +528,7 @@ impl JavaManager {
                 }
             }
         }
-        
+
         Ok(None)
     }
 
@@ -528,11 +538,15 @@ impl JavaManager {
         // Primero verificar JAVA_HOME
         if let Ok(java_home) = std::env::var("JAVA_HOME") {
             let java_exe = if cfg!(target_os = "windows") {
-                std::path::PathBuf::from(&java_home).join("bin").join("java.exe")
+                std::path::PathBuf::from(&java_home)
+                    .join("bin")
+                    .join("java.exe")
             } else {
-                std::path::PathBuf::from(&java_home).join("bin").join("java")
+                std::path::PathBuf::from(&java_home)
+                    .join("bin")
+                    .join("java")
             };
-            
+
             if java_exe.exists() {
                 // Verificar que es una versión válida ejecutando java -version
                 if let Ok(version) = self.get_java_version(&java_exe) {
@@ -544,8 +558,12 @@ impl JavaManager {
         }
 
         // Si JAVA_HOME no funciona, buscar en PATH
-        let java_command = if cfg!(target_os = "windows") { "java.exe" } else { "java" };
-        
+        let java_command = if cfg!(target_os = "windows") {
+            "java.exe"
+        } else {
+            "java"
+        };
+
         match std::process::Command::new(java_command)
             .arg("-version")
             .output()
@@ -557,7 +575,8 @@ impl JavaManager {
                         if self.is_java_version_supported(&version) {
                             // Si java está en PATH pero no tenemos JAVA_HOME, intentar encontrar la instalación
                             if let Ok(java_path) = which::which(java_command) {
-                                if let Some(java_home) = java_path.parent().and_then(|p| p.parent()) {
+                                if let Some(java_home) = java_path.parent().and_then(|p| p.parent())
+                                {
                                     return Ok(Some(java_home.to_string_lossy().to_string()));
                                 }
                             }

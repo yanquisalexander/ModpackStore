@@ -50,8 +50,6 @@ const patchConsoleMethod = (method: keyof Console, logger: (...args: any[]) => v
   };
 };
 
-patchConsoleMethod('log', info);
-patchConsoleMethod('debug', debug);
 patchConsoleMethod('error', error);
 patchConsoleMethod('warn', warn);
 

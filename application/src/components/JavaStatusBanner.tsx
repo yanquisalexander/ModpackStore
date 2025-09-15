@@ -13,6 +13,8 @@ export const JavaStatusBanner: React.FC<JavaStatusBannerProps> = ({ className = 
   const { javaValidation, loading, isInstalling, repairStatus, repairJava } = useJavaValidation();
   const [dismissed, setDismissed] = React.useState(false);
 
+  console.log('Java Validation State:', { javaValidation, loading, isInstalling, repairStatus });
+
   const handleRepairJava = async () => {
     try {
       await repairJava();
@@ -99,7 +101,7 @@ export const JavaStatusBanner: React.FC<JavaStatusBannerProps> = ({ className = 
               </p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <Button
               onClick={handleRepairJava}
@@ -108,7 +110,7 @@ export const JavaStatusBanner: React.FC<JavaStatusBannerProps> = ({ className = 
             >
               {getRepairButtonContent()}
             </Button>
-            
+
             <Button
               onClick={handleDismiss}
               variant="ghost"

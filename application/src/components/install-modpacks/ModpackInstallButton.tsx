@@ -205,7 +205,6 @@ export const InstallButton = ({
                 modpackId,
                 password: null
             });
-            console.log(`Instancia ${instanceId} actualizada exitosamente`);
         } catch (err) {
             console.error("Error al actualizar la instancia:", err);
         } finally {
