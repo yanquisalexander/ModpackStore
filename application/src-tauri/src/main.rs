@@ -152,6 +152,7 @@ pub fn main() {
             core::onboarding::skip_onboarding,
             core::onboarding::validate_java_installation,
             core::onboarding::install_java,
+            core::onboarding::repair_java_installation,
             core::network_utilities::check_connection,
             core::network_utilities::check_real_connection,
             core::instance_manager::get_all_instances,

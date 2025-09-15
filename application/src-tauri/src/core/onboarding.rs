@@ -125,30 +125,43 @@ pub fn skip_onboarding() -> Result<(), String> {
 }
 
 /// Valida si Java está instalado en el sistema
+/// Prioriza la configuración interna, luego verifica el sistema
 #[tauri::command]
 pub fn validate_java_installation() -> Result<JavaValidationResult, String> {
     let java_manager = JavaManager::new()
         .map_err(|e| format!("Error al inicializar JavaManager: {}", e))?;
     
-    match java_manager.validate_system_java() {
-        Ok(Some(java_path)) => {
-            // Java encontrado, obtener versión si es posible
-            let version = match std::env::var("JAVA_HOME") {
-                Ok(java_home) => {
-                    let java_exe = if cfg!(target_os = "windows") {
-                        std::path::PathBuf::from(&java_home).join("bin").join("java.exe")
-                    } else {
-                        std::path::PathBuf::from(&java_home).join("bin").join("java")
-                    };
-                    
-                    match java_manager.get_java_version(&java_exe) {
-                        Ok(version) => Some(version),
-                        Err(_) => None,
+    // Paso 1: Verificar la configuración interna primero
+    if let Ok(config_result) = get_config_manager().lock() {
+        if let Ok(config) = &*config_result {
+            if let Some(saved_java_path) = config.get("javaDir").and_then(|v| v.as_str()) {
+                // Verificar que la ruta guardada sea válida y funcional
+                match java_manager.validate_configured_java(saved_java_path) {
+                    Ok(true) => {
+                        // Java configurado es válido
+                        let version = get_java_version_from_path(&java_manager, saved_java_path);
+                        return Ok(JavaValidationResult {
+                            is_installed: true,
+                            java_path: Some(saved_java_path.to_string()),
+                            version,
+                        });
+                    }
+                    Ok(false) => {
+                        // Java configurado no es válido, continuar con verificación del sistema
+                        println!("Java configurado en {} no es válido", saved_java_path);
+                    }
+                    Err(e) => {
+                        println!("Error al validar Java configurado: {}", e);
                     }
                 }
-                Err(_) => None,
-            };
-            
+            }
+        }
+    }
+    
+    // Paso 2: Si no hay configuración válida, verificar Java del sistema
+    match java_manager.validate_system_java() {
+        Ok(Some(java_path)) => {
+            let version = get_java_version_from_path(&java_manager, &java_path);
             Ok(JavaValidationResult {
                 is_installed: true,
                 java_path: Some(java_path),
@@ -163,6 +176,20 @@ pub fn validate_java_installation() -> Result<JavaValidationResult, String> {
             })
         }
         Err(e) => Err(format!("Error al validar Java: {}", e)),
+    }
+}
+
+/// Función auxiliar para obtener la versión de Java desde una ruta
+fn get_java_version_from_path(java_manager: &JavaManager, java_path: &str) -> Option<String> {
+    let java_exe = if cfg!(target_os = "windows") {
+        std::path::PathBuf::from(java_path).join("bin").join("java.exe")
+    } else {
+        std::path::PathBuf::from(java_path).join("bin").join("java")
+    };
+    
+    match java_manager.get_java_version(&java_exe) {
+        Ok(version) => Some(version),
+        Err(_) => None,
     }
 }
 
@@ -196,4 +223,47 @@ pub async fn install_java() -> Result<String, String> {
         },
         Err(_) => Err("Error al obtener el bloqueo del gestor de configuración".to_string()),
     }
+}
+
+/// Repara la instalación de Java con lógica inteligente
+/// Primero busca localmente, luego descarga si es necesario
+#[tauri::command]
+pub async fn repair_java_installation() -> Result<String, String> {
+    let java_manager = JavaManager::new()
+        .map_err(|e| format!("Error al inicializar JavaManager: {}", e))?;
+    
+    // Paso 1: Buscar instalaciones locales de Java
+    match java_manager.scan_local_java_installations() {
+        Ok(Some(local_java_path)) => {
+            println!("Java encontrado localmente en: {}", local_java_path);
+            
+            // Guardar la ruta encontrada en la configuración
+            match get_config_manager().lock() {
+                Ok(mut config_result) => match &mut *config_result {
+                    Ok(config) => {
+                        config
+                            .set("javaDir", &local_java_path)
+                            .map_err(|e| format!("Error al establecer javaDir: {}", e))?;
+                        
+                        config
+                            .save()
+                            .map_err(|e| format!("Error al guardar configuración: {}", e))?;
+                        
+                        return Ok(local_java_path);
+                    }
+                    Err(e) => return Err(e.clone()),
+                },
+                Err(_) => return Err("Error al obtener el bloqueo del gestor de configuración".to_string()),
+            }
+        }
+        Ok(None) => {
+            println!("No se encontró Java localmente, procediendo con descarga");
+        }
+        Err(e) => {
+            println!("Error al buscar Java localmente: {}, procediendo con descarga", e);
+        }
+    }
+    
+    // Paso 2: Si no se encontró Java localmente, descargar Java 8
+    install_java().await
 }

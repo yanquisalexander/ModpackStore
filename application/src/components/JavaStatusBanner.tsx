@@ -1,5 +1,5 @@
 import React from 'react';
-import { AlertCircle, Download, X } from 'lucide-react';
+import { AlertCircle, Download, X, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useJavaValidation } from '@/hooks/useJavaValidation';
 import { Button } from '@/components/ui/button';
@@ -10,18 +10,18 @@ interface JavaStatusBannerProps {
 }
 
 export const JavaStatusBanner: React.FC<JavaStatusBannerProps> = ({ className = '' }) => {
-  const { javaValidation, loading, isInstalling, installJava } = useJavaValidation();
+  const { javaValidation, loading, isInstalling, repairStatus, repairJava } = useJavaValidation();
   const [dismissed, setDismissed] = React.useState(false);
 
   const handleRepairJava = async () => {
     try {
-      await installJava();
-      toast.success('Java instalado correctamente', {
+      await repairJava();
+      toast.success('Java configurado correctamente', {
         description: 'Java se ha configurado exitosamente en tu sistema.',
       });
     } catch (error) {
-      toast.error('Error al instalar Java', {
-        description: 'No se pudo instalar Java automáticamente. Por favor, intenta manualmente.',
+      toast.error('Error al reparar Java', {
+        description: 'No se pudo reparar Java automáticamente. Por favor, intenta manualmente.',
       });
     }
   };
@@ -34,6 +34,49 @@ export const JavaStatusBanner: React.FC<JavaStatusBannerProps> = ({ className = 
   if (loading || dismissed || !javaValidation || javaValidation.is_installed) {
     return null;
   }
+
+  const getRepairButtonContent = () => {
+    if (repairStatus) {
+      if (repairStatus.includes('Buscando')) {
+        return (
+          <>
+            <Search className="h-4 w-4 animate-pulse" />
+            {repairStatus}
+          </>
+        );
+      } else if (repairStatus.includes('Descargando')) {
+        return (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            Descargando...
+          </>
+        );
+      } else {
+        return (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+            {repairStatus}
+          </>
+        );
+      }
+    }
+
+    if (isInstalling) {
+      return (
+        <>
+          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+          Descargando...
+        </>
+      );
+    }
+
+    return (
+      <>
+        <Download className="h-4 w-4" />
+        Reparar automáticamente
+      </>
+    );
+  };
 
   return (
     <AnimatePresence>
@@ -52,7 +95,7 @@ export const JavaStatusBanner: React.FC<JavaStatusBannerProps> = ({ className = 
                 ⚠️ Java no detectado
               </h3>
               <p className="text-orange-300/90 text-sm">
-                Algunas funciones podrían no estar disponibles. Se requiere Java para ejecutar modpacks.
+                {repairStatus || 'Algunas funciones podrían no estar disponibles. Se requiere Java para ejecutar modpacks.'}
               </p>
             </div>
           </div>
@@ -60,20 +103,10 @@ export const JavaStatusBanner: React.FC<JavaStatusBannerProps> = ({ className = 
           <div className="flex items-center gap-2">
             <Button
               onClick={handleRepairJava}
-              disabled={isInstalling}
+              disabled={isInstalling || !!repairStatus}
               className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md flex items-center gap-2 flex-shrink-0"
             >
-              {isInstalling ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Descargando...
-                </>
-              ) : (
-                <>
-                  <Download className="h-4 w-4" />
-                  Reparar automáticamente
-                </>
-              )}
+              {getRepairButtonContent()}
             </Button>
             
             <Button
@@ -81,6 +114,7 @@ export const JavaStatusBanner: React.FC<JavaStatusBannerProps> = ({ className = 
               variant="ghost"
               size="icon"
               className="text-orange-400 hover:text-orange-300 hover:bg-orange-900/30 h-8 w-8"
+              disabled={isInstalling || !!repairStatus}
             >
               <X className="h-4 w-4" />
             </Button>

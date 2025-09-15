@@ -6,6 +6,7 @@ export const useJavaValidation = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isInstalling, setIsInstalling] = useState(false);
+  const [repairStatus, setRepairStatus] = useState<string | null>(null);
   const isValidatingRef = useRef(false);
 
   const validateJava = useCallback(async () => {
@@ -47,6 +48,32 @@ export const useJavaValidation = () => {
     }
   }, [validateJava]);
 
+  const repairJava = useCallback(async () => {
+    setIsInstalling(true);
+    setError(null);
+    setRepairStatus('Buscando Java en el sistema...');
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      
+      // Use the new repair command that includes local scanning
+      await invoke('repair_java_installation');
+      
+      setRepairStatus('Reparación completada');
+      
+      // Re-validate after repair
+      await validateJava();
+    } catch (err) {
+      console.error('Error repairing Java:', err);
+      setError(err as string);
+      setRepairStatus(null);
+    } finally {
+      setIsInstalling(false);
+      // Clear status after a brief delay
+      setTimeout(() => setRepairStatus(null), 2000);
+    }
+  }, [validateJava]);
+
   // Validate Java on hook initialization (lightweight check)
   useEffect(() => {
     validateJava();
@@ -57,7 +84,9 @@ export const useJavaValidation = () => {
     loading,
     error,
     isInstalling,
+    repairStatus,
     validateJava,
     installJava,
+    repairJava,
   };
 };
