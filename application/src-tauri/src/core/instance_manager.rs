@@ -158,10 +158,9 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
                 if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
                     if let Some(app_handle) = guard.as_ref() {
                         let _ = app_handle.emit(
-                            &format!("instance-{}", instance.instanceId),
+                            "instance-downloading-assets",
                             serde_json::json!({
                                 "id": instance.instanceId,
-                                "status": "preparing",
                                 "message": "Validando archivos..."
                             }),
                         );
