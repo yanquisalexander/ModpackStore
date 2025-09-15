@@ -418,6 +418,110 @@ impl JavaManager {
         version_dir.exists()
     }
 
+    /// Valida la ruta de Java guardada en la configuración interna
+    /// Verifica tanto la existencia de la ruta como la funcionalidad del ejecutable
+    pub fn validate_configured_java(&self, java_path: &str) -> Result<bool, String> {
+        let java_dir = std::path::PathBuf::from(java_path);
+        
+        // Verificación 1: La ruta debe existir
+        if !java_dir.exists() {
+            return Ok(false);
+        }
+        
+        // Verificación 2: El ejecutable debe existir y funcionar
+        let java_exe = if cfg!(target_os = "windows") {
+            java_dir.join("bin").join("java.exe")
+        } else {
+            java_dir.join("bin").join("java")
+        };
+        
+        if !java_exe.exists() {
+            return Ok(false);
+        }
+        
+        // Verificación 3: Intentar ejecutar java -version
+        match self.get_java_version(&java_exe) {
+            Ok(version) => {
+                if self.is_java_version_supported(&version) {
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+            Err(_) => Ok(false), // Ejecutable corrupto o no funcional
+        }
+    }
+
+    /// Busca instalaciones de Java en ubicaciones comunes del sistema
+    /// Retorna la primera instalación funcional encontrada
+    pub fn scan_local_java_installations(&self) -> Result<Option<String>, String> {
+        let mut search_paths = Vec::new();
+        
+        // Agregar rutas comunes según el sistema operativo
+        #[cfg(target_os = "windows")]
+        {
+            if let Ok(program_files) = std::env::var("ProgramFiles") {
+                search_paths.push(std::path::PathBuf::from(program_files).join("Java"));
+                search_paths.push(std::path::PathBuf::from(program_files).join("Eclipse Adoptium"));
+                search_paths.push(std::path::PathBuf::from(program_files).join("OpenJDK"));
+            }
+            if let Ok(program_files_x86) = std::env::var("ProgramFiles(x86)") {
+                search_paths.push(std::path::PathBuf::from(program_files_x86).join("Java"));
+                search_paths.push(std::path::PathBuf::from(program_files_x86).join("Eclipse Adoptium"));
+                search_paths.push(std::path::PathBuf::from(program_files_x86).join("OpenJDK"));
+            }
+        }
+        
+        #[cfg(target_os = "macos")]
+        {
+            search_paths.push(std::path::PathBuf::from("/Library/Java/JavaVirtualMachines"));
+            search_paths.push(std::path::PathBuf::from("/System/Library/Java/JavaVirtualMachines"));
+            if let Some(home) = dirs::home_dir() {
+                search_paths.push(home.join("Library/Java/JavaVirtualMachines"));
+            }
+        }
+        
+        #[cfg(target_os = "linux")]
+        {
+            search_paths.push(std::path::PathBuf::from("/usr/lib/jvm"));
+            search_paths.push(std::path::PathBuf::from("/usr/java"));
+            search_paths.push(std::path::PathBuf::from("/opt/java"));
+            search_paths.push(std::path::PathBuf::from("/opt/openjdk"));
+            if let Some(home) = dirs::home_dir() {
+                search_paths.push(home.join(".sdkman/candidates/java"));
+                search_paths.push(home.join(".jenv/versions"));
+            }
+        }
+        
+        // Buscar en cada ruta
+        for search_path in search_paths {
+            if let Ok(entries) = std::fs::read_dir(&search_path) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        // Verificar si esta ruta contiene una instalación funcional de Java
+                        if let Ok(true) = self.validate_configured_java(&path.to_string_lossy()) {
+                            return Ok(Some(path.to_string_lossy().to_string()));
+                        }
+                        
+                        // En macOS, las instalaciones están en Contents/Home
+                        #[cfg(target_os = "macos")]
+                        {
+                            let macos_java_home = path.join("Contents/Home");
+                            if macos_java_home.exists() {
+                                if let Ok(true) = self.validate_configured_java(&macos_java_home.to_string_lossy()) {
+                                    return Ok(Some(macos_java_home.to_string_lossy().to_string()));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(None)
+    }
+
     /// Verifica si Java está disponible en el sistema
     /// Prioriza JAVA_HOME, luego busca en PATH
     pub fn validate_system_java(&self) -> Result<Option<String>, String> {
