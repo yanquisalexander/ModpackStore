@@ -94,7 +94,7 @@ export const JavaStatusBanner: React.FC<JavaStatusBannerProps> = ({ className = 
             <AlertCircle className="h-5 w-5 text-orange-400 flex-shrink-0" />
             <div className="flex-1">
               <h3 className="text-orange-400 font-semibold text-sm">
-                ⚠️ Java no detectado
+                Java no detectado
               </h3>
               <p className="text-orange-300/90 text-sm">
                 {repairStatus || 'Algunas funciones podrían no estar disponibles. Se requiere Java para ejecutar modpacks.'}
