@@ -34,23 +34,13 @@ export interface StageDownloadingModpackFiles {
     total: number;
 }
 
-export interface StageCheckingModpackStatus {
-    type: "CheckingModpackStatus";
-}
-
-export interface StageLightweightValidation {
-    type: "LightweightValidation";
-}
-
 export type InstallationStage = 
     | StageDownloadingFiles 
     | StageExtractingLibraries 
     | StageInstallingForge 
     | StageValidatingAssets
     | StageDownloadingForgeLibraries
-    | StageDownloadingModpackFiles
-    | StageCheckingModpackStatus
-    | StageLightweightValidation;
+    | StageDownloadingModpackFiles;
 
 // Event payload type that includes stage information
 export interface StageEventPayload {

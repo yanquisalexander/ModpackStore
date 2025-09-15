@@ -121,51 +121,35 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
         }
     }
 
-    // Handle modpack instances with optimized logic
+    // Handle modpack instances with special logic
     if let (Some(modpack_id), Some(version_id)) = (&instance.modpackId, &instance.modpackVersionId)
     {
         let modpack_id = modpack_id.clone(); // Extract modpack_id to avoid immutable borrow conflict
-        
-        // Check if modpack is up-to-date first
-        let is_up_to_date = check_modpack_is_up_to_date(&instance, &modpack_id).await;
-        
-        if !is_up_to_date {
-            // Modpack is outdated - perform full update process
-            if version_id == "latest" {
-                match handle_latest_version_update(&mut instance, &modpack_id).await {
-                    Ok(updated) => {
-                        if updated {
-                            // Save the updated instance
-                            instance
-                                .save()
-                                .map_err(|e| format!("Failed to save updated instance: {}", e))?;
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!("Warning: Failed to check for latest version updates: {}", e);
-                        // Continue with launch even if update check fails
+                                             // Check if version is "latest" and handle updates
+        if version_id == "latest" {
+            match handle_latest_version_update(&mut instance, &modpack_id).await {
+                Ok(updated) => {
+                    if updated {
+                        // Save the updated instance
+                        instance
+                            .save()
+                            .map_err(|e| format!("Failed to save updated instance: {}", e))?;
                     }
                 }
-            }
-            
-            // Perform full asset validation after update
-            match validate_modpack_assets_for_launch(&instance).await {
-                Ok(_) => {
-                    // Assets are valid, proceed with launch
-                }
                 Err(e) => {
-                    return Err(format!("Failed to validate modpack assets: {}", e));
+                    eprintln!("Warning: Failed to check for latest version updates: {}", e);
+                    // Continue with launch even if update check fails
                 }
             }
-        } else {
-            // Modpack is up-to-date - perform lightweight validation only
-            match perform_lightweight_asset_validation(&instance).await {
-                Ok(_) => {
-                    // Quick validation passed, proceed with launch
-                }
-                Err(e) => {
-                    return Err(format!("Failed to perform lightweight validation: {}", e));
-                }
+        }
+
+        // Validate modpack assets before launch
+        match validate_modpack_assets_for_launch(&instance).await {
+            Ok(_) => {
+                // Assets are valid, proceed with launch
+            }
+            Err(e) => {
+                return Err(format!("Failed to validate modpack assets: {}", e));
             }
         }
     }
@@ -175,110 +159,6 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
         .launch()
         .map_err(|e| format!("Failed to launch instance: {}", e))?;
 
-    Ok(())
-}
-
-/// Checks if a modpack instance is up-to-date without downloading
-/// Returns true if the modpack is current, false if it needs updating
-async fn check_modpack_is_up_to_date(
-    instance: &MinecraftInstance, 
-    modpack_id: &str
-) -> bool {
-    let version_id = match &instance.modpackVersionId {
-        Some(id) => id,
-        None => return false, // No version means not up-to-date
-    };
-
-    // If it's not "latest", assume it's up-to-date (specific version)
-    if version_id != "latest" {
-        return true;
-    }
-
-    // Emit status update for checking
-    if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
-        if let Some(app_handle) = guard.as_ref() {
-            let _ = app_handle.emit(
-                &format!("instance-{}", instance.instanceId),
-                serde_json::json!({
-                    "id": instance.instanceId,
-                    "status": "preparing",
-                    "message": "Verificando estado del modpack...",
-                    "stage": {
-                        "type": "CheckingModpackStatus"
-                    }
-                }),
-            );
-        }
-    }
-
-    // Get the actual latest version ID without downloading
-    match fetch_latest_version(modpack_id).await {
-        Ok(latest_version_id) => {
-            // Check if we have a stored last known version
-            if let Some(last_known_version) = get_instance_last_known_version(instance) {
-                last_known_version == latest_version_id
-            } else {
-                // No last known version means needs update
-                false
-            }
-        }
-        Err(e) => {
-            eprintln!("Warning: Failed to check latest version: {}", e);
-            // If we can't check, assume up-to-date to avoid blocking launch
-            true
-        }
-    }
-}
-
-/// Performs lightweight asset validation for up-to-date modpacks
-/// Only checks critical files existence without full validation
-async fn perform_lightweight_asset_validation(
-    instance: &MinecraftInstance
-) -> Result<(), String> {
-    // Emit status update using the correct event pattern
-    if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
-        if let Some(app_handle) = guard.as_ref() {
-            let _ = app_handle.emit(
-                "instance-downloading-assets",
-                serde_json::json!({
-                    "id": instance.instanceId,
-                    "message": "Validando archivos...",
-                    "stage": {
-                        "type": "LightweightValidation"
-                    }
-                }),
-            );
-        }
-    }
-
-    // Perform quick validation - check for essential files existence
-    let instance_dir = PathBuf::from(&instance.path);
-    
-    // Check if basic minecraft files exist
-    let minecraft_dir = instance_dir.join(".minecraft");
-    if !minecraft_dir.exists() {
-        return Err("Minecraft directory missing".to_string());
-    }
-
-    // Check for mods directory (for modpack instances)
-    let mods_dir = minecraft_dir.join("mods");
-    if !mods_dir.exists() {
-        return Err("Mods directory missing".to_string());
-    }
-
-    // Quick check - ensure mods directory is not empty
-    match std::fs::read_dir(&mods_dir) {
-        Ok(entries) => {
-            if entries.count() == 0 {
-                return Err("No mods found in modpack".to_string());
-            }
-        }
-        Err(_) => {
-            return Err("Cannot read mods directory".to_string());
-        }
-    }
-
-    // If we get here, basic validation passed
     Ok(())
 }
 
