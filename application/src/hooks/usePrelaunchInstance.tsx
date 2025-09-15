@@ -148,30 +148,6 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }, 5000);
     }, [getRandomMessage]);
 
-    const handlePlayButtonClick = useCallback(async () => {
-        if (loadingStatus.isLoading || isPlaying || isInstanceBootstraping) return;
-
-        const { instance } = prelaunchState;
-        if (!instance) {
-            playSound('ERROR_NOTIFICATION');
-            toast.error("Error al iniciar la instancia", { description: "No se encontró la información de la instancia." });
-            return;
-        }
-        if (!instance.accountUuid) {
-            setShowAccountSelection(true);
-            return;
-        }
-
-        const accountExists = await invoke<boolean>("ensure_account_exists", { uuid: instance.accountUuid });
-        if (!accountExists) {
-            playSound('ERROR_NOTIFICATION');
-            toast.error("Cuenta no encontrada", { description: "La cuenta asociada no existe. Revísala en la configuración." });
-            return;
-        }
-
-        await launchInstance();
-    }, [instanceId, loadingStatus.isLoading, isPlaying, isInstanceBootstraping, prelaunchState.instance, launchInstance]);
-
     // Enhanced function to clear loading state and prevent old messages from showing
     const clearLoadingState = useCallback(() => {
         // Clear any existing intervals
@@ -212,25 +188,6 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }
     }, []);
 
-    const handleAccountSelected = async (accountUuid: string) => {
-        // The AccountSelectionDialog will handle setting the account for the instance
-        // After account is set, we need to refresh instance data and then launch
-        setShowAccountSelection(false);
-        
-        // Refresh instance data to get the updated account info
-        const updatedInstance = await fetchInstanceData();
-        
-        // Check if the account was successfully assigned and launch
-        if (updatedInstance && updatedInstance.accountUuid) {
-            // Re-trigger the play action with updated instance data
-            setTimeout(() => {
-                // We can't call handlePlayButtonClick directly as it would cause recursion
-                // Instead, we'll trigger the launch directly
-                launchInstance();
-            }, 100);
-        }
-    };
-
     const launchInstance = async () => {
         if (loadingStatus.isLoading || isPlaying || isInstanceBootstraping) return;
 
@@ -269,6 +226,49 @@ export const usePrelaunchInstance = (instanceId: string) => {
             playSound('ERROR_NOTIFICATION');
             toast.error("Error al iniciar la instancia", { description: "Ocurrió un problema al intentar lanzar Minecraft." });
             setLoadingStatus(DEFAULT_LOADING_STATE);
+        }
+    };
+
+    const handlePlayButtonClick = useCallback(async () => {
+        if (loadingStatus.isLoading || isPlaying || isInstanceBootstraping) return;
+
+        const { instance } = prelaunchState;
+        if (!instance) {
+            playSound('ERROR_NOTIFICATION');
+            toast.error("Error al iniciar la instancia", { description: "No se encontró la información de la instancia." });
+            return;
+        }
+        if (!instance.accountUuid) {
+            setShowAccountSelection(true);
+            return;
+        }
+
+        const accountExists = await invoke<boolean>("ensure_account_exists", { uuid: instance.accountUuid });
+        if (!accountExists) {
+            playSound('ERROR_NOTIFICATION');
+            toast.error("Cuenta no encontrada", { description: "La cuenta asociada no existe. Revísala en la configuración." });
+            return;
+        }
+
+        await launchInstance();
+    }, [instanceId, loadingStatus.isLoading, isPlaying, isInstanceBootstraping, prelaunchState.instance]);
+
+    const handleAccountSelected = async () => {
+        // The AccountSelectionDialog will handle setting the account for the instance
+        // After account is set, we need to refresh instance data and then launch
+        setShowAccountSelection(false);
+
+        // Refresh instance data to get the updated account info
+        const updatedInstance = await fetchInstanceData();
+
+        // Check if the account was successfully assigned and launch
+        if (updatedInstance && updatedInstance.accountUuid) {
+            // Re-trigger the play action with updated instance data
+            setTimeout(() => {
+                // We can't call handlePlayButtonClick directly as it would cause recursion
+                // Instead, we'll trigger the launch directly
+                launchInstance();
+            }, 100);
         }
     };
 
