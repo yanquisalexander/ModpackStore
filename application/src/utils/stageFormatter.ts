@@ -30,6 +30,12 @@ export function formatStageMessage(stage: InstallationStage | undefined, fallbac
             const modpackFilesPercentage = stage.total > 0 ? Number(((stage.current * 100) / stage.total).toFixed(1)) : 0;
             return `Descargando archivos del modpack: ${stage.current}/${stage.total} (${modpackFilesPercentage.toFixed(1)}%)`;
 
+        case "CheckingModpackStatus":
+            return "Verificando estado del modpack...";
+
+        case "LightweightValidation":
+            return "Validando archivos...";
+
         default:
             return fallbackMessage;
     }
@@ -46,7 +52,9 @@ export function getStageProgress(stage: InstallationStage | undefined): number |
         case "DownloadingModpackFiles":
             return stage.total > 0 ? Number(((stage.current / stage.total) * 100).toFixed(1)) : 0;
         case "InstallingForge":
-            return undefined; // No progress for Forge installation
+        case "CheckingModpackStatus":
+        case "LightweightValidation":
+            return undefined; // No progress for these stages
         default:
             return undefined;
     }
