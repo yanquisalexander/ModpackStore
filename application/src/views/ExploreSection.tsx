@@ -11,6 +11,8 @@ import { trackEvent } from "@aptabase/web"
 import { trackSectionView } from "@/lib/analytics"
 import { motion } from "motion/react"
 import { FeaturedSlideshow } from "@/components/FeaturedSlideshow"
+import { JavaStatusBanner } from "@/components/JavaStatusBanner"
+import { useOnboarding } from "@/hooks/useOnboarding"
 
 export const ExploreSection = () => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
@@ -19,6 +21,10 @@ export const ExploreSection = () => {
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState("")
     const [debouncedSearch] = useDebounce(search, 300)
+    const { onboardingStatus } = useOnboarding()
+
+    // Check if user has completed onboarding (not first run)
+    const hasCompletedOnboarding = onboardingStatus?.first_run_at !== null
 
     useEffect(() => {
         setTitleBarState({
@@ -114,6 +120,10 @@ export const ExploreSection = () => {
             variants={fadeInVariants}
             className="mx-auto max-w-7xl px-4 pt-4 pb-10 overflow-y-auto"
         >
+            {/* Java Status Banner for existing users */}
+            {hasCompletedOnboarding && (
+                <JavaStatusBanner />
+            )}
 
             {/* Featured slideshow */}
             <FeaturedSlideshow className="mb-8" heightClass="h-[40vh] md:h-[50vh] lg:h-[60vh]" />
