@@ -580,6 +580,13 @@ impl InstanceBootstrap {
                 .arg(option)
                 .current_dir(minecraft_dir);
 
+            // En Windows, usar CREATE_NO_WINDOW para evitar que aparezca una ventana de CMD
+            #[cfg(target_os = "windows")]
+            {
+                use std::os::windows::process::CommandExt;
+                install_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            }
+
             // Ejecutar instalador con la opción actual
             log::info!(
                 "[Instance: {}] Executing Forge installer with option '{}': {:?}",

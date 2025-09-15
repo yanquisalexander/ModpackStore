@@ -564,10 +564,17 @@ impl JavaManager {
             "java"
         };
 
-        match std::process::Command::new(java_command)
-            .arg("-version")
-            .output()
+        let mut command = std::process::Command::new(java_command);
+        command.arg("-version");
+
+        // En Windows, usar CREATE_NO_WINDOW para evitar que aparezca una ventana de CMD
+        #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+
+        match command.output() {
             Ok(output) => {
                 if output.status.success() {
                     let version_output = String::from_utf8_lossy(&output.stderr);
@@ -595,10 +602,17 @@ impl JavaManager {
 
     /// Obtiene la versión de Java ejecutando java -version
     pub fn get_java_version(&self, java_exe: &std::path::Path) -> Result<String, String> {
-        match std::process::Command::new(java_exe)
-            .arg("-version")
-            .output()
+        let mut command = std::process::Command::new(java_exe);
+        command.arg("-version");
+
+        // En Windows, usar CREATE_NO_WINDOW para evitar que aparezca una ventana de CMD
+        #[cfg(target_os = "windows")]
         {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        }
+
+        match command.output() {
             Ok(output) => {
                 if output.status.success() {
                     let version_output = String::from_utf8_lossy(&output.stderr);
