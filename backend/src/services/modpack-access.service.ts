@@ -14,12 +14,7 @@ export class ModpackAccessService {
         reason?: string;
         requiredChannels?: string[];
     }> {
-        // Check basic visibility requirements
-        if (modpack.visibility === 'public' && modpack.acquisitionMethod === AcquisitionMethod.FREE) {
-            return { canAccess: true };
-        }
-
-        // User must be authenticated for protected content
+        // User must be authenticated for any acquisition-protected content
         if (!user) {
             return {
                 canAccess: false,
@@ -38,6 +33,9 @@ export class ModpackAccessService {
         let reason = 'Access not acquired';
         
         switch (modpack.acquisitionMethod) {
+            case AcquisitionMethod.FREE:
+                reason = 'Free modpack - click to add to your library';
+                break;
             case AcquisitionMethod.PASSWORD:
                 reason = 'Password required';
                 break;
