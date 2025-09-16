@@ -123,14 +123,6 @@ fn download_missing_assets(
         let hash_prefix = &hash[0..2];
         let asset_file = assets_objects_dir.join(hash_prefix).join(hash);
 
-        // Report validation progress
-        let stage = Stage::ValidatingAssets {
-            current: processed_assets,
-            total: total_assets,
-        };
-        
-        emit_status_with_stage(instance, "instance-downloading-assets", &stage);
-
         if !asset_file.exists() {
             // Prepare download info for batch processing
             let asset_url = format!(
