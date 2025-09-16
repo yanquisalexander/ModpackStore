@@ -143,8 +143,8 @@ export const InstallButton = ({
     console.log('Access state:', { hasAccess, requiresAcquisition, acquisitionMethodState });
 
     const handleInstallClick = () => {
-        // If requires acquisition and user doesn't have access
-        if (requiresAcquisition && !hasAccess) {
+        // If user doesn't have access, open acquisition dialog
+        if (!hasAccess) {
             // Check if user is authenticated first
             if (!isAuthenticated) {
                 setIsAuthAlertOpen(true);
@@ -184,7 +184,7 @@ export const InstallButton = ({
 
     const handleConfirmUpdate = async (instanceId: string) => {
         // Check access before updating
-        if (requiresAcquisition && !hasAccess) {
+        if (!hasAccess) {
             setPendingAction({
                 type: 'update',
                 instanceId
@@ -216,7 +216,7 @@ export const InstallButton = ({
 
     const handleConfirmCreate = async (instanceName: string) => {
         // Check access before creating
-        if (requiresAcquisition && !hasAccess) {
+        if (!hasAccess) {
             setPendingAction({
                 type: 'create',
                 instanceName
@@ -279,15 +279,9 @@ export const InstallButton = ({
         if (isCheckingAccess) return "Verificando acceso...";
         if (isCurrentlyInstalling) return "Instalando...";
 
-        // If user doesn't have access to a protected modpack, show "Adquirir"
-        if (requiresAcquisition && !hasAccess) {
-
-            switch (acquisitionMethodState) {
-                case 'paid': return `Comprar ($${priceState})`;
-                case 'password': return "Acceder";
-                case 'twitch_sub': return "Verificar Suscripción";
-                default: return "Obtener Acceso";
-            }
+        // If user doesn't have access, show "Obtener Acceso" regardless of acquisition method
+        if (!hasAccess) {
+            return "Obtener";
         }
 
         // If user has access or no acquisition required, show "Instalar"
