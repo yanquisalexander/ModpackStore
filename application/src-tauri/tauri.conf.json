@@ -10,7 +10,7 @@
     "createUpdaterArtifacts": true,
     "active": true,
     "targets": [
-      "nsis",
+      "msi",
       "appimage",
       "rpm",
       "deb"
@@ -26,6 +26,11 @@
       "nsis": {
         "installMode": "currentUser",
         "sidebarImage": "./resources/installer_bg.bmp"
+      },
+      "wix": {
+        "fragmentPaths": [
+          "./wix/localapp_fragment.wxs"
+        ]
       }
     },
     "linux": {
@@ -36,7 +41,7 @@
   },
   "productName": "Modpack Store",
   "mainBinaryName": "ModpackStore",
-  "version": "0.1.217",
+  "version": "0.1.218",
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {
     "updater": {

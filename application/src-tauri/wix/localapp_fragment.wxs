@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Fragment xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <!-- Instalación per-user -->
+  <Property Id="ALLUSERS" Value="2" />
+  <Property Id="MSIINSTALLPERUSER" Value="1" />
+
+  <!-- Redefinir directorio de instalación -->
+  <DirectoryRef Id="TARGETDIR">
+    <Directory Id="LocalAppDataFolder">
+      <Directory Id="INSTALLFOLDER" Name="ModpackStore" />
+    </Directory>
+  </DirectoryRef>
+</Fragment>
