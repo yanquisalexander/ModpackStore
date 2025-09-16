@@ -10,7 +10,7 @@
     "createUpdaterArtifacts": true,
     "active": true,
     "targets": [
-      "msi",
+      "nsis",
       "appimage",
       "rpm",
       "deb"
