@@ -30,14 +30,14 @@
       "wix": {
         "fragmentPaths": [
           "./wix/localapp_fragment.wxs"
+        ],
+        "componentRefs": [
+          "InstallFolderComponent"
         ]
       }
     },
     "linux": {
       "appimage": {
-        "files": {
-          "app": "dist/**/*"
-        },
         "bundleMediaFramework": true
       }
     }
