@@ -14,8 +14,23 @@ export class ModpackAccessService {
         reason?: string;
         requiredChannels?: string[];
     }> {
-        // Check basic visibility requirements
+        // Check basic visibility requirements for free modpacks
         if (modpack.visibility === 'public' && modpack.acquisitionMethod === AcquisitionMethod.FREE) {
+            // For authenticated users, ensure they have an acquisition record for the free modpack
+            if (user) {
+                try {
+                    // Check if user already has an acquisition
+                    const existingAcquisition = await AcquisitionService.hasActiveAccess(user.id, modpack.id);
+                    
+                    if (!existingAcquisition.hasAccess) {
+                        // Create acquisition record for free modpack automatically
+                        await AcquisitionService.acquireWithPurchase(user, modpack);
+                    }
+                } catch (error) {
+                    // Log error but don't prevent access to free modpack
+                    console.error('Error auto-creating acquisition for free modpack:', error);
+                }
+            }
             return { canAccess: true };
         }
 
