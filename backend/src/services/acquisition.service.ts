@@ -89,8 +89,14 @@ export class AcquisitionService {
     static async acquireWithPurchase(user: User, modpack: Modpack, transactionId?: string): Promise<ModpackAcquisition> {
         // Check if acquisition already exists
         const existingAcquisition = await ModpackAcquisition.findUserAcquisition(user.id, modpack.id);
-        if (existingAcquisition && existingAcquisition.isActive()) {
-            return existingAcquisition;
+        if (existingAcquisition) {
+            if (existingAcquisition.isActive()) {
+                return existingAcquisition;
+            }
+            // Reactivate revoked or suspended acquisition
+            existingAcquisition.activate();
+            existingAcquisition.transactionId = transactionId || null;
+            return await existingAcquisition.save();
         }
 
         // For paid modpacks, transaction ID is required
@@ -133,14 +139,12 @@ export class AcquisitionService {
         // Check if acquisition already exists
         const existingAcquisition = await ModpackAcquisition.findUserAcquisition(user.id, modpack.id);
         if (existingAcquisition) {
-            if (existingAcquisition.isSuspended()) {
-                // Reactivate suspended acquisition
-                existingAcquisition.activate();
-                return await existingAcquisition.save();
-            }
             if (existingAcquisition.isActive()) {
                 return existingAcquisition;
             }
+            // Reactivate revoked or suspended acquisition
+            existingAcquisition.activate();
+            return await existingAcquisition.save();
         }
 
         // Create new acquisition
