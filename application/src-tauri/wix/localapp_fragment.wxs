@@ -1,13 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Fragment xmlns="http://schemas.microsoft.com/wix/2006/wi">
-  <!-- Instalación per-user -->
-  <Property Id="ALLUSERS" Value="2" />
-  <Property Id="MSIINSTALLPERUSER" Value="1" />
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <!-- Instalación solo para el usuario actual -->
+    <Property Id="ALLUSERS" Value="" />
+    <Property Id="MSIINSTALLPERUSER" Value="1" />
 
-  <!-- Redefinir directorio de instalación -->
-  <DirectoryRef Id="TARGETDIR">
-    <Directory Id="LocalAppDataFolder">
-      <Directory Id="INSTALLFOLDER" Name="ModpackStore" />
-    </Directory>
-  </DirectoryRef>
-</Fragment>
+    <!-- Carpeta de instalación dentro de INSTALLFOLDER generado por Tauri -->
+    <DirectoryRef Id="INSTALLFOLDER">
+      <Component Id="InstallFolderComponent" Guid="1953f72d-aeaf-4b96-8f1b-d9c50b41068d">
+        <!-- Crea la carpeta si no existe -->
+        <CreateFolder />
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>

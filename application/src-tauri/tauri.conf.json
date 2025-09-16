@@ -35,6 +35,9 @@
     },
     "linux": {
       "appimage": {
+        "files": {
+          "app": "dist/**/*"
+        },
         "bundleMediaFramework": true
       }
     }
