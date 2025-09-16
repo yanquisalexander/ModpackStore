@@ -27,14 +27,7 @@
         "installMode": "currentUser",
         "sidebarImage": "./resources/installer_bg.bmp"
       },
-      "wix": {
-        "fragmentPaths": [
-          "localapp_fragment.wxs"
-        ],
-        "componentRefs": [
-          "InstallFolderComponent"
-        ]
-      }
+      "wix": {}
     },
     "linux": {
       "appimage": {
