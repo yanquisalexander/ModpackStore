@@ -591,12 +591,10 @@ export class ExploreModpacksController {
             const result = await AcquisitionService.getUserAcquisitions(user.id, page, limit);
 
             return c.json({
-                data: result.acquisitions,
-                meta: {
-                    page: result.page,
-                    totalPages: result.totalPages,
-                    total: result.total
-                }
+                acquisitions: result.acquisitions,
+                total: result.total,
+                page: result.page,
+                totalPages: result.totalPages
             }, 200);
 
         } catch (error: any) {
