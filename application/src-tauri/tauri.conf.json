@@ -29,7 +29,7 @@
       },
       "wix": {
         "fragmentPaths": [
-          "wix/localapp_fragment.wxs"
+          "localapp_fragment.wxs"
         ],
         "componentRefs": [
           "InstallFolderComponent"
