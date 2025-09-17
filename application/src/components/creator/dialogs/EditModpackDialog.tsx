@@ -12,6 +12,8 @@ import { UploadCloud } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { CategorySelector } from '@/components/CategorySelector';
+import { ModpackCategoryDisplay } from '@/components/ModpackCategoryDisplay';
 
 // --- Props del componente principal ---
 interface Props {
@@ -97,6 +99,10 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
     // NUEVO: Estado para validar el JSON
     const [isJsonValid, setIsJsonValid] = useState(true);
 
+    // Estado para categorías
+    const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [primaryCategoryId, setPrimaryCategoryId] = useState<string>('');
+
     // Efecto para popular el formulario cuando el modpack cambia
     useEffect(() => {
         if (modpack) {
@@ -107,6 +113,18 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             // Resetear los archivos al cambiar de modpack
             setIconFile(null);
             setBannerFile(null);
+            
+            // Inicializar categorías
+            if (modpack.categories) {
+                const categoryIds = modpack.categories.map(mc => mc.categoryId);
+                const primaryCategory = modpack.categories.find(mc => mc.isPrimary);
+                setSelectedCategories(categoryIds);
+                setPrimaryCategoryId(primaryCategory?.categoryId || '');
+            } else {
+                setSelectedCategories([]);
+                setPrimaryCategoryId('');
+            }
+            
             // Inicializar el JSON del prelaunchAppearance
             try {
                 const prelaunchData = modpack.prelaunchAppearance;
@@ -184,6 +202,12 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             }
             if (bannerFile) {
                 formData.append('banner', bannerFile);
+            }
+
+            // Añadir categorías
+            formData.append('categories', JSON.stringify(selectedCategories));
+            if (primaryCategoryId) {
+                formData.append('primaryCategoryId', primaryCategoryId);
             }
 
             const res = await fetch(`${API_ENDPOINT}/creators/publishers/${modpack.publisherId}/modpacks/${modpack.id}`, {
@@ -270,6 +294,23 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                         <label className="text-sm text-zinc-300 block mb-1">Descripción completa</label>
                         <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={5} />
                     </div>
+
+                    {/* Current Categories Display */}
+                    {modpack?.categories && modpack.categories.length > 0 && (
+                        <ModpackCategoryDisplay
+                            categories={modpack.categories}
+                            className="space-y-2"
+                        />
+                    )}
+
+                    {/* Category Selection */}
+                    <CategorySelector
+                        selectedCategories={selectedCategories}
+                        primaryCategoryId={primaryCategoryId}
+                        onCategoriesChange={setSelectedCategories}
+                        onPrimaryCategoryChange={setPrimaryCategoryId}
+                        disabled={loading}
+                    />
 
                     <div>
                         <label className="text-sm text-zinc-300 block mb-2">Configuración Pre-Launch (JSON)</label>

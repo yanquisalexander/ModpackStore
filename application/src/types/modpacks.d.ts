@@ -14,7 +14,27 @@ export interface Modpack {
   updatedAt: string; // Or Date
   createdAt: string; // Or Date
   organizationId?: string; // ID de la organización a la que pertenece el modpack (opcional para UI contextual)
+  categories?: ModpackCategory[]; // Added for category support
   // trailerUrl, password, showUserAsPublisher can be added if needed
+}
+
+export interface ModpackCategory {
+  id: number;
+  modpackId: string;
+  categoryId: string;
+  isPrimary: boolean;
+  category: {
+    id: string;
+    name: string;
+    shortDescription?: string;
+    description?: string;
+    iconUrl?: string;
+    displayOrder: number;
+    isAdminOnly: boolean;
+    isSelectable: boolean;
+    isAutomatic: boolean;
+    createdAt: string;
+  };
 }
 
 export interface NewModpackData {
