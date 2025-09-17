@@ -18,6 +18,18 @@ export class Category extends BaseEntity {
     @Column({ name: "icon_url", type: "text", nullable: true })
     iconUrl?: string;
 
+    @Column({ name: "display_order", type: "integer", default: 0 })
+    displayOrder: number;
+
+    @Column({ name: "is_admin_only", type: "boolean", default: false })
+    isAdminOnly: boolean;
+
+    @Column({ name: "is_selectable", type: "boolean", default: true })
+    isSelectable: boolean;
+
+    @Column({ name: "is_automatic", type: "boolean", default: false })
+    isAutomatic: boolean;
+
     @CreateDateColumn({ name: "created_at" })
     createdAt: Date;
 

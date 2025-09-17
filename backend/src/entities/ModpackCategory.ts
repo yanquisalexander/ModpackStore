@@ -13,6 +13,9 @@ export class ModpackCategory extends BaseEntity {
     @Column({ name: "category_id", type: "uuid" })
     categoryId: string;
 
+    @Column({ name: "is_primary", type: "boolean", default: false })
+    isPrimary: boolean;
+
     // Relations
     @ManyToOne(() => Modpack, modpack => modpack.categories, { onDelete: "CASCADE" })
     @JoinColumn({ name: "modpack_id" })

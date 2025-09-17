@@ -12,7 +12,8 @@ import {
     LucideBuilding2,
     LucideChevronRight,
     LucideWrench,
-    LucideTicket
+    LucideTicket,
+    LucideTag
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { ManageUsersView } from '@/views/admin/ManageUsersView';
@@ -20,6 +21,7 @@ import { AuditLogsView } from '@/views/admin/AuditLogsView';
 import { ManagePublishersView } from '@/views/admin/ManagePublishersView';
 import { MaintenanceView } from '@/views/admin/MaintenanceView';
 import { ManageTicketsView } from "@/views/admin/ManageTicketsView";
+import { ManageCategoriesView } from "@/views/admin/ManageCategoriesView";
 
 interface AdminLayoutProps {
     children?: React.ReactNode;
@@ -38,6 +40,12 @@ const adminNavItems = [
         label: 'Gestión de Publishers',
         icon: LucideBuilding2,
         description: 'Administrar organizaciones y sus miembros'
+    },
+    {
+        path: '/admin/categories',
+        label: 'Gestión de Categorías',
+        icon: LucideTag,
+        description: 'Administrar categorías de modpacks'
     },
     {
         path: '/admin/tickets',
@@ -195,6 +203,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                         <Routes>
                             <Route path="/users" element={<ManageUsersView />} />
                             <Route path="/publishers" element={<ManagePublishersView />} />
+                            <Route path="/categories" element={<ManageCategoriesView />} />
                             <Route path="/tickets" element={<ManageTicketsView />} />
                             <Route path="/audit" element={<AuditLogsView />} />
                             <Route path="/maintenance" element={<MaintenanceView />} />
