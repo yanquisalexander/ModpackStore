@@ -335,6 +335,10 @@ export class Modpack {
                     shortDescription: CategoriesTable.shortDescription,
                     description: CategoriesTable.description,
                     iconUrl: CategoriesTable.iconUrl,
+                    isPrimaryAllowed: CategoriesTable.isPrimaryAllowed,
+                    isPublisherSelectable: CategoriesTable.isPublisherSelectable,
+                    sortOrder: CategoriesTable.sortOrder,
+                    isPrimary: ModpackCategoriesTable.isPrimary,
                 })
                 .from(ModpackCategoriesTable)
                 .innerJoin(CategoriesTable, eq(ModpackCategoriesTable.categoryId, CategoriesTable.id))
@@ -348,15 +352,76 @@ export class Modpack {
         }
     }
 
-    async addCategory(categoryId: string): Promise<void> {
+    async getPrimaryCategory() {
         try {
+            const categories = await this.getCategories();
+            return categories.find(cat => cat.isPrimary) || null;
+        } catch (error) {
+            console.error(`Error getting primary category for modpack ${this.id}:`, error);
+            return null;
+        }
+    }
+
+    async getSecondaryCategories() {
+        try {
+            const categories = await this.getCategories();
+            return categories.filter(cat => !cat.isPrimary);
+        } catch (error) {
+            console.error(`Error getting secondary categories for modpack ${this.id}:`, error);
+            return [];
+        }
+    }
+
+    async addCategory(categoryId: string, isPrimary: boolean = false): Promise<void> {
+        try {
+            // If setting as primary, first remove any existing primary category
+            if (isPrimary) {
+                await db.update(ModpackCategoriesTable)
+                    .set({ isPrimary: false })
+                    .where(
+                        and(
+                            eq(ModpackCategoriesTable.modpackId, this.id),
+                            eq(ModpackCategoriesTable.isPrimary, true)
+                        )
+                    );
+            }
+
             await db.insert(ModpackCategoriesTable).values({
                 modpackId: this.id,
                 categoryId: categoryId,
+                isPrimary: isPrimary,
             });
             this._categories = undefined; // Clear cache
         } catch (error) {
             throw new Error(`Failed to add category: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    async setPrimaryCategory(categoryId: string): Promise<void> {
+        try {
+            // First, remove primary flag from all categories
+            await db.update(ModpackCategoriesTable)
+                .set({ isPrimary: false })
+                .where(eq(ModpackCategoriesTable.modpackId, this.id));
+
+            // Then set the new primary category
+            const updateResult = await db.update(ModpackCategoriesTable)
+                .set({ isPrimary: true })
+                .where(
+                    and(
+                        eq(ModpackCategoriesTable.modpackId, this.id),
+                        eq(ModpackCategoriesTable.categoryId, categoryId)
+                    )
+                );
+
+            // If the category wasn't already assigned, add it as primary
+            if (updateResult.rowCount === 0) {
+                await this.addCategory(categoryId, true);
+            }
+
+            this._categories = undefined; // Clear cache
+        } catch (error) {
+            throw new Error(`Failed to set primary category: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     }
 
