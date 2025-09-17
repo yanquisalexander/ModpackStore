@@ -55,7 +55,15 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                 const response = await CategoryService.getCategoriesForPublishers();
 
                 if (response.success) {
-                    setCategories(response.data);
+                    const sortedCategories = response.data.sort((a, b) => {
+                        const aOrder = a.displayOrder ?? 999;
+                        const bOrder = b.displayOrder ?? 999;
+                        if (aOrder !== bOrder) {
+                            return aOrder - bOrder;
+                        }
+                        return a.name.localeCompare(b.name);
+                    });
+                    setCategories(sortedCategories);
                 }
             } catch (error) {
                 console.error('Error loading categories:', error);

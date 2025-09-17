@@ -33,6 +33,7 @@ type GroupedModpackResult = {
     id: string;
     name: string;
     shortDescription?: string | null;
+    displayOrder?: number;
     modpacks: ModpackForExplore[];
 };
 
@@ -91,6 +92,7 @@ export const getExploreModpacks = async (): Promise<GroupedModpackResult[]> => {
                         acc[uncategorizedId] = {
                             id: uncategorizedId,
                             name: "Uncategorized",
+                            displayOrder: 999,
                             modpacks: [],
                         };
                     }
@@ -105,6 +107,7 @@ export const getExploreModpacks = async (): Promise<GroupedModpackResult[]> => {
                                 id: category.id,
                                 name: category.name,
                                 shortDescription: category.shortDescription,
+                                displayOrder: category.displayOrder,
                                 modpacks: [],
                             };
                         }
@@ -119,7 +122,18 @@ export const getExploreModpacks = async (): Promise<GroupedModpackResult[]> => {
         );
 
         const categoriesArray = Object.values(groupedByCategory);
-        categoriesArray.sort((a, b) => a.name.localeCompare(b.name));
+        categoriesArray.sort((a, b) => {
+            // First try to sort by displayOrder if available
+            const aOrder = a.displayOrder ?? 999;
+            const bOrder = b.displayOrder ?? 999;
+            if (aOrder !== bOrder) {
+                return aOrder - bOrder;
+            }
+            // Fallback to name sorting
+            return a.name.localeCompare(b.name);
+        });
+
+        console.log('Categories with displayOrder:', categoriesArray.map(c => ({ name: c.name, displayOrder: c.displayOrder })));
         categoriesArray.forEach((category) => {
             category.modpacks.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
         });
