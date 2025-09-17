@@ -35,7 +35,7 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks", isOrganizationMemb
 
     const modpacks = await Modpack.find({
         where: filter,
-        relations: ["creatorUser"],
+        relations: ["creatorUser", "categories", "categories.category"],
         select: {
             id: true,
             name: true,
@@ -57,6 +57,17 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks", isOrganizationMemb
                 username: true,
                 email: true,
                 avatarUrl: true,
+            },
+            categories: {
+                id: true,
+                categoryId: true,
+                isPrimary: true,
+                category: {
+                    id: true,
+                    name: true,
+                    iconUrl: true,
+                    shortDescription: true,
+                }
             }
         }
     });
@@ -77,6 +88,8 @@ ModpackCreatorsRoute.patch(
         if (modpack.publisherId !== publisherId) {
             return c.json({ error: "No tienes permiso para editar este modpack" }, 403);
         }
+
+        const previousStatus = modpack.status;
 
         const body = await c.req.parseBody();
 
@@ -154,11 +167,11 @@ ModpackCreatorsRoute.patch(
 
         // Handle category assignments
         const categoryService = new CategoryService();
-        
+
         // Parse categories from body (they come as JSON string from FormData)
         let categories: string[] = [];
         let primaryCategoryId: string | undefined;
-        
+
         if (body.categories) {
             try {
                 categories = JSON.parse(body.categories as string);
@@ -166,26 +179,31 @@ ModpackCreatorsRoute.patch(
                 console.error("Error parsing categories:", error);
             }
         }
-        
+
         if (body.primaryCategoryId) {
             primaryCategoryId = body.primaryCategoryId as string;
         }
+
+        // Si no hay primaryCategoryId pero hay categorías, usar la primera
+        if (!primaryCategoryId && categories.length > 0) {
+            primaryCategoryId = categories[0];
+        }
+
+        console.log("Parsed categories:", categories, "Primary:", primaryCategoryId);
 
         // Update category assignments if provided
         if (body.categories !== undefined) {
             // Remove all existing non-admin categories first
             const existingCategories = await categoryService.getModpackCategories(modpackId);
-            
+
             // Keep admin-only categories (that publishers can't modify)
             const adminCategories: string[] = [];
-            if (existingCategories.success) {
-                for (const modpackCategory of existingCategories.data) {
-                    if (modpackCategory.category.isAdminOnly) {
-                        adminCategories.push(modpackCategory.categoryId);
-                    } else {
-                        // Remove non-admin categories
-                        await categoryService.removeCategoryFromModpack(modpackId, modpackCategory.categoryId);
-                    }
+            for (const modpackCategory of existingCategories) {
+                if (modpackCategory.category.isAdminOnly) {
+                    adminCategories.push(modpackCategory.categoryId);
+                } else {
+                    // Remove non-admin categories
+                    await categoryService.removeCategoryFromModpack(modpackId, modpackCategory.categoryId);
                 }
             }
 
@@ -203,14 +221,13 @@ ModpackCreatorsRoute.patch(
         }
 
         // Validation: Check if modpack is being published without primary category
-        if (modpack.status === 'published') {
+        if (previousStatus !== 'published' && modpack.status === 'published') {
             const modpackCategories = await categoryService.getModpackCategories(modpackId);
-            const hasPrimaryCategory = modpackCategories.success && 
-                modpackCategories.data.some(mc => mc.isPrimary);
-                
+            const hasPrimaryCategory = modpackCategories.some((mc: any) => mc.isPrimary);
+
             if (!hasPrimaryCategory) {
-                return c.json({ 
-                    error: "No se puede publicar un modpack sin una categoría primaria" 
+                return c.json({
+                    error: "No se puede publicar un modpack sin una categoría primaria"
                 }, 400);
             }
         }
@@ -257,11 +274,11 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMem
 
     // Handle category assignments
     const categoryService = new CategoryService();
-    
+
     // Parse categories from body (they come as JSON string from FormData)
     let categories: string[] = [];
     let primaryCategoryId: string | undefined;
-    
+
     if (body.categories) {
         try {
             categories = JSON.parse(body.categories as string);
@@ -269,10 +286,17 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMem
             console.error("Error parsing categories:", error);
         }
     }
-    
+
     if (body.primaryCategoryId) {
         primaryCategoryId = body.primaryCategoryId as string;
     }
+
+    // Si no hay primaryCategoryId pero hay categorías, usar la primera
+    if (!primaryCategoryId && categories.length > 0) {
+        primaryCategoryId = categories[0];
+    }
+
+    console.log("Parsed categories:", categories, "Primary:", primaryCategoryId);
 
     // Assign categories to modpack
     if (categories && categories.length > 0) {
@@ -289,12 +313,11 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMem
     // Validation: Check if modpack is being published without primary category
     if (newModpack.status === 'published') {
         const modpackCategories = await categoryService.getModpackCategories(newModpack.id);
-        const hasPrimaryCategory = modpackCategories.success && 
-            modpackCategories.data.some(mc => mc.isPrimary);
-            
+        const hasPrimaryCategory = modpackCategories.some((mc: any) => mc.isPrimary);
+
         if (!hasPrimaryCategory) {
-            return c.json({ 
-                error: "No se puede publicar un modpack sin una categoría primaria" 
+            return c.json({
+                error: "No se puede publicar un modpack sin una categoría primaria"
             }, 400);
         }
     }

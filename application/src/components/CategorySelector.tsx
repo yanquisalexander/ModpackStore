@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { 
+import {
     Command,
     CommandEmpty,
     CommandGroup,
@@ -14,12 +14,11 @@ import {
     PopoverContent,
     PopoverTrigger,
 } from '@/components/ui/popover';
-import { 
-    LucideCheck, 
-    LucideChevronsUpDown, 
-    LucideX, 
+import {
+    LucideCheck,
+    LucideChevronsUpDown,
+    LucideX,
     LucideTag,
-    LucideShield,
     LucideStar
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -46,6 +45,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
     const [categories, setCategories] = useState<CategoryData[]>([]);
     const [loading, setLoading] = useState(true);
     const [open, setOpen] = useState(false);
+    const [commandValue, setCommandValue] = useState('');
 
     // Load available categories for publishers
     useEffect(() => {
@@ -53,7 +53,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
             try {
                 setLoading(true);
                 const response = await CategoryService.getCategoriesForPublishers();
-                
+
                 if (response.success) {
                     setCategories(response.data);
                 }
@@ -71,12 +71,12 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
     // Handle category selection
     const handleCategorySelect = (categoryId: string) => {
         const isSelected = selectedCategories.includes(categoryId);
-        
+
         if (isSelected) {
             // Remove category
             const newCategories = selectedCategories.filter(id => id !== categoryId);
             onCategoriesChange(newCategories);
-            
+
             // If removing primary category, select another as primary
             if (categoryId === primaryCategoryId && newCategories.length > 0) {
                 onPrimaryCategoryChange(newCategories[0]);
@@ -85,7 +85,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
             // Add category
             const newCategories = [...selectedCategories, categoryId];
             onCategoriesChange(newCategories);
-            
+
             // If no primary category is set, make this the primary
             if (!primaryCategoryId) {
                 onPrimaryCategoryChange(categoryId);
@@ -104,7 +104,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
     const removeCategory = (categoryId: string) => {
         const newCategories = selectedCategories.filter(id => id !== categoryId);
         onCategoriesChange(newCategories);
-        
+
         // If removing primary category, select another as primary
         if (categoryId === primaryCategoryId && newCategories.length > 0) {
             onPrimaryCategoryChange(newCategories[0]);
@@ -137,7 +137,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
             <div className="space-y-2">
                 <Label>Categorías</Label>
                 <p className="text-sm text-muted-foreground">
-                    Selecciona las categorías que mejor describan tu modpack. 
+                    Selecciona las categorías que mejor describan tu modpack.
                     La primera será la categoría principal.
                 </p>
             </div>
@@ -155,7 +155,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                         <div className="flex items-center gap-2">
                             <LucideTag className="h-4 w-4" />
                             <span>
-                                {selectedCategories.length > 0 
+                                {selectedCategories.length > 0
                                     ? `${selectedCategories.length} categoría${selectedCategories.length > 1 ? 's' : ''} seleccionada${selectedCategories.length > 1 ? 's' : ''}`
                                     : "Seleccionar categorías"
                                 }
@@ -165,19 +165,22 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                     </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-full p-0" align="start">
-                    <Command>
+                    <Command value={commandValue} onValueChange={setCommandValue}>
                         <CommandInput placeholder="Buscar categorías..." />
                         <CommandEmpty>No se encontraron categorías.</CommandEmpty>
                         <CommandGroup>
                             {categories.map((category) => {
                                 const isSelected = selectedCategories.includes(category.id);
                                 const isPrimary = category.id === primaryCategoryId;
-                                
+
                                 return (
                                     <CommandItem
                                         key={category.id}
-                                        value={category.name}
-                                        onSelect={() => handleCategorySelect(category.id)}
+                                        value={category.id}
+                                        onSelect={(value) => {
+                                            handleCategorySelect(value);
+                                            setCommandValue('');
+                                        }}
                                         className="flex items-center justify-between"
                                     >
                                         <div className="flex items-center gap-2">
@@ -185,15 +188,15 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                                                 "flex h-4 w-4 items-center justify-center rounded-sm border border-primary",
                                                 isSelected
                                                     ? "bg-primary text-primary-foreground"
-                                                    : "opacity-50"
+                                                    : ""
                                             )}>
                                                 {isSelected && <LucideCheck className="h-3 w-3" />}
                                             </div>
-                                            
+
                                             <div className="flex items-center gap-2">
                                                 {category.iconUrl && (
-                                                    <img 
-                                                        src={category.iconUrl} 
+                                                    <img
+                                                        src={category.iconUrl}
                                                         alt={category.name}
                                                         className="w-4 h-4 rounded"
                                                     />
@@ -204,7 +207,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                                                 )}
                                             </div>
                                         </div>
-                                        
+
                                         {category.shortDescription && (
                                             <span className="text-xs text-muted-foreground max-w-[200px] truncate">
                                                 {category.shortDescription}
@@ -225,7 +228,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                     <div className="flex flex-wrap gap-2">
                         {selectedCategoryObjects.map((category) => {
                             const isPrimary = category.id === primaryCategoryId;
-                            
+
                             return (
                                 <Badge
                                     key={category.id}
@@ -234,8 +237,8 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                                 >
                                     <div className="flex items-center gap-1">
                                         {category.iconUrl && (
-                                            <img 
-                                                src={category.iconUrl} 
+                                            <img
+                                                src={category.iconUrl}
                                                 alt={category.name}
                                                 className="w-3 h-3 rounded"
                                             />
@@ -245,13 +248,13 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                                             <LucideStar className="h-3 w-3" />
                                         )}
                                     </div>
-                                    
+
                                     <div className="flex items-center gap-1">
                                         {!isPrimary && selectedCategories.length > 1 && (
                                             <Button
                                                 size="sm"
                                                 variant="ghost"
-                                                className="h-auto p-0 w-4 h-4 hover:bg-transparent"
+                                                className="p-0 w-4 h-4 hover:bg-transparent"
                                                 onClick={() => handlePrimaryCategoryChange(category.id)}
                                                 disabled={disabled}
                                                 title="Hacer categoría principal"
@@ -259,11 +262,11 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                                                 <LucideStar className="h-3 w-3 opacity-50 hover:opacity-100" />
                                             </Button>
                                         )}
-                                        
+
                                         <Button
                                             size="sm"
                                             variant="ghost"
-                                            className="h-auto p-0 w-4 h-4 hover:bg-transparent"
+                                            className="p-0 w-4 h-4 hover:bg-transparent"
                                             onClick={() => removeCategory(category.id)}
                                             disabled={disabled}
                                         >
@@ -274,7 +277,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
                             );
                         })}
                     </div>
-                    
+
                     {primaryCategoryId && (
                         <p className="text-xs text-muted-foreground">
                             <LucideStar className="h-3 w-3 inline mr-1" />
