@@ -28,6 +28,7 @@ import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import CreateModpackDialog from '@/components/creator/dialogs/CreateModpackDialog';
 import EditModpackDialog from '@/components/creator/dialogs/EditModpackDialog';
+import ImportCurseForgeDialog from '@/components/creator/dialogs/ImportCurseForgeDialog';
 
 // Types
 interface Modpack {
@@ -150,6 +151,9 @@ export const PublisherModpacksView: React.FC = () => {
         modpack: null
     });
 
+    // Dialog state for import CurseForge
+    const [importCurseForgeDialogOpen, setImportCurseForgeDialogOpen] = useState(false);
+
     // Get user role in this publisher
     const publisherMembership = session?.publisherMemberships?.find(
         membership => membership.publisherId === publisherId
@@ -231,6 +235,12 @@ export const PublisherModpacksView: React.FC = () => {
         setEditModpackDialog({ open: false, modpack: null });
     };
 
+    const onImportSuccess = (result: any) => {
+        loadModpacks(); // Refresh the list
+        setImportCurseForgeDialogOpen(false);
+        toast.success(`Modpack "${result.modpack.name}" importado exitosamente`);
+    };
+
     return (
         <>
             {/* AlertDialog for Delete Confirmation */}
@@ -274,6 +284,14 @@ export const PublisherModpacksView: React.FC = () => {
                 />
             )}
 
+            {/* Import CurseForge Dialog */}
+            <ImportCurseForgeDialog
+                isOpen={importCurseForgeDialogOpen}
+                onClose={() => setImportCurseForgeDialogOpen(false)}
+                onSuccess={onImportSuccess}
+                publisherId={publisherId}
+            />
+
             <div className="space-y-6">
                 {/* Header */}
                 <Card>
@@ -284,10 +302,16 @@ export const PublisherModpacksView: React.FC = () => {
                                 <CardTitle>Gestión de Modpacks</CardTitle>
                             </div>
                             {canCreateModpacks && (
-                                <Button onClick={handleCreateModpack}>
-                                    <LucidePlus className="h-4 w-4 mr-2" />
-                                    Crear Nuevo Modpack
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" onClick={() => setImportCurseForgeDialogOpen(true)}>
+                                        <LucidePackage className="h-4 w-4 mr-2" />
+                                        Importar desde CurseForge
+                                    </Button>
+                                    <Button onClick={handleCreateModpack}>
+                                        <LucidePlus className="h-4 w-4 mr-2" />
+                                        Crear Nuevo Modpack
+                                    </Button>
+                                </div>
                             )}
                         </div>
                     </CardHeader>
