@@ -5,6 +5,7 @@ import adminPublishersRouter from '../admin/publishers.route';
 import adminMaintenanceRouter from '../admin/maintenance.route';
 import adminTicketsRouter from '../admin/tickets.route';
 import adminWithdrawalsRouter from '../admin/withdrawals.route';
+import adminCategoriesRouter from '../admin/categories.route';
 import { requireAuth } from '../../middlewares/auth.middleware';
 
 const adminRoutes = new Hono();
@@ -19,5 +20,6 @@ adminRoutes.route('/publishers', adminPublishersRouter);
 adminRoutes.route('/maintenance', adminMaintenanceRouter);
 adminRoutes.route('/tickets', adminTicketsRouter);
 adminRoutes.route('/withdrawals', adminWithdrawalsRouter);
+adminRoutes.route('/categories', adminCategoriesRouter);
 
 export default adminRoutes;

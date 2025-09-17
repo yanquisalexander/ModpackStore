@@ -167,6 +167,9 @@ export const CategoriesTable = pgTable('categories', {
     shortDescription: text('short_description'),
     description: text('description'),
     iconUrl: text('icon_url'),
+    isPrimaryAllowed: boolean('is_primary_allowed').default(true).notNull(), // Si puede ser categoría primaria
+    isPublisherSelectable: boolean('is_publisher_selectable').default(true).notNull(), // Si publishers pueden seleccionarla
+    sortOrder: integer('sort_order').default(0).notNull(), // Orden de aparición
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -175,6 +178,7 @@ export const ModpackCategoriesTable = pgTable('modpack_categories', {
     id: serial('id').primaryKey(),
     modpackId: uuid('modpack_id').references(() => ModpacksTable.id).notNull(),
     categoryId: uuid('category_id').references(() => CategoriesTable.id).notNull(),
+    isPrimary: boolean('is_primary').default(false).notNull(), // True si es categoría primaria
 });
 
 export const WalletsTable = pgTable('wallets', {

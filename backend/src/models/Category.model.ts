@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { client as db } from "@/db/client";
 import { CategoriesTable } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, asc } from "drizzle-orm";
 
 // Tipos inferidos del schema
 type CategoryInsert = typeof CategoriesTable.$inferInsert;
@@ -13,6 +13,9 @@ export const createCategorySchema = z.object({
   shortDescription: z.string().max(200, "Short description too long").optional(),
   description: z.string().max(1000, "Description too long").optional(),
   iconUrl: z.string().url("Invalid icon URL").optional(),
+  isPrimaryAllowed: z.boolean().default(true),
+  isPublisherSelectable: z.boolean().default(true),
+  sortOrder: z.number().int().min(0).default(0),
 });
 
 export const updateCategorySchema = createCategorySchema.partial();
@@ -23,6 +26,9 @@ export class Category {
   shortDescription: string | null;
   description: string | null;
   iconUrl: string | null;
+  isPrimaryAllowed: boolean;
+  isPublisherSelectable: boolean;
+  sortOrder: number;
   readonly createdAt: Date;
 
   constructor(data: CategorySelect) {
@@ -31,6 +37,9 @@ export class Category {
     this.shortDescription = data.shortDescription;
     this.description = data.description;
     this.iconUrl = data.iconUrl;
+    this.isPrimaryAllowed = data.isPrimaryAllowed;
+    this.isPublisherSelectable = data.isPublisherSelectable;
+    this.sortOrder = data.sortOrder;
     this.createdAt = data.createdAt;
   }
 
@@ -88,10 +97,40 @@ export class Category {
   // Static method for finding all categories
   static async findAll(): Promise<Category[]> {
     try {
-      const records = await db.select().from(CategoriesTable);
+      const records = await db.select().from(CategoriesTable).orderBy(asc(CategoriesTable.sortOrder), asc(CategoriesTable.name));
       return records.map(record => new Category(record));
     } catch (error) {
       console.error("Error finding all categories:", error);
+      return [];
+    }
+  }
+
+  // Static method for finding publisher-selectable categories
+  static async findPublisherSelectable(): Promise<Category[]> {
+    try {
+      const records = await db
+        .select()
+        .from(CategoriesTable)
+        .where(eq(CategoriesTable.isPublisherSelectable, true))
+        .orderBy(asc(CategoriesTable.sortOrder), asc(CategoriesTable.name));
+      return records.map(record => new Category(record));
+    } catch (error) {
+      console.error("Error finding publisher-selectable categories:", error);
+      return [];
+    }
+  }
+
+  // Static method for finding categories that can be primary
+  static async findPrimaryAllowed(): Promise<Category[]> {
+    try {
+      const records = await db
+        .select()
+        .from(CategoriesTable)
+        .where(eq(CategoriesTable.isPrimaryAllowed, true))
+        .orderBy(asc(CategoriesTable.sortOrder), asc(CategoriesTable.name));
+      return records.map(record => new Category(record));
+    } catch (error) {
+      console.error("Error finding primary-allowed categories:", error);
       return [];
     }
   }
@@ -129,6 +168,9 @@ export class Category {
       shortDescription: this.shortDescription ?? undefined,
       description: this.description ?? undefined,
       iconUrl: this.iconUrl ?? undefined,
+      isPrimaryAllowed: this.isPrimaryAllowed,
+      isPublisherSelectable: this.isPublisherSelectable,
+      sortOrder: this.sortOrder,
     };
 
     const updatedCategory = await Category.update(this.id, dataToSave);
@@ -137,6 +179,9 @@ export class Category {
     this.shortDescription = updatedCategory.shortDescription;
     this.description = updatedCategory.description;
     this.iconUrl = updatedCategory.iconUrl;
+    this.isPrimaryAllowed = updatedCategory.isPrimaryAllowed;
+    this.isPublisherSelectable = updatedCategory.isPublisherSelectable;
+    this.sortOrder = updatedCategory.sortOrder;
     // Note: `id` and `createdAt` are readonly and should not change.
     return this;
   }
@@ -175,6 +220,9 @@ export class Category {
       shortDescription: this.shortDescription,
       description: this.description,
       iconUrl: this.iconUrl,
+      isPrimaryAllowed: this.isPrimaryAllowed,
+      isPublisherSelectable: this.isPublisherSelectable,
+      sortOrder: this.sortOrder,
       createdAt: this.createdAt,
     };
   }
