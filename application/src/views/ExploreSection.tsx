@@ -118,7 +118,7 @@ export const ExploreSection = () => {
             initial="hidden"
             animate="visible"
             variants={fadeInVariants}
-            className="mx-auto max-w-7xl px-4 pt-4 pb-10 overflow-y-auto"
+            className="mx-auto max-w-7xl px-4 pt-16 pb-10 overflow-y-auto"
         >
             {/* Java Status Banner for existing users */}
             {hasCompletedOnboarding && (
@@ -126,7 +126,7 @@ export const ExploreSection = () => {
             )}
 
             {/* Featured slideshow */}
-            <FeaturedSlideshow className="mb-8" heightClass="h-[40vh] md:h-[50vh] lg:h-[60vh]" />
+            <FeaturedSlideshow className="mb-8" />
 
             <motion.header
                 className="flex flex-col items-center justify-center gap-y-8 mb-16"
