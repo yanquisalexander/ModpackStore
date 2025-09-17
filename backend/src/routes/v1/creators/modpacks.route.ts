@@ -9,6 +9,7 @@ import { ALLOWED_FILE_TYPES, processModpackFileUpload } from "@/services/modpack
 import { CurseForgeImportService } from "@/services/curseforgeImportService";
 import { queue } from "@/services/Queue";
 import { uploadToR2 } from "@/services/r2UploadService";
+import { CategoryService } from "@/services/category.service";
 import { ModpackStatus, ModpackVersionStatus, PublisherMemberRole } from "@/types/enums";
 import { Hono } from "hono";
 import sharp from "sharp";
@@ -151,6 +152,69 @@ ModpackCreatorsRoute.patch(
 
         await modpack.save();
 
+        // Handle category assignments
+        const categoryService = new CategoryService();
+        
+        // Parse categories from body (they come as JSON string from FormData)
+        let categories: string[] = [];
+        let primaryCategoryId: string | undefined;
+        
+        if (body.categories) {
+            try {
+                categories = JSON.parse(body.categories as string);
+            } catch (error) {
+                console.error("Error parsing categories:", error);
+            }
+        }
+        
+        if (body.primaryCategoryId) {
+            primaryCategoryId = body.primaryCategoryId as string;
+        }
+
+        // Update category assignments if provided
+        if (body.categories !== undefined) {
+            // Remove all existing non-admin categories first
+            const existingCategories = await categoryService.getModpackCategories(modpackId);
+            
+            // Keep admin-only categories (that publishers can't modify)
+            const adminCategories: string[] = [];
+            if (existingCategories.success) {
+                for (const modpackCategory of existingCategories.data) {
+                    if (modpackCategory.category.isAdminOnly) {
+                        adminCategories.push(modpackCategory.categoryId);
+                    } else {
+                        // Remove non-admin categories
+                        await categoryService.removeCategoryFromModpack(modpackId, modpackCategory.categoryId);
+                    }
+                }
+            }
+
+            // Assign new categories
+            if (categories && categories.length > 0) {
+                for (const categoryId of categories) {
+                    const isPrimary = categoryId === primaryCategoryId;
+                    try {
+                        await categoryService.assignCategoryToModpack(modpackId, categoryId, isPrimary);
+                    } catch (error) {
+                        console.error(`Error assigning category ${categoryId} to modpack:`, error);
+                    }
+                }
+            }
+        }
+
+        // Validation: Check if modpack is being published without primary category
+        if (modpack.status === 'published') {
+            const modpackCategories = await categoryService.getModpackCategories(modpackId);
+            const hasPrimaryCategory = modpackCategories.success && 
+                modpackCategories.data.some(mc => mc.isPrimary);
+                
+            if (!hasPrimaryCategory) {
+                return c.json({ 
+                    error: "No se puede publicar un modpack sin una categoría primaria" 
+                }, 400);
+            }
+        }
+
         return c.json({ modpack });
     }
 );
@@ -172,6 +236,7 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMem
         "showUserAsPublisher",
         "status",
         "description",
+        "shortDescription",
         "versions",
         "creatorUserId",
     ];
@@ -189,6 +254,50 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMem
     newModpack.creatorUserId = (c.get(USER_CONTEXT_KEY) as User).id;
 
     await newModpack.save();
+
+    // Handle category assignments
+    const categoryService = new CategoryService();
+    
+    // Parse categories from body (they come as JSON string from FormData)
+    let categories: string[] = [];
+    let primaryCategoryId: string | undefined;
+    
+    if (body.categories) {
+        try {
+            categories = JSON.parse(body.categories as string);
+        } catch (error) {
+            console.error("Error parsing categories:", error);
+        }
+    }
+    
+    if (body.primaryCategoryId) {
+        primaryCategoryId = body.primaryCategoryId as string;
+    }
+
+    // Assign categories to modpack
+    if (categories && categories.length > 0) {
+        for (const categoryId of categories) {
+            const isPrimary = categoryId === primaryCategoryId;
+            try {
+                await categoryService.assignCategoryToModpack(newModpack.id, categoryId, isPrimary);
+            } catch (error) {
+                console.error(`Error assigning category ${categoryId} to modpack:`, error);
+            }
+        }
+    }
+
+    // Validation: Check if modpack is being published without primary category
+    if (newModpack.status === 'published') {
+        const modpackCategories = await categoryService.getModpackCategories(newModpack.id);
+        const hasPrimaryCategory = modpackCategories.success && 
+            modpackCategories.data.some(mc => mc.isPrimary);
+            
+        if (!hasPrimaryCategory) {
+            return c.json({ 
+                error: "No se puede publicar un modpack sin una categoría primaria" 
+            }, 400);
+        }
+    }
 
     return c.json({ modpack: newModpack });
 });
@@ -234,7 +343,7 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId", isOrgan
 
     const modpack = await Modpack.findOne({
         where: { id: modpackId, publisherId },
-        relations: ["versions"]
+        relations: ["versions", "categories", "categories.category"]
     });
     if (!modpack) return c.notFound();
 

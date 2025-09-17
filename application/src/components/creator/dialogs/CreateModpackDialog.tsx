@@ -9,6 +9,7 @@ import { Modpack } from '@/types/modpacks';
 import { UploadCloud } from 'lucide-react';
 import { useAuthentication } from "@/stores/AuthContext";
 import { API_ENDPOINT } from "@/consts";
+import { CategorySelector } from '@/components/CategorySelector';
 
 
 
@@ -76,6 +77,10 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
     const [iconFile, setIconFile] = useState<File | null>(null);
     const [bannerFile, setBannerFile] = useState<File | null>(null);
 
+    // Estado para categorías
+    const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+    const [primaryCategoryId, setPrimaryCategoryId] = useState<string>('');
+
     // MEJORA: Auto-generar el slug a partir del nombre
     useEffect(() => {
         const generatedSlug = name
@@ -96,12 +101,26 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
         setVisibility('public');
         setIconFile(null);
         setBannerFile(null);
+        setSelectedCategories([]);
+        setPrimaryCategoryId('');
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!teamId) {
             toast.error('No se ha seleccionado un equipo.');
+            return;
+        }
+
+        // Validar que se haya seleccionado al menos una categoría
+        if (selectedCategories.length === 0) {
+            toast.error('Debes seleccionar al menos una categoría para tu modpack.');
+            return;
+        }
+
+        // Validar que se haya seleccionado una categoría primaria
+        if (!primaryCategoryId) {
+            toast.error('Debes seleccionar una categoría primaria.');
             return;
         }
 
@@ -114,6 +133,8 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
             formData.append('shortDescription', shortDescription);
             formData.append('description', description);
             formData.append('visibility', visibility);
+            formData.append('categories', JSON.stringify(selectedCategories));
+            formData.append('primaryCategoryId', primaryCategoryId);
 
             if (iconFile) formData.append('icon', iconFile);
             if (bannerFile) formData.append('banner', bannerFile);
@@ -193,6 +214,15 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
                         <label className="text-sm text-zinc-300 block mb-1">Descripción completa</label>
                         <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={5} />
                     </div>
+
+                    {/* Category Selection */}
+                    <CategorySelector
+                        selectedCategories={selectedCategories}
+                        primaryCategoryId={primaryCategoryId}
+                        onCategoriesChange={setSelectedCategories}
+                        onPrimaryCategoryChange={setPrimaryCategoryId}
+                        disabled={loading}
+                    />
 
                     <DialogFooter className="pt-4">
                         <div className="flex gap-2 justify-end">
