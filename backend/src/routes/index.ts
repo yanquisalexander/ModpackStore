@@ -3,6 +3,7 @@ import authRoutes from './v1/auth.routes'; // Now a Hono app
 import adminRoutes from './v1/admin.routes'; // Now a Hono app
 // TODO: MIGRATE_ROUTES - These routes need to be migrated to Hono
 import exploreRoutes from './v1/explore.routes';
+import categoriesRoutes from './v1/categories.routes';
 import { CreatorsRoute } from "./v1/creators/index.route";
 import websocketRoutes from './v1/websocket.routes';
 import ticketRoutes from './v1/tickets.routes';
@@ -13,6 +14,7 @@ const rootRouter = new Hono();
 rootRouter.route('/auth', authRoutes);
 rootRouter.route('/admin', adminRoutes); // Mount Hono adminRoutes
 rootRouter.route('/explore', exploreRoutes); // Mount Hono exploreRoutes
+rootRouter.route('/categories', categoriesRoutes);
 rootRouter.route('/creators', CreatorsRoute);
 rootRouter.route('/websocket', websocketRoutes);
 rootRouter.route('/tickets', ticketRoutes);
