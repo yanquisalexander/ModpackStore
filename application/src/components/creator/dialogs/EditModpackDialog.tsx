@@ -14,6 +14,7 @@ import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { CategorySelector } from '@/components/CategorySelector';
 import { ModpackCategoryDisplay } from '@/components/ModpackCategoryDisplay';
+import { ModpackStatusManager } from '@/components/creator/ModpackStatusManager';
 
 // --- Props del componente principal ---
 interface Props {
@@ -103,6 +104,9 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [primaryCategoryId, setPrimaryCategoryId] = useState<string>('');
 
+    // Estado para el status del modpack
+    const [modpackStatus, setModpackStatus] = useState<'draft' | 'published' | 'archived' | 'deleted'>('draft');
+
     // Efecto para popular el formulario cuando el modpack cambia
     useEffect(() => {
         if (modpack) {
@@ -124,6 +128,9 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                 setSelectedCategories([]);
                 setPrimaryCategoryId('');
             }
+
+            // Inicializar status
+            setModpackStatus(modpack.status as any || 'draft');
             
             // Inicializar el JSON del prelaunchAppearance
             try {
@@ -178,6 +185,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             formData.append('shortDescription', shortDescription);
             formData.append('description', description);
             formData.append('visibility', visibility);
+            formData.append('status', modpackStatus);
 
             // Añadir prelaunchAppearance si es válido
             if (!isJsonValid) {
@@ -310,6 +318,14 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                         onCategoriesChange={setSelectedCategories}
                         onPrimaryCategoryChange={setPrimaryCategoryId}
                         disabled={loading}
+                    />
+
+                    {/* Modpack Status Management */}
+                    <ModpackStatusManager
+                        currentStatus={modpackStatus}
+                        onStatusChange={(newStatus) => setModpackStatus(newStatus)}
+                        disabled={loading}
+                        hasPrimaryCategory={!!primaryCategoryId || selectedCategories.length > 0}
                     />
 
                     <div>
