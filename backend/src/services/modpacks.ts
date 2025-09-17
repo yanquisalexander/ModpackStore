@@ -1,5 +1,6 @@
 import { Modpack } from "@/entities/Modpack";
 import { ModpackStatus, ModpackVisibility } from "@/types/enums";
+import { CategoryService } from "./category.service";
 
 
 // Define types for cleaner code, especially for results of queries
@@ -39,6 +40,10 @@ export const getExploreModpacks = async (): Promise<GroupedModpackResult[]> => {
     console.log("[SERVICE_MODPACKS] Fetching modpacks for explore page.");
     try {
         const totalLimit = 100; // Limit for the initial fetch
+
+        // Initialize category service and ensure default categories exist
+        const categoryService = new CategoryService();
+        await categoryService.ensureDefaultCategories();
 
         const fetchedModpacks = await Modpack.find({
             where: {
