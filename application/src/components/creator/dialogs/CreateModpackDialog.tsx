@@ -81,6 +81,11 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [primaryCategoryId, setPrimaryCategoryId] = useState<string>('');
 
+    // Estado para pricing
+    const [acquisitionMethod, setAcquisitionMethod] = useState<'free' | 'paid' | 'password'>('free');
+    const [price, setPrice] = useState('');
+    const [password, setPassword] = useState('');
+
     // MEJORA: Auto-generar el slug a partir del nombre
     useEffect(() => {
         const generatedSlug = name
@@ -103,6 +108,9 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
         setBannerFile(null);
         setSelectedCategories([]);
         setPrimaryCategoryId('');
+        setAcquisitionMethod('free');
+        setPrice('');
+        setPassword('');
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -124,6 +132,20 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
             return;
         }
 
+        // Validar pricing
+        if (acquisitionMethod === 'paid') {
+            const priceNum = parseFloat(price);
+            if (!price || isNaN(priceNum) || priceNum <= 0) {
+                toast.error('Debes ingresar un precio válido mayor a $0 para modpacks de pago.');
+                return;
+            }
+        }
+
+        if (acquisitionMethod === 'password' && !password.trim()) {
+            toast.error('Debes ingresar una contraseña para modpacks protegidos.');
+            return;
+        }
+
         setLoading(true);
         try {
             // CAMBIO: Usar FormData para enviar archivos y datos
@@ -135,6 +157,15 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
             formData.append('visibility', visibility);
             formData.append('categories', JSON.stringify(selectedCategories));
             formData.append('primaryCategoryId', primaryCategoryId);
+            
+            // Add pricing fields
+            formData.append('acquisitionMethod', acquisitionMethod);
+            if (acquisitionMethod === 'paid' && price) {
+                formData.append('price', parseFloat(price).toFixed(2));
+            }
+            if (acquisitionMethod === 'password' && password) {
+                formData.append('password', password);
+            }
 
             if (iconFile) formData.append('icon', iconFile);
             if (bannerFile) formData.append('banner', bannerFile);
@@ -203,6 +234,66 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
                                 <SelectItem value="patreon">Solo Patreon</SelectItem>
                             </SelectContent>
                         </Select>
+                    </div>
+
+                    {/* Pricing Section */}
+                    <div className="space-y-3 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-medium text-zinc-300">Método de Acceso</h3>
+                            <div className="text-xs text-blue-400 bg-blue-900/20 px-2 py-1 rounded">USD</div>
+                        </div>
+                        
+                        <Select value={acquisitionMethod} onValueChange={(v: 'free' | 'paid' | 'password') => setAcquisitionMethod(v)}>
+                            <SelectTrigger className="w-full">
+                                <SelectValue placeholder="Selecciona el método de acceso" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="free">Gratuito</SelectItem>
+                                <SelectItem value="paid">De pago (USD)</SelectItem>
+                                <SelectItem value="password">Protegido con contraseña</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        {acquisitionMethod === 'paid' && (
+                            <div>
+                                <label className="text-sm text-zinc-300 block mb-1">
+                                    Precio (USD) *
+                                </label>
+                                <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0.01"
+                                    value={price}
+                                    onChange={(e) => setPrice(e.target.value)}
+                                    placeholder="0.00"
+                                    required
+                                />
+                                <p className="text-xs text-zinc-400 mt-1">
+                                    ⚠️ Una vez creado como de pago, no se puede cambiar a gratuito. Solo se puede mantener o reducir el precio.
+                                </p>
+                            </div>
+                        )}
+
+                        {acquisitionMethod === 'password' && (
+                            <div>
+                                <label className="text-sm text-zinc-300 block mb-1">
+                                    Contraseña *
+                                </label>
+                                <Input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="Contraseña de acceso"
+                                    required
+                                />
+                            </div>
+                        )}
+
+                        {acquisitionMethod === 'free' && (
+                            <p className="text-xs text-green-400">
+                                ✅ Modpack gratuito - Los usuarios podrán descargarlo sin costo.
+                            </p>
+                        )}
                     </div>
 
                     <div>

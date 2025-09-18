@@ -109,4 +109,43 @@ app.get('/publishers/:publisherId/earnings', requireAuth, PublisherWithdrawalsCo
 app.get('/publishers/:publisherId/withdrawals', requireAuth, PublisherWithdrawalsController.getPublisherWithdrawals);
 app.post('/publishers/:publisherId/withdrawals', requireAuth, PublisherWithdrawalsController.requestWithdrawal);
 
+/**
+ * @openapi
+ * /creators/publishers/{publisherId}/sales:
+ *   get:
+ *     summary: Get publisher sales history
+ *     tags: [Publishers, Sales]
+ *     description: Gets the detailed sales history for a publisher including modpack sales, earnings, and commission breakdown.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: publisherId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Publisher ID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: Sales history retrieved successfully
+ *       403:
+ *         description: Insufficient permissions
+ *       404:
+ *         description: Publisher not found
+ */
+app.get('/publishers/:publisherId/sales', requireAuth, PublisherWithdrawalsController.getSalesHistory);
+
 export { app as WithdrawalsRoute };

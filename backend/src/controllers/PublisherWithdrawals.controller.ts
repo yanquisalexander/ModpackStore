@@ -192,4 +192,60 @@ export class PublisherWithdrawalsController {
             }), statusCode);
         }
     }
+
+    /**
+     * Get publisher sales history
+     */
+    static async getSalesHistory(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
+        const publisherId = c.req.param('publisherId');
+        const user = c.get('user');
+        const page = parseInt(c.req.query('page') || '1');
+        const limit = parseInt(c.req.query('limit') || '20');
+
+        if (!user) {
+            return c.json(serializeError({
+                status: '401',
+                title: 'Unauthorized',
+                detail: 'Authentication required.',
+            }), 401);
+        }
+
+        try {
+            // Check if user has permission to view this publisher's data
+            const membership = await PublisherMember.findOne({
+                where: {
+                    userId: user.id,
+                    publisherId: publisherId
+                }
+            });
+
+            if (!membership) {
+                return c.json(serializeError({
+                    status: '403',
+                    title: 'Forbidden',
+                    detail: 'No access to this publisher.',
+                }), 403);
+            }
+
+            const result = await WithdrawalService.getPublisherSalesHistory(publisherId, page, limit);
+
+            return c.json({
+                data: result.sales,
+                meta: {
+                    page: result.page,
+                    totalPages: result.totalPages,
+                    total: result.total
+                }
+            }, 200);
+
+        } catch (error: any) {
+            console.error('[CONTROLLER_WITHDRAWALS] Error getting sales history:', error);
+            const statusCode = error.statusCode || 500;
+            return c.json(serializeError({
+                status: statusCode.toString(),
+                title: error.name || 'Sales History Error',
+                detail: error.message || "Failed to fetch sales history."
+            }), statusCode);
+        }
+    }
 }

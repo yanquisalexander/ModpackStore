@@ -107,6 +107,10 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
     // Estado para el status del modpack
     const [modpackStatus, setModpackStatus] = useState<'draft' | 'published' | 'archived' | 'deleted'>('draft');
 
+    // Estado para pricing (solo edición de precio, no método)
+    const [currentPrice, setCurrentPrice] = useState('');
+    const [newPrice, setNewPrice] = useState('');
+
     // Efecto para popular el formulario cuando el modpack cambia
     useEffect(() => {
         if (modpack) {
@@ -131,6 +135,11 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
 
             // Inicializar status
             setModpackStatus(modpack.status as any || 'draft');
+            
+            // Inicializar pricing
+            const price = modpack.price ? parseFloat(modpack.price).toFixed(2) : '0.00';
+            setCurrentPrice(price);
+            setNewPrice(price);
             
             // Inicializar el JSON del prelaunchAppearance
             try {
@@ -218,6 +227,33 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                 formData.append('primaryCategoryId', primaryCategoryId);
             }
 
+            // Validar y añadir precio si se cambió
+            if (newPrice !== currentPrice) {
+                const newPriceNum = parseFloat(newPrice);
+                const currentPriceNum = parseFloat(currentPrice);
+                
+                // Validar restricciones de precio
+                if (currentPriceNum === 0 && newPriceNum > 0) {
+                    toast.error('No se puede convertir un modpack gratuito a de pago.');
+                    setLoading(false);
+                    return;
+                }
+                
+                if (newPriceNum > currentPriceNum) {
+                    toast.error(`No se puede aumentar el precio. El precio actual es $${currentPriceNum.toFixed(2)} USD.`);
+                    setLoading(false);
+                    return;
+                }
+                
+                if (newPriceNum < 0) {
+                    toast.error('El precio no puede ser negativo.');
+                    setLoading(false);
+                    return;
+                }
+                
+                formData.append('price', newPriceNum.toFixed(2));
+            }
+
             const res = await fetch(`${API_ENDPOINT}/creators/publishers/${modpack.publisherId}/modpacks/${modpack.id}`, {
                 method: 'PATCH',
                 headers: {
@@ -292,6 +328,64 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                             </SelectContent>
                         </Select>
                     </div>
+
+                    {/* Pricing Section */}
+                    {modpack && (
+                        <div className="space-y-3 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+                            <div className="flex items-center gap-2">
+                                <h3 className="text-sm font-medium text-zinc-300">Gestión de Precios</h3>
+                                <div className="text-xs text-blue-400 bg-blue-900/20 px-2 py-1 rounded">USD</div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                                <div className="text-sm text-zinc-400">
+                                    <span className="font-medium">Método actual:</span> {' '}
+                                    {modpack.isPaid ? (
+                                        <span className="text-green-400">De pago</span>
+                                    ) : modpack.password ? (
+                                        <span className="text-yellow-400">Protegido con contraseña</span>
+                                    ) : (
+                                        <span className="text-blue-400">Gratuito</span>
+                                    )}
+                                </div>
+                                
+                                {modpack.isPaid && (
+                                    <div>
+                                        <label className="text-sm text-zinc-300 block mb-1">
+                                            Precio actual: ${currentPrice} USD
+                                        </label>
+                                        <label className="text-sm text-zinc-300 block mb-1">
+                                            Nuevo precio (USD) - Solo se puede mantener o reducir
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            max={currentPrice}
+                                            value={newPrice}
+                                            onChange={(e) => setNewPrice(e.target.value)}
+                                            placeholder={currentPrice}
+                                        />
+                                        <p className="text-xs text-zinc-400 mt-1">
+                                            ⚠️ Restricciones: No se puede aumentar el precio, solo mantener igual o reducir.
+                                        </p>
+                                    </div>
+                                )}
+                                
+                                {!modpack.isPaid && !modpack.password && (
+                                    <p className="text-xs text-green-400">
+                                        ✅ Modpack gratuito - Los usuarios pueden descargarlo sin costo.
+                                    </p>
+                                )}
+                                
+                                {modpack.password && (
+                                    <p className="text-xs text-yellow-400">
+                                        🔒 Modpack protegido con contraseña - Los precios no se pueden cambiar para modpacks con contraseña.
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
                     <div>
                         <label className="text-sm text-zinc-300 block mb-1">Descripción corta</label>

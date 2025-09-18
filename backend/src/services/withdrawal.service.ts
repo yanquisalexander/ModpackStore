@@ -378,4 +378,55 @@ export class WithdrawalService {
             totalWithdrawn
         };
     }
+
+    /**
+     * Get publisher sales history with detailed breakdown
+     */
+    static async getPublisherSalesHistory(publisherId: string, page: number = 1, limit: number = 20): Promise<{
+        sales: any[];
+        total: number;
+        page: number;
+        totalPages: number;
+    }> {
+        const { UserPurchase } = await import('@/entities/UserPurchase');
+        const { Modpack } = await import('@/entities/Modpack');
+        const { User } = await import('@/entities/User');
+        
+        const offset = (page - 1) * limit;
+
+        // Get purchases for modpacks from this publisher
+        const [purchases, total] = await UserPurchase.findAndCount({
+            where: {
+                modpack: {
+                    publisherId: publisherId
+                }
+            },
+            relations: ['modpack', 'user'],
+            order: {
+                purchasedAt: 'DESC'
+            },
+            skip: offset,
+            take: limit
+        });
+
+        const sales = purchases.map(purchase => ({
+            id: purchase.id,
+            modpackId: purchase.modpackId,
+            modpackName: purchase.modpack.name,
+            modpackSlug: purchase.modpack.slug,
+            buyerUsername: purchase.user.username,
+            pricePaid: parseFloat(purchase.pricePaid),
+            currency: 'USD',
+            purchasedAt: purchase.purchasedAt,
+            commission: parseFloat(purchase.pricePaid) * 0.3, // 30% commission
+            netEarnings: parseFloat(purchase.pricePaid) * 0.7  // 70% to creator
+        }));
+
+        return {
+            sales,
+            total,
+            page,
+            totalPages: Math.ceil(total / limit)
+        };
+    }
 }

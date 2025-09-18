@@ -142,6 +142,32 @@ ModpackCreatorsRoute.patch(
             }
         }
 
+        // --- Pricing validation for edits ---
+        if (body.price !== undefined) {
+            const currentPrice = parseFloat(modpack.price);
+            const newPrice = parseFloat(body.price);
+            
+            // Restriction: Cannot convert free modpack to paid
+            if (!modpack.isPaid && newPrice > 0) {
+                return c.json({
+                    error: "No se puede convertir un modpack gratuito a de pago. Solo se puede establecer precio al momento de creación."
+                }, 400);
+            }
+            
+            // Restriction: Cannot increase price, only same or lower
+            if (modpack.isPaid && newPrice > currentPrice) {
+                return c.json({
+                    error: `No se puede aumentar el precio. El precio actual es $${currentPrice.toFixed(2)} USD. Solo se puede mantener igual o reducir.`
+                }, 400);
+            }
+            
+            // Apply price change
+            if (newPrice >= 0) {
+                modpack.price = newPrice.toFixed(2);
+                modpack.isPaid = newPrice > 0;
+            }
+        }
+
         // --- Campos permitidos para update ---
         const allowedFields: (keyof Modpack)[] = [
             "name",
@@ -256,14 +282,37 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMem
         "shortDescription",
         "versions",
         "creatorUserId",
+        "acquisitionMethod",
+        "isPaid",
+        "price",
     ];
 
     const newModpack = new Modpack()
 
     newModpack.publisherId = publisherId;
 
+    // Handle pricing fields with validation
+    if (body.acquisitionMethod) {
+        newModpack.acquisitionMethod = body.acquisitionMethod;
+        
+        // If setting as paid, validate price
+        if (body.acquisitionMethod === 'paid') {
+            if (body.price && parseFloat(body.price) > 0) {
+                newModpack.isPaid = true;
+                newModpack.price = parseFloat(body.price).toFixed(2);
+            } else {
+                return c.json({
+                    error: "Precio requerido para modpacks de pago. La moneda es USD."
+                }, 400);
+            }
+        } else {
+            newModpack.isPaid = false;
+            newModpack.price = "0.00";
+        }
+    }
+
     for (const field of allowedFields) {
-        if (body[field] !== undefined) {
+        if (body[field] !== undefined && !['acquisitionMethod', 'isPaid', 'price'].includes(field)) {
             (newModpack as any)[field] = body[field];
         }
     }
