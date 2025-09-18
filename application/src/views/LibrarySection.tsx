@@ -165,26 +165,35 @@ export const LibrarySection = () => {
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                    {filteredAcquisitions.map((acquisition) => (
-                        <div key={acquisition.id} className="relative">
-                            <ModpackCard
-                                modpack={acquisition.modpack}
-                                to={`/modpack/${acquisition.modpack.id}`}
-                                className="transition-transform hover:scale-[1.02]"
-                            />
-                            {acquisition.isInstalled && (
-                                <div className="absolute top-2 right-2 z-10">
-                                    <Badge
-                                        variant="secondary"
-                                        className="bg-green-500/90 text-white border-green-400 backdrop-blur-sm"
-                                    >
-                                        <LucideCheck className="h-3 w-3 mr-1" />
-                                        Instalado
-                                    </Badge>
-                                </div>
-                            )}
-                        </div>
-                    ))}
+                    {filteredAcquisitions.map((acquisition) => {
+                        // Ensure the modpack has all required properties for ModpackCard
+                        const modpackForCard = {
+                            ...acquisition.modpack,
+                            // Ensure publisher is available for ModpackCard
+                            publisher: acquisition.modpack.publisher || { publisherName: 'Publisher Desconocido' }
+                        };
+                        
+                        return (
+                            <div key={acquisition.id} className="relative">
+                                <ModpackCard
+                                    modpack={modpackForCard}
+                                    to={`/modpack/${acquisition.modpack.id}`}
+                                    className="transition-transform hover:scale-[1.02]"
+                                />
+                                {acquisition.isInstalled && (
+                                    <div className="absolute top-2 right-2 z-10">
+                                        <Badge
+                                            variant="secondary"
+                                            className="bg-green-500/90 text-white border-green-400 backdrop-blur-sm"
+                                        >
+                                            <LucideCheck className="h-3 w-3 mr-1" />
+                                            Instalado
+                                        </Badge>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
                 </div>
             )}
         </div>
