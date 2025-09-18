@@ -48,10 +48,9 @@ interface PaymentResponse {
     success: boolean;
     isFree?: boolean;
     paymentId?: string;
-    approvalUrl?: string;
-    qrCodeUrl?: string;
     amount?: string;
     currency?: string;
+    message?: string;
 }
 
 export const ModpackAcquisitionDialog = ({
@@ -105,17 +104,12 @@ export const ModpackAcquisitionDialog = ({
     const handlePurchaseAcquisition = async () => {
         setIsProcessing(true);
         try {
-            const currentUrl = window.location.origin;
             const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpack.id}/acquire/purchase`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${sessionTokens?.accessToken}`,
                 },
-                body: JSON.stringify({
-                    returnUrl: `${currentUrl}/modpack/${modpack.id}?payment=success`,
-                    cancelUrl: `${currentUrl}/modpack/${modpack.id}?payment=cancelled`,
-                }),
             });
 
             const data: PaymentResponse = await response.json();
@@ -127,7 +121,7 @@ export const ModpackAcquisitionDialog = ({
                     handleClose();
                 } else {
                     setPaymentData(data);
-                    toast.success('Pago iniciado. Completa el pago para obtener acceso.');
+                    toast.success('Pago iniciado mediante webhook. El acceso se otorgará automáticamente tras la confirmación del pago.');
                 }
             } else {
                 toast.error('Error al procesar la compra');
@@ -231,31 +225,23 @@ export const ModpackAcquisitionDialog = ({
                                 <Separator />
 
                                 <div className="space-y-3">
-                                    <Button 
-                                        onClick={() => window.open(paymentData.approvalUrl, '_blank')}
-                                        className="w-full"
-                                        size="lg"
-                                    >
-                                        <LucideExternalLink className="w-4 h-4 mr-2" />
-                                        Pagar con PayPal
-                                    </Button>
-
-                                    {paymentData.qrCodeUrl && (
-                                        <div className="text-center">
-                                            <div className="text-sm text-muted-foreground mb-2">
-                                                O escanea el código QR:
-                                            </div>
-                                            <img 
-                                                src={paymentData.qrCodeUrl} 
-                                                alt="QR Code for payment"
-                                                className="mx-auto border rounded"
-                                            />
+                                    <div className="text-center p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                                        <LucideCheck className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                                        <div className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                                            Pago Procesado mediante Webhook
                                         </div>
-                                    )}
+                                        <div className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                                            ID de Pago: {paymentData.paymentId}
+                                        </div>
+                                        <div className="text-xs text-blue-600 dark:text-blue-400 mt-2">
+                                            El acceso se otorgará automáticamente cuando PayPal confirme el pago
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div className="text-xs text-muted-foreground text-center">
-                                    Serás redirigido a PayPal para completar el pago de forma segura.
+                                    El pago se procesa automáticamente mediante webhooks de PayPal. 
+                                    No se requiere redirección.
                                 </div>
                             </CardContent>
                         </Card>

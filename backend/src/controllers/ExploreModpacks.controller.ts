@@ -471,7 +471,6 @@ export class ExploreModpacksController {
     static async acquireWithPurchase(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
         const modpackId = c.req.param('modpackId');
         const user = c.get('user');
-        const { returnUrl, cancelUrl } = await c.req.json();
 
         if (!user) {
             return c.json(serializeError({
@@ -479,14 +478,6 @@ export class ExploreModpacksController {
                 title: 'Unauthorized',
                 detail: 'Authentication required.',
             }), 401);
-        }
-
-        if (!returnUrl || !cancelUrl) {
-            return c.json(serializeError({
-                status: '400',
-                title: 'Bad Request',
-                detail: 'returnUrl and cancelUrl are required.',
-            }), 400);
         }
 
         try {
@@ -528,13 +519,11 @@ export class ExploreModpacksController {
                 }, 200);
             }
 
-            // For paid modpacks, create PayPal payment
+            // For paid modpacks, create PayPal payment using webhook-only flow
             const paymentRequest = {
                 amount: modpack.price,
                 currency: 'USD',
                 description: `Purchase of ${modpack.name}`,
-                returnUrl,
-                cancelUrl,
                 modpackId: modpack.id,
                 userId: user.id
             };
@@ -545,10 +534,9 @@ export class ExploreModpacksController {
                 success: true,
                 isFree: false,
                 paymentId: paymentResponse.paymentId,
-                approvalUrl: paymentResponse.approvalUrl,
-                qrCodeUrl: paymentResponse.qrCodeUrl,
                 amount: modpack.price,
-                currency: 'USD'
+                currency: 'USD',
+                message: 'Payment initiated. Awaiting PayPal webhook confirmation.'
             }, 200);
 
         } catch (error: any) {
