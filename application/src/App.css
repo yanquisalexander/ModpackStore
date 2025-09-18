@@ -2,6 +2,7 @@
 @config "../tailwind.config.js";
 @import "@fontsource-variable/jost";
 @import "tw-animate-css";
+@import "driver.js/dist/driver.css";
 
 @custom-variant dark (&:is(.dark *));
 @plugin "@midudev/tailwind-animations";
@@ -317,4 +318,18 @@ body,
   100% {
     background-position: 0% 50%;
   }
+}
+
+.driver-popover.ms-popover {
+  @apply bg-ms-primary text-white font-jost;
+}
+
+.driver-popover.ms-popover .driver-popover-title {
+  @apply font-semibold font-jost !text-xl;
+}
+
+.driver-popover.ms-popover .driver-popover-title,
+.driver-popover.ms-popover .driver-popover-description,
+.driver-popover.ms-popover .driver-popover-progress-text {
+  @apply text-sm font-jost;
 }

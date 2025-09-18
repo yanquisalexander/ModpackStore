@@ -49,6 +49,7 @@ export const HomeMainHeader = () => {
                                     group relative flex items-center gap-2 rounded-full px-3 py-2 text-sm font-medium
                                     transition-all duration-200 ease-in-out
                                     hover:bg-white/10 
+                                    navbar-${section.title.toLowerCase().replace(/\s+/g, '-')}
                                     focus:outline-none 
                                     ${isActive
                                         ? "bg-white text-black shadow-lg"

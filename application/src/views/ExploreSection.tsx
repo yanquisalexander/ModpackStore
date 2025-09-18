@@ -14,14 +14,23 @@ import { FeaturedSlideshow } from "@/components/FeaturedSlideshow"
 import { JavaStatusBanner } from "@/components/JavaStatusBanner"
 import { useOnboarding } from "@/hooks/useOnboarding"
 import { useAuthentication } from "@/stores/AuthContext"
+import { useTour, defaultTourSteps } from '@/tour';
+
 
 const Greeting = ({ username }: { username: string | null }) => {
     const NOW = new Date()
     const GREETING_TEMPLATES = {
-        MAÑANA: "¡Buenos días! {username} 🤗",
-        TARDE: "¡Buenas tardes! {username} 🧉",
-        NOCHE: "¡Buenas noches! {username} 🌙",
-        MADRUGADA: "¿Transochando, {username}? 🌅"
+        MAÑANA: "¡Buenos días! {username}",
+        TARDE: "¡Buenas tardes! {username}",
+        NOCHE: "¡Buenas noches! {username}",
+        MADRUGADA: "¿Transochando, {username}?"
+    }
+
+    const EMOJI_MAP = {
+        MAÑANA: "🤗",
+        TARDE: "🧉",
+        NOCHE: "🌙",
+        MADRUGADA: "🌅"
     }
 
     const itemVariants = {
@@ -33,12 +42,13 @@ const Greeting = ({ username }: { username: string | null }) => {
         }
     }
 
-    const MESSAGE_TO_DISPLAY = GREETING_TEMPLATES[NOW.getHours() < 12 ? "MAÑANA" : NOW.getHours() < 18 ? "TARDE" : NOW.getHours() < 24 ? "NOCHE" : "MADRUGADA"]
-        .replace("{username}", username || "Usuario");
+    const timeKey = NOW.getHours() < 12 ? "MAÑANA" : NOW.getHours() < 18 ? "TARDE" : NOW.getHours() < 24 ? "NOCHE" : "MADRUGADA"
+    const MESSAGE_TO_DISPLAY = GREETING_TEMPLATES[timeKey].replace("{username}", username || "Usuario");
+    const emoji = EMOJI_MAP[timeKey];
 
     return (
         <motion.div
-            className="from-[#bcfe47] to-[#05cc2a] bg-clip-text text-xl pt-4 text-center text-transparent bg-gradient-to-b font-jost font-semibold"
+            className="text-xl pt-4 text-center font-jost font-semibold"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: "easeOut" }}
@@ -53,7 +63,14 @@ const Greeting = ({ username }: { username: string | null }) => {
                     repeatType: "mirror"
                 }}
             >
-                {MESSAGE_TO_DISPLAY}
+                <motion.span
+                    className="from-[#bcfe47] to-[#05cc2a] bg-clip-text text-transparent bg-gradient-to-b"
+                >
+                    {MESSAGE_TO_DISPLAY}
+                </motion.span>
+                <span className="text-white">
+                    &nbsp;{emoji}
+                </span>
             </motion.p>
 
 
@@ -73,8 +90,16 @@ export const ExploreSection = () => {
 
     const { session } = useAuthentication()
 
+    const { hasCompletedTour, startTour } = useTour('explore', defaultTourSteps)
+
     // Check if user has completed onboarding (not first run)
     const hasCompletedOnboarding = onboardingStatus?.first_run_at !== null
+
+    useEffect(() => {
+        if (hasCompletedOnboarding && !hasCompletedTour && !loading && modpackCategories.length > 0) {
+            startTour()
+        }
+    }, [hasCompletedOnboarding, hasCompletedTour, startTour, loading, modpackCategories.length])
 
     useEffect(() => {
         setTitleBarState({
@@ -225,6 +250,7 @@ export const ExploreSection = () => {
                         <input
                             type="text"
                             value={search}
+                            id="search-bar"
                             onChange={(e) => setSearch(e.target.value)}
                             placeholder="Buscar modpacks..."
                             className="w-full h-12 pl-12 pr-16 bg-neutral-800 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200"

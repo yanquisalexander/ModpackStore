@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -11,10 +11,27 @@ import {
 import { LucideTestTube2 } from 'lucide-react';
 
 const NoticeTestBuild = () => {
-    const [_open, setOpen] = useState(true);
+    const [open, setOpen] = useState(false);
+
+    useEffect(() => {
+        // Verificar si ya se mostró el aviso
+        const hasShownNotice = localStorage.getItem('test-build-notice-shown') === 'true';
+        if (!hasShownNotice) {
+            setOpen(true);
+        }
+    }, []);
+
+    const handleClose = () => {
+        setOpen(false);
+        // Guardar que se mostró
+        localStorage.setItem('test-build-notice-shown', 'true');
+    };
+
+    // No renderizar nada si ya se mostró
+    if (!open) return null;
 
     return (
-        <AlertDialog defaultOpen={true} onOpenChange={setOpen}>
+        <AlertDialog open={open} onOpenChange={setOpen}>
             <AlertDialogContent className="max-w-md">
                 <AlertDialogHeader>
                     <div className="flex items-center gap-2 text-amber-600">
@@ -31,7 +48,7 @@ const NoticeTestBuild = () => {
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                    <AlertDialogAction className="bg-amber-600 hover:bg-amber-700">
+                    <AlertDialogAction onClick={handleClose} className="bg-amber-600 hover:bg-amber-700">
                         Entendido
                     </AlertDialogAction>
                 </AlertDialogFooter>
