@@ -10,8 +10,6 @@ interface PayPalPaymentRequest {
     amount: string;
     currency: string;
     description: string;
-    returnUrl: string;
-    cancelUrl: string;
     modpackId: string;
     userId: string;
 }
@@ -43,7 +41,7 @@ export class PaymentService {
     private static readonly PAYPAL_BASE_URL = process.env.PAYPAL_BASE_URL || 'https://api.sandbox.paypal.com';
 
     /**
-     * Create PayPal payment for modpack purchase
+     * Create PayPal payment for modpack purchase using webhook-only flow
      */
     static async createPayment(paymentRequest: PayPalPaymentRequest): Promise<PayPalPaymentResponse> {
         if (!this.PAYPAL_CLIENT_ID || !this.PAYPAL_CLIENT_SECRET) {
@@ -54,15 +52,11 @@ export class PaymentService {
             // Get PayPal access token
             const accessToken = await this.getAccessToken();
 
-            // Create payment payload
+            // Create payment payload for webhook-only flow (no redirects)
             const payment = {
                 intent: 'sale',
                 payer: {
                     payment_method: 'paypal'
-                },
-                redirect_urls: {
-                    return_url: paymentRequest.returnUrl,
-                    cancel_url: paymentRequest.cancelUrl
                 },
                 transactions: [{
                     amount: {
@@ -93,16 +87,12 @@ export class PaymentService {
             }
 
             const paymentData = await response.json();
-            const approvalUrl = paymentData.links.find((link: any) => link.rel === 'approval_url')?.href;
-
-            if (!approvalUrl) {
-                throw new APIError(500, 'PayPal approval URL not found');
-            }
-
+            
+            // For webhook-only flow, we don't need approval URL, but provide payment ID for tracking
             return {
                 paymentId: paymentData.id,
-                approvalUrl,
-                qrCodeUrl: this.generateQRCodeUrl(approvalUrl)
+                approvalUrl: '', // No longer used in webhook-only flow
+                qrCodeUrl: undefined // QR codes not needed without approval URLs
             };
         } catch (error) {
             console.error('PayPal payment creation error:', error);
