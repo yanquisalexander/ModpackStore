@@ -8,6 +8,7 @@ import { PreLaunchInstance } from "./views/PreLaunchInstance";
 import { useConnection } from "./utils/ConnectionContext";
 import { LucideLoader } from "lucide-react";
 import { MyInstancesSection } from "./views/MyInstancesSection";
+import { LibrarySection } from "./views/LibrarySection";
 import { useAuthentication } from "./stores/AuthContext";
 import { Login } from "./views/Login";
 import { NotFound } from "./views/NotFound";
@@ -144,6 +145,7 @@ function App() {
     return (
       <Routes>
         <Route path="/" element={<ExploreSection />} />
+        <Route path="/library" element={<LibrarySection />} />
         <Route path="/my-instances" element={<MyInstancesSection offlineMode={false} />} />
         <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
         <Route path="/modpack/:modpackId" element={<ModpackOverviewPage />} />
