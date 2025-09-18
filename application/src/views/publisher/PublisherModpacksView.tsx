@@ -29,6 +29,8 @@ import { useNavigate } from 'react-router-dom';
 import CreateModpackDialog from '@/components/creator/dialogs/CreateModpackDialog';
 import EditModpackDialog from '@/components/creator/dialogs/EditModpackDialog';
 import ImportCurseForgeDialog from '@/components/creator/dialogs/ImportCurseForgeDialog';
+import { PublisherEarningsCard } from '@/components/publisher/PublisherEarningsCard';
+import { PublisherSalesHistory } from '@/components/publisher/PublisherSalesHistory';
 
 // Types
 interface Modpack {
@@ -41,6 +43,10 @@ interface Modpack {
     status: string;
     createdAt: string;
     updatedAt: string;
+    isPaid?: boolean;
+    price?: string;
+    acquisitionMethod?: string;
+    password?: string;
     creatorUser?: {
         username: string;
     };
@@ -317,6 +323,12 @@ export const PublisherModpacksView: React.FC = () => {
                     </CardHeader>
                 </Card>
 
+                {/* Earnings and Sales Section */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <PublisherEarningsCard publisherId={publisherId} />
+                    <PublisherSalesHistory publisherId={publisherId} />
+                </div>
+
                 {/* Content */}
                 <Card>
                     <CardContent className="p-6">
@@ -351,6 +363,7 @@ export const PublisherModpacksView: React.FC = () => {
                                         <TableHead>Modpack</TableHead>
                                         <TableHead>Visibilidad</TableHead>
                                         <TableHead>Estado</TableHead>
+                                        <TableHead>Acceso</TableHead>
                                         <TableHead>Última Actualización</TableHead>
                                         <TableHead className="w-[50px]"></TableHead>
                                     </TableRow>
@@ -386,6 +399,23 @@ export const PublisherModpacksView: React.FC = () => {
                                                 <Badge variant={getStatusBadgeVariant(modpack.status)}>
                                                     {getStatusLabel(modpack.status)}
                                                 </Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                {modpack.isPaid ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <Badge variant="default" className="bg-green-600">
+                                                            ${parseFloat(modpack.price || '0').toFixed(2)} USD
+                                                        </Badge>
+                                                    </div>
+                                                ) : modpack.password ? (
+                                                    <Badge variant="secondary" className="bg-yellow-600">
+                                                        🔒 Contraseña
+                                                    </Badge>
+                                                ) : (
+                                                    <Badge variant="outline" className="text-blue-600 border-blue-600">
+                                                        Gratuito
+                                                    </Badge>
+                                                )}
                                             </TableCell>
                                             <TableCell>
                                                 {new Date(modpack.updatedAt).toLocaleDateString('es-ES')}
