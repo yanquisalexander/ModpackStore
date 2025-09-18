@@ -150,6 +150,7 @@ export const PublisherSalesHistory = ({ publisherId, className }: PublisherSales
                     <CardTitle className="flex items-center gap-2">
                         <LucideShoppingCart className="w-5 h-5" />
                         Historial de Ventas
+                        <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded ml-2">USD</div>
                     </CardTitle>
                     <Button
                         variant="outline"

@@ -237,6 +237,7 @@ export const PublisherEarningsCard = ({ publisherId, className }: PublisherEarni
                 <CardTitle className="flex items-center gap-2">
                     <LucideDollarSign className="w-5 h-5" />
                     Ganancias del Publisher
+                    <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded ml-auto">USD</div>
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">

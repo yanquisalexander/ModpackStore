@@ -365,7 +365,7 @@ export const InstallButton = ({
                             Para adquirir el modpack "{modpackName}" necesitas iniciar sesión en tu cuenta.
                             {isPaidState && !isFreeState && (
                                 <span className="block mt-2 font-medium">
-                                    Este modpack cuesta ${priceState} y requiere autenticación para completar la compra.
+                                    Este modpack cuesta ${priceState} USD y requiere autenticación para completar la compra.
                                 </span>
                             )}
                             {requiresPasswordState && (

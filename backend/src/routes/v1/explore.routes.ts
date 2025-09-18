@@ -575,4 +575,49 @@ app.post('/user-twitch-subscriptions', requireAuth, ExploreModpacksController.ge
  */
 app.get('/modpacks/:modpackId/check-access', requireAuth, ExploreModpacksController.checkUserModpackAccess);
 
+/**
+ * @openapi
+ * /explore/twitch-channels/search:
+ *   get:
+ *     summary: Search Twitch channels
+ *     tags: [Twitch]
+ *     description: Search for Twitch channels by username.
+ *     parameters:
+ *       - in: query
+ *         name: query
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Channel username to search for.
+ *     responses:
+ *       200:
+ *         description: Search results for Twitch channels.
+ */
+app.get('/twitch-channels/search', ExploreModpacksController.searchTwitchChannels);
+
+/**
+ * @openapi
+ * /explore/twitch-channels/validate:
+ *   post:
+ *     summary: Validate Twitch channels
+ *     tags: [Twitch]
+ *     description: Validate an array of Twitch channel usernames or IDs.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               channels:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                 description: Array of Twitch channel usernames or IDs to validate.
+ *     responses:
+ *       200:
+ *         description: Validated Twitch channels.
+ */
+app.post('/twitch-channels/validate', ExploreModpacksController.validateTwitchChannels);
+
 export default app;
