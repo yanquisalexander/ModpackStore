@@ -1,4 +1,4 @@
-import { LucideLayoutGrid, LucideServer, LucideUsers, LucideWrench } from "lucide-react"
+import { LucideLayoutGrid, LucideLibrary, LucideServer, LucideUsers, LucideWrench } from "lucide-react"
 import { Link, useLocation, useNavigate } from "react-router-dom";
 
 interface NavigationSection {
@@ -15,6 +15,11 @@ export const HomeMainHeader = () => {
             path: "/",
             title: "Explorar",
             icon: LucideLayoutGrid
+        },
+        {
+            path: "/library",
+            title: "Biblioteca",
+            icon: LucideLibrary
         },
         {
             path: "/my-instances",
