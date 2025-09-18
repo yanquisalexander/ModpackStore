@@ -162,6 +162,14 @@ export class Modpack extends BaseEntity {
     @Column({ name: "twitch_creator_ids", type: "text", array: true, nullable: true })
     twitchCreatorIds?: string[] | null;
 
+    // Additional field for storing Twitch channel usernames for UI display
+    @Column({ name: "twitch_channels", type: "jsonb", nullable: true })
+    twitchChannels?: {
+        id: string;
+        username: string;
+        displayName: string;
+    }[] | null;
+
     @CreateDateColumn({ name: "created_at" })
     createdAt: Date;
 
@@ -263,6 +271,26 @@ export class Modpack extends BaseEntity {
     // Method to get required Twitch creator IDs
     getRequiredTwitchCreatorIds(): string[] {
         return this.twitchCreatorIds || [];
+    }
+
+    // Method to get Twitch channels for UI display
+    getTwitchChannels() {
+        return this.twitchChannels || [];
+    }
+
+    // Method to set Twitch channels and update creator IDs
+    setTwitchChannels(channels: { id: string; username: string; displayName: string; }[]) {
+        this.twitchChannels = channels;
+        this.twitchCreatorIds = channels.map(ch => ch.id);
+        this.requiresTwitchSubscription = channels.length > 0;
+        
+        // Update acquisition method based on Twitch channels
+        if (channels.length > 0) {
+            this.acquisitionMethod = AcquisitionMethod.TWITCH_SUB;
+        } else if (this.acquisitionMethod === AcquisitionMethod.TWITCH_SUB) {
+            // If removing all channels, revert to free unless paid
+            this.acquisitionMethod = this.isPaid ? AcquisitionMethod.PAID : AcquisitionMethod.FREE;
+        }
     }
 
     requiresPassword(): boolean {

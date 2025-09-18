@@ -188,7 +188,7 @@ export const ModpackAcquisitionDialog = ({
         switch (method) {
             case 'password': return 'Acceso con Contraseña';
             case 'free': return 'Obtener Gratis';
-            case 'paid': return `Comprar por $${modpack.price}`;
+            case 'paid': return `Comprar por $${modpack.price} USD`;
             case 'twitch_sub': return 'Acceso con Suscripción de Twitch';
         }
     };
@@ -212,7 +212,7 @@ export const ModpackAcquisitionDialog = ({
                             Completar Pago
                         </DialogTitle>
                         <DialogDescription>
-                            Completa tu pago de ${paymentData.amount} {paymentData.currency} para obtener acceso al modpack.
+                            Completa tu pago de ${paymentData.amount} USD para obtener acceso al modpack.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -221,10 +221,13 @@ export const ModpackAcquisitionDialog = ({
                             <CardContent className="p-4 space-y-4">
                                 <div className="text-center">
                                     <div className="text-2xl font-bold">
-                                        ${paymentData.amount} {paymentData.currency}
+                                        ${paymentData.amount} USD
                                     </div>
                                     <div className="text-sm text-muted-foreground">
                                         {modpack.name}
+                                    </div>
+                                    <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded mt-2">
+                                        Moneda fija: Dólar estadounidense (USD)
                                     </div>
                                 </div>
 
@@ -243,7 +246,7 @@ export const ModpackAcquisitionDialog = ({
                                     {paymentData.qrCodeUrl && (
                                         <div className="text-center">
                                             <div className="text-sm text-muted-foreground mb-2">
-                                                O escanea el código QR:
+                                                O escanea con tu móvil:
                                             </div>
                                             <img 
                                                 src={paymentData.qrCodeUrl} 
@@ -255,7 +258,7 @@ export const ModpackAcquisitionDialog = ({
                                 </div>
 
                                 <div className="text-xs text-muted-foreground text-center">
-                                    Serás redirigido a PayPal para completar el pago de forma segura.
+                                    El acceso se activará automáticamente tras confirmar el pago. No es necesario volver a esta pantalla.
                                 </div>
                             </CardContent>
                         </Card>

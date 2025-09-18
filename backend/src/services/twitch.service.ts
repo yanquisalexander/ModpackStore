@@ -246,6 +246,52 @@ export class TwitchService {
     }
 
     /**
+     * Get multiple channels information by usernames or IDs
+     */
+    static async getMultipleChannelsInfo(identifiers: string[]): Promise<{
+        id: string;
+        username: string;
+        displayName: string;
+    }[]> {
+        if (!identifiers || identifiers.length === 0) {
+            return [];
+        }
+
+        try {
+            const apiClient = await this.getAppApiClient();
+            const channelsInfo: { id: string; username: string; displayName: string; }[] = [];
+
+            for (const identifier of identifiers) {
+                try {
+                    let user;
+                    // Check if identifier is a Twitch ID (numeric) or username
+                    if (/^\d+$/.test(identifier)) {
+                        user = await apiClient.users.getUserById(identifier);
+                    } else {
+                        user = await apiClient.users.getUserByName(identifier);
+                    }
+
+                    if (user) {
+                        channelsInfo.push({
+                            id: user.id,
+                            username: user.name,
+                            displayName: user.displayName
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Error fetching channel ${identifier}:`, error);
+                    // Continue with other channels if one fails
+                }
+            }
+
+            return channelsInfo;
+        } catch (error) {
+            console.error('Error fetching multiple channels:', error);
+            throw new APIError(500, 'Failed to fetch channels information');
+        }
+    }
+
+    /**
      * Check if user is subscribed to any of the specified channels using User API Client
      */
     static async checkUserSubscriptions(

@@ -52,6 +52,12 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks", isOrganizationMemb
             updatedAt: true,
             createdAt: true,
             versions: true,
+            isPaid: true,
+            price: true,
+            acquisitionMethod: true,
+            requiresTwitchSubscription: true,
+            twitchCreatorIds: true,
+            twitchChannels: true,
             creatorUser: {
                 id: true,
                 username: true,
@@ -189,6 +195,24 @@ ModpackCreatorsRoute.patch(
             }
         }
 
+        // --- Handle Twitch channels if provided ---
+        if (body.twitchChannels !== undefined) {
+            try {
+                const twitchChannels = typeof body.twitchChannels === 'string' 
+                    ? JSON.parse(body.twitchChannels) 
+                    : body.twitchChannels;
+
+                if (Array.isArray(twitchChannels)) {
+                    modpack.setTwitchChannels(twitchChannels);
+                } else {
+                    modpack.setTwitchChannels([]);
+                }
+            } catch (error) {
+                console.error("Error parsing Twitch channels:", error);
+                return c.json({ error: "Invalid Twitch channels format" }, 400);
+            }
+        }
+
         await modpack.save();
 
         // Handle category assignments
@@ -318,6 +342,22 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMem
     }
 
     newModpack.creatorUserId = (c.get(USER_CONTEXT_KEY) as User).id;
+
+    // Handle Twitch channels if provided
+    if (body.twitchChannels !== undefined) {
+        try {
+            const twitchChannels = typeof body.twitchChannels === 'string' 
+                ? JSON.parse(body.twitchChannels) 
+                : body.twitchChannels;
+
+            if (Array.isArray(twitchChannels)) {
+                newModpack.setTwitchChannels(twitchChannels);
+            }
+        } catch (error) {
+            console.error("Error parsing Twitch channels:", error);
+            return c.json({ error: "Invalid Twitch channels format" }, 400);
+        }
+    }
 
     await newModpack.save();
 

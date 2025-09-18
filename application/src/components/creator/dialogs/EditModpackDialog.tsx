@@ -111,6 +111,15 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
     const [currentPrice, setCurrentPrice] = useState('');
     const [newPrice, setNewPrice] = useState('');
 
+    // Estado para Twitch channels
+    const [twitchChannels, setTwitchChannels] = useState<{
+        id: string;
+        username: string;
+        displayName: string;
+    }[]>([]);
+    const [channelSearchQuery, setChannelSearchQuery] = useState('');
+    const [isSearchingChannels, setIsSearchingChannels] = useState(false);
+
     // Efecto para popular el formulario cuando el modpack cambia
     useEffect(() => {
         if (modpack) {
@@ -140,6 +149,13 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             const price = modpack.price ? parseFloat(modpack.price).toFixed(2) : '0.00';
             setCurrentPrice(price);
             setNewPrice(price);
+            
+            // Inicializar Twitch channels
+            if (modpack.twitchChannels && Array.isArray(modpack.twitchChannels)) {
+                setTwitchChannels(modpack.twitchChannels);
+            } else {
+                setTwitchChannels([]);
+            }
             
             // Inicializar el JSON del prelaunchAppearance
             try {
@@ -179,6 +195,41 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             setIsJsonValid(true); // Vacío se considera válido
         }
     }, [prelaunchAppearanceJson]);
+
+    // Funciones para manejo de Twitch channels
+    const searchTwitchChannel = async (query: string) => {
+        if (!query || query.length < 2) return;
+        
+        setIsSearchingChannels(true);
+        try {
+            const response = await fetch(`${API_ENDPOINT}/explore/twitch-channels/search?query=${encodeURIComponent(query)}`);
+            const data = await response.json();
+            
+            if (data.channels && data.channels.length > 0) {
+                const channel = data.channels[0];
+                // Verificar que no esté ya añadido
+                if (!twitchChannels.find(c => c.id === channel.id)) {
+                    setTwitchChannels(prev => [...prev, channel]);
+                    setChannelSearchQuery('');
+                    toast.success(`Canal ${channel.displayName} añadido`);
+                } else {
+                    toast.error('Este canal ya está añadido');
+                }
+            } else {
+                toast.error('Canal no encontrado');
+            }
+        } catch (error) {
+            console.error('Error searching Twitch channel:', error);
+            toast.error('Error al buscar el canal');
+        } finally {
+            setIsSearchingChannels(false);
+        }
+    };
+
+    const removeTwitchChannel = (channelId: string) => {
+        setTwitchChannels(prev => prev.filter(c => c.id !== channelId));
+        toast.success('Canal eliminado');
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -226,6 +277,9 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             if (primaryCategoryId) {
                 formData.append('primaryCategoryId', primaryCategoryId);
             }
+
+            // Añadir Twitch channels
+            formData.append('twitchChannels', JSON.stringify(twitchChannels));
 
             // Validar y añadir precio si se cambió
             if (newPrice !== currentPrice) {
@@ -386,6 +440,76 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                             </div>
                         </div>
                     )}
+
+                    {/* Twitch Channels Section */}
+                    <div className="space-y-3 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-medium text-zinc-300">Acceso con Suscripción de Twitch</h3>
+                            <div className="text-xs text-purple-400 bg-purple-900/20 px-2 py-1 rounded">Opcional</div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                            <p className="text-xs text-zinc-400">
+                                Los usuarios necesitarán estar suscritos a al menos uno de estos canales para acceder al modpack.
+                            </p>
+                            
+                            {/* Canal Search */}
+                            <div className="flex gap-2">
+                                <Input
+                                    placeholder="Buscar canal de Twitch..."
+                                    value={channelSearchQuery}
+                                    onChange={(e) => setChannelSearchQuery(e.target.value)}
+                                    onKeyPress={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            searchTwitchChannel(channelSearchQuery);
+                                        }
+                                    }}
+                                    disabled={isSearchingChannels}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={() => searchTwitchChannel(channelSearchQuery)}
+                                    disabled={isSearchingChannels || !channelSearchQuery}
+                                    className="px-3"
+                                >
+                                    {isSearchingChannels ? '...' : 'Añadir'}
+                                </Button>
+                            </div>
+                            
+                            {/* Canales añadidos */}
+                            {twitchChannels.length > 0 && (
+                                <div className="space-y-2">
+                                    <p className="text-xs text-zinc-300 font-medium">Canales requeridos:</p>
+                                    <div className="flex flex-wrap gap-2">
+                                        {twitchChannels.map((channel) => (
+                                            <div
+                                                key={channel.id}
+                                                className="flex items-center gap-2 bg-purple-900/20 border border-purple-700/30 rounded px-2 py-1 text-xs"
+                                            >
+                                                <span className="text-purple-200">{channel.displayName}</span>
+                                                <span className="text-purple-400">(@{channel.username})</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeTwitchChannel(channel.id)}
+                                                    className="text-purple-400 hover:text-red-400 ml-1"
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {twitchChannels.length === 0 && (
+                                <p className="text-xs text-zinc-500">
+                                    Sin canales añadidos - El modpack tendrá acceso libre o por pago
+                                </p>
+                            )}
+                        </div>
+                    </div>
 
                     <div>
                         <label className="text-sm text-zinc-300 block mb-1">Descripción corta</label>

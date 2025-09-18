@@ -785,4 +785,41 @@ export class ExploreModpacksController {
             }), statusCode);
         }
     }
+
+    static async searchTwitchChannels(c: Context): Promise<Response> {
+        try {
+            const { query } = c.req.query();
+            
+            if (!query || query.length < 2) {
+                return c.json({ channels: [] }, 200);
+            }
+
+            // Search for channels using the TwitchService
+            const channels = await TwitchService.getMultipleChannelsInfo([query]);
+            
+            return c.json({ channels }, 200);
+        } catch (error: any) {
+            console.error('[CONTROLLER_EXPLORE] Twitch channel search error:', error);
+            return c.json({ error: 'Failed to search Twitch channels', channels: [] }, 500);
+        }
+    }
+
+    static async validateTwitchChannels(c: Context): Promise<Response> {
+        try {
+            const body = await c.req.json();
+            const { channels } = body;
+
+            if (!Array.isArray(channels)) {
+                return c.json({ error: 'Invalid channels format' }, 400);
+            }
+
+            // Validate each channel
+            const validatedChannels = await TwitchService.getMultipleChannelsInfo(channels);
+            
+            return c.json({ channels: validatedChannels }, 200);
+        } catch (error: any) {
+            console.error('[CONTROLLER_EXPLORE] Twitch channel validation error:', error);
+            return c.json({ error: 'Failed to validate Twitch channels', channels: [] }, 500);
+        }
+    }
 }
