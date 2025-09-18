@@ -19,7 +19,7 @@ interface ModpackWithInstallStatus extends ModpackAcquisition {
 export const LibrarySection = () => {
     const { setTitleBarState } = useGlobalContext();
     const { sessionTokens } = useAuthentication();
-    
+
     const [acquisitions, setAcquisitions] = useState<ModpackWithInstallStatus[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -37,13 +37,13 @@ export const LibrarySection = () => {
 
     const fetchAcquisitions = useCallback(async () => {
         if (!sessionTokens?.accessToken) return;
-        
+
         setIsLoading(true);
         setError(null);
 
         try {
             const response = await getUserAcquisitions(sessionTokens.accessToken, 1, 100);
-            
+
             // Check installation status for each modpack
             const acquisitionsWithStatus = await Promise.all(
                 response.data.map(async (acquisition) => {
@@ -153,18 +153,18 @@ export const LibrarySection = () => {
                 <div className="flex flex-col items-center justify-center h-64">
                     <LucideLibrary className="h-16 w-16 text-gray-400 mb-4" />
                     <h3 className="text-lg font-medium mb-2">
-                        {filter === 'all' ? 'No tienes modpacks adquiridos' : 
-                         filter === 'installed' ? 'No tienes modpacks instalados' :
-                         'Todos tus modpacks están instalados'}
+                        {filter === 'all' ? 'No tienes modpacks adquiridos' :
+                            filter === 'installed' ? 'No tienes modpacks instalados' :
+                                'Todos tus modpacks están instalados'}
                     </h3>
                     <p className="text-muted-foreground text-center max-w-md">
                         {filter === 'all' ? 'Explora la tienda para encontrar modpacks interesantes y adquirirlos.' :
-                         filter === 'installed' ? 'Los modpacks que instales aparecerán aquí.' :
-                         '¡Excelente! Tienes todos tus modpacks instalados.'}
+                            filter === 'installed' ? 'Los modpacks que instales aparecerán aquí.' :
+                                '¡Excelente! Tienes todos tus modpacks instalados.'}
                     </p>
                 </div>
             ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-4 gap-6">
                     {filteredAcquisitions.map((acquisition) => {
                         // Ensure the modpack has all required properties for ModpackCard
                         const modpackForCard = {
@@ -172,7 +172,7 @@ export const LibrarySection = () => {
                             // Ensure publisher is available for ModpackCard
                             publisher: acquisition.modpack.publisher || { publisherName: 'Publisher Desconocido' }
                         };
-                        
+
                         return (
                             <div key={acquisition.id} className="relative">
                                 <ModpackCard
