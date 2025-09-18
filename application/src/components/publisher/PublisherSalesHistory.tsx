@@ -41,10 +41,12 @@ interface SaleRecord {
 }
 
 interface SalesData {
-    sales: SaleRecord[];
-    total: number;
-    page: number;
-    totalPages: number;
+    data: SaleRecord[];
+    meta: {
+        page: number;
+        totalPages: number;
+        total: number;
+    };
 }
 
 export const PublisherSalesHistory = ({ publisherId, className }: PublisherSalesHistoryProps) => {
@@ -137,9 +139,9 @@ export const PublisherSalesHistory = ({ publisherId, className }: PublisherSales
         );
     }
 
-    const totalEarnings = salesData.sales.reduce((sum, sale) => sum + sale.netEarnings, 0);
-    const totalCommission = salesData.sales.reduce((sum, sale) => sum + sale.commission, 0);
-    const totalSales = salesData.sales.reduce((sum, sale) => sum + sale.pricePaid, 0);
+    const totalEarnings = salesData.data.reduce((sum, sale) => sum + sale.netEarnings, 0);
+    const totalCommission = salesData.data.reduce((sum, sale) => sum + sale.commission, 0);
+    const totalSales = salesData.data.reduce((sum, sale) => sum + sale.pricePaid, 0);
 
     return (
         <Card className={className}>
@@ -149,8 +151,8 @@ export const PublisherSalesHistory = ({ publisherId, className }: PublisherSales
                         <LucideShoppingCart className="w-5 h-5" />
                         Historial de Ventas
                     </CardTitle>
-                    <Button 
-                        variant="outline" 
+                    <Button
+                        variant="outline"
                         size="sm"
                         onClick={() => {
                             setCurrentPage(1);
@@ -187,7 +189,7 @@ export const PublisherSalesHistory = ({ publisherId, className }: PublisherSales
                 </div>
 
                 {/* Sales Table */}
-                {salesData.sales.length > 0 ? (
+                {salesData.data.length > 0 ? (
                     <>
                         <Table>
                             <TableHeader>
@@ -211,7 +213,7 @@ export const PublisherSalesHistory = ({ publisherId, className }: PublisherSales
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {salesData.sales.map((sale) => (
+                                {salesData.data.map((sale) => (
                                     <TableRow key={sale.id}>
                                         <TableCell className="font-medium">
                                             <div>
@@ -240,10 +242,10 @@ export const PublisherSalesHistory = ({ publisherId, className }: PublisherSales
                         </Table>
 
                         {/* Pagination */}
-                        {salesData.totalPages > 1 && (
+                        {salesData.meta.totalPages > 1 && (
                             <div className="flex items-center justify-between">
                                 <p className="text-sm text-muted-foreground">
-                                    Página {salesData.page} de {salesData.totalPages} ({salesData.total} ventas total)
+                                    Página {salesData.meta.page} de {salesData.meta.totalPages} ({salesData.meta.total} ventas total)
                                 </p>
                                 <div className="flex gap-2">
                                     <Button
@@ -258,7 +260,7 @@ export const PublisherSalesHistory = ({ publisherId, className }: PublisherSales
                                         variant="outline"
                                         size="sm"
                                         onClick={() => setCurrentPage(currentPage + 1)}
-                                        disabled={currentPage >= salesData.totalPages || isLoadingPage}
+                                        disabled={currentPage >= salesData.meta.totalPages || isLoadingPage}
                                     >
                                         Siguiente
                                     </Button>

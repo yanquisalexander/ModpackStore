@@ -162,7 +162,7 @@ export class PaymentService {
         // Ensure publisher has a wallet
         const publisher = await modpack.publisher;
         let publisherWallet = await Wallet.findOne({ where: { publisherId: publisher.id } });
-        
+
         if (!publisherWallet) {
             publisherWallet = new Wallet();
             publisherWallet.publisherId = publisher.id;
@@ -220,6 +220,7 @@ export class PaymentService {
         });
 
         if (!response.ok) {
+            console.error('Failed to get PayPal access token:', await response.text());
             throw new APIError(500, 'Failed to get PayPal access token');
         }
 

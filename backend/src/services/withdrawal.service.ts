@@ -2,6 +2,8 @@ import { Wallet } from '@/entities/Wallet';
 import { WalletTransaction } from '@/entities/WalletTransaction';
 import { Publisher } from '@/entities/Publisher';
 import { User } from '@/entities/User';
+import { UserPurchase } from '@/entities/UserPurchase';
+import { Modpack } from '@/entities/Modpack';
 import { TransactionType } from '@/types/enums';
 import { APIError } from '@/lib/APIError';
 
@@ -27,23 +29,23 @@ export interface WithdrawalRequest {
 
 export class WithdrawalService {
     private static readonly MINIMUM_WITHDRAWAL = parseFloat(process.env.MINIMUM_WITHDRAWAL || '20.00');
-    
+
     // In a real implementation, you'd store withdrawal requests in a database table
     // For now, we'll use WalletTransaction with a special type for withdrawal requests
-    
+
     /**
      * Request withdrawal for publisher
      */
     static async requestWithdrawal(publisherId: string, amount: string, paypalEmail: string): Promise<WalletTransaction> {
         const withdrawalAmount = parseFloat(amount);
-        
+
         // Validate minimum withdrawal amount
         if (withdrawalAmount < this.MINIMUM_WITHDRAWAL) {
             throw new APIError(400, `Minimum withdrawal amount is $${this.MINIMUM_WITHDRAWAL.toFixed(2)}`);
         }
 
         // Get publisher wallet
-        const wallet = await Wallet.findOne({ 
+        const wallet = await Wallet.findOne({
             where: { publisherId },
             relations: ['publisher']
         });
@@ -95,7 +97,7 @@ export class WithdrawalService {
         totalPages: number;
     }> {
         const offset = (page - 1) * limit;
-        
+
         const query: any = {
             type: TransactionType.WITHDRAWAL
         };
@@ -232,7 +234,7 @@ export class WithdrawalService {
         const wallet = withdrawalRequest.wallet;
         const withdrawalAmount = Math.abs(parseFloat(withdrawalRequest.amount));
         wallet.balance = (parseFloat(wallet.balance) - withdrawalAmount).toString();
-        
+
         await Promise.all([
             withdrawalRequest.save(),
             wallet.save()
@@ -336,7 +338,7 @@ export class WithdrawalService {
         totalWithdrawn: number;
     }> {
         const wallet = await Wallet.findOne({ where: { publisherId } });
-        
+
         if (!wallet) {
             return {
                 totalEarnings: 0,
@@ -388,10 +390,6 @@ export class WithdrawalService {
         page: number;
         totalPages: number;
     }> {
-        const { UserPurchase } = await import('@/entities/UserPurchase');
-        const { Modpack } = await import('@/entities/Modpack');
-        const { User } = await import('@/entities/User');
-        
         const offset = (page - 1) * limit;
 
         // Get purchases for modpacks from this publisher

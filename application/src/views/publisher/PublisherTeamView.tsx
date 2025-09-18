@@ -151,7 +151,7 @@ const AddMemberDialog: React.FC<{
         try {
             setLoading(true);
             await PublisherTeamAPI.addMember(publisherId, userId.trim(), role, sessionTokens.accessToken);
-            
+
             toast({
                 title: "Miembro agregado",
                 description: "El miembro ha sido agregado exitosamente al equipo.",
@@ -263,14 +263,14 @@ export const PublisherTeamView: React.FC = () => {
 
     const handleRemoveMember = async (member: PublisherMember) => {
         if (!sessionTokens?.accessToken || !publisherId) return;
-        
+
         if (!confirm(`¿Estás seguro de que quieres eliminar a ${member.user.username} del equipo?`)) {
             return;
         }
 
         try {
             await PublisherTeamAPI.removeMember(publisherId, member.user.id, sessionTokens.accessToken);
-            
+
             toast({
                 title: "Miembro eliminado",
                 description: `${member.user.username} ha sido eliminado del equipo.`,
@@ -292,7 +292,7 @@ export const PublisherTeamView: React.FC = () => {
 
         try {
             await PublisherTeamAPI.updateMemberRole(publisherId, member.user.id, newRole, sessionTokens.accessToken);
-            
+
             toast({
                 title: "Rol actualizado",
                 description: `El rol de ${member.user.username} ha sido actualizado.`,
@@ -334,9 +334,9 @@ export const PublisherTeamView: React.FC = () => {
                             <CardTitle>Gestión de Equipo</CardTitle>
                         </div>
                         {canManageMembers && publisherId && (
-                            <AddMemberDialog 
-                                publisherId={publisherId} 
-                                onMemberAdded={loadMembers} 
+                            <AddMemberDialog
+                                publisherId={publisherId}
+                                onMemberAdded={loadMembers}
                             />
                         )}
                     </div>
@@ -364,9 +364,9 @@ export const PublisherTeamView: React.FC = () => {
                                 Este publisher aún no tiene miembros en el equipo.
                             </p>
                             {publisherId && (
-                                <AddMemberDialog 
-                                    publisherId={publisherId} 
-                                    onMemberAdded={loadMembers} 
+                                <AddMemberDialog
+                                    publisherId={publisherId}
+                                    onMemberAdded={loadMembers}
                                 />
                             )}
                         </div>
@@ -425,7 +425,7 @@ export const PublisherTeamView: React.FC = () => {
                                                             <LucideUserCog className="h-4 w-4 mr-2" />
                                                             {member.role === 'admin' ? 'Hacer Miembro' : 'Hacer Admin'}
                                                         </DropdownMenuItem>
-                                                        <DropdownMenuItem 
+                                                        <DropdownMenuItem
                                                             onClick={() => handleRemoveMember(member)}
                                                             className="text-destructive"
                                                         >
