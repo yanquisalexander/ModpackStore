@@ -13,6 +13,42 @@ import { motion } from "motion/react"
 import { FeaturedSlideshow } from "@/components/FeaturedSlideshow"
 import { JavaStatusBanner } from "@/components/JavaStatusBanner"
 import { useOnboarding } from "@/hooks/useOnboarding"
+import { useAuthentication } from "@/stores/AuthContext"
+
+const Greeting = ({ username }: { username: string | null }) => {
+    const NOW = new Date()
+    const GREETING_TEMPLATES = {
+        MAÑANA: "¡Buenos días! {username} 🤗",
+        TARDE: "¡Buenas tardes! {username} 🧉",
+        NOCHE: "¡Buenas noches! {username} 🌙",
+        MADRUGADA: "¿Transochando, {username}? 🌅"
+    }
+
+    const MESSAGE_TO_DISPLAY = GREETING_TEMPLATES[NOW.getHours() < 12 ? "MAÑANA" : NOW.getHours() < 18 ? "TARDE" : NOW.getHours() < 24 ? "NOCHE" : "MADRUGADA"]
+        .replace("{username}", username || "Usuario");
+
+    return (
+        <motion.div
+            className="from-[#bcfe47] to-[#05cc2a] bg-clip-text text-xl pt-4 text-center text-transparent bg-gradient-to-b font-jost font-semibold"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+        >
+            <motion.p
+                animate={{
+                    backgroundPosition: ["0% 0%", "100% 100%"],
+                }}
+                transition={{
+                    duration: 3,
+                    repeat: Infinity,
+                    repeatType: "mirror"
+                }}
+            >
+                {MESSAGE_TO_DISPLAY}
+            </motion.p>
+        </motion.div>
+    )
+}
 
 export const ExploreSection = () => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
@@ -22,6 +58,8 @@ export const ExploreSection = () => {
     const [search, setSearch] = useState("")
     const [debouncedSearch] = useDebounce(search, 300)
     const { onboardingStatus } = useOnboarding()
+
+    const { session } = useAuthentication()
 
     // Check if user has completed onboarding (not first run)
     const hasCompletedOnboarding = onboardingStatus?.first_run_at !== null
@@ -118,43 +156,27 @@ export const ExploreSection = () => {
             initial="hidden"
             animate="visible"
             variants={fadeInVariants}
-            className="mx-auto max-w-7xl px-4 pt-16 pb-10 overflow-y-auto"
+            className="mx-auto max-w-7xl px-4 pb-10 overflow-y-auto"
         >
             {/* Java Status Banner for existing users */}
             {hasCompletedOnboarding && (
                 <JavaStatusBanner />
             )}
 
+            <Greeting username={session?.username!} />
+
             {/* Featured slideshow */}
-            <FeaturedSlideshow className="mb-8" />
+            <FeaturedSlideshow className="mt-16 mb-4" />
 
             <motion.header
-                className="flex flex-col items-center justify-center gap-y-8 mb-16"
+                className="flex flex-col items-center justify-center gap-y-8 mb-8"
                 variants={containerVariants}
             >
                 <motion.div
                     className="flex flex-col items-center justify-between w-full max-w-3xl"
                     variants={containerVariants}
                 >
-                    <motion.h1
-                        className="text-2xl font-semibold text-white"
-                        variants={itemVariants}
-                    >
-                        Bienvenido a&nbsp;
-                        <motion.span
-                            className="from-[#bcfe47] to-[#05cc2a] bg-clip-text text-transparent bg-gradient-to-b"
-                            animate={{
-                                backgroundPosition: ["0% 0%", "100% 100%"],
-                            }}
-                            transition={{
-                                duration: 5,
-                                repeat: Infinity,
-                                repeatType: "mirror"
-                            }}
-                        >
-                            Modpack Store
-                        </motion.span>
-                    </motion.h1>
+
 
                     <motion.p
                         className="text-gray-400 text-base text-center"
