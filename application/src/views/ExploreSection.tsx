@@ -24,6 +24,15 @@ const Greeting = ({ username }: { username: string | null }) => {
         MADRUGADA: "¿Transochando, {username}? 🌅"
     }
 
+    const itemVariants = {
+        hidden: { y: 20, opacity: 0 },
+        visible: {
+            y: 0,
+            opacity: 1,
+            transition: { type: "spring", stiffness: 100 }
+        }
+    }
+
     const MESSAGE_TO_DISPLAY = GREETING_TEMPLATES[NOW.getHours() < 12 ? "MAÑANA" : NOW.getHours() < 18 ? "TARDE" : NOW.getHours() < 24 ? "NOCHE" : "MADRUGADA"]
         .replace("{username}", username || "Usuario");
 
@@ -46,6 +55,9 @@ const Greeting = ({ username }: { username: string | null }) => {
             >
                 {MESSAGE_TO_DISPLAY}
             </motion.p>
+
+
+
         </motion.div>
     )
 }
@@ -177,17 +189,29 @@ export const ExploreSection = () => {
                     variants={containerVariants}
                 >
 
-
-                    <motion.p
-                        className="text-gray-400 text-base text-center"
+                    <motion.h1
+                        className="text-2xl font-semibold text-white"
                         variants={itemVariants}
                     >
-                        Estás a pocos pasos de descubrir mundos e historias increíbles. <br />
-                        Explora, elige y sumérgete en la aventura que más te guste.
-                    </motion.p>
+                        Bienvenido a&nbsp;
+                        <motion.span
+                            className="from-[#bcfe47] to-[#05cc2a] bg-clip-text text-transparent bg-gradient-to-b"
+                            animate={{
+                                backgroundPosition: ["0% 0%", "100% 100%"],
+                            }}
+                            transition={{
+                                duration: 5,
+                                repeat: Infinity,
+                                repeatType: "mirror"
+                            }}
+                        >
+                            Modpack Store
+                        </motion.span>
+                    </motion.h1>
+
 
                     <motion.div
-                        className="relative w-full bg-neutral-800 rounded-md shadow-lg mt-10"
+                        className="relative w-full bg-neutral-800 rounded-md shadow-lg mt-4"
                         variants={{
                             ...itemVariants,
                             ...searchInputVariants
