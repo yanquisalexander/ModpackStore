@@ -59,3 +59,18 @@ export enum AcquisitionStatus {
     REVOKED = 'revoked',
     SUSPENDED = 'suspended'
 }
+
+// Granular permission types for the new permission system
+export enum ModpackPermission {
+    VIEW = 'modpackView',
+    MODIFY = 'modpackModify',
+    MANAGE_VERSIONS = 'modpackManageVersions',
+    PUBLISH = 'modpackPublish',
+    DELETE = 'modpackDelete',
+    MANAGE_ACCESS = 'modpackManageAccess'
+}
+
+export enum PublisherPermission {
+    MANAGE_CATEGORIES_TAGS = 'publisherManageCategoriesTags',
+    VIEW_STATS = 'publisherViewStats'
+}
