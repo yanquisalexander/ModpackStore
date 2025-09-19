@@ -70,10 +70,11 @@ print_status "Verificando archivos de configuración..."
 # Verificar archivos críticos
 files_to_check=(
     "backend/src/services/payment.service.ts"
-    "backend/src/lib/paypal.gateway.ts"
-    "backend/src/lib/websocket.manager.ts"
-    "application/src/components/ModpackAcquisitionDialog.tsx"
-    "application/src/services/websocket.service.ts"
+    "backend/src/services/payment-gateways/paypal.gateway.ts"
+    "backend/src/services/websocket.service.ts"
+    "application/src/components/install-modpacks/ModpackAcquisitionDialog.tsx"
+    "backend/src/controllers/PaymentWebhook.controller.ts"
+    "backend/src/routes/v1/payment-webhooks.routes.ts"
 )
 
 for file in "${files_to_check[@]}"; do
