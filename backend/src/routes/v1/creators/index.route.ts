@@ -3,7 +3,6 @@ import { Publisher } from "@/models/Publisher.model";
 import { Context, Hono } from "hono";
 import { ModpackCreatorsRoute } from "./modpacks.route";
 import { WithdrawalsRoute } from "./withdrawals.route";
-import { PermissionsRoute } from "./permissions.route";
 import { User } from "@/entities/User";
 
 export const CreatorsRoute = new Hono()
@@ -25,4 +24,3 @@ CreatorsRoute.get("/publishers", async (c: Context<{ Variables: AuthVariables }>
 
 CreatorsRoute.route('/', ModpackCreatorsRoute)
 CreatorsRoute.route('/', WithdrawalsRoute)
-CreatorsRoute.route('/', PermissionsRoute)
