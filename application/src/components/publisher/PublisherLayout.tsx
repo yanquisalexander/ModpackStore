@@ -16,7 +16,7 @@ import {
 import { useAuthentication } from '@/stores/AuthContext';
 import { useTeams } from '@/hooks/creators/useTeams';
 import { PublisherModpacksView } from '@/views/publisher/PublisherModpacksView';
-import { PublisherTeamView } from '@/views/publisher/PublisherTeamView';
+import { PublisherTeamView } from '@/views/publisher/PublisherTeamViewEnhanced';
 import { PublisherModpackVersionsView } from '@/views/publisher/PublisherModpackVersionsView';
 import PublisherModpackVersionDetailView from '@/views/publisher/PublisherModpackVersionDetailView';
 import { useGlobalContext } from "@/stores/GlobalContext";

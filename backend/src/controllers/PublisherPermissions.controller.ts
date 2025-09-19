@@ -3,18 +3,40 @@ import { PublisherService } from '../services/publisher.service';
 import { serializeResource, serializeCollection, serializeError } from "../utils/jsonapi";
 import { APIError } from '../lib/APIError';
 import { PublisherMemberRole } from '../types/enums';
-import { 
-    assignPermissionSchema, 
-    publisherMemberSchema 
+import {
+    assignPermissionSchema,
+    publisherMemberSchema
 } from '../validators/publisher.validator';
 
 export class PublisherPermissionsController {
-    private static publisherService = new PublisherService();
+    private static _publisherService: PublisherService | null = null;
+
+    private static getPublisherService(): PublisherService {
+        console.log('[DEBUG] getPublisherService called, this:', this);
+        console.log('[DEBUG] _publisherService before:', this._publisherService);
+
+        if (!this._publisherService) {
+            console.log('[DEBUG] Creating new PublisherService instance');
+            try {
+                this._publisherService = new PublisherService();
+                console.log('[DEBUG] PublisherService created successfully');
+            } catch (error) {
+                console.error('[DEBUG] Error creating PublisherService:', error);
+                throw error;
+            }
+        }
+
+        console.log('[DEBUG] Returning PublisherService:', !!this._publisherService);
+        return this._publisherService;
+    }
 
     /**
      * Get all members of a publisher with their permissions
      */
     static async getMembers(c: Context): Promise<Response> {
+        console.log('[DEBUG] getMembers called, this:', this);
+        console.log('[DEBUG] PublisherService imported:', !!PublisherService);
+
         try {
             const user = c.get('user') as { id: string } | undefined;
             if (!user?.id) {
@@ -26,10 +48,11 @@ export class PublisherPermissionsController {
                 throw new APIError(400, 'Publisher ID is required.');
             }
 
+            console.log('[DEBUG] About to call getPublisherService');
             // Check if user has permission to view members
-            const canViewMembers = await this.publisherService.hasUserPermission(
-                publisherId, 
-                user.id, 
+            const canViewMembers = await PublisherPermissionsController.getPublisherService().hasUserPermission(
+                publisherId,
+                user.id,
                 'manage_members'
             );
 
@@ -37,8 +60,8 @@ export class PublisherPermissionsController {
                 throw new APIError(403, 'You do not have permission to view members.');
             }
 
-            const members = await this.publisherService.getMembers(publisherId);
-            
+            const members = await PublisherPermissionsController.getPublisherService().getMembers(publisherId);
+
             return c.json(serializeCollection('publisher-members', members.map(member => ({
                 id: member.id.toString(),
                 userId: member.userId,
@@ -60,7 +83,7 @@ export class PublisherPermissionsController {
                     status: error.statusCode.toString(),
                     title: 'Error',
                     detail: error.message
-                }), { status: error.statusCode });
+                }), { status: error.statusCode as any });
             }
             return c.json(serializeError({
                 status: '500',
@@ -86,9 +109,9 @@ export class PublisherPermissionsController {
             }
 
             // Check if user has permission to manage members
-            const canManageMembers = await this.publisherService.hasUserPermission(
-                publisherId, 
-                user.id, 
+            const canManageMembers = await PublisherPermissionsController.getPublisherService().hasUserPermission(
+                publisherId,
+                user.id,
                 'manage_members'
             );
 
@@ -110,9 +133,9 @@ export class PublisherPermissionsController {
             const { userId: targetUserId, role } = validationResult.data;
 
             // Check if requesting user can assign this role
-            const canManageRole = await this.publisherService.canManageRole(
-                publisherId, 
-                user.id, 
+            const canManageRole = await PublisherPermissionsController.getPublisherService().canManageRole(
+                publisherId,
+                user.id,
                 role
             );
 
@@ -120,7 +143,7 @@ export class PublisherPermissionsController {
                 throw new APIError(403, 'You do not have permission to assign this role.');
             }
 
-            const newMember = await this.publisherService.addMember(publisherId, targetUserId, role);
+            const newMember = await PublisherPermissionsController.getPublisherService().addMember(publisherId, targetUserId, role);
 
             return c.json(serializeResource('publisher-member', {
                 id: newMember.id.toString(),
@@ -136,7 +159,7 @@ export class PublisherPermissionsController {
                     status: error.statusCode.toString(),
                     title: 'Error',
                     detail: error.message
-                }), { status: error.statusCode });
+                }), { status: error.statusCode as any });
             }
             return c.json(serializeError({
                 status: '500',
@@ -162,9 +185,9 @@ export class PublisherPermissionsController {
             }
 
             // Check if user has permission to manage access
-            const canManageAccess = await this.publisherService.hasUserPermission(
-                publisherId, 
-                user.id, 
+            const canManageAccess = await PublisherPermissionsController.getPublisherService().hasUserPermission(
+                publisherId,
+                user.id,
                 'modpack.manage_access'
             );
 
@@ -185,7 +208,7 @@ export class PublisherPermissionsController {
 
             const { userId: targetUserId, permission, enable, modpackId } = validationResult.data;
 
-            await this.publisherService.assignPermissionToMember(
+            await PublisherPermissionsController.getPublisherService().assignPermissionToMember(
                 publisherId,
                 targetUserId,
                 permission,
@@ -209,7 +232,7 @@ export class PublisherPermissionsController {
                     status: error.statusCode.toString(),
                     title: 'Error',
                     detail: error.message
-                }), { status: error.statusCode });
+                }), { status: error.statusCode as any });
             }
             return c.json(serializeError({
                 status: '500',
@@ -231,19 +254,19 @@ export class PublisherPermissionsController {
 
             const publisherId = c.req.param('publisherId');
             const targetUserId = c.req.param('userId');
-            
+
             if (!publisherId || !targetUserId) {
                 throw new APIError(400, 'Publisher ID and User ID are required.');
             }
 
-            // Check if user has permission to view permissions 
-            const canViewPermissions = await this.publisherService.hasUserPermission(
-                publisherId, 
-                user.id, 
+            // Check if user has permission to view permissions
+            const canViewPermissions = await PublisherPermissionsController.getPublisherService().hasUserPermission(
+                publisherId,
+                user.id,
                 'manage_members'
-            ) || await this.publisherService.hasUserPermission(
-                publisherId, 
-                user.id, 
+            ) || await PublisherPermissionsController.getPublisherService().hasUserPermission(
+                publisherId,
+                user.id,
                 'modpack.manage_access'
             );
 
@@ -251,7 +274,7 @@ export class PublisherPermissionsController {
                 throw new APIError(403, 'You do not have permission to view permissions.');
             }
 
-            const scopes = await this.publisherService.getMemberScopes(publisherId, targetUserId);
+            const scopes = await PublisherPermissionsController.getPublisherService().getMemberScopes(publisherId, targetUserId);
 
             return c.json(serializeCollection('scopes', scopes.map(scope => ({
                 id: scope.id.toString(),
@@ -278,7 +301,7 @@ export class PublisherPermissionsController {
                     status: error.statusCode.toString(),
                     title: 'Error',
                     detail: error.message
-                }), { status: error.statusCode });
+                }), { status: error.statusCode as any });
             }
             return c.json(serializeError({
                 status: '500',

@@ -29,9 +29,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useAuthentication } from '@/stores/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import { 
-    PublisherPermissionsAPI, 
-    PublisherMemberWithPermissions 
+import {
+    PublisherPermissionsAPI,
+    PublisherMemberWithPermissions
 } from '@/services/publisherPermissions.service';
 import { MemberPermissionsDialog } from '@/components/publisher/MemberPermissionsDialog';
 
@@ -54,12 +54,12 @@ const AddMemberDialog: React.FC<{
         try {
             setLoading(true);
             await PublisherPermissionsAPI.addMember(publisherId, userId, role, accessToken);
-            
+
             toast({
                 title: "Éxito",
                 description: "Miembro agregado correctamente",
             });
-            
+
             setUserId('');
             setRole('member');
             setOpen(false);
@@ -287,16 +287,16 @@ export const PublisherTeamView: React.FC = () => {
                                     <TableRow key={member.id}>
                                         <TableCell>
                                             <div className="flex items-center gap-3">
-                                                {member.user.avatarUrl && (
-                                                    <img 
-                                                        src={member.user.avatarUrl} 
-                                                        alt={member.user.username}
+                                                {member.user?.avatarUrl && (
+                                                    <img
+                                                        src={member.user?.avatarUrl}
+                                                        alt={member.user?.username}
                                                         className="h-8 w-8 rounded-full"
                                                     />
                                                 )}
                                                 <div>
-                                                    <div className="font-medium">{member.user.username}</div>
-                                                    <div className="text-sm text-muted-foreground">{member.user.email}</div>
+                                                    <div className="font-medium">{member.user?.username}</div>
+                                                    <div className="text-sm text-muted-foreground">{member.user?.email}</div>
                                                 </div>
                                             </div>
                                         </TableCell>
@@ -324,7 +324,7 @@ export const PublisherTeamView: React.FC = () => {
                                                         {member.scopes?.length || 0} permisos configurados
                                                     </Badge>
                                                 )}
-                                                
+
                                                 {canManagePermissions && (
                                                     <Button
                                                         size="sm"
@@ -353,13 +353,13 @@ export const PublisherTeamView: React.FC = () => {
                                                         {member.role !== 'owner' && (
                                                             <>
                                                                 <DropdownMenuSeparator />
-                                                                <DropdownMenuItem 
+                                                                <DropdownMenuItem
                                                                     onClick={() => handleUpdateRole(member, member.role === 'admin' ? 'member' : 'admin')}
                                                                 >
                                                                     <LucideUserCog className="h-4 w-4 mr-2" />
                                                                     {member.role === 'admin' ? 'Degradar a miembro' : 'Promover a admin'}
                                                                 </DropdownMenuItem>
-                                                                <DropdownMenuItem 
+                                                                <DropdownMenuItem
                                                                     className="text-destructive"
                                                                     onClick={() => handleRemoveMember(member)}
                                                                 >

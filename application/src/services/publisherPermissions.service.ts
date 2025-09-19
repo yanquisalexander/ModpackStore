@@ -61,7 +61,7 @@ export const ALL_PERMISSIONS = [...MODPACK_PERMISSIONS, ...PUBLISHER_PERMISSIONS
 
 // API Service for enhanced publisher permissions
 export class PublisherPermissionsAPI {
-    private static baseUrl = `${API_ENDPOINT}/v1/publishers`;
+    private static baseUrl = `${API_ENDPOINT}/publishers`;
 
     // Member management
     static async getMembers(publisherId: string, accessToken: string): Promise<{ members: PublisherMemberWithPermissions[]; total: number }> {
@@ -78,9 +78,20 @@ export class PublisherPermissionsAPI {
         }
 
         const data = await response.json();
+
+        // Handle JSON:API format
+        const members = (data.data || []).map((item: any) => ({
+            id: item.attributes.id,
+            userId: item.attributes.user?.id || item.id, // Use user.id if available, otherwise use item.id
+            role: item.attributes.role,
+            createdAt: item.attributes.createdAt,
+            user: item.attributes.user,
+            scopes: item.attributes.scopes || []
+        }));
+
         return {
-            members: data.data || [],
-            total: data.meta?.total || data.data?.length || 0
+            members,
+            total: data.meta?.total || members.length
         };
     }
 
@@ -146,14 +157,23 @@ export class PublisherPermissionsAPI {
         }
 
         const data = await response.json();
-        return data.data || [];
+
+        // Handle JSON:API format
+        return (data.data || []).map((item: any) => ({
+            id: item.attributes?.id || item.id,
+            publisherId: item.attributes?.publisherId,
+            modpackId: item.attributes?.modpackId,
+            permissions: item.attributes?.permissions || item.attributes,
+            createdAt: item.attributes?.createdAt,
+            updatedAt: item.attributes?.updatedAt
+        }));
     }
 
     static async assignPermission(
-        publisherId: string, 
-        userId: string, 
-        permission: string, 
-        enable: boolean, 
+        publisherId: string,
+        userId: string,
+        permission: string,
+        enable: boolean,
         accessToken: string,
         modpackId?: string
     ): Promise<PermissionAssignment> {
@@ -172,7 +192,9 @@ export class PublisherPermissionsAPI {
         }
 
         const data = await response.json();
-        return data.data;
+
+        // Handle JSON:API format if needed
+        return data.data || data;
     }
 
     // Helper methods
@@ -194,16 +216,6 @@ export class PublisherPermissionsAPI {
         return variantMap[role] || 'outline';
     }
 
-    static getPermissionLabel(permissionKey: string): string {
-        const permission = ALL_PERMISSIONS.find(p => p.key === permissionKey);
-        return permission?.label || permissionKey;
-    }
-
-    static getPermissionDescription(permissionKey: string): string {
-        const permission = ALL_PERMISSIONS.find(p => p.key === permissionKey);
-        return permission?.description || '';
-    }
-
     static hasPermission(member: PublisherMemberWithPermissions, permission: string, modpackId?: string): boolean {
         // Owners and admins have all permissions
         if (member.role === 'owner' || member.role === 'admin') {
@@ -211,7 +223,7 @@ export class PublisherPermissionsAPI {
         }
 
         // Check in scopes
-        const relevantScope = modpackId 
+        const relevantScope = modpackId
             ? member.scopes.find(scope => scope.modpackId === modpackId)
             : member.scopes.find(scope => scope.publisherId && !scope.modpackId);
 
