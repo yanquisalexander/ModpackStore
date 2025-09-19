@@ -278,8 +278,8 @@ export class PublisherPermissionsController {
 
             return c.json(serializeCollection('scopes', scopes.map(scope => ({
                 id: scope.id.toString(),
-                publisherId: scope.publisherId,
-                modpackId: scope.modpackId,
+                publisherId: scope.publisherId || scope.publisher?.id,
+                modpackId: scope.modpackId || scope.modpack?.id,
                 permissions: {
                     modpackView: scope.modpackView,
                     modpackModify: scope.modpackModify,

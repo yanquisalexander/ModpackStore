@@ -1,4 +1,4 @@
-import { Repository } from "typeorm";
+import { Repository, IsNull } from "typeorm";
 import { AppDataSource } from "../db/data-source";
 import { Publisher } from "../entities/Publisher";
 import { PublisherMember } from "../entities/PublisherMember";
@@ -56,7 +56,7 @@ export class PublisherService {
         try {
             return await this.memberRepository.findOne({
                 where: { publisherId, userId },
-                relations: ['scopes', 'user', 'publisher']
+                relations: ['scopes', 'user', 'publisher', 'scopes.publisher', 'scopes.modpack']
             });
         } catch (error) {
             console.error(`Error getting member ${userId} for publisher ${publisherId}:`, error);
@@ -68,7 +68,7 @@ export class PublisherService {
         try {
             return await this.memberRepository.find({
                 where: { publisherId },
-                relations: ['user', 'scopes'],
+                relations: ['user', 'scopes', 'scopes.publisher', 'scopes.modpack'],
                 order: { createdAt: 'DESC' }
             });
         } catch (error) {
@@ -106,7 +106,16 @@ export class PublisherService {
             if (!member) return [];
 
             return await this.scopeRepository.find({
-                where: { publisherMemberId: member.id },
+                where: [
+                    {
+                        publisherMemberId: member.id,
+                        publisherId: publisherId // Scopes for this publisher
+                    },
+                    {
+                        publisherMemberId: member.id,
+                        publisherId: IsNull() // Scopes for specific modpacks (publisherId is null)
+                    }
+                ],
                 relations: ['publisher', 'modpack']
             });
         } catch (error) {
@@ -144,9 +153,9 @@ export class PublisherService {
 
     // Permission checking logic
     async hasUserPermission(
-        publisherId: string, 
-        userId: string, 
-        permission: string, 
+        publisherId: string,
+        userId: string,
+        permission: string,
         modpackId?: string
     ): Promise<boolean> {
         try {
@@ -310,13 +319,13 @@ export class PublisherService {
 
             // Set the specific permission
             this.setPermissionInScopeData(scopeData, permission, enable);
-            
+
             targetScope = await this.addMemberScope(publisherId, userId, scopeData);
         } else {
             // Update existing scope
             const updateData: Partial<z.infer<typeof scopeSchema>> = {};
             this.setPermissionInScopeData(updateData, permission, enable);
-            
+
             await this.updateMemberScope(targetScope.id, updateData);
         }
     }

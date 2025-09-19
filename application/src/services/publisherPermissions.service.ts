@@ -86,7 +86,23 @@ export class PublisherPermissionsAPI {
             role: item.attributes.role,
             createdAt: item.attributes.createdAt,
             user: item.attributes.user,
-            scopes: item.attributes.scopes || []
+            scopes: (item.attributes.scopes || []).map((scope: any) => ({
+                id: scope.id?.toString() || scope.id,
+                publisherId: scope.publisherId,
+                modpackId: scope.modpackId,
+                permissions: {
+                    modpackView: scope.modpackView || false,
+                    modpackModify: scope.modpackModify || false,
+                    modpackManageVersions: scope.modpackManageVersions || false,
+                    modpackPublish: scope.modpackPublish || false,
+                    modpackDelete: scope.modpackDelete || false,
+                    modpackManageAccess: scope.modpackManageAccess || false,
+                    publisherManageCategoriesTags: scope.publisherManageCategoriesTags || false,
+                    publisherViewStats: scope.publisherViewStats || false,
+                },
+                createdAt: scope.createdAt,
+                updatedAt: scope.updatedAt
+            }))
         }));
 
         return {
@@ -159,14 +175,26 @@ export class PublisherPermissionsAPI {
         const data = await response.json();
 
         // Handle JSON:API format
-        return (data.data || []).map((item: any) => ({
-            id: item.attributes?.id || item.id,
-            publisherId: item.attributes?.publisherId,
-            modpackId: item.attributes?.modpackId,
-            permissions: item.attributes?.permissions || item.attributes,
-            createdAt: item.attributes?.createdAt,
-            updatedAt: item.attributes?.updatedAt
-        }));
+        return (data.data || []).map((item: any) => {
+            const attrs = item.attributes || item;
+            return {
+                id: attrs.id?.toString() || attrs.id,
+                publisherId: attrs.publisherId,
+                modpackId: attrs.modpackId,
+                permissions: {
+                    modpackView: attrs.modpackView || false,
+                    modpackModify: attrs.modpackModify || false,
+                    modpackManageVersions: attrs.modpackManageVersions || false,
+                    modpackPublish: attrs.modpackPublish || false,
+                    modpackDelete: attrs.modpackDelete || false,
+                    modpackManageAccess: attrs.modpackManageAccess || false,
+                    publisherManageCategoriesTags: attrs.publisherManageCategoriesTags || false,
+                    publisherViewStats: attrs.publisherViewStats || false,
+                },
+                createdAt: attrs.createdAt,
+                updatedAt: attrs.updatedAt
+            };
+        });
     }
 
     static async assignPermission(
@@ -224,8 +252,14 @@ export class PublisherPermissionsAPI {
 
         // Check in scopes
         const relevantScope = modpackId
-            ? member.scopes.find(scope => scope.modpackId === modpackId)
-            : member.scopes.find(scope => scope.publisherId && !scope.modpackId);
+            ? member.scopes.find(scope => {
+                const scopeModpackId = scope.modpackId || (scope as any).modpack?.id;
+                return scopeModpackId === modpackId;
+            })
+            : member.scopes.find(scope => {
+                const scopePublisherId = scope.publisherId || (scope as any).publisher?.id;
+                return scopePublisherId && !scope.modpackId && !(scope as any).modpack?.id;
+            });
 
         if (!relevantScope) return false;
 

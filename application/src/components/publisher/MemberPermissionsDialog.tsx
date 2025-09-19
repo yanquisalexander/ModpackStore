@@ -23,14 +23,15 @@ import {
     LucideTags
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { 
-    PublisherPermissionsAPI, 
-    PublisherMemberWithPermissions, 
+import {
+    PublisherPermissionsAPI,
+    PublisherMemberWithPermissions,
     PermissionScope,
     MODPACK_PERMISSIONS,
     PUBLISHER_PERMISSIONS,
     ALL_PERMISSIONS
 } from '@/services/publisherPermissions.service';
+import { API_ENDPOINT } from '@/consts';
 
 interface MemberPermissionsDialogProps {
     member: PublisherMemberWithPermissions | null;
@@ -39,6 +40,14 @@ interface MemberPermissionsDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onPermissionsChanged: () => void;
+}
+
+interface ModpackInfo {
+    id: string;
+    name: string;
+    slug: string;
+    iconUrl?: string;
+    status: string;
 }
 
 const PermissionIcon: React.FC<{ permission: string }> = ({ permission }) => {
@@ -67,10 +76,13 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
     const [loading, setLoading] = useState(false);
     const [permissions, setPermissions] = useState<PermissionScope[]>([]);
     const [modifyingPermissions, setModifyingPermissions] = useState<Set<string>>(new Set());
+    const [publisherModpacks, setPublisherModpacks] = useState<ModpackInfo[]>([]);
+    const [loadingModpacks, setLoadingModpacks] = useState(false);
 
     useEffect(() => {
         if (open && member) {
             loadPermissions();
+            loadPublisherModpacks();
         }
     }, [open, member]);
 
@@ -84,7 +96,28 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
                 member.userId,
                 accessToken
             );
-            setPermissions(memberPermissions);
+            console.log('[DEBUG] Loaded permissions:', memberPermissions);
+            console.log('[DEBUG] Member scopes:', member.scopes);
+
+            // Ensure permissions are properly structured
+            const processedPermissions = memberPermissions.map(scope => ({
+                ...scope,
+                permissions: scope.permissions || {
+                    modpackView: false,
+                    modpackModify: false,
+                    modpackManageVersions: false,
+                    modpackPublish: false,
+                    modpackDelete: false,
+                    modpackManageAccess: false,
+                    publisherManageCategoriesTags: false,
+                    publisherViewStats: false,
+                }
+            }));
+            console.log('[DEBUG] Processed permissions:', processedPermissions);
+            console.log('[DEBUG] Setting permissions state with length:', processedPermissions.length);
+
+            setPermissions(processedPermissions);
+            console.log('[DEBUG] Permissions state updated successfully');
         } catch (error) {
             toast({
                 title: "Error",
@@ -93,6 +126,36 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
             });
         } finally {
             setLoading(false);
+        }
+    };
+
+    const loadPublisherModpacks = async () => {
+        if (!publisherId) return;
+
+        try {
+            setLoadingModpacks(true);
+            const response = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks`, {
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                // Assuming the API returns modpacks in data array
+                const modpacks = (data.data || data.modpacks || []).map((modpack: any) => ({
+                    id: modpack.id,
+                    name: modpack.name,
+                    slug: modpack.slug,
+                    iconUrl: modpack.iconUrl,
+                    status: modpack.status
+                }));
+                setPublisherModpacks(modpacks);
+            }
+        } catch (error) {
+            console.error('Error loading publisher modpacks:', error);
+        } finally {
+            setLoadingModpacks(false);
         }
     };
 
@@ -137,7 +200,83 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
 
     const hasPermission = (permission: string, modpackId?: string): boolean => {
         if (!member) return false;
-        return PublisherPermissionsAPI.hasPermission(member, permission, modpackId);
+
+        console.log(`[DEBUG] hasPermission called:`, { permission, modpackId, memberRole: member.role });
+
+        // Owners and admins have all permissions
+        if (member.role === 'owner' || member.role === 'admin') {
+            return true;
+        }
+
+        // If permissions haven't been loaded yet, check member.scopes as fallback
+        // But ensure member.scopes has the same structure as permissions
+        const scopesToCheck = permissions.length > 0 ? permissions : member.scopes.map((scope: any) => ({
+            ...scope,
+            permissions: scope.permissions || {
+                modpackView: scope.modpackView || false,
+                modpackModify: scope.modpackModify || false,
+                modpackManageVersions: scope.modpackManageVersions || false,
+                modpackPublish: scope.modpackPublish || false,
+                modpackDelete: scope.modpackDelete || false,
+                modpackManageAccess: scope.modpackManageAccess || false,
+                publisherManageCategoriesTags: scope.publisherManageCategoriesTags || false,
+                publisherViewStats: scope.publisherViewStats || false,
+            }
+        }));
+
+        // Check in scopes for specific modpack or publisher-level permissions
+        const relevantScope = modpackId
+            ? scopesToCheck.find((scope: any) => {
+                const scopeModpackId = scope.modpackId || scope.modpack?.id;
+                console.log(`[DEBUG] Checking modpack scope:`, { scopeModpackId, modpackId, match: scopeModpackId === modpackId });
+                return scopeModpackId === modpackId;
+            })
+            : scopesToCheck.find((scope: any) => {
+                const scopePublisherId = scope.publisherId || scope.publisher?.id;
+                const hasPublisherId = !!scopePublisherId;
+                const hasNoModpackId = !scope.modpackId && !scope.modpack?.id;
+                console.log(`[DEBUG] Checking publisher scope:`, {
+                    scopePublisherId,
+                    hasPublisherId,
+                    hasNoModpackId,
+                    scopeModpackId: scope.modpackId,
+                    scopeModpack: scope.modpack?.id,
+                    match: hasPublisherId && hasNoModpackId
+                });
+                return hasPublisherId && hasNoModpackId;
+            });
+
+        if (!relevantScope || !relevantScope.permissions) return false;
+
+        const permissionMap: Record<string, keyof PermissionScope['permissions']> = {
+            'modpack.view': 'modpackView',
+            'modpack.modify': 'modpackModify',
+            'modpack.manage_versions': 'modpackManageVersions',
+            'modpack.publish': 'modpackPublish',
+            'modpack.delete': 'modpackDelete',
+            'modpack.manage_access': 'modpackManageAccess',
+            'publisher.manage_categories_tags': 'publisherManageCategoriesTags',
+            'publisher.view_stats': 'publisherViewStats',
+        };
+
+        const permissionField = permissionMap[permission];
+        const result = permissionField ? relevantScope.permissions[permissionField] : false;
+
+        console.log(`[DEBUG] hasPermission(${permission}, ${modpackId}):`, {
+            role: member.role,
+            usingPermissionsState: permissions.length > 0,
+            scopesCount: scopesToCheck.length,
+            relevantScope: relevantScope ? {
+                id: relevantScope.id,
+                publisherId: relevantScope.publisherId,
+                modpackId: relevantScope.modpackId,
+                permissions: relevantScope.permissions
+            } : null,
+            permissionField,
+            result
+        });
+
+        return result;
     };
 
     const renderPermissionSwitch = (permission: typeof ALL_PERMISSIONS[number], modpackId?: string) => {
@@ -205,8 +344,8 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     {member.user.avatarUrl && (
-                                        <img 
-                                            src={member.user.avatarUrl} 
+                                        <img
+                                            src={member.user.avatarUrl}
                                             alt={member.user.username}
                                             className="h-10 w-10 rounded-full"
                                         />
@@ -226,9 +365,10 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
                     {/* Permission management */}
                     {member.role === 'member' ? (
                         <Tabs defaultValue="publisher" className="w-full">
-                            <TabsList className="grid w-full grid-cols-2">
-                                <TabsTrigger value="publisher">Permisos del Publisher</TabsTrigger>
-                                <TabsTrigger value="modpacks">Permisos de Modpacks</TabsTrigger>
+                            <TabsList className="grid w-full grid-cols-3">
+                                <TabsTrigger value="publisher">Publisher</TabsTrigger>
+                                <TabsTrigger value="modpacks-general">Modpacks Generales</TabsTrigger>
+                                <TabsTrigger value="modpacks-specific">Modpacks Específicos</TabsTrigger>
                             </TabsList>
 
                             <TabsContent value="publisher" className="space-y-4">
@@ -256,7 +396,7 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
                                 </Card>
                             </TabsContent>
 
-                            <TabsContent value="modpacks" className="space-y-4">
+                            <TabsContent value="modpacks-general" className="space-y-4">
                                 <Card>
                                     <CardHeader>
                                         <CardTitle className="text-base">Permisos generales de Modpacks</CardTitle>
@@ -279,12 +419,62 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
                                         )}
                                     </CardContent>
                                 </Card>
+                            </TabsContent>
 
-                                {/* TODO: Add modpack-specific permissions here */}
+                            <TabsContent value="modpacks-specific" className="space-y-4">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-base">Permisos específicos por Modpack</CardTitle>
+                                        <p className="text-sm text-muted-foreground">
+                                            Configura permisos individuales para cada modpack
+                                        </p>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        {loadingModpacks ? (
+                                            <div className="flex items-center justify-center py-4">
+                                                <LucideLoader className="h-6 w-6 animate-spin" />
+                                            </div>
+                                        ) : publisherModpacks.length === 0 ? (
+                                            <div className="text-center py-4 text-muted-foreground">
+                                                No hay modpacks disponibles
+                                            </div>
+                                        ) : (
+                                            publisherModpacks.map((modpack) => (
+                                                <div key={modpack.id} className="border rounded-lg p-4 space-y-3">
+                                                    <div className="flex items-center gap-3">
+                                                        {modpack.iconUrl && (
+                                                            <img
+                                                                src={modpack.iconUrl}
+                                                                alt={modpack.name}
+                                                                className="h-8 w-8 rounded"
+                                                            />
+                                                        )}
+                                                        <div>
+                                                            <h4 className="font-medium">{modpack.name}</h4>
+                                                            <p className="text-sm text-muted-foreground">/{modpack.slug}</p>
+                                                        </div>
+                                                        <Badge variant="outline" className="ml-auto">
+                                                            {modpack.status}
+                                                        </Badge>
+                                                    </div>
+
+                                                    <div className="space-y-2 pl-11">
+                                                        {MODPACK_PERMISSIONS.map((permission) => (
+                                                            <div key={`${permission.key}-${modpack.id}`}>
+                                                                {renderPermissionSwitch(permission, modpack.id)}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))
+                                        )}
+                                    </CardContent>
+                                </Card>
+
                                 <Alert>
                                     <LucideInfo className="h-4 w-4" />
                                     <AlertDescription>
-                                        Los permisos específicos por modpack se pueden configurar desde la página de cada modpack individual.
+                                        Los permisos específicos por modpack tienen prioridad sobre los permisos generales.
                                     </AlertDescription>
                                 </Alert>
                             </TabsContent>
@@ -293,7 +483,7 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
                         <Alert>
                             <LucideInfo className="h-4 w-4" />
                             <AlertDescription>
-                                Los usuarios con rol de <strong>{PublisherPermissionsAPI.getRoleDisplayName(member.role)}</strong> tienen 
+                                Los usuarios con rol de <strong>{PublisherPermissionsAPI.getRoleDisplayName(member.role)}</strong> tienen
                                 acceso completo y no requieren configuración de permisos individuales.
                             </AlertDescription>
                         </Alert>
