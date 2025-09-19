@@ -5,8 +5,6 @@ import { User } from "@/entities/User";
 import { APIError } from "@/lib/APIError";
 import { isOrganizationMember, requireAuth, requireCreatorAccess, USER_CONTEXT_KEY } from "@/middlewares/auth.middleware";
 import { ModpackVisibility } from "@/models/Modpack.model";
-import { Publisher } from "@/models/Publisher.model";
-import { ModpackPermission, PublisherPermission } from "@/types/enums";
 import { ALLOWED_FILE_TYPES, processModpackFileUpload } from "@/services/modpackFileUpload";
 import { CurseForgeImportService } from "@/services/curseforgeImportService";
 import { queue } from "@/services/Queue";
@@ -29,129 +27,58 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks", isOrganizationMemb
     const user = c.get(USER_CONTEXT_KEY) as User;
     const { publisherId } = c.req.param();
 
-    try {
-        // Get user's role in the publisher
-        const userRole = await user.getRoleInPublisher(publisherId);
-        
-        let modpacks;
-        
-        if (userRole === PublisherMemberRole.OWNER || userRole === PublisherMemberRole.ADMIN) {
-            // Owners and Admins can see all modpacks
-            modpacks = await Modpack.find({
-                where: { publisherId },
-                relations: ["creatorUser", "categories", "categories.category"],
-                select: {
+    // Determinar el filtro según el rol del usuario
+    const userRole = await user.getRoleInPublisher(publisherId);
+    const filter = userRole === PublisherMemberRole.MEMBER
+        ? { publisherId, creatorUserId: user.id }
+        : { publisherId };
+
+    const modpacks = await Modpack.find({
+        where: filter,
+        relations: ["creatorUser", "categories", "categories.category"],
+        select: {
+            id: true,
+            name: true,
+            slug: true,
+            iconUrl: true,
+            bannerUrl: true,
+            visibility: true,
+            showUserAsPublisher: true,
+            publisherId: true,
+            shortDescription: true,
+            status: true,
+            description: true,
+            prelaunchAppearance: true,
+            updatedAt: true,
+            createdAt: true,
+            versions: true,
+            isPaid: true,
+            price: true,
+            acquisitionMethod: true,
+            requiresTwitchSubscription: true,
+            twitchCreatorIds: true,
+            twitchChannels: true,
+            creatorUser: {
+                id: true,
+                username: true,
+                email: true,
+                avatarUrl: true,
+            },
+            categories: {
+                id: true,
+                categoryId: true,
+                isPrimary: true,
+                category: {
                     id: true,
                     name: true,
-                    slug: true,
                     iconUrl: true,
-                    bannerUrl: true,
-                    visibility: true,
-                    showUserAsPublisher: true,
-                    publisherId: true,
                     shortDescription: true,
-                    status: true,
-                    description: true,
-                    prelaunchAppearance: true,
-                    updatedAt: true,
-                    createdAt: true,
-                    versions: true,
-                    isPaid: true,
-                    price: true,
-                    acquisitionMethod: true,
-                    requiresTwitchSubscription: true,
-                    twitchCreatorIds: true,
-                    twitchChannels: true,
-                    creatorUser: {
-                        id: true,
-                        username: true,
-                        email: true,
-                        avatarUrl: true,
-                    },
-                    categories: {
-                        id: true,
-                        categoryId: true,
-                        isPrimary: true,
-                        category: {
-                            id: true,
-                            name: true,
-                            iconUrl: true,
-                            shortDescription: true,
-                        }
-                    }
-                }
-            });
-        } else {
-            // Members can only see modpacks they have explicit view permission for
-            // or modpacks they created
-            const allModpacks = await Modpack.find({
-                where: { publisherId },
-                relations: ["creatorUser", "categories", "categories.category"],
-                select: {
-                    id: true,
-                    name: true,
-                    slug: true,
-                    iconUrl: true,
-                    bannerUrl: true,
-                    visibility: true,
-                    showUserAsPublisher: true,
-                    publisherId: true,
-                    shortDescription: true,
-                    status: true,
-                    description: true,
-                    prelaunchAppearance: true,
-                    updatedAt: true,
-                    createdAt: true,
-                    versions: true,
-                    isPaid: true,
-                    price: true,
-                    acquisitionMethod: true,
-                    requiresTwitchSubscription: true,
-                    twitchCreatorIds: true,
-                    twitchChannels: true,
-                    creatorUser: {
-                        id: true,
-                        username: true,
-                        email: true,
-                        avatarUrl: true,
-                    },
-                    categories: {
-                        id: true,
-                        categoryId: true,
-                        isPrimary: true,
-                        category: {
-                            id: true,
-                            name: true,
-                            iconUrl: true,
-                            shortDescription: true,
-                        }
-                    }
-                }
-            });
-
-            // Filter modpacks based on permissions
-            const publisher = await Publisher.findById(publisherId);
-            if (!publisher) {
-                return c.json({ error: "Publisher not found" }, 404);
-            }
-
-            const filteredModpacks = [];
-            for (const modpack of allModpacks) {
-                // Check if user created the modpack or has view permission
-                if (modpack.creatorUserId === user.id || 
-                    await publisher.hasModpackPermission(user.id, modpack.id, ModpackPermission.VIEW)) {
-                    filteredModpacks.push(modpack);
                 }
             }
-            
-            modpacks = filteredModpacks;
         }
+    });
 
-        return c.json({ modpacks });
-    } catch (error) {
-        console.error('Error fetching modpacks:', error);
-        return c.json({ error: "Failed to fetch modpacks" }, 500);
-    }
+    return c.json({ modpacks });
 });
 
 
@@ -160,26 +87,11 @@ ModpackCreatorsRoute.patch(
     isOrganizationMember,
     async (c) => {
         const { publisherId, modpackId } = c.req.param();
-        const user = c.get(USER_CONTEXT_KEY) as User;
 
         const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
         if (!modpack) return c.notFound();
 
         if (modpack.publisherId !== publisherId) {
-            return c.json({ error: "No tienes permiso para editar este modpack" }, 403);
-        }
-
-        // Check granular permissions
-        const publisher = await Publisher.findById(publisherId);
-        if (!publisher) {
-            return c.json({ error: "Publisher not found" }, 404);
-        }
-
-        // Check if user can modify this modpack
-        const canModify = await publisher.hasModpackPermission(user.id, modpackId, ModpackPermission.MODIFY);
-        const isCreator = modpack.creatorUserId === user.id;
-        
-        if (!canModify && !isCreator) {
             return c.json({ error: "No tienes permiso para editar este modpack" }, 403);
         }
 

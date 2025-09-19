@@ -17,7 +17,6 @@ import { useAuthentication } from '@/stores/AuthContext';
 import { useTeams } from '@/hooks/creators/useTeams';
 import { PublisherModpacksView } from '@/views/publisher/PublisherModpacksView';
 import { PublisherTeamView } from '@/views/publisher/PublisherTeamView';
-import { PublisherPermissionsView } from '@/views/publisher/PublisherPermissionsView';
 import { PublisherModpackVersionsView } from '@/views/publisher/PublisherModpackVersionsView';
 import PublisherModpackVersionDetailView from '@/views/publisher/PublisherModpackVersionDetailView';
 import { useGlobalContext } from "@/stores/GlobalContext";
@@ -39,12 +38,6 @@ const getPublisherNavItems = (publisherId: string) => [
         label: 'Gestión de Equipo',
         icon: LucideUsers,
         description: 'Administrar miembros del equipo'
-    },
-    {
-        path: `/publisher/${publisherId}/permissions`,
-        label: 'Permisos Granulares',
-        icon: LucideShield,
-        description: 'Administrar permisos detallados por miembro'
     },
     {
         path: `/publisher/${publisherId}/payments`,
@@ -219,7 +212,6 @@ export const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) =>
                             <Route path="/modpacks/:modpackId/versions" element={<PublisherModpackVersionsView />} />
                             <Route path="/modpacks/:modpackId/versions/:versionId" element={<PublisherModpackVersionDetailView />} />
                             <Route path="/team" element={<PublisherTeamView />} />
-                            <Route path="/permissions" element={<PublisherPermissionsView />} />
                             <Route path="*" element={<PublisherModpacksView />} /> {/* Default to modpacks */}
                         </Routes>
                     )}

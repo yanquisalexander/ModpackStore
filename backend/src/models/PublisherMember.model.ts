@@ -8,7 +8,6 @@ import {
     UsersTable,
     ScopesTable
 } from "@/db/schema";
-import { ModpackPermission, PublisherPermission } from "@/types/enums";
 
 // Types
 type PublisherMemberType = typeof PublisherMembersTable.$inferSelect;
@@ -448,56 +447,9 @@ export class PublisherMember {
         return false;
     }
 
-    // Granular permission methods
-    async hasModpackPermission(modpackId: string, permission: ModpackPermission): Promise<boolean> {
-        return this.hasPermission(permission, modpackId);
-    }
-
-    async hasPublisherPermission(permission: PublisherPermission): Promise<boolean> {
-        return this.hasPermission(permission);
-    }
-
-    // Specific permission checks
-    async canViewModpack(modpackId: string): Promise<boolean> {
-        return this.hasModpackPermission(modpackId, ModpackPermission.VIEW);
-    }
-
-    async canModifyModpack(modpackId: string): Promise<boolean> {
-        return this.hasModpackPermission(modpackId, ModpackPermission.MODIFY);
-    }
-
-    async canManageModpackVersions(modpackId: string): Promise<boolean> {
-        return this.hasModpackPermission(modpackId, ModpackPermission.MANAGE_VERSIONS);
-    }
-
-    async canPublishModpack(modpackId: string): Promise<boolean> {
-        return this.hasModpackPermission(modpackId, ModpackPermission.PUBLISH);
-    }
-
-    async canDeleteModpack(modpackId: string): Promise<boolean> {
-        return this.hasModpackPermission(modpackId, ModpackPermission.DELETE);
-    }
-
-    async canManageModpackAccess(modpackId: string): Promise<boolean> {
-        return this.hasModpackPermission(modpackId, ModpackPermission.MANAGE_ACCESS);
-    }
-
-    async canManageCategoriesTags(): Promise<boolean> {
-        return this.hasPublisherPermission(PublisherPermission.MANAGE_CATEGORIES_TAGS);
-    }
-
-    async canViewStats(): Promise<boolean> {
-        return this.hasPublisherPermission(PublisherPermission.VIEW_STATS);
-    }
-
     async hasPermission(permission: string, modpackId?: string): Promise<boolean> {
-        // Owners have all permissions (immutable)
-        if (this.isOwner()) {
-            return true;
-        }
-
-        // Admins have all permissions by default (manageable by Owner)
-        if (this.isAdmin()) {
+        // Owners and admins have all permissions
+        if (this.isOwner() || this.isAdmin()) {
             return true;
         }
 
