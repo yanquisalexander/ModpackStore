@@ -18,7 +18,7 @@ export class Scope extends BaseEntity {
     @Column({ name: "modpack_id", type: "uuid", nullable: true })
     modpackId?: string;
 
-    // Specific permissions
+    // Legacy permissions (keeping for compatibility)
     @Column({ name: "can_create_modpacks", type: "boolean", default: false })
     canCreateModpacks: boolean;
 
@@ -36,6 +36,32 @@ export class Scope extends BaseEntity {
 
     @Column({ name: "can_manage_settings", type: "boolean", default: false })
     canManageSettings: boolean;
+
+    // Granular modpack permissions
+    @Column({ name: "modpack_view", type: "boolean", default: false })
+    modpackView: boolean;
+
+    @Column({ name: "modpack_modify", type: "boolean", default: false })
+    modpackModify: boolean;
+
+    @Column({ name: "modpack_manage_versions", type: "boolean", default: false })
+    modpackManageVersions: boolean;
+
+    @Column({ name: "modpack_publish", type: "boolean", default: false })
+    modpackPublish: boolean;
+
+    @Column({ name: "modpack_delete", type: "boolean", default: false })
+    modpackDelete: boolean;
+
+    @Column({ name: "modpack_manage_access", type: "boolean", default: false })
+    modpackManageAccess: boolean;
+
+    // Granular publisher permissions
+    @Column({ name: "publisher_manage_categories_tags", type: "boolean", default: false })
+    publisherManageCategoriesTags: boolean;
+
+    @Column({ name: "publisher_view_stats", type: "boolean", default: false })
+    publisherViewStats: boolean;
 
     @CreateDateColumn({ name: "created_at" })
     createdAt: Date;

@@ -49,12 +49,23 @@ export const publisherMemberSchema = z.object({
 export const scopeSchema = z.object({
     publisherId: z.string().uuid().optional(),
     modpackId: z.string().uuid().optional(),
+    // Legacy permissions (keeping for compatibility)
     canCreateModpacks: z.boolean().default(false),
     canEditModpacks: z.boolean().default(false),
     canDeleteModpacks: z.boolean().default(false),
     canPublishVersions: z.boolean().default(false),
     canManageMembers: z.boolean().default(false),
     canManageSettings: z.boolean().default(false),
+    // Granular modpack permissions
+    modpackView: z.boolean().default(false),
+    modpackModify: z.boolean().default(false),
+    modpackManageVersions: z.boolean().default(false),
+    modpackPublish: z.boolean().default(false),
+    modpackDelete: z.boolean().default(false),
+    modpackManageAccess: z.boolean().default(false),
+    // Granular publisher permissions
+    publisherManageCategoriesTags: z.boolean().default(false),
+    publisherViewStats: z.boolean().default(false),
 }).refine(data => data.publisherId || data.modpackId, {
     message: "Either publisherId or modpackId must be provided"
 });
@@ -465,12 +476,23 @@ export class Publisher {
                 publisherMemberId: member.id,
                 publisherId: parsed.data.publisherId,
                 modpackId: parsed.data.modpackId,
+                // Legacy permissions
                 canCreateModpacks: parsed.data.canCreateModpacks,
                 canEditModpacks: parsed.data.canEditModpacks,
                 canDeleteModpacks: parsed.data.canDeleteModpacks,
                 canPublishVersions: parsed.data.canPublishVersions,
                 canManageMembers: parsed.data.canManageMembers,
                 canManageSettings: parsed.data.canManageSettings,
+                // Granular modpack permissions
+                modpackView: parsed.data.modpackView,
+                modpackModify: parsed.data.modpackModify,
+                modpackManageVersions: parsed.data.modpackManageVersions,
+                modpackPublish: parsed.data.modpackPublish,
+                modpackDelete: parsed.data.modpackDelete,
+                modpackManageAccess: parsed.data.modpackManageAccess,
+                // Granular publisher permissions
+                publisherManageCategoriesTags: parsed.data.publisherManageCategoriesTags,
+                publisherViewStats: parsed.data.publisherViewStats,
                 createdAt: now,
                 updatedAt: now,
             });
