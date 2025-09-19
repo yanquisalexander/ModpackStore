@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import { newPublisherSchema, publisherUpdateSchema } from "@/models/Publisher.model";
+import { newPublisherSchema, publisherUpdateSchema } from "@/validators/publisher.validator";
 import { AdminPublishersService } from "@/services/adminPublishers.service";
 import { serializeResource, serializeCollection, serializeError } from "../utils/jsonapi";
 import { z } from "zod";
