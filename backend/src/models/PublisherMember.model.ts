@@ -464,7 +464,7 @@ export class PublisherMember {
 
             // Check modpack-specific permissions if modpackId is provided
             if (modpackId) {
-                const modpackScope = scopes.find(scope => scope.modpackId === modpackId);
+                const modpackScope = scopes.find(scope => scope.modpackId === modpackId && scope.publisherId === this.publisherId);
                 if (modpackScope && modpackScope[permission as keyof typeof modpackScope]) {
                     return true;
                 }

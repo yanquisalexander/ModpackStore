@@ -89,7 +89,7 @@ export class PublisherPermissionsAPI {
             scopes: (item.attributes.scopes || []).map((scope: any) => {
                 // Check if permissions are nested or flat
                 const permissionsData = scope.permissions || scope;
-                
+
                 return {
                     id: scope.id?.toString() || scope.id,
                     publisherId: scope.publisherId,
@@ -182,16 +182,25 @@ export class PublisherPermissionsAPI {
         // Handle JSON:API format
         return (data.data || []).map((item: any) => {
             const attrs = item.attributes || item;
-            
+
+            console.log('[DEBUG] Processing scope item:', {
+                item,
+                attrs,
+                hasPublisherId: !!attrs.publisherId,
+                hasModpackId: !!attrs.modpackId,
+                publisherId: attrs.publisherId,
+                modpackId: attrs.modpackId
+            });
+
             // Check if permissions are nested in a permissions object or directly in attrs
             const permissionsData = attrs.permissions || attrs;
-            
+
             console.log('[DEBUG] Raw permission data from API:', {
                 attrs,
                 permissionsData,
                 hasNestedPermissions: !!attrs.permissions
             });
-            
+
             return {
                 id: attrs.id?.toString() || attrs.id,
                 publisherId: attrs.publisherId,

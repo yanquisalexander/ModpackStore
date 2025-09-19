@@ -276,6 +276,14 @@ export class PublisherPermissionsController {
 
             const scopes = await PublisherPermissionsController.getPublisherService().getMemberScopes(publisherId, targetUserId);
 
+            console.log('[DEBUG] Scopes from database:', scopes.map(scope => ({
+                id: scope.id,
+                publisherId: scope.publisherId,
+                modpackId: scope.modpackId,
+                publisher: scope.publisher?.id,
+                modpack: scope.modpack?.id
+            })));
+
             return c.json(serializeCollection('scopes', scopes.map(scope => ({
                 id: scope.id.toString(),
                 publisherId: scope.publisherId || scope.publisher?.id,

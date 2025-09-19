@@ -19,6 +19,7 @@ import { PublisherModpacksView } from '@/views/publisher/PublisherModpacksView';
 import { PublisherTeamView } from '@/views/publisher/PublisherTeamViewEnhanced';
 import { PublisherModpackVersionsView } from '@/views/publisher/PublisherModpackVersionsView';
 import PublisherModpackVersionDetailView from '@/views/publisher/PublisherModpackVersionDetailView';
+import { PublisherPaymentsView } from '@/views/publisher/PublisherPaymentsView';
 import { useGlobalContext } from "@/stores/GlobalContext";
 
 interface PublisherLayoutProps {
@@ -44,7 +45,7 @@ const getPublisherNavItems = (publisherId: string) => [
         label: 'Pagos',
         icon: LucideHandCoins,
         description: 'Ver y retirar pagos',
-        disabled: true
+        disabled: false
     },
     {
         path: `/publisher/${publisherId}/settings`,
@@ -212,6 +213,7 @@ export const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) =>
                             <Route path="/modpacks/:modpackId/versions" element={<PublisherModpackVersionsView />} />
                             <Route path="/modpacks/:modpackId/versions/:versionId" element={<PublisherModpackVersionDetailView />} />
                             <Route path="/team" element={<PublisherTeamView />} />
+                            <Route path="/payments" element={<PublisherPaymentsView />} />
                             <Route path="*" element={<PublisherModpacksView />} /> {/* Default to modpacks */}
                         </Routes>
                     )}

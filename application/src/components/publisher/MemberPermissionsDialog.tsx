@@ -85,15 +85,15 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
     const canManagePermissions = (targetMemberRole: string): boolean => {
         // Members cannot manage any permissions
         if (currentUserRole === 'member') return false;
-        
+
         // Owners can manage all permissions
         if (currentUserRole === 'owner') return true;
-        
+
         // Admins can only manage member permissions
         if (currentUserRole === 'admin') {
             return targetMemberRole === 'member';
         }
-        
+
         return false;
     };
 
@@ -127,7 +127,7 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
                 // Make sure we preserve the actual permission values from the API
                 const existingPermissions = scope.permissions || {};
                 console.log('[DEBUG] Processing scope:', scope.id, 'permissions:', existingPermissions);
-                
+
                 return {
                     ...scope,
                     permissions: {
@@ -142,7 +142,7 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
                     }
                 };
             });
-            
+
             console.log('[DEBUG] Final processed permissions:', processedPermissions);
             setPermissions(processedPermissions);
         } catch (error) {
@@ -340,6 +340,8 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
         const isEnabled = hasPermission(permission.key, modpackId);
         const isModifying = modifyingPermissions.has(permissionKey);
 
+        console.log(`[DEBUG] Rendering switch for permission ${permission.key} (modpackId: ${modpackId}) - isEnabled: ${isEnabled}, isModifying: ${isModifying}`);
+
         return (
             <div className="flex items-center justify-between py-2">
                 <div className="flex items-center gap-3">
@@ -377,7 +379,7 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
                     <Alert>
                         <LucideInfo className="h-4 w-4" />
                         <AlertDescription>
-                            No tienes permisos para gestionar los permisos de {member.user.username} 
+                            No tienes permisos para gestionar los permisos de {member.user.username}
                             ({PublisherPermissionsAPI.getRoleDisplayName(member.role)}).
                             {currentUserRole === 'member' && ' Los miembros no pueden gestionar permisos.'}
                             {currentUserRole === 'admin' && member.role !== 'member' && ' Los administradores solo pueden gestionar permisos de miembros.'}

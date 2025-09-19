@@ -20,14 +20,23 @@ export function serializeResource(type: string, data: any, options?: any) {
     : { ...data, id: String(data.id) };
 
   return new Serializer(type, {
-    attributes: Object.keys(serializedData).filter(key => key !== 'id' && !key.endsWith('Id') && key !== 'passwordHash'), // Exclude id, foreign keys, and sensitive fields
+    attributes: Object.keys(serializedData).filter(key => {
+      // Include important ID fields even if they end with 'Id'
+      const importantIdFields = ['publisherId', 'modpackId', 'userId', 'categoryId'];
+      return key !== 'id' && (!key.endsWith('Id') || importantIdFields.includes(key)) && key !== 'passwordHash';
+    }),
     keyForAttribute: 'camelCase',
+    nullIfMissing: false, // Include null values for missing attributes
     transform: (record: any) => {
-      // Remove null or undefined attributes
+      // Remove null or undefined attributes, but keep important ID fields
       const attributes: any = {};
+      const importantIdFields = ['publisherId', 'modpackId', 'userId', 'categoryId'];
+
       for (const key in record) {
-        if (record[key] !== null && record[key] !== undefined && key !== 'id' && !key.endsWith('Id') && key !== 'passwordHash') {
-          attributes[key] = record[key];
+        if ((record[key] !== null && record[key] !== undefined) || importantIdFields.includes(key)) {
+          if (key !== 'id' && (!key.endsWith('Id') || importantIdFields.includes(key)) && key !== 'passwordHash') {
+            attributes[key] = record[key];
+          }
         }
       }
       return attributes;
@@ -42,14 +51,23 @@ export function serializeCollection(type: string, data: any[], options?: any) {
   const serializedData = data.map(item => ({ ...item, id: String(item.id) }));
 
   return new Serializer(type, {
-    attributes: Object.keys(serializedData[0] || {}).filter(key => !key.endsWith('Id') && key !== 'passwordHash'),
+    attributes: Object.keys(serializedData[0] || {}).filter(key => {
+      // Include important ID fields even if they end with 'Id'
+      const importantIdFields = ['publisherId', 'modpackId', 'userId', 'categoryId'];
+      return !key.endsWith('Id') || importantIdFields.includes(key);
+    }).filter(key => key !== 'passwordHash'),
     keyForAttribute: 'camelCase',
+    nullIfMissing: false, // Include null values for missing attributes
     transform: (record: any) => {
-      // Remove null or undefined attributes
+      // Remove null or undefined attributes, but keep important ID fields
       const attributes: any = {};
+      const importantIdFields = ['publisherId', 'modpackId', 'userId', 'categoryId'];
+
       for (const key in record) {
-        if (record[key] !== null && record[key] !== undefined && !key.endsWith('Id') && key !== 'passwordHash') {
-          attributes[key] = record[key];
+        if ((record[key] !== null && record[key] !== undefined) || importantIdFields.includes(key)) {
+          if ((!key.endsWith('Id') || importantIdFields.includes(key)) && key !== 'passwordHash') {
+            attributes[key] = record[key];
+          }
         }
       }
       return attributes;

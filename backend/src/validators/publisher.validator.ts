@@ -57,7 +57,7 @@ export const assignPermissionSchema = z.object({
     userId: z.string().uuid(),
     permission: z.enum([
         'modpack.view',
-        'modpack.modify', 
+        'modpack.modify',
         'modpack.manage_versions',
         'modpack.publish',
         'modpack.delete',

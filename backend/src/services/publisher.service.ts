@@ -1,4 +1,4 @@
-import { Repository, IsNull } from "typeorm";
+import { Repository } from "typeorm";
 import { AppDataSource } from "../db/data-source";
 import { Publisher } from "../entities/Publisher";
 import { PublisherMember } from "../entities/PublisherMember";
@@ -106,16 +106,9 @@ export class PublisherService {
             if (!member) return [];
 
             return await this.scopeRepository.find({
-                where: [
-                    {
-                        publisherMemberId: member.id,
-                        publisherId: publisherId // Scopes for this publisher
-                    },
-                    {
-                        publisherMemberId: member.id,
-                        publisherId: IsNull() // Scopes for specific modpacks (publisherId is null)
-                    }
-                ],
+                where: {
+                    publisherMemberId: member.id
+                },
                 relations: ['publisher', 'modpack']
             });
         } catch (error) {
@@ -177,7 +170,7 @@ export class PublisherService {
 
             // Check modpack-specific permissions if modpackId is provided
             if (modpackId) {
-                const modpackScope = scopes.find(scope => scope.modpackId === modpackId);
+                const modpackScope = scopes.find(scope => scope.modpackId === modpackId && scope.publisherId === publisherId);
                 if (modpackScope && this.checkPermissionInScope(modpackScope, permission)) {
                     return true;
                 }
@@ -291,7 +284,7 @@ export class PublisherService {
         let targetScope: Scope | undefined;
 
         if (modpackId) {
-            targetScope = scopes.find(scope => scope.modpackId === modpackId);
+            targetScope = scopes.find(scope => scope.modpackId === modpackId && scope.publisherId === publisherId);
         } else {
             targetScope = scopes.find(scope => scope.publisherId === publisherId && !scope.modpackId);
         }
@@ -299,7 +292,7 @@ export class PublisherService {
         if (!targetScope) {
             // Create new scope if it doesn't exist
             const scopeData: z.infer<typeof scopeSchema> = {
-                publisherId: modpackId ? undefined : publisherId,
+                publisherId: publisherId,
                 modpackId: modpackId,
                 modpackView: false,
                 modpackModify: false,

@@ -17,7 +17,7 @@ import { AccountsSection } from "./views/AccountsSection";
 import { initAnalytics } from "./lib/analytics";
 import { trackEvent } from "@aptabase/web";
 import { ModpackOverview } from "./views/ModpackOverview";
-import { ProfileView } from "./views/ProfileView";
+import { ProfileView, ProfileInformation, IntegrationsSection, TicketsSection, HelpSection } from "./views/ProfileView";
 import { preloadSounds } from "./utils/sounds";
 import { OfflineMode } from "./views/OfflineMode";
 import NoticeTestBuild from "./components/NoticeTestBuild";
@@ -150,7 +150,12 @@ function App() {
         <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
         <Route path="/modpack/:modpackId" element={<ModpackOverviewPage />} />
         <Route path="/mc-accounts" element={<AccountsSection />} />
-        <Route path="/profile" element={<ProfileView />} />
+        <Route path="/profile" element={<ProfileView />}>
+          <Route index element={<ProfileInformation />} />
+          <Route path="integrations" element={<IntegrationsSection />} />
+          <Route path="tickets" element={<TicketsSection />} />
+          <Route path="help" element={<HelpSection />} />
+        </Route>
 
         {session?.publisherMemberships && session.publisherMemberships.length > 0 && (
           <Route path="/creators/*" element={<CreatorsLayout />} />

@@ -29,8 +29,6 @@ import { useNavigate } from 'react-router-dom';
 import CreateModpackDialog from '@/components/creator/dialogs/CreateModpackDialog';
 import EditModpackDialog from '@/components/creator/dialogs/EditModpackDialog';
 import ImportCurseForgeDialog from '@/components/creator/dialogs/ImportCurseForgeDialog';
-import { PublisherEarningsCard } from '@/components/publisher/PublisherEarningsCard';
-import { PublisherSalesHistory } from '@/components/publisher/PublisherSalesHistory';
 
 // Types
 interface Modpack {
@@ -322,12 +320,6 @@ export const PublisherModpacksView: React.FC = () => {
                         </div>
                     </CardHeader>
                 </Card>
-
-                {/* Earnings and Sales Section */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <PublisherEarningsCard publisherId={publisherId} />
-                    <PublisherSalesHistory publisherId={publisherId} />
-                </div>
 
                 {/* Content */}
                 <Card>
