@@ -528,7 +528,8 @@ export class ExploreModpacksController {
                 modpackId: modpack.id,
                 userId: user.id,
                 gatewayType,
-                countryCode
+                countryCode,
+                includeModpackDetails: true // Enable detailed descriptions and QR codes
             };
 
             const paymentResponse = await PaymentService.createPayment(paymentRequest);
@@ -538,6 +539,8 @@ export class ExploreModpacksController {
                 isFree: false,
                 paymentId: paymentResponse.paymentId,
                 approvalUrl: paymentResponse.approvalUrl,
+                qrCode: paymentResponse.qrCode, // QR code for mobile payments
+                qrCodeUrl: paymentResponse.qrCodeUrl, // URL for QR code
                 gatewayType: paymentResponse.gatewayType,
                 status: paymentResponse.status,
                 amount: modpack.price,
@@ -771,14 +774,14 @@ export class ExploreModpacksController {
     static async searchTwitchChannels(c: Context): Promise<Response> {
         try {
             const { query } = c.req.query();
-            
+
             if (!query || query.length < 2) {
                 return c.json({ channels: [] }, 200);
             }
 
             // Search for channels using the TwitchService
             const channels = await TwitchService.getMultipleChannelsInfo([query]);
-            
+
             return c.json({ channels }, 200);
         } catch (error: any) {
             console.error('[CONTROLLER_EXPLORE] Twitch channel search error:', error);
@@ -797,7 +800,7 @@ export class ExploreModpacksController {
 
             // Validate each channel
             const validatedChannels = await TwitchService.getMultipleChannelsInfo(channels);
-            
+
             return c.json({ channels: validatedChannels }, 200);
         } catch (error: any) {
             console.error('[CONTROLLER_EXPLORE] Twitch channel validation error:', error);

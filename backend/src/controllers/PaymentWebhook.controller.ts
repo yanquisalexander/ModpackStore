@@ -12,7 +12,7 @@ export class PaymentWebhookController {
 
         try {
             const payload = await c.req.json();
-            
+
             console.log('[WEBHOOK_PAYPAL] Received webhook:', {
                 requestId,
                 timestamp: new Date().toISOString(),
@@ -40,7 +40,7 @@ export class PaymentWebhookController {
 
             // Return 200 even on error to prevent PayPal from retrying invalid webhooks
             // Log the error but don't expose internal details
-            return c.json({ 
+            return c.json({
                 success: false,
                 requestId,
                 error: 'Webhook processing failed'
@@ -56,13 +56,21 @@ export class PaymentWebhookController {
         const startTime = Date.now();
 
         try {
-            const payload = await c.req.json();
-            
+            // MercadoPago sends data as query parameters, not JSON body
+            const queryParams = c.req.query();
+            const payload = {
+                type: queryParams.topic, // 'payment' or 'merchant_order'
+                data: {
+                    id: queryParams.id // payment or merchant_order ID
+                }
+            };
+
             console.log('[WEBHOOK_MERCADOPAGO] Received webhook:', {
                 requestId,
                 timestamp: new Date().toISOString(),
                 type: payload.type,
-                dataId: payload.data?.id
+                dataId: payload.data?.id,
+                queryParams // Log for debugging
             });
 
             await PaymentService.handleWebhook(PaymentGatewayType.MERCADOPAGO, payload);
@@ -85,7 +93,7 @@ export class PaymentWebhookController {
 
             // Return 200 even on error to prevent MercadoPago from retrying invalid webhooks
             // Log the error but don't expose internal details
-            return c.json({ 
+            return c.json({
                 success: false,
                 requestId,
                 error: 'Webhook processing failed'
@@ -108,9 +116,9 @@ export class PaymentWebhookController {
             }, 200);
         } catch (error: any) {
             console.error('[WEBHOOK_STATUS] Error getting gateway status:', error);
-            return c.json({ 
+            return c.json({
                 error: 'Failed to get gateway status',
-                details: error.message 
+                details: error.message
             }, 500);
         }
     }

@@ -6,6 +6,7 @@ import { AcquisitionService } from './acquisition.service';
 import { TransactionType } from '@/types/enums';
 import { APIError } from '@/lib/APIError';
 import { paymentGatewayManager, PaymentRequest, PaymentResponse, WebhookPayload, PaymentGatewayType } from './payment-gateways';
+import { wsManager } from './websocket.service';
 
 interface PaymentCreationRequest {
     amount: string;
@@ -15,11 +16,14 @@ interface PaymentCreationRequest {
     userId: string;
     gatewayType?: string;
     countryCode?: string;
+    includeModpackDetails?: boolean; // New flag to include detailed modpack info
 }
 
 interface PaymentCreationResponse {
     paymentId: string;
     approvalUrl?: string;
+    qrCode?: string;
+    qrCodeUrl?: string;
     gatewayType: string;
     status: string;
     metadata?: Record<string, any>;
@@ -43,12 +47,35 @@ export class PaymentService {
                 gateway = paymentGatewayManager.getPreferredGateway(paymentRequest.countryCode);
             }
 
+            // Get modpack details if requested
+            let modpackDetails;
+            if (paymentRequest.includeModpackDetails) {
+                const modpack = await Modpack.findOne({
+                    where: { id: paymentRequest.modpackId },
+                    relations: ['publisher', 'versions']
+                });
+                if (modpack) {
+                    // Get the latest version
+                    const latestVersion = modpack.versions?.sort((a, b) =>
+                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                    )[0];
+
+                    modpackDetails = {
+                        name: modpack.name,
+                        version: latestVersion?.version || 'Latest',
+                        author: modpack.publisher?.publisherName || 'Unknown Author',
+                        description: modpack.description || modpack.shortDescription
+                    };
+                }
+            }
+
             const request: PaymentRequest = {
                 amount: paymentRequest.amount,
                 currency: paymentRequest.currency,
                 description: paymentRequest.description,
                 modpackId: paymentRequest.modpackId,
                 userId: paymentRequest.userId,
+                modpackDetails,
                 metadata: {
                     countryCode: paymentRequest.countryCode
                 }
@@ -59,6 +86,8 @@ export class PaymentService {
             return {
                 paymentId: response.paymentId,
                 approvalUrl: response.approvalUrl,
+                qrCode: response.qrCode,
+                qrCodeUrl: response.qrCodeUrl,
                 gatewayType: gateway.gatewayType,
                 status: response.status,
                 metadata: response.metadata
@@ -78,6 +107,8 @@ export class PaymentService {
 
             return {
                 paymentId: response.paymentId,
+                qrCode: response.qrCode,
+                qrCodeUrl: response.qrCodeUrl,
                 gatewayType,
                 status: response.status,
                 metadata: response.metadata
@@ -112,15 +143,21 @@ export class PaymentService {
                 amount: webhookPayload.amount
             });
 
-            // Only handle completed payments
-            if (webhookPayload.status !== 'completed') {
-                console.log(`[PAYMENT_WEBHOOK] Ignoring webhook for payment ${webhookPayload.paymentId} with status: ${webhookPayload.status}`);
-                return;
+            // Extract modpack and user info from metadata FIRST
+            const { modpackId, userId, skipPaymentProcessing } = webhookPayload.metadata || {};
+
+            // Skip processing for events that shouldn't trigger payment completion
+            if (skipPaymentProcessing || webhookPayload.eventType === 'merchant_order.pending') {
+                console.log('[PAYMENT_WEBHOOK] Skipping payment processing for event:', webhookPayload.eventType);
+                return; // Exit early without processing
             }
 
-            // Extract modpack and user info from metadata
-            const { modpackId, userId } = webhookPayload.metadata || {};
+            // For PAYMENT.CAPTURE.COMPLETED events without metadata, check if payment was already processed
             if (!modpackId || !userId) {
+                if (webhookPayload.eventType === 'PAYMENT.CAPTURE.COMPLETED') {
+                    console.log('[PAYMENT_WEBHOOK] PAYMENT.CAPTURE.COMPLETED webhook without metadata - payment may already be processed');
+                    return; // Skip processing as payment was likely already handled
+                }
                 throw new Error('Payment metadata missing modpackId or userId');
             }
 
@@ -131,9 +168,51 @@ export class PaymentService {
                 paymentId: webhookPayload.paymentId
             });
 
+            // Only handle completed payments or approved orders that need capture
+            if (webhookPayload.status !== 'completed' && webhookPayload.status !== 'approved') {
+                console.log(`[PAYMENT_WEBHOOK] Ignoring webhook for payment ${webhookPayload.paymentId} with status: ${webhookPayload.status}`);
+                return;
+            }
+
+            // Handle approved orders - capture the payment
+            if (webhookPayload.status === 'approved' && webhookPayload.eventType === 'CHECKOUT.ORDER.APPROVED') {
+                console.log(`[PAYMENT_WEBHOOK] Capturing approved order: ${webhookPayload.paymentId}`);
+
+                // Notify user that payment is being processed
+                wsManager.sendToUser(userId, 'payment_processing', {
+                    paymentId: webhookPayload.paymentId,
+                    modpackId,
+                    status: 'processing',
+                    message: 'Procesando pago...'
+                });
+
+                try {
+                    await paymentGatewayManager.capturePayment(gatewayType, webhookPayload.paymentId);
+                    console.log(`[PAYMENT_WEBHOOK] Payment captured successfully: ${webhookPayload.paymentId}`);
+
+                    // Update status to completed for further processing
+                    webhookPayload.status = 'completed';
+                } catch (captureError) {
+                    console.error(`[PAYMENT_WEBHOOK] Failed to capture payment ${webhookPayload.paymentId}:`, captureError);
+
+                    // Notify user of capture failure
+                    wsManager.sendToUser(userId, 'payment_failed', {
+                        paymentId: webhookPayload.paymentId,
+                        modpackId,
+                        status: 'failed',
+                        message: 'Error al procesar el pago'
+                    });
+
+                    return;
+                }
+            }
+
             // Find modpack and user
             const [modpack, user] = await Promise.all([
-                Modpack.findOne({ where: { id: modpackId } }),
+                Modpack.findOne({
+                    where: { id: modpackId },
+                    relations: ['publisher'] // Load publisher relation
+                }),
                 User.findOne({ where: { id: userId } })
             ]);
 
@@ -160,6 +239,18 @@ export class PaymentService {
                 userId,
                 paymentId: webhookPayload.paymentId,
                 acquisitionId: acquisition.id,
+                processingTimeMs: processingTime
+            });
+
+            // Notify user of successful payment and acquisition
+            wsManager.sendToUser(userId, 'payment_completed', {
+                paymentId: webhookPayload.paymentId,
+                modpackId,
+                acquisitionId: acquisition.id,
+                modpackName: modpack.name,
+                status: 'completed',
+                message: `¡Pago completado! Has adquirido ${modpack.name}`,
+                amount: webhookPayload.amount,
                 processingTimeMs: processingTime
             });
         } catch (error) {
@@ -203,7 +294,11 @@ export class PaymentService {
         const publisherAmount = totalAmount - commissionAmount;
 
         // Ensure publisher has a wallet
-        const publisher = await modpack.publisher;
+        const publisher = modpack.publisher;
+        if (!publisher) {
+            throw new Error(`Modpack ${modpack.id} does not have a publisher assigned`);
+        }
+
         let publisherWallet = await Wallet.findOne({ where: { publisherId: publisher.id } });
 
         if (!publisherWallet) {
@@ -215,6 +310,7 @@ export class PaymentService {
 
         // Create purchase transaction record
         const purchaseTransaction = new WalletTransaction();
+        purchaseTransaction.walletId = publisherWallet.id; // ← Asignar walletId
         purchaseTransaction.type = TransactionType.PURCHASE;
         purchaseTransaction.amount = totalAmount.toString();
         purchaseTransaction.description = `Purchase of ${modpack.name} via ${gatewayType}`;
@@ -223,14 +319,17 @@ export class PaymentService {
         purchaseTransaction.externalTransactionId = transactionId;
         await purchaseTransaction.save();
 
-        // Create commission transaction
-        const commissionTransaction = new WalletTransaction();
-        commissionTransaction.type = TransactionType.COMMISSION;
-        commissionTransaction.amount = (-commissionAmount).toString(); // Negative for platform fee
-        commissionTransaction.description = `Commission for ${modpack.name} (${(this.COMMISSION_RATE * 100).toFixed(1)}%)`;
-        commissionTransaction.relatedModpackId = modpack.id;
-        commissionTransaction.externalTransactionId = transactionId;
-        await commissionTransaction.save();
+        // Create commission transaction (platform wallet)
+        // For now, we'll skip commission transactions until we have a platform wallet system
+        // const commissionTransaction = new WalletTransaction();
+        // commissionTransaction.walletId = platformWallet.id; // ← Would need platform wallet
+        // commissionTransaction.type = TransactionType.COMMISSION;
+        // commissionTransaction.amount = (-commissionAmount).toString();
+        // commissionTransaction.description = `Commission for ${modpack.name} (${(this.COMMISSION_RATE * 100).toFixed(1)}%)`;
+        // commissionTransaction.relatedUserId = user.id;
+        // commissionTransaction.relatedModpackId = modpack.id;
+        // commissionTransaction.externalTransactionId = transactionId;
+        // await commissionTransaction.save();
 
         // Add earnings to publisher wallet
         publisherWallet.balance = (parseFloat(publisherWallet.balance) + publisherAmount).toString();

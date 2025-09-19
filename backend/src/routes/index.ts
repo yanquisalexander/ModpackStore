@@ -23,7 +23,7 @@ rootRouter.route('/tickets', ticketRoutes);
 rootRouter.route('/publishers', publisherPermissionsRoutes);
 
 // Webhook routes (separate from API versioning)
-rootRouter.route('/api/webhooks', webhooksRoutes);
+rootRouter.route('/webhooks', webhooksRoutes);
 
 // TODO: MIGRATE_ROUTES - These routes need to be migrated and then re-added here
 // rootRouter.route('/explore', exploreRoutes);

@@ -102,7 +102,7 @@ export class MercadoPagoGateway implements PaymentGateway {
             }
 
             const preferenceData: MercadoPagoPreferenceResponse = await response.json();
-            
+
             // Use sandbox URL if in development/sandbox mode
             const isSandbox = this.baseUrl.includes('sandbox') || !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
             const approvalUrl = isSandbox ? preferenceData.sandbox_init_point : preferenceData.init_point;
@@ -124,37 +124,89 @@ export class MercadoPagoGateway implements PaymentGateway {
 
     async processWebhook(payload: any): Promise<WebhookPayload> {
         const webhookEvent = payload as MercadoPagoWebhookEvent;
-        
-        // Only process payment notifications
-        if (webhookEvent.type !== 'payment') {
+
+        // Handle different webhook types
+        if (webhookEvent.type === 'payment') {
+            // Process payment webhook directly
+            const payment = await this.getPayment(webhookEvent.data.id);
+
+            // Extract metadata from external reference
+            let metadata: Record<string, any> = {};
+            if (payment.external_reference) {
+                try {
+                    metadata = JSON.parse(payment.external_reference);
+                } catch (error) {
+                    console.warn('Failed to parse MercadoPago external reference:', error);
+                }
+            }
+
+            return {
+                gatewayType: this.gatewayType,
+                eventType: `payment.${payment.status}`,
+                paymentId: payment.id.toString(),
+                status: this.mapMercadoPagoStatus(payment.status),
+                amount: {
+                    total: payment.transaction_amount.toString(),
+                    currency: payment.currency_id
+                },
+                metadata
+            };
+        } else if (webhookEvent.type === 'merchant_order') {
+            // Handle merchant order webhook - check if it has completed payments
+            const merchantOrder = await this.getMerchantOrder(webhookEvent.data.id);
+
+            // Check if merchant order has approved payments
+            const approvedPayments = merchantOrder.payments?.filter((payment: any) =>
+                payment.status === 'approved'
+            ) || [];
+
+            if (approvedPayments.length === 0) {
+                console.log(`[MERCADOPAGO] Merchant order ${webhookEvent.data.id} has no approved payments yet. Waiting for payment webhook.`);
+                // Return a special event type that won't trigger payment processing
+                return {
+                    gatewayType: this.gatewayType,
+                    eventType: 'merchant_order.pending',
+                    paymentId: merchantOrder.id.toString(),
+                    status: 'pending',
+                    amount: {
+                        total: merchantOrder.total_amount?.toString() || '0',
+                        currency: merchantOrder.currency_id || 'USD'
+                    },
+                    metadata: {
+                        // Don't include modpackId/userId for pending merchant orders
+                        skipPaymentProcessing: true
+                    }
+                };
+            }
+
+            // If there are approved payments, process the first one
+            const paymentId = approvedPayments[0].id;
+            const payment = await this.getPayment(paymentId);
+
+            // Extract metadata from external reference
+            let metadata: Record<string, any> = {};
+            if (payment.external_reference) {
+                try {
+                    metadata = JSON.parse(payment.external_reference);
+                } catch (error) {
+                    console.warn('Failed to parse MercadoPago external reference:', error);
+                }
+            }
+
+            return {
+                gatewayType: this.gatewayType,
+                eventType: `payment.${payment.status}`,
+                paymentId: payment.id.toString(),
+                status: this.mapMercadoPagoStatus(payment.status),
+                amount: {
+                    total: payment.transaction_amount.toString(),
+                    currency: payment.currency_id
+                },
+                metadata
+            };
+        } else {
             throw new Error(`Unsupported MercadoPago webhook type: ${webhookEvent.type}`);
         }
-
-        // Fetch payment details
-        const payment = await this.getPayment(webhookEvent.data.id);
-        
-        // Extract metadata from external reference
-        let metadata: Record<string, any> = {};
-        if (payment.external_reference) {
-            try {
-                metadata = JSON.parse(payment.external_reference);
-            } catch (error) {
-                console.warn('Failed to parse MercadoPago external reference:', error);
-            }
-        }
-
-        return {
-            gatewayType: this.gatewayType,
-            eventType: `payment.${payment.status}`,
-            paymentId: payment.id.toString(),
-            status: this.mapMercadoPagoStatus(payment.status),
-            amount: {
-                total: payment.transaction_amount.toString(),
-                currency: payment.currency_id
-            },
-            metadata,
-            rawPayload: payload
-        };
     }
 
     async validateWebhook(payload: any, signature?: string): Promise<boolean> {
@@ -172,6 +224,20 @@ export class MercadoPagoGateway implements PaymentGateway {
 
         if (!response.ok) {
             throw new APIError(404, 'MercadoPago payment not found');
+        }
+
+        return await response.json();
+    }
+
+    private async getMerchantOrder(merchantOrderId: string) {
+        const response = await fetch(`${this.baseUrl}/merchant_orders/${merchantOrderId}`, {
+            headers: {
+                'Authorization': `Bearer ${this.accessToken}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new APIError(404, 'MercadoPago merchant order not found');
         }
 
         return await response.json();

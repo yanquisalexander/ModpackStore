@@ -12,10 +12,32 @@
  * - Custom data is stored in 'custom_id' instead of 'custom'
  * - Webhook events have different structure
  * - Requires explicit capture for completed payments
+ *
+ * NEW FEATURES:
+ * - QR Code generation for mobile payments
+ * - Enhanced payment descriptions with modpack details
+ * - Better metadata handling for tracking
+ *
+ * Usage Example:
+ * ```typescript
+ * const payment = await PaymentService.createPayment({
+ *   amount: "10.00",
+ *   currency: "USD",
+ *   description: "Modpack purchase",
+ *   modpackId: "modpack-id",
+ *   userId: "user-id",
+ *   includeModpackDetails: true, // Enable detailed descriptions and QR codes
+ *   gatewayType: "paypal"
+ * });
+ *
+ * // Use payment.qrCode for displaying QR code
+ * // Use payment.approvalUrl for web payment
+ * ```
  */
 
 import { PaymentGateway, PaymentRequest, PaymentResponse, WebhookPayload, PaymentGatewayType } from './interfaces';
 import { APIError } from '@/lib/APIError';
+import * as QRCode from 'qrcode';
 
 interface PayPalPaymentPayload {
     intent: string;
@@ -95,6 +117,42 @@ export class PayPalGateway implements PaymentGateway {
         return !!(this.clientId && this.clientSecret);
     }
 
+    private generatePaymentDescription(request: PaymentRequest): string {
+        const modpackDetails = request.modpackDetails;
+        if (modpackDetails) {
+            let description = `Compra de modpack: ${modpackDetails.name}`;
+            if (modpackDetails.version) {
+                description += ` v${modpackDetails.version}`;
+            }
+            if (modpackDetails.author) {
+                description += ` por ${modpackDetails.author}`;
+            }
+            if (modpackDetails.description) {
+                description += `\n${modpackDetails.description}`;
+            }
+            return description;
+        }
+        return request.description;
+    }
+
+    private async generateQRCode(url: string): Promise<string> {
+        try {
+            // Generate QR code as base64 data URL
+            const qrCodeDataUrl = await QRCode.toDataURL(url, {
+                width: 256,
+                margin: 2,
+                color: {
+                    dark: '#000000',
+                    light: '#FFFFFF'
+                }
+            });
+            return qrCodeDataUrl;
+        } catch (error) {
+            console.warn('Failed to generate QR code:', error);
+            return '';
+        }
+    }
+
     async createPayment(request: PaymentRequest): Promise<PaymentResponse> {
         if (!this.isConfigured()) {
             throw new APIError(500, 'PayPal configuration not found');
@@ -111,10 +169,11 @@ export class PayPalGateway implements PaymentGateway {
                         currency_code: request.currency,
                         value: request.amount
                     },
-                    description: request.description,
+                    description: this.generatePaymentDescription(request),
                     custom_id: JSON.stringify({
                         modpackId: request.modpackId,
                         userId: request.userId,
+                        modpackDetails: request.modpackDetails,
                         ...request.metadata
                     })
                 }]
@@ -138,14 +197,21 @@ export class PayPalGateway implements PaymentGateway {
             }
 
             const orderData = await response.json();
+            const approvalUrl = orderData.links?.find((link: any) => link.rel === 'approve')?.href;
+
+            // Generate QR code for mobile payments
+            const qrCode = approvalUrl ? await this.generateQRCode(approvalUrl) : '';
 
             return {
                 paymentId: orderData.id,
-                approvalUrl: orderData.links?.find((link: any) => link.rel === 'approve')?.href,
+                approvalUrl,
+                qrCode: qrCode || undefined,
+                qrCodeUrl: approvalUrl, // Same as approval URL for PayPal
                 status: 'pending',
                 metadata: {
                     paypalOrderId: orderData.id,
-                    approvalUrl: orderData.links?.find((link: any) => link.rel === 'approve')?.href
+                    approvalUrl,
+                    modpackDetails: request.modpackDetails
                 }
             };
         } catch (error) {
@@ -220,11 +286,22 @@ export class PayPalGateway implements PaymentGateway {
             currency: purchaseUnit.amount.currency_code
         } : { total: '0', currency: 'USD' };
 
+        // For Orders API, map status based on event type and resource status
+        let status = this.mapPayPalOrderStatus(paypalEvent.resource.status);
+
+        // Handle specific event types
+        if (paypalEvent.event_type === 'CHECKOUT.ORDER.APPROVED') {
+            // Order was approved by the user, we should capture it
+            status = 'approved'; // Custom status for approved orders
+        } else if (paypalEvent.event_type === 'PAYMENT.CAPTURE.COMPLETED') {
+            status = 'completed';
+        }
+
         return {
             gatewayType: this.gatewayType,
             eventType: paypalEvent.event_type,
             paymentId: paypalEvent.resource.id,
-            status: this.mapPayPalOrderStatus(paypalEvent.resource.status),
+            status,
             amount,
             metadata,
             rawPayload: payload

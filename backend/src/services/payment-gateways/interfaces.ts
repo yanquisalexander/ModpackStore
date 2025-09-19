@@ -10,11 +10,19 @@ export interface PaymentRequest {
     modpackId: string;
     userId: string;
     metadata?: Record<string, any>;
+    modpackDetails?: {
+        name: string;
+        version?: string;
+        author?: string;
+        description?: string;
+    };
 }
 
 export interface PaymentResponse {
     paymentId: string;
     approvalUrl?: string;
+    qrCode?: string; // Base64 encoded QR code image
+    qrCodeUrl?: string; // URL for mobile payment
     status: 'pending' | 'completed' | 'failed';
     metadata?: Record<string, any>;
 }
