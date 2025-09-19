@@ -1,3 +1,19 @@
+/**
+ * PayPal Payment Gateway Implementation
+ *
+ * IMPORTANT: This implementation uses PayPal Orders API v2 instead of the legacy Payments API v1.
+ * The Orders API is more suitable for desktop applications as it doesn't require redirect URLs
+ * for the basic payment flow. For desktop apps, you can handle the approval URL in your
+ * application by opening it in the system browser or embedding a web view.
+ *
+ * Key differences from Payments API:
+ * - Uses 'CAPTURE' intent instead of 'sale'
+ * - Uses 'purchase_units' instead of 'transactions'
+ * - Custom data is stored in 'custom_id' instead of 'custom'
+ * - Webhook events have different structure
+ * - Requires explicit capture for completed payments
+ */
+
 import { PaymentGateway, PaymentRequest, PaymentResponse, WebhookPayload, PaymentGatewayType } from './interfaces';
 import { APIError } from '@/lib/APIError';
 
@@ -16,6 +32,22 @@ interface PayPalPaymentPayload {
     }>;
 }
 
+interface PayPalOrderPayload {
+    intent: string;
+    purchase_units: Array<{
+        amount: {
+            currency_code: string;
+            value: string;
+        };
+        description: string;
+        custom_id?: string;
+    }>;
+    application_context?: {
+        return_url?: string;
+        cancel_url?: string;
+    };
+}
+
 interface PayPalWebhookEvent {
     id: string;
     event_type: string;
@@ -27,6 +59,22 @@ interface PayPalWebhookEvent {
             currency: string;
         };
         custom?: string;
+    };
+}
+
+interface PayPalOrderWebhookEvent {
+    id: string;
+    event_type: string;
+    resource: {
+        id: string;
+        status: string;
+        purchase_units?: Array<{
+            amount: {
+                currency_code: string;
+                value: string;
+            };
+            custom_id?: string;
+        }>;
     };
 }
 
@@ -54,80 +102,130 @@ export class PayPalGateway implements PaymentGateway {
 
         try {
             const accessToken = await this.getAccessToken();
-            
-            const payment: PayPalPaymentPayload = {
-                intent: 'sale',
-                payer: {
-                    payment_method: 'paypal'
-                },
-                transactions: [{
+
+            // Use Orders API instead of Payments API for desktop applications
+            const order: PayPalOrderPayload = {
+                intent: 'CAPTURE',
+                purchase_units: [{
                     amount: {
-                        total: request.amount,
-                        currency: request.currency
+                        currency_code: request.currency,
+                        value: request.amount
                     },
                     description: request.description,
-                    custom: JSON.stringify({
+                    custom_id: JSON.stringify({
                         modpackId: request.modpackId,
                         userId: request.userId,
                         ...request.metadata
                     })
                 }]
+                // Note: No redirect_urls needed for Orders API in desktop apps
             };
 
-            const response = await fetch(`${this.baseUrl}/v1/payments/payment`, {
+            const response = await fetch(`${this.baseUrl}/v2/checkout/orders`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`
+                    'Authorization': `Bearer ${accessToken}`,
+                    'PayPal-Request-Id': `modpack-${request.modpackId}-${Date.now()}`
                 },
-                body: JSON.stringify(payment)
+                body: JSON.stringify(order)
             });
 
             if (!response.ok) {
                 const error = await response.json();
-                throw new APIError(400, `PayPal payment creation failed: ${error.message}`);
+                console.error('PayPal order creation error:', error);
+                throw new APIError(400, `PayPal order creation failed: ${error.message || 'Unknown error'}`);
             }
 
-            const paymentData = await response.json();
-            const approvalUrl = paymentData.links?.find((link: any) => link.rel === 'approval_url')?.href;
+            const orderData = await response.json();
 
             return {
-                paymentId: paymentData.id,
-                approvalUrl,
+                paymentId: orderData.id,
+                approvalUrl: orderData.links?.find((link: any) => link.rel === 'approve')?.href,
                 status: 'pending',
                 metadata: {
-                    paypalPaymentId: paymentData.id,
-                    approvalUrl
+                    paypalOrderId: orderData.id,
+                    approvalUrl: orderData.links?.find((link: any) => link.rel === 'approve')?.href
                 }
             };
         } catch (error) {
             console.error('PayPal payment creation error:', error);
+            if (error instanceof APIError) {
+                throw error;
+            }
             throw new APIError(500, 'Failed to create PayPal payment');
         }
     }
 
+    async capturePayment(orderId: string): Promise<PaymentResponse> {
+        if (!this.isConfigured()) {
+            throw new APIError(500, 'PayPal configuration not found');
+        }
+
+        try {
+            const accessToken = await this.getAccessToken();
+
+            const response = await fetch(`${this.baseUrl}/v2/checkout/orders/${orderId}/capture`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                    'PayPal-Request-Id': `capture-${orderId}-${Date.now()}`
+                }
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                console.error('PayPal capture error:', error);
+                throw new APIError(400, `PayPal capture failed: ${error.message || 'Unknown error'}`);
+            }
+
+            const captureData = await response.json();
+
+            return {
+                paymentId: captureData.id,
+                status: 'completed',
+                metadata: {
+                    paypalOrderId: orderId,
+                    captureId: captureData.id,
+                    captureData
+                }
+            };
+        } catch (error) {
+            console.error('PayPal capture error:', error);
+            if (error instanceof APIError) {
+                throw error;
+            }
+            throw new APIError(500, 'Failed to capture PayPal payment');
+        }
+    }
+
     async processWebhook(payload: any): Promise<WebhookPayload> {
-        const paypalEvent = payload as PayPalWebhookEvent;
-        
-        // Extract custom data
+        const paypalEvent = payload as PayPalOrderWebhookEvent;
+
+        // Extract custom data from purchase_units
         let metadata: Record<string, any> = {};
-        if (paypalEvent.resource.custom) {
+        if (paypalEvent.resource.purchase_units?.[0]?.custom_id) {
             try {
-                metadata = JSON.parse(paypalEvent.resource.custom);
+                metadata = JSON.parse(paypalEvent.resource.purchase_units[0].custom_id);
             } catch (error) {
-                console.warn('Failed to parse PayPal custom data:', error);
+                console.warn('Failed to parse PayPal custom_id data:', error);
             }
         }
+
+        // Extract amount from purchase_units
+        const purchaseUnit = paypalEvent.resource.purchase_units?.[0];
+        const amount = purchaseUnit ? {
+            total: purchaseUnit.amount.value,
+            currency: purchaseUnit.amount.currency_code
+        } : { total: '0', currency: 'USD' };
 
         return {
             gatewayType: this.gatewayType,
             eventType: paypalEvent.event_type,
             paymentId: paypalEvent.resource.id,
-            status: this.mapPayPalStatus(paypalEvent.resource.state),
-            amount: {
-                total: paypalEvent.resource.amount.total,
-                currency: paypalEvent.resource.amount.currency
-            },
+            status: this.mapPayPalOrderStatus(paypalEvent.resource.status),
+            amount,
             metadata,
             rawPayload: payload
         };
@@ -168,6 +266,21 @@ export class PayPalGateway implements PaymentGateway {
                 return 'pending';
             case 'failed':
             case 'cancelled':
+                return 'failed';
+            default:
+                return 'pending';
+        }
+    }
+
+    private mapPayPalOrderStatus(paypalStatus: string): string {
+        switch (paypalStatus.toUpperCase()) {
+            case 'COMPLETED':
+                return 'completed';
+            case 'APPROVED':
+            case 'PAYER_ACTION_REQUIRED':
+                return 'pending';
+            case 'VOIDED':
+            case 'FAILED':
                 return 'failed';
             default:
                 return 'pending';

@@ -44,6 +44,11 @@ export interface PaymentGateway {
     createPayment(request: PaymentRequest): Promise<PaymentResponse>;
 
     /**
+     * Capture an approved payment (for gateways that require explicit capture)
+     */
+    capturePayment?(paymentId: string): Promise<PaymentResponse>;
+
+    /**
      * Process webhook payload from the gateway
      */
     processWebhook(payload: any): Promise<WebhookPayload>;

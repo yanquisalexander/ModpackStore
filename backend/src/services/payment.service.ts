@@ -70,6 +70,25 @@ export class PaymentService {
     }
 
     /**
+     * Capture an approved payment
+     */
+    static async capturePayment(gatewayType: string, paymentId: string): Promise<PaymentCreationResponse> {
+        try {
+            const response = await paymentGatewayManager.capturePayment(gatewayType, paymentId);
+
+            return {
+                paymentId: response.paymentId,
+                gatewayType,
+                status: response.status,
+                metadata: response.metadata
+            };
+        } catch (error) {
+            console.error('Payment capture error:', error);
+            throw error instanceof APIError ? error : new APIError(500, 'Failed to capture payment');
+        }
+    }
+
+    /**
      * Handle webhook from any payment gateway
      */
     static async handleWebhook(gatewayType: string, payload: any): Promise<void> {
@@ -84,7 +103,7 @@ export class PaymentService {
 
         try {
             const webhookPayload = await paymentGatewayManager.processWebhook(gatewayType, payload);
-            
+
             console.log('[PAYMENT_WEBHOOK] Webhook parsed:', {
                 ...logContext,
                 eventType: webhookPayload.eventType,
@@ -92,7 +111,7 @@ export class PaymentService {
                 status: webhookPayload.status,
                 amount: webhookPayload.amount
             });
-            
+
             // Only handle completed payments
             if (webhookPayload.status !== 'completed') {
                 console.log(`[PAYMENT_WEBHOOK] Ignoring webhook for payment ${webhookPayload.paymentId} with status: ${webhookPayload.status}`);
@@ -127,9 +146,9 @@ export class PaymentService {
 
             // Process payment and commissions
             await this.processPayment(
-                modpack, 
-                user, 
-                webhookPayload.amount?.total || '0', 
+                modpack,
+                user,
+                webhookPayload.amount?.total || '0',
                 webhookPayload.paymentId,
                 gatewayType
             );
@@ -173,9 +192,9 @@ export class PaymentService {
      * Process payment and handle commissions
      */
     private static async processPayment(
-        modpack: Modpack, 
-        user: User, 
-        amount: string, 
+        modpack: Modpack,
+        user: User,
+        amount: string,
         transactionId: string,
         gatewayType: string
     ): Promise<void> {

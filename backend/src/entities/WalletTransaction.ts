@@ -12,9 +12,9 @@ export class WalletTransaction extends BaseEntity {
     @Column({ name: "wallet_id", type: "uuid" })
     walletId: string;
 
-    @Column({ 
-        name: "type", 
-        type: "enum", 
+    @Column({
+        name: "type",
+        type: "enum",
         enum: TransactionType,
         enumName: "transaction_type"
     })
@@ -28,6 +28,12 @@ export class WalletTransaction extends BaseEntity {
 
     @Column({ name: "related_modpack_id", type: "uuid", nullable: true })
     relatedModpackId?: string;
+
+    @Column({ name: "external_transaction_id", type: "varchar", nullable: true })
+    externalTransactionId?: string;
+
+    @Column({ name: "metadata", type: "text", nullable: true })
+    metadata?: string;
 
     @Column({ name: "description", type: "text", nullable: true })
     description?: string;

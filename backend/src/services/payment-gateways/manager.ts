@@ -63,7 +63,7 @@ export class PaymentGatewayManager {
     getPreferredGateway(countryCode?: string): PaymentGateway {
         // For Uruguay and Latin American countries, prefer MercadoPago
         const latinAmericanCountries = ['UY', 'AR', 'BR', 'CL', 'CO', 'MX', 'PE'];
-        
+
         if (countryCode && latinAmericanCountries.includes(countryCode.toUpperCase())) {
             if (this.gateways.has(PaymentGatewayType.MERCADOPAGO)) {
                 return this.gateways.get(PaymentGatewayType.MERCADOPAGO)!;
@@ -90,12 +90,12 @@ export class PaymentGatewayManager {
      */
     async createPayment(gatewayType: string, request: PaymentRequest): Promise<PaymentResponse> {
         const gateway = this.getGateway(gatewayType);
-        
+
         console.log(`Creating payment via ${gatewayType} for modpack ${request.modpackId}`);
-        
+
         try {
             const response = await gateway.createPayment(request);
-            
+
             // Log payment creation for traceability
             console.log(`Payment created successfully:`, {
                 gateway: gatewayType,
@@ -105,10 +105,39 @@ export class PaymentGatewayManager {
                 amount: request.amount,
                 currency: request.currency
             });
-            
+
             return response;
         } catch (error) {
-            console.error(`Payment creation failed for gateway ${gatewayType}:`, error);
+            console.error(`Payment creation failed via ${gatewayType}:`, error);
+            throw error;
+        }
+    }
+
+    /**
+     * Capture payment using specified gateway (for gateways that require explicit capture)
+     */
+    async capturePayment(gatewayType: string, paymentId: string): Promise<PaymentResponse> {
+        const gateway = this.getGateway(gatewayType);
+
+        console.log(`Capturing payment via ${gatewayType}: ${paymentId}`);
+
+        try {
+            if (!gateway.capturePayment) {
+                throw new APIError(400, `Gateway ${gatewayType} does not support payment capture`);
+            }
+
+            const response = await gateway.capturePayment(paymentId);
+
+            // Log payment capture for traceability
+            console.log(`Payment captured successfully:`, {
+                gateway: gatewayType,
+                paymentId: response.paymentId,
+                status: response.status
+            });
+
+            return response;
+        } catch (error) {
+            console.error(`Payment capture failed via ${gatewayType}:`, error);
             throw error;
         }
     }
@@ -118,9 +147,9 @@ export class PaymentGatewayManager {
      */
     async processWebhook(gatewayType: string, payload: any): Promise<WebhookPayload> {
         const gateway = this.getGateway(gatewayType);
-        
+
         console.log(`Processing webhook from ${gatewayType}`);
-        
+
         try {
             // Validate webhook if supported
             if (gateway.validateWebhook) {
@@ -131,7 +160,7 @@ export class PaymentGatewayManager {
             }
 
             const webhookPayload = await gateway.processWebhook(payload);
-            
+
             // Log webhook processing for traceability
             console.log(`Webhook processed successfully:`, {
                 gateway: gatewayType,
@@ -140,7 +169,7 @@ export class PaymentGatewayManager {
                 status: webhookPayload.status,
                 amount: webhookPayload.amount
             });
-            
+
             return webhookPayload;
         } catch (error) {
             console.error(`Webhook processing failed for gateway ${gatewayType}:`, error);
@@ -160,7 +189,7 @@ export class PaymentGatewayManager {
      */
     getGatewayStatus(): Record<string, { available: boolean; configured: boolean }> {
         const status: Record<string, { available: boolean; configured: boolean }> = {};
-        
+
         // Check all possible gateways
         Object.values(PaymentGatewayType).forEach(gatewayType => {
             const gateway = this.gateways.get(gatewayType);
@@ -169,7 +198,7 @@ export class PaymentGatewayManager {
                 configured: gateway ? gateway.isConfigured() : false
             };
         });
-        
+
         return status;
     }
 }
