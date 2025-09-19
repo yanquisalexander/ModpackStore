@@ -9,6 +9,7 @@ import {
     ModpacksTable,
     UsersTable
 } from "@/db/schema";
+import { ModpackPermission, PublisherPermission } from "@/types/enums";
 
 // Types
 type PublisherType = typeof PublishersTable.$inferSelect;
@@ -49,12 +50,24 @@ export const publisherMemberSchema = z.object({
 export const scopeSchema = z.object({
     publisherId: z.string().uuid().optional(),
     modpackId: z.string().uuid().optional(),
-    canCreateModpacks: z.boolean().default(false),
-    canEditModpacks: z.boolean().default(false),
-    canDeleteModpacks: z.boolean().default(false),
-    canPublishVersions: z.boolean().default(false),
-    canManageMembers: z.boolean().default(false),
-    canManageSettings: z.boolean().default(false),
+    
+    // New granular permissions
+    modpackView: z.boolean().default(false),
+    modpackModify: z.boolean().default(false),
+    modpackManageVersions: z.boolean().default(false),
+    modpackPublish: z.boolean().default(false),
+    modpackDelete: z.boolean().default(false),
+    modpackManageAccess: z.boolean().default(false),
+    publisherManageCategoriesTags: z.boolean().default(false),
+    publisherViewStats: z.boolean().default(false),
+    
+    // Legacy permissions for backward compatibility
+    canCreateModpacks: z.boolean().default(false).optional(),
+    canEditModpacks: z.boolean().default(false).optional(),
+    canDeleteModpacks: z.boolean().default(false).optional(),
+    canPublishVersions: z.boolean().default(false).optional(),
+    canManageMembers: z.boolean().default(false).optional(),
+    canManageSettings: z.boolean().default(false).optional(),
 }).refine(data => data.publisherId || data.modpackId, {
     message: "Either publisherId or modpackId must be provided"
 });
@@ -465,12 +478,22 @@ export class Publisher {
                 publisherMemberId: member.id,
                 publisherId: parsed.data.publisherId,
                 modpackId: parsed.data.modpackId,
-                canCreateModpacks: parsed.data.canCreateModpacks,
-                canEditModpacks: parsed.data.canEditModpacks,
-                canDeleteModpacks: parsed.data.canDeleteModpacks,
-                canPublishVersions: parsed.data.canPublishVersions,
-                canManageMembers: parsed.data.canManageMembers,
-                canManageSettings: parsed.data.canManageSettings,
+                // New granular permissions
+                modpackView: parsed.data.modpackView,
+                modpackModify: parsed.data.modpackModify,
+                modpackManageVersions: parsed.data.modpackManageVersions,
+                modpackPublish: parsed.data.modpackPublish,
+                modpackDelete: parsed.data.modpackDelete,
+                modpackManageAccess: parsed.data.modpackManageAccess,
+                publisherManageCategoriesTags: parsed.data.publisherManageCategoriesTags,
+                publisherViewStats: parsed.data.publisherViewStats,
+                // Legacy permissions for backward compatibility
+                canCreateModpacks: parsed.data.canCreateModpacks || false,
+                canEditModpacks: parsed.data.canEditModpacks || false,
+                canDeleteModpacks: parsed.data.canDeleteModpacks || false,
+                canPublishVersions: parsed.data.canPublishVersions || false,
+                canManageMembers: parsed.data.canManageMembers || false,
+                canManageSettings: parsed.data.canManageSettings || false,
                 createdAt: now,
                 updatedAt: now,
             });
@@ -535,11 +558,17 @@ export class Publisher {
             const member = await this.getMember(userId);
             if (!member) return false;
 
-            // Owners and admins have all permissions
-            if (member.role === PublisherRole.OWNER || member.role === PublisherRole.ADMIN) {
+            // Owners have all permissions (immutable)
+            if (member.role === PublisherRole.OWNER) {
                 return true;
             }
 
+            // Admins have all permissions by default (manageable by Owner)
+            if (member.role === PublisherRole.ADMIN) {
+                return true;
+            }
+
+            // Members need explicit permission grants
             const scopes = await this.getMemberScopes(userId);
 
             // Check organization-level permissions
@@ -561,6 +590,40 @@ export class Publisher {
             console.error(`Error checking permission ${permission} for user ${userId}:`, error);
             return false;
         }
+    }
+
+    // Granular permission checks
+    async hasModpackPermission(userId: string, modpackId: string, permission: ModpackPermission): Promise<boolean> {
+        return this.hasUserPermission(userId, permission, modpackId);
+    }
+
+    async hasPublisherPermission(userId: string, permission: PublisherPermission): Promise<boolean> {
+        return this.hasUserPermission(userId, permission);
+    }
+
+    // Role-based permission checks
+    async canUserManageMembers(userId: string): Promise<boolean> {
+        const member = await this.getMember(userId);
+        if (!member) return false;
+
+        // Only owners and admins can manage members
+        return member.role === PublisherRole.OWNER || member.role === PublisherRole.ADMIN;
+    }
+
+    async canUserManageRole(userId: string, targetRole: PublisherRole): Promise<boolean> {
+        const member = await this.getMember(userId);
+        if (!member) return false;
+
+        // Owners can manage anyone
+        if (member.role === PublisherRole.OWNER) return true;
+
+        // Admins can manage members but not other admins or owners
+        if (member.role === PublisherRole.ADMIN) {
+            return targetRole === PublisherRole.MEMBER;
+        }
+
+        // Members cannot manage roles
+        return false;
     }
 
     async isUserMember(userId: string): Promise<boolean> {
