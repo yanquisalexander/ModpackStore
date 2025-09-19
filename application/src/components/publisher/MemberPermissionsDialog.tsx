@@ -40,6 +40,7 @@ interface MemberPermissionsDialogProps {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     onPermissionsChanged: () => void;
+    currentUserRole: 'owner' | 'admin' | 'member';
 }
 
 interface ModpackInfo {
@@ -70,7 +71,8 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
     accessToken,
     open,
     onOpenChange,
-    onPermissionsChanged
+    onPermissionsChanged,
+    currentUserRole
 }) => {
     const { toast } = useToast();
     const [loading, setLoading] = useState(false);
@@ -78,6 +80,27 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
     const [modifyingPermissions, setModifyingPermissions] = useState<Set<string>>(new Set());
     const [publisherModpacks, setPublisherModpacks] = useState<ModpackInfo[]>([]);
     const [loadingModpacks, setLoadingModpacks] = useState(false);
+
+    // Role validation functions
+    const canManagePermissions = (targetMemberRole: string): boolean => {
+        // Members cannot manage any permissions
+        if (currentUserRole === 'member') return false;
+        
+        // Owners can manage all permissions
+        if (currentUserRole === 'owner') return true;
+        
+        // Admins can only manage member permissions
+        if (currentUserRole === 'admin') {
+            return targetMemberRole === 'member';
+        }
+        
+        return false;
+    };
+
+    const canAccessDialog = (): boolean => {
+        if (!member) return false;
+        return canManagePermissions(member.role);
+    };
 
     useEffect(() => {
         if (open && member) {
@@ -96,29 +119,34 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
                 member.userId,
                 accessToken
             );
-            console.log('[DEBUG] Loaded permissions:', memberPermissions);
-            console.log('[DEBUG] Member scopes:', member.scopes);
+            console.log('[DEBUG] Loaded permissions from API:', memberPermissions);
+            console.log('[DEBUG] Member scopes from props:', member.scopes);
 
-            // Ensure permissions are properly structured
-            const processedPermissions = memberPermissions.map(scope => ({
-                ...scope,
-                permissions: scope.permissions || {
-                    modpackView: false,
-                    modpackModify: false,
-                    modpackManageVersions: false,
-                    modpackPublish: false,
-                    modpackDelete: false,
-                    modpackManageAccess: false,
-                    publisherManageCategoriesTags: false,
-                    publisherViewStats: false,
-                }
-            }));
-            console.log('[DEBUG] Processed permissions:', processedPermissions);
-            console.log('[DEBUG] Setting permissions state with length:', processedPermissions.length);
-
+            // Process permissions without overriding existing values
+            const processedPermissions = memberPermissions.map(scope => {
+                // Make sure we preserve the actual permission values from the API
+                const existingPermissions = scope.permissions || {};
+                console.log('[DEBUG] Processing scope:', scope.id, 'permissions:', existingPermissions);
+                
+                return {
+                    ...scope,
+                    permissions: {
+                        modpackView: existingPermissions.modpackView === true,
+                        modpackModify: existingPermissions.modpackModify === true,
+                        modpackManageVersions: existingPermissions.modpackManageVersions === true,
+                        modpackPublish: existingPermissions.modpackPublish === true,
+                        modpackDelete: existingPermissions.modpackDelete === true,
+                        modpackManageAccess: existingPermissions.modpackManageAccess === true,
+                        publisherManageCategoriesTags: existingPermissions.publisherManageCategoriesTags === true,
+                        publisherViewStats: existingPermissions.publisherViewStats === true,
+                    }
+                };
+            });
+            
+            console.log('[DEBUG] Final processed permissions:', processedPermissions);
             setPermissions(processedPermissions);
-            console.log('[DEBUG] Permissions state updated successfully');
         } catch (error) {
+            console.error('[ERROR] Failed to load permissions:', error);
             toast({
                 title: "Error",
                 description: `Error al cargar permisos: ${error instanceof Error ? error.message : 'Error desconocido'}`,
@@ -161,6 +189,16 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
 
     const handlePermissionToggle = async (permission: string, enabled: boolean, modpackId?: string) => {
         if (!member) return;
+
+        // Validate that current user can manage this member's permissions
+        if (!canManagePermissions(member.role)) {
+            toast({
+                title: "Acceso denegado",
+                description: `No tienes permisos para modificar los permisos de un ${PublisherPermissionsAPI.getRoleDisplayName(member.role)}`,
+                variant: "destructive",
+            });
+            return;
+        }
 
         const permissionKey = modpackId ? `${permission}-${modpackId}` : permission;
         setModifyingPermissions(prev => new Set(prev).add(permissionKey));
@@ -205,49 +243,47 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
 
         // Owners and admins have all permissions
         if (member.role === 'owner' || member.role === 'admin') {
+            console.log(`[DEBUG] User is ${member.role}, granting permission`);
             return true;
         }
 
-        // If permissions haven't been loaded yet, check member.scopes as fallback
-        // But ensure member.scopes has the same structure as permissions
-        const scopesToCheck = permissions.length > 0 ? permissions : member.scopes.map((scope: any) => ({
-            ...scope,
-            permissions: scope.permissions || {
-                modpackView: scope.modpackView || false,
-                modpackModify: scope.modpackModify || false,
-                modpackManageVersions: scope.modpackManageVersions || false,
-                modpackPublish: scope.modpackPublish || false,
-                modpackDelete: scope.modpackDelete || false,
-                modpackManageAccess: scope.modpackManageAccess || false,
-                publisherManageCategoriesTags: scope.publisherManageCategoriesTags || false,
-                publisherViewStats: scope.publisherViewStats || false,
-            }
-        }));
+        // Use the loaded permissions state, or fall back to member.scopes
+        const scopesToCheck = permissions.length > 0 ? permissions : member.scopes;
+        console.log(`[DEBUG] Using ${permissions.length > 0 ? 'loaded permissions' : 'member.scopes'}, count:`, scopesToCheck.length);
 
-        // Check in scopes for specific modpack or publisher-level permissions
+        // Find the relevant scope
         const relevantScope = modpackId
             ? scopesToCheck.find((scope: any) => {
                 const scopeModpackId = scope.modpackId || scope.modpack?.id;
-                console.log(`[DEBUG] Checking modpack scope:`, { scopeModpackId, modpackId, match: scopeModpackId === modpackId });
-                return scopeModpackId === modpackId;
+                const isMatch = scopeModpackId === modpackId;
+                console.log(`[DEBUG] Checking modpack scope:`, { scopeModpackId, modpackId, isMatch });
+                return isMatch;
             })
             : scopesToCheck.find((scope: any) => {
                 const scopePublisherId = scope.publisherId || scope.publisher?.id;
                 const hasPublisherId = !!scopePublisherId;
                 const hasNoModpackId = !scope.modpackId && !scope.modpack?.id;
+                const isPublisherScope = hasPublisherId && hasNoModpackId;
                 console.log(`[DEBUG] Checking publisher scope:`, {
                     scopePublisherId,
                     hasPublisherId,
                     hasNoModpackId,
-                    scopeModpackId: scope.modpackId,
-                    scopeModpack: scope.modpack?.id,
-                    match: hasPublisherId && hasNoModpackId
+                    isPublisherScope
                 });
-                return hasPublisherId && hasNoModpackId;
+                return isPublisherScope;
             });
 
-        if (!relevantScope || !relevantScope.permissions) return false;
+        if (!relevantScope) {
+            console.log(`[DEBUG] No relevant scope found for permission ${permission}`);
+            return false;
+        }
 
+        if (!relevantScope.permissions) {
+            console.log(`[DEBUG] Relevant scope found but no permissions object:`, relevantScope);
+            return false;
+        }
+
+        // Map permission keys to permission object fields
         const permissionMap: Record<string, keyof PermissionScope['permissions']> = {
             'modpack.view': 'modpackView',
             'modpack.modify': 'modpackModify',
@@ -260,19 +296,19 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
         };
 
         const permissionField = permissionMap[permission];
-        const result = permissionField ? relevantScope.permissions[permissionField] : false;
+        if (!permissionField) {
+            console.log(`[DEBUG] Unknown permission key: ${permission}`);
+            return false;
+        }
 
-        console.log(`[DEBUG] hasPermission(${permission}, ${modpackId}):`, {
+        const result = relevantScope.permissions[permissionField] === true;
+
+        console.log(`[DEBUG] hasPermission(${permission}, ${modpackId}) result:`, {
             role: member.role,
-            usingPermissionsState: permissions.length > 0,
-            scopesCount: scopesToCheck.length,
-            relevantScope: relevantScope ? {
-                id: relevantScope.id,
-                publisherId: relevantScope.publisherId,
-                modpackId: relevantScope.modpackId,
-                permissions: relevantScope.permissions
-            } : null,
+            usingLoadedPermissions: permissions.length > 0,
+            scopeId: relevantScope.id,
             permissionField,
+            permissionValue: relevantScope.permissions[permissionField],
             result
         });
 
@@ -326,6 +362,36 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
     };
 
     if (!member) return null;
+
+    // Check if current user has permission to manage this member
+    if (!canAccessDialog()) {
+        return (
+            <Dialog open={open} onOpenChange={onOpenChange}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <LucideShield className="h-5 w-5" />
+                            Acceso Denegado
+                        </DialogTitle>
+                    </DialogHeader>
+                    <Alert>
+                        <LucideInfo className="h-4 w-4" />
+                        <AlertDescription>
+                            No tienes permisos para gestionar los permisos de {member.user.username} 
+                            ({PublisherPermissionsAPI.getRoleDisplayName(member.role)}).
+                            {currentUserRole === 'member' && ' Los miembros no pueden gestionar permisos.'}
+                            {currentUserRole === 'admin' && member.role !== 'member' && ' Los administradores solo pueden gestionar permisos de miembros.'}
+                        </AlertDescription>
+                    </Alert>
+                    <div className="flex justify-end">
+                        <Button variant="outline" onClick={() => onOpenChange(false)}>
+                            Cerrar
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+        );
+    }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>

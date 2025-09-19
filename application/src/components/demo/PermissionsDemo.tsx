@@ -61,6 +61,7 @@ export const PermissionsDemo: React.FC = () => {
                 onPermissionsChanged={() => {
                     console.log('Permissions changed');
                 }}
+                currentUserRole="owner"
             />
         </div>
     );

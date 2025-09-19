@@ -86,23 +86,28 @@ export class PublisherPermissionsAPI {
             role: item.attributes.role,
             createdAt: item.attributes.createdAt,
             user: item.attributes.user,
-            scopes: (item.attributes.scopes || []).map((scope: any) => ({
-                id: scope.id?.toString() || scope.id,
-                publisherId: scope.publisherId,
-                modpackId: scope.modpackId,
-                permissions: {
-                    modpackView: scope.modpackView || false,
-                    modpackModify: scope.modpackModify || false,
-                    modpackManageVersions: scope.modpackManageVersions || false,
-                    modpackPublish: scope.modpackPublish || false,
-                    modpackDelete: scope.modpackDelete || false,
-                    modpackManageAccess: scope.modpackManageAccess || false,
-                    publisherManageCategoriesTags: scope.publisherManageCategoriesTags || false,
-                    publisherViewStats: scope.publisherViewStats || false,
-                },
-                createdAt: scope.createdAt,
-                updatedAt: scope.updatedAt
-            }))
+            scopes: (item.attributes.scopes || []).map((scope: any) => {
+                // Check if permissions are nested or flat
+                const permissionsData = scope.permissions || scope;
+                
+                return {
+                    id: scope.id?.toString() || scope.id,
+                    publisherId: scope.publisherId,
+                    modpackId: scope.modpackId,
+                    permissions: {
+                        modpackView: permissionsData.modpackView === true,
+                        modpackModify: permissionsData.modpackModify === true,
+                        modpackManageVersions: permissionsData.modpackManageVersions === true,
+                        modpackPublish: permissionsData.modpackPublish === true,
+                        modpackDelete: permissionsData.modpackDelete === true,
+                        modpackManageAccess: permissionsData.modpackManageAccess === true,
+                        publisherManageCategoriesTags: permissionsData.publisherManageCategoriesTags === true,
+                        publisherViewStats: permissionsData.publisherViewStats === true,
+                    },
+                    createdAt: scope.createdAt,
+                    updatedAt: scope.updatedAt
+                };
+            })
         }));
 
         return {
@@ -177,19 +182,29 @@ export class PublisherPermissionsAPI {
         // Handle JSON:API format
         return (data.data || []).map((item: any) => {
             const attrs = item.attributes || item;
+            
+            // Check if permissions are nested in a permissions object or directly in attrs
+            const permissionsData = attrs.permissions || attrs;
+            
+            console.log('[DEBUG] Raw permission data from API:', {
+                attrs,
+                permissionsData,
+                hasNestedPermissions: !!attrs.permissions
+            });
+            
             return {
                 id: attrs.id?.toString() || attrs.id,
                 publisherId: attrs.publisherId,
                 modpackId: attrs.modpackId,
                 permissions: {
-                    modpackView: attrs.modpackView || false,
-                    modpackModify: attrs.modpackModify || false,
-                    modpackManageVersions: attrs.modpackManageVersions || false,
-                    modpackPublish: attrs.modpackPublish || false,
-                    modpackDelete: attrs.modpackDelete || false,
-                    modpackManageAccess: attrs.modpackManageAccess || false,
-                    publisherManageCategoriesTags: attrs.publisherManageCategoriesTags || false,
-                    publisherViewStats: attrs.publisherViewStats || false,
+                    modpackView: permissionsData.modpackView === true,
+                    modpackModify: permissionsData.modpackModify === true,
+                    modpackManageVersions: permissionsData.modpackManageVersions === true,
+                    modpackPublish: permissionsData.modpackPublish === true,
+                    modpackDelete: permissionsData.modpackDelete === true,
+                    modpackManageAccess: permissionsData.modpackManageAccess === true,
+                    publisherManageCategoriesTags: permissionsData.publisherManageCategoriesTags === true,
+                    publisherViewStats: permissionsData.publisherViewStats === true,
                 },
                 createdAt: attrs.createdAt,
                 updatedAt: attrs.updatedAt
