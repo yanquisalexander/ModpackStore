@@ -243,6 +243,83 @@ export class PublisherPermissionsController {
     }
 
     /**
+     * Update a member's role in a publisher
+     */
+    static async updateMemberRole(c: Context): Promise<Response> {
+        try {
+            const user = c.get('user') as { id: string } | undefined;
+            if (!user?.id) {
+                throw new APIError(401, 'Authentication required.');
+            }
+
+            const publisherId = c.req.param('publisherId');
+            const targetUserId = c.req.param('userId');
+
+            if (!publisherId || !targetUserId) {
+                throw new APIError(400, 'Publisher ID and User ID are required.');
+            }
+
+            // Check if user has permission to manage members
+            const canManageMembers = await PublisherPermissionsController.getPublisherService().hasUserPermission(
+                publisherId,
+                user.id,
+                'manage_members'
+            );
+
+            if (!canManageMembers) {
+                throw new APIError(403, 'You do not have permission to manage members.');
+            }
+
+            const body = await c.req.json();
+            const { role } = body;
+
+            // Validate role
+            if (!role || !Object.values(PublisherMemberRole).includes(role)) {
+                throw new APIError(400, 'Invalid role provided.');
+            }
+
+            // Check if requesting user can assign this role
+            const canManageRole = await PublisherPermissionsController.getPublisherService().canManageRole(
+                publisherId,
+                user.id,
+                role
+            );
+
+            if (!canManageRole) {
+                throw new APIError(403, 'You do not have permission to assign this role.');
+            }
+
+            const updatedMember = await PublisherPermissionsController.getPublisherService().updateMemberRole(
+                publisherId,
+                targetUserId,
+                role
+            );
+
+            return c.json(serializeResource('publisher-member', {
+                id: updatedMember.id.toString(),
+                userId: updatedMember.userId,
+                role: updatedMember.role,
+                updatedAt: updatedMember.updatedAt
+            }), { status: 200 });
+
+        } catch (error) {
+            console.error('Error updating member role:', error);
+            if (error instanceof APIError) {
+                return c.json(serializeError({
+                    status: error.statusCode.toString(),
+                    title: 'Error',
+                    detail: error.message
+                }), { status: error.statusCode as any });
+            }
+            return c.json(serializeError({
+                status: '500',
+                title: 'Internal Server Error',
+                detail: 'An unexpected error occurred.'
+            }), { status: 500 });
+        }
+    }
+
+    /**
      * Get member permissions/scopes
      */
     static async getMemberPermissions(c: Context): Promise<Response> {
