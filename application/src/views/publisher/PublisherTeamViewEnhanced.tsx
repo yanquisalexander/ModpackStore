@@ -389,6 +389,7 @@ export const PublisherTeamView: React.FC = () => {
                     open={permissionsDialogOpen}
                     onOpenChange={setPermissionsDialogOpen}
                     onPermissionsChanged={loadMembers}
+                    currentUserRole={userRole as 'owner' | 'admin' | 'member'}
                 />
             )}
         </div>
