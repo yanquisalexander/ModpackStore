@@ -7,6 +7,7 @@ import categoriesRoutes from './v1/categories.routes';
 import { CreatorsRoute } from "./v1/creators/index.route";
 import websocketRoutes from './v1/websocket.routes';
 import ticketRoutes from './v1/tickets.routes';
+import publisherPermissionsRoutes from './v1/publisher-permissions.route';
 
 const rootRouter = new Hono();
 
@@ -18,6 +19,7 @@ rootRouter.route('/categories', categoriesRoutes);
 rootRouter.route('/creators', CreatorsRoute);
 rootRouter.route('/websocket', websocketRoutes);
 rootRouter.route('/tickets', ticketRoutes);
+rootRouter.route('/publishers', publisherPermissionsRoutes);
 
 // TODO: MIGRATE_ROUTES - These routes need to be migrated and then re-added here
 // rootRouter.route('/explore', exploreRoutes);
