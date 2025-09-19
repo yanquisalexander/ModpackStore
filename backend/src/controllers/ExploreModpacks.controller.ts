@@ -524,7 +524,7 @@ export class ExploreModpacksController {
             const paymentRequest = {
                 amount: modpack.price,
                 currency: 'USD',
-                description: `Purchase of ${modpack.name}`,
+                description: `${modpack.name} - Modpack Store`,
                 modpackId: modpack.id,
                 userId: user.id,
                 gatewayType,

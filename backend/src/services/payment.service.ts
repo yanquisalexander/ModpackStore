@@ -320,16 +320,15 @@ export class PaymentService {
         await purchaseTransaction.save();
 
         // Create commission transaction (platform wallet)
-        // For now, we'll skip commission transactions until we have a platform wallet system
-        // const commissionTransaction = new WalletTransaction();
-        // commissionTransaction.walletId = platformWallet.id; // ← Would need platform wallet
-        // commissionTransaction.type = TransactionType.COMMISSION;
-        // commissionTransaction.amount = (-commissionAmount).toString();
-        // commissionTransaction.description = `Commission for ${modpack.name} (${(this.COMMISSION_RATE * 100).toFixed(1)}%)`;
-        // commissionTransaction.relatedUserId = user.id;
-        // commissionTransaction.relatedModpackId = modpack.id;
-        // commissionTransaction.externalTransactionId = transactionId;
-        // await commissionTransaction.save();
+        const commissionTransaction = new WalletTransaction();
+        commissionTransaction.walletId = publisherWallet.id;
+        commissionTransaction.type = TransactionType.COMMISSION;
+        commissionTransaction.amount = (-commissionAmount).toString();
+        commissionTransaction.description = `Commission for ${modpack.name} (${(this.COMMISSION_RATE * 100).toFixed(1)}%)`;
+        commissionTransaction.relatedUserId = user.id;
+        commissionTransaction.relatedModpackId = modpack.id;
+        commissionTransaction.externalTransactionId = transactionId;
+        await commissionTransaction.save();
 
         // Add earnings to publisher wallet
         publisherWallet.balance = (parseFloat(publisherWallet.balance) + publisherAmount).toString();
