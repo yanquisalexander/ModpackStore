@@ -73,12 +73,29 @@ export class PaymentService {
      * Handle webhook from any payment gateway
      */
     static async handleWebhook(gatewayType: string, payload: any): Promise<void> {
+        const startTime = Date.now();
+        const logContext = {
+            gatewayType,
+            timestamp: new Date().toISOString(),
+            webhookId: payload.id || 'unknown'
+        };
+
+        console.log('[PAYMENT_WEBHOOK] Processing webhook:', logContext);
+
         try {
             const webhookPayload = await paymentGatewayManager.processWebhook(gatewayType, payload);
             
+            console.log('[PAYMENT_WEBHOOK] Webhook parsed:', {
+                ...logContext,
+                eventType: webhookPayload.eventType,
+                paymentId: webhookPayload.paymentId,
+                status: webhookPayload.status,
+                amount: webhookPayload.amount
+            });
+            
             // Only handle completed payments
             if (webhookPayload.status !== 'completed') {
-                console.log(`Ignoring webhook for payment ${webhookPayload.paymentId} with status: ${webhookPayload.status}`);
+                console.log(`[PAYMENT_WEBHOOK] Ignoring webhook for payment ${webhookPayload.paymentId} with status: ${webhookPayload.status}`);
                 return;
             }
 
@@ -88,6 +105,13 @@ export class PaymentService {
                 throw new Error('Payment metadata missing modpackId or userId');
             }
 
+            console.log('[PAYMENT_WEBHOOK] Processing payment for:', {
+                ...logContext,
+                modpackId,
+                userId,
+                paymentId: webhookPayload.paymentId
+            });
+
             // Find modpack and user
             const [modpack, user] = await Promise.all([
                 Modpack.findOne({ where: { id: modpackId } }),
@@ -95,7 +119,7 @@ export class PaymentService {
             ]);
 
             if (!modpack || !user) {
-                throw new Error('Modpack or user not found');
+                throw new Error(`Modpack or user not found: modpack=${!!modpack}, user=${!!user}`);
             }
 
             // Create acquisition
@@ -110,9 +134,23 @@ export class PaymentService {
                 gatewayType
             );
 
-            console.log(`Payment processed successfully for modpack ${modpackId} by user ${userId} via ${gatewayType}`);
+            const processingTime = Date.now() - startTime;
+            console.log('[PAYMENT_WEBHOOK] Payment processed successfully:', {
+                ...logContext,
+                modpackId,
+                userId,
+                paymentId: webhookPayload.paymentId,
+                acquisitionId: acquisition.id,
+                processingTimeMs: processingTime
+            });
         } catch (error) {
-            console.error(`Webhook processing error for ${gatewayType}:`, error);
+            const processingTime = Date.now() - startTime;
+            console.error('[PAYMENT_WEBHOOK] Webhook processing error:', {
+                ...logContext,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                processingTimeMs: processingTime,
+                stack: error instanceof Error ? error.stack : undefined
+            });
             throw error;
         }
     }
