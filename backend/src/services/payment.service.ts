@@ -5,128 +5,112 @@ import { Wallet } from '@/entities/Wallet';
 import { AcquisitionService } from './acquisition.service';
 import { TransactionType } from '@/types/enums';
 import { APIError } from '@/lib/APIError';
+import { paymentGatewayManager, PaymentRequest, PaymentResponse, WebhookPayload, PaymentGatewayType } from './payment-gateways';
 
-interface PayPalPaymentRequest {
+interface PaymentCreationRequest {
     amount: string;
     currency: string;
     description: string;
-    returnUrl: string;
-    cancelUrl: string;
     modpackId: string;
     userId: string;
+    gatewayType?: string;
+    countryCode?: string;
 }
 
-interface PayPalPaymentResponse {
+interface PaymentCreationResponse {
     paymentId: string;
-    approvalUrl: string;
-    qrCodeUrl?: string;
-}
-
-interface PayPalWebhookPayload {
-    id: string;
-    event_type: string;
-    resource: {
-        id: string;
-        state: string;
-        amount: {
-            total: string;
-            currency: string;
-        };
-        custom?: string; // JSON string with modpackId and userId
-    };
+    approvalUrl?: string;
+    gatewayType: string;
+    status: string;
+    metadata?: Record<string, any>;
 }
 
 export class PaymentService {
     private static readonly COMMISSION_RATE = parseFloat(process.env.COMMISSION_RATE || '0.30');
-    private static readonly PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
-    private static readonly PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
-    private static readonly PAYPAL_BASE_URL = process.env.PAYPAL_BASE_URL || 'https://api.sandbox.paypal.com';
 
     /**
-     * Create PayPal payment for modpack purchase
+     * Create payment using the best available gateway for the user's region
      */
-    static async createPayment(paymentRequest: PayPalPaymentRequest): Promise<PayPalPaymentResponse> {
-        if (!this.PAYPAL_CLIENT_ID || !this.PAYPAL_CLIENT_SECRET) {
-            throw new APIError(500, 'PayPal configuration not found');
-        }
-
+    static async createPayment(paymentRequest: PaymentCreationRequest): Promise<PaymentCreationResponse> {
         try {
-            // Get PayPal access token
-            const accessToken = await this.getAccessToken();
+            // Determine which gateway to use
+            let gateway;
+            if (paymentRequest.gatewayType) {
+                // Use specified gateway
+                gateway = paymentGatewayManager.getGateway(paymentRequest.gatewayType);
+            } else {
+                // Use preferred gateway based on country
+                gateway = paymentGatewayManager.getPreferredGateway(paymentRequest.countryCode);
+            }
 
-            // Create payment payload
-            const payment = {
-                intent: 'sale',
-                payer: {
-                    payment_method: 'paypal'
-                },
-                redirect_urls: {
-                    return_url: paymentRequest.returnUrl,
-                    cancel_url: paymentRequest.cancelUrl
-                },
-                transactions: [{
-                    amount: {
-                        total: paymentRequest.amount,
-                        currency: paymentRequest.currency
-                    },
-                    description: paymentRequest.description,
-                    custom: JSON.stringify({
-                        modpackId: paymentRequest.modpackId,
-                        userId: paymentRequest.userId
-                    })
-                }]
+            const request: PaymentRequest = {
+                amount: paymentRequest.amount,
+                currency: paymentRequest.currency,
+                description: paymentRequest.description,
+                modpackId: paymentRequest.modpackId,
+                userId: paymentRequest.userId,
+                metadata: {
+                    countryCode: paymentRequest.countryCode
+                }
             };
 
-            // Create payment with PayPal
-            const response = await fetch(`${this.PAYPAL_BASE_URL}/v1/payments/payment`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${accessToken}`
-                },
-                body: JSON.stringify(payment)
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new APIError(400, `PayPal payment creation failed: ${error.message}`);
-            }
-
-            const paymentData = await response.json();
-            const approvalUrl = paymentData.links.find((link: any) => link.rel === 'approval_url')?.href;
-
-            if (!approvalUrl) {
-                throw new APIError(500, 'PayPal approval URL not found');
-            }
+            const response = await paymentGatewayManager.createPayment(gateway.gatewayType, request);
 
             return {
-                paymentId: paymentData.id,
-                approvalUrl,
-                qrCodeUrl: this.generateQRCodeUrl(approvalUrl)
+                paymentId: response.paymentId,
+                approvalUrl: response.approvalUrl,
+                gatewayType: gateway.gatewayType,
+                status: response.status,
+                metadata: response.metadata
             };
         } catch (error) {
-            console.error('PayPal payment creation error:', error);
-            throw new APIError(500, 'Failed to create payment');
+            console.error('Payment creation error:', error);
+            throw error instanceof APIError ? error : new APIError(500, 'Failed to create payment');
         }
     }
 
     /**
-     * Handle PayPal webhook for payment completion
+     * Handle webhook from any payment gateway
      */
-    static async handleWebhook(payload: PayPalWebhookPayload): Promise<void> {
+    static async handleWebhook(gatewayType: string, payload: any): Promise<void> {
+        const startTime = Date.now();
+        const logContext = {
+            gatewayType,
+            timestamp: new Date().toISOString(),
+            webhookId: payload.id || 'unknown'
+        };
+
+        console.log('[PAYMENT_WEBHOOK] Processing webhook:', logContext);
+
         try {
-            // Only handle payment completion events
-            if (payload.event_type !== 'PAYMENT.SALE.COMPLETED') {
+            const webhookPayload = await paymentGatewayManager.processWebhook(gatewayType, payload);
+            
+            console.log('[PAYMENT_WEBHOOK] Webhook parsed:', {
+                ...logContext,
+                eventType: webhookPayload.eventType,
+                paymentId: webhookPayload.paymentId,
+                status: webhookPayload.status,
+                amount: webhookPayload.amount
+            });
+            
+            // Only handle completed payments
+            if (webhookPayload.status !== 'completed') {
+                console.log(`[PAYMENT_WEBHOOK] Ignoring webhook for payment ${webhookPayload.paymentId} with status: ${webhookPayload.status}`);
                 return;
             }
 
-            const payment = payload.resource;
-            if (!payment.custom) {
-                throw new Error('Payment custom data not found');
+            // Extract modpack and user info from metadata
+            const { modpackId, userId } = webhookPayload.metadata || {};
+            if (!modpackId || !userId) {
+                throw new Error('Payment metadata missing modpackId or userId');
             }
 
-            const customData = JSON.parse(payment.custom);
-            const { modpackId, userId } = customData;
+            console.log('[PAYMENT_WEBHOOK] Processing payment for:', {
+                ...logContext,
+                modpackId,
+                userId,
+                paymentId: webhookPayload.paymentId
+            });
 
             // Find modpack and user
             const [modpack, user] = await Promise.all([
@@ -135,26 +119,66 @@ export class PaymentService {
             ]);
 
             if (!modpack || !user) {
-                throw new Error('Modpack or user not found');
+                throw new Error(`Modpack or user not found: modpack=${!!modpack}, user=${!!user}`);
             }
 
             // Create acquisition
-            const acquisition = await AcquisitionService.acquireWithPurchase(user, modpack, payment.id);
+            const acquisition = await AcquisitionService.acquireWithPurchase(user, modpack, webhookPayload.paymentId);
 
             // Process payment and commissions
-            await this.processPayment(modpack, user, payment.amount.total, payment.id);
+            await this.processPayment(
+                modpack, 
+                user, 
+                webhookPayload.amount?.total || '0', 
+                webhookPayload.paymentId,
+                gatewayType
+            );
 
-            console.log(`Payment processed successfully for modpack ${modpackId} by user ${userId}`);
+            const processingTime = Date.now() - startTime;
+            console.log('[PAYMENT_WEBHOOK] Payment processed successfully:', {
+                ...logContext,
+                modpackId,
+                userId,
+                paymentId: webhookPayload.paymentId,
+                acquisitionId: acquisition.id,
+                processingTimeMs: processingTime
+            });
         } catch (error) {
-            console.error('Webhook processing error:', error);
+            const processingTime = Date.now() - startTime;
+            console.error('[PAYMENT_WEBHOOK] Webhook processing error:', {
+                ...logContext,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                processingTimeMs: processingTime,
+                stack: error instanceof Error ? error.stack : undefined
+            });
             throw error;
         }
     }
 
     /**
+     * Get available payment gateways
+     */
+    static getAvailableGateways(): string[] {
+        return paymentGatewayManager.getAvailableGateways();
+    }
+
+    /**
+     * Get gateway status information
+     */
+    static getGatewayStatus(): Record<string, { available: boolean; configured: boolean }> {
+        return paymentGatewayManager.getGatewayStatus();
+    }
+
+    /**
      * Process payment and handle commissions
      */
-    private static async processPayment(modpack: Modpack, user: User, amount: string, transactionId: string): Promise<void> {
+    private static async processPayment(
+        modpack: Modpack, 
+        user: User, 
+        amount: string, 
+        transactionId: string,
+        gatewayType: string
+    ): Promise<void> {
         const totalAmount = parseFloat(amount);
         const commissionAmount = totalAmount * this.COMMISSION_RATE;
         const publisherAmount = totalAmount - commissionAmount;
@@ -174,7 +198,7 @@ export class PaymentService {
         const purchaseTransaction = new WalletTransaction();
         purchaseTransaction.type = TransactionType.PURCHASE;
         purchaseTransaction.amount = totalAmount.toString();
-        purchaseTransaction.description = `Purchase of ${modpack.name}`;
+        purchaseTransaction.description = `Purchase of ${modpack.name} via ${gatewayType}`;
         purchaseTransaction.relatedUserId = user.id;
         purchaseTransaction.relatedModpackId = modpack.id;
         purchaseTransaction.externalTransactionId = transactionId;
@@ -197,43 +221,11 @@ export class PaymentService {
         const earningsTransaction = new WalletTransaction();
         earningsTransaction.type = TransactionType.DEPOSIT;
         earningsTransaction.amount = publisherAmount.toString();
-        earningsTransaction.description = `Earnings from ${modpack.name}`;
+        earningsTransaction.description = `Earnings from ${modpack.name} via ${gatewayType}`;
         earningsTransaction.walletId = publisherWallet.id;
         earningsTransaction.relatedModpackId = modpack.id;
         earningsTransaction.externalTransactionId = transactionId;
         await earningsTransaction.save();
-    }
-
-    /**
-     * Get PayPal access token
-     */
-    private static async getAccessToken(): Promise<string> {
-        const auth = Buffer.from(`${this.PAYPAL_CLIENT_ID}:${this.PAYPAL_CLIENT_SECRET}`).toString('base64');
-
-        const response = await fetch(`${this.PAYPAL_BASE_URL}/v1/oauth2/token`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Basic ${auth}`,
-                'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: 'grant_type=client_credentials'
-        });
-
-        if (!response.ok) {
-            console.error('Failed to get PayPal access token:', await response.text());
-            throw new APIError(500, 'Failed to get PayPal access token');
-        }
-
-        const data = await response.json();
-        return data.access_token;
-    }
-
-    /**
-     * Generate QR code URL for mobile payments
-     */
-    private static generateQRCodeUrl(approvalUrl: string): string {
-        // Using QR Server API for simplicity - in production, consider using a dedicated service
-        return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(approvalUrl)}`;
     }
 
     /**

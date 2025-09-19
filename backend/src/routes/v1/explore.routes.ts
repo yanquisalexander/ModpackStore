@@ -324,7 +324,7 @@ app.post('/modpacks/:modpackId/acquire/twitch', requireAuth, ExploreModpacksCont
  *   post:
  *     summary: Acquire modpack access through purchase
  *     tags: [Explore]
- *     description: Initiates purchase flow for paid modpacks or grants immediate access for free modpacks.
+ *     description: Initiates purchase flow for paid modpacks or grants immediate access for free modpacks. Now supports multiple payment gateways.
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -342,20 +342,35 @@ app.post('/modpacks/:modpackId/acquire/twitch', requireAuth, ExploreModpacksCont
  *           schema:
  *             type: object
  *             properties:
- *               returnUrl:
+ *               gatewayType:
  *                 type: string
- *                 format: uri
- *                 description: URL to redirect to after successful payment.
- *               cancelUrl:
+ *                 enum: [paypal, mercadopago]
+ *                 description: Preferred payment gateway (optional - system will choose best for region).
+ *               countryCode:
  *                 type: string
- *                 format: uri
- *                 description: URL to redirect to if payment is cancelled.
- *             required:
- *               - returnUrl
- *               - cancelUrl
+ *                 description: User's country code for gateway selection (e.g., "UY", "AR").
  *     responses:
  *       200:
  *         description: Purchase initiated or free modpack acquired.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 isFree:
+ *                   type: boolean
+ *                 paymentId:
+ *                   type: string
+ *                 approvalUrl:
+ *                   type: string
+ *                 gatewayType:
+ *                   type: string
+ *                 amount:
+ *                   type: string
+ *                 currency:
+ *                   type: string
  *       400:
  *         description: Bad Request.
  *       401:
@@ -366,27 +381,6 @@ app.post('/modpacks/:modpackId/acquire/twitch', requireAuth, ExploreModpacksCont
  *         description: Internal Server Error.
  */
 app.post('/modpacks/:modpackId/acquire/purchase', requireAuth, ExploreModpacksController.acquireWithPurchase);
-
-/**
- * @openapi
- * /explore/paypal-webhook:
- *   post:
- *     summary: PayPal webhook endpoint
- *     tags: [Explore]
- *     description: Handles PayPal payment completion webhooks.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *     responses:
- *       200:
- *         description: Webhook processed successfully.
- *       500:
- *         description: Webhook processing failed.
- */
-app.post('/paypal-webhook', ExploreModpacksController.paypalWebhook);
 
 /**
  * @openapi

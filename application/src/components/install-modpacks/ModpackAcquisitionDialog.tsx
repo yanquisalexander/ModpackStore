@@ -49,9 +49,11 @@ interface PaymentResponse {
     isFree?: boolean;
     paymentId?: string;
     approvalUrl?: string;
-    qrCodeUrl?: string;
+    gatewayType?: string;
     amount?: string;
     currency?: string;
+    status?: string;
+    metadata?: Record<string, any>;
 }
 
 export const ModpackAcquisitionDialog = ({
@@ -62,6 +64,7 @@ export const ModpackAcquisitionDialog = ({
 }: ModpackAcquisitionDialogProps) => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [password, setPassword] = useState("");
+    const [selectedGateway, setSelectedGateway] = useState<string | undefined>(undefined);
     const [paymentData, setPaymentData] = useState<PaymentResponse | null>(null);
     const { sessionTokens } = useAuthentication();
 
@@ -102,10 +105,20 @@ export const ModpackAcquisitionDialog = ({
         }
     };
 
-    const handlePurchaseAcquisition = async () => {
+    const handlePurchaseAcquisition = async (gatewayType?: string) => {
         setIsProcessing(true);
         try {
-            const currentUrl = window.location.origin;
+            // Detect user's country for gateway selection (optional)
+            let countryCode: string | undefined;
+            try {
+                // Simple IP-based country detection (optional)
+                // In a real app, you might want to use a proper geolocation service
+                countryCode = Intl.DateTimeFormat().resolvedOptions().timeZone?.split('/')[0];
+            } catch (error) {
+                // Fallback if detection fails
+                countryCode = undefined;
+            }
+
             const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpack.id}/acquire/purchase`, {
                 method: 'POST',
                 headers: {
@@ -113,8 +126,8 @@ export const ModpackAcquisitionDialog = ({
                     'Authorization': `Bearer ${sessionTokens?.accessToken}`,
                 },
                 body: JSON.stringify({
-                    returnUrl: `${currentUrl}/modpack/${modpack.id}?payment=success`,
-                    cancelUrl: `${currentUrl}/modpack/${modpack.id}?payment=cancelled`,
+                    gatewayType,
+                    countryCode
                 }),
             });
 
@@ -127,7 +140,7 @@ export const ModpackAcquisitionDialog = ({
                     handleClose();
                 } else {
                     setPaymentData(data);
-                    toast.success('Pago iniciado. Completa el pago para obtener acceso.');
+                    toast.success(`Pago iniciado via ${data.gatewayType?.toUpperCase()}. Completa el pago para obtener acceso.`);
                 }
             } else {
                 toast.error('Error al procesar la compra');
@@ -170,6 +183,7 @@ export const ModpackAcquisitionDialog = ({
 
     const handleClose = () => {
         setPassword("");
+        setSelectedGateway(undefined);
         setPaymentData(null);
         setIsProcessing(false);
         onClose();
@@ -197,8 +211,16 @@ export const ModpackAcquisitionDialog = ({
         switch (method) {
             case 'password': return 'Ingresa la contraseña proporcionada por el creador';
             case 'free': return 'Este modpack es gratuito';
-            case 'paid': return 'Pago único a través de PayPal';
+            case 'paid': return 'Pago único a través de múltiples opciones de pago';
             case 'twitch_sub': return 'Requiere suscripción activa a los canales especificados';
+        }
+    };
+
+    const getGatewayIcon = (gatewayType?: string) => {
+        switch (gatewayType) {
+            case 'paypal': return '💳 PayPal';
+            case 'mercadopago': return '💳 MercadoPago';
+            default: return '💳 Procesando...';
         }
     };
 
@@ -209,7 +231,7 @@ export const ModpackAcquisitionDialog = ({
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
                             <LucideCreditCard className="w-5 h-5" />
-                            Completar Pago
+                            Completar Pago - {getGatewayIcon(paymentData.gatewayType)}
                         </DialogTitle>
                         <DialogDescription>
                             Completa tu pago de ${paymentData.amount} USD para obtener acceso al modpack.
@@ -227,7 +249,7 @@ export const ModpackAcquisitionDialog = ({
                                         {modpack.name}
                                     </div>
                                     <div className="text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded mt-2">
-                                        Moneda fija: Dólar estadounidense (USD)
+                                        Procesador: {paymentData.gatewayType?.toUpperCase()} | Moneda: USD
                                     </div>
                                 </div>
 
@@ -240,32 +262,27 @@ export const ModpackAcquisitionDialog = ({
                                         size="lg"
                                     >
                                         <LucideExternalLink className="w-4 h-4 mr-2" />
-                                        Pagar con PayPal
+                                        Completar Pago
                                     </Button>
 
-                                    {paymentData.qrCodeUrl && (
-                                        <div className="text-center">
-                                            <div className="text-sm text-muted-foreground mb-2">
-                                                O escanea con tu móvil:
-                                            </div>
-                                            <img 
-                                                src={paymentData.qrCodeUrl} 
-                                                alt="QR Code for payment"
-                                                className="mx-auto border rounded"
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="text-xs text-muted-foreground text-center">
-                                    El acceso se activará automáticamente tras confirmar el pago. No es necesario volver a esta pantalla.
+                                    <div className="text-center text-sm text-muted-foreground">
+                                        La confirmación de pago será automática.
+                                        <br />
+                                        No necesitas regresar a esta ventana.
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
 
-                        <Button variant="outline" onClick={handleClose} className="w-full">
-                            Cancelar
-                        </Button>
+                        <div className="flex justify-between gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={handleClose}
+                                className="w-full"
+                            >
+                                Cerrar
+                            </Button>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>
@@ -304,6 +321,38 @@ export const ModpackAcquisitionDialog = ({
                         </div>
                     )}
 
+                    {selectedMethod === 'paid' && (
+                        <div className="space-y-3">
+                            <Label>Método de Pago</Label>
+                            <div className="space-y-2">
+                                <Button
+                                    variant={selectedGateway === 'paypal' ? 'default' : 'outline'}
+                                    onClick={() => setSelectedGateway('paypal')}
+                                    className="w-full justify-start"
+                                >
+                                    💳 PayPal
+                                </Button>
+                                <Button
+                                    variant={selectedGateway === 'mercadopago' ? 'default' : 'outline'}
+                                    onClick={() => setSelectedGateway('mercadopago')}
+                                    className="w-full justify-start"
+                                >
+                                    💳 MercadoPago
+                                </Button>
+                                <Button
+                                    variant={selectedGateway === undefined ? 'default' : 'outline'}
+                                    onClick={() => setSelectedGateway(undefined)}
+                                    className="w-full justify-start"
+                                >
+                                    🌟 Automático (recomendado)
+                                </Button>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                                El modo automático selecciona el mejor método para tu región.
+                            </div>
+                        </div>
+                    )}
+
                     <div className="flex gap-2">
                         <Button
                             variant="outline"
@@ -315,7 +364,7 @@ export const ModpackAcquisitionDialog = ({
                         <Button
                             onClick={
                                 selectedMethod === 'password' ? handlePasswordAcquisition :
-                                selectedMethod === 'free' || selectedMethod === 'paid' ? handlePurchaseAcquisition :
+                                selectedMethod === 'free' || selectedMethod === 'paid' ? () => handlePurchaseAcquisition(selectedGateway) :
                                 handleTwitchAcquisition
                             }
                             disabled={isProcessing || (selectedMethod === 'password' && !password.trim())}
