@@ -8,6 +8,7 @@ import { CreatorsRoute } from "./v1/creators/index.route";
 import websocketRoutes from './v1/websocket.routes';
 import ticketRoutes from './v1/tickets.routes';
 import publisherPermissionsRoutes from './v1/publisher-permissions.route';
+import webhooksRoutes from './webhooks.routes';
 
 const rootRouter = new Hono();
 
@@ -20,6 +21,9 @@ rootRouter.route('/creators', CreatorsRoute);
 rootRouter.route('/websocket', websocketRoutes);
 rootRouter.route('/tickets', ticketRoutes);
 rootRouter.route('/publishers', publisherPermissionsRoutes);
+
+// Webhook routes (separate from API versioning)
+rootRouter.route('/api/webhooks', webhooksRoutes);
 
 // TODO: MIGRATE_ROUTES - These routes need to be migrated and then re-added here
 // rootRouter.route('/explore', exploreRoutes);

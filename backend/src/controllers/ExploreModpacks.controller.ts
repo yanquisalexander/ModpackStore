@@ -471,7 +471,7 @@ export class ExploreModpacksController {
     static async acquireWithPurchase(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
         const modpackId = c.req.param('modpackId');
         const user = c.get('user');
-        const { returnUrl, cancelUrl } = await c.req.json();
+        const { gatewayType, countryCode } = await c.req.json();
 
         if (!user) {
             return c.json(serializeError({
@@ -479,14 +479,6 @@ export class ExploreModpacksController {
                 title: 'Unauthorized',
                 detail: 'Authentication required.',
             }), 401);
-        }
-
-        if (!returnUrl || !cancelUrl) {
-            return c.json(serializeError({
-                status: '400',
-                title: 'Bad Request',
-                detail: 'returnUrl and cancelUrl are required.',
-            }), 400);
         }
 
         try {
@@ -528,15 +520,15 @@ export class ExploreModpacksController {
                 }, 200);
             }
 
-            // For paid modpacks, create PayPal payment
+            // For paid modpacks, create payment using new service
             const paymentRequest = {
                 amount: modpack.price,
                 currency: 'USD',
                 description: `Purchase of ${modpack.name}`,
-                returnUrl,
-                cancelUrl,
                 modpackId: modpack.id,
-                userId: user.id
+                userId: user.id,
+                gatewayType,
+                countryCode
             };
 
             const paymentResponse = await PaymentService.createPayment(paymentRequest);
@@ -546,9 +538,11 @@ export class ExploreModpacksController {
                 isFree: false,
                 paymentId: paymentResponse.paymentId,
                 approvalUrl: paymentResponse.approvalUrl,
-                qrCodeUrl: paymentResponse.qrCodeUrl,
+                gatewayType: paymentResponse.gatewayType,
+                status: paymentResponse.status,
                 amount: modpack.price,
-                currency: 'USD'
+                currency: 'USD',
+                metadata: paymentResponse.metadata
             }, 200);
 
         } catch (error: any) {
@@ -559,18 +553,6 @@ export class ExploreModpacksController {
                 title: error.name || 'Purchase Error',
                 detail: error.message || "Failed to process purchase."
             }), statusCode);
-        }
-    }
-
-    static async paypalWebhook(c: Context): Promise<Response> {
-        try {
-            const payload = await c.req.json();
-            await PaymentService.handleWebhook(payload);
-
-            return c.json({ success: true }, 200);
-        } catch (error: any) {
-            console.error('[CONTROLLER_EXPLORE] PayPal webhook error:', error);
-            return c.json({ error: 'Webhook processing failed' }, 500);
         }
     }
 
