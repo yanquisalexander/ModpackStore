@@ -88,13 +88,25 @@ export const ScopesTable = pgTable('scopes', {
     publisherId: uuid('publisher_id').references(() => PublishersTable.id), // Para permisos a nivel organización
     modpackId: uuid('modpack_id').references(() => ModpacksTable.id),     // Para permisos a modpack específico
 
-    // Permisos específicos
+    // Permisos específicos (legacy - mantenemos por compatibilidad)
     canCreateModpacks: boolean('can_create_modpacks').default(false),
     canEditModpacks: boolean('can_edit_modpacks').default(false),
     canDeleteModpacks: boolean('can_delete_modpacks').default(false),
     canPublishVersions: boolean('can_publish_versions').default(false),
     canManageMembers: boolean('can_manage_members').default(false),
     canManageSettings: boolean('can_manage_settings').default(false),
+
+    // Permisos granulares para modpacks
+    modpackView: boolean('modpack_view').default(false),
+    modpackModify: boolean('modpack_modify').default(false),
+    modpackManageVersions: boolean('modpack_manage_versions').default(false),
+    modpackPublish: boolean('modpack_publish').default(false),
+    modpackDelete: boolean('modpack_delete').default(false),
+    modpackManageAccess: boolean('modpack_manage_access').default(false),
+
+    // Permisos granulares para publisher
+    publisherManageCategoriesTags: boolean('publisher_manage_categories_tags').default(false),
+    publisherViewStats: boolean('publisher_view_stats').default(false),
 
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
