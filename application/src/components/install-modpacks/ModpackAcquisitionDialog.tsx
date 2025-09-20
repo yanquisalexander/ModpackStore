@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -9,29 +9,27 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import {
     LucideShieldAlert,
     LucideShoppingCart,
     LucideCreditCard,
     LucideQrCode,
     LucideExternalLink,
-    LucideCheck,
     LucideLoader2,
     LucideCopy,
     LucideCheckCircle,
     LucideXCircle,
-    LucideHistory,
-    LucideClock,
-    LucideX
+    LucideInfo,
 } from "lucide-react";
 import { MdiTwitch } from "@/icons/MdiTwitch";
 import { toast } from "sonner";
 import { useAuthentication } from "@/stores/AuthContext";
 import { API_ENDPOINT } from "@/consts";
 import { useRealtimeContext } from "@/providers/RealtimeProvider";
+
+// Definiciones de tipos y props
+type AcquisitionMethod = 'free' | 'paid' | 'password' | 'twitch_sub';
 
 interface ModpackAcquisitionDialogProps {
     isOpen: boolean;
@@ -50,8 +48,6 @@ interface ModpackAcquisitionDialogProps {
     };
 }
 
-type AcquisitionMethod = 'free' | 'paid' | 'password' | 'twitch_sub';
-
 interface PaymentResponse {
     success: boolean;
     isFree?: boolean;
@@ -66,38 +62,6 @@ interface PaymentResponse {
     metadata?: Record<string, any>;
 }
 
-interface TransactionHistoryItem {
-    id: string;
-    type: string;
-    amount: string;
-    description?: string;
-    status: 'Completado' | 'Pendiente' | 'Cancelado';
-    gatewayType: string;
-    externalTransactionId?: string;
-    createdAt: string;
-    modpack?: {
-        id: string;
-        name: string;
-    };
-}
-
-interface ModpackAcquisitionItem {
-    id: string;
-    method: 'free' | 'paid' | 'password' | 'twitch_sub';
-    status: 'active' | 'revoked' | 'suspended';
-    createdAt: string;
-    transactionId?: string;
-}
-
-interface TransactionHistoryData {
-    transactions: TransactionHistoryItem[];
-    acquisitions: ModpackAcquisitionItem[];
-    modpack: {
-        id: string;
-        name: string;
-    };
-}
-
 export const ModpackAcquisitionDialog = ({
     isOpen,
     onClose,
@@ -106,588 +70,303 @@ export const ModpackAcquisitionDialog = ({
 }: ModpackAcquisitionDialogProps) => {
     const [isProcessing, setIsProcessing] = useState(false);
     const [password, setPassword] = useState("");
-    const [selectedGateway, setSelectedGateway] = useState<string | undefined>(undefined);
+    const [selectedGateway, setSelectedGateway] = useState<string | null>(null);
     const [paymentData, setPaymentData] = useState<PaymentResponse | null>(null);
-    const [showQR, setShowQR] = useState(false);
     const [copiedUrl, setCopiedUrl] = useState(false);
-    const [transactionHistory, setTransactionHistory] = useState<TransactionHistoryData | null>(null);
-    const [loadingHistory, setLoadingHistory] = useState(false);
     const { sessionTokens } = useAuthentication();
-    const { isConnected, on, off } = useRealtimeContext();
-
-    // Use the single acquisition method directly
-    const selectedMethod = modpack.acquisitionMethod;
-
-    // Load transaction history when dialog opens
-    useEffect(() => {
-        if (isOpen && sessionTokens?.accessToken) {
-            loadTransactionHistory();
-        }
-    }, [isOpen, sessionTokens?.accessToken, modpack.id]);
-
-    const loadTransactionHistory = async () => {
-        if (!sessionTokens?.accessToken) return;
-
-        setLoadingHistory(true);
-        try {
-            const response = await fetch(`${API_ENDPOINT}/explore/user/modpacks/${modpack.id}/transaction-history`, {
-                headers: {
-                    'Authorization': `Bearer ${sessionTokens.accessToken}`,
-                },
-            });
-
-            if (response.ok) {
-                const data = await response.json();
-                setTransactionHistory(data.data);
-            } else {
-                console.error('Failed to load transaction history');
-            }
-        } catch (error) {
-            console.error('Error loading transaction history:', error);
-        } finally {
-            setLoadingHistory(false);
-        }
-    };
-
-    // Deduplication logic for transactions
-    const getFilteredTransactions = (): TransactionHistoryItem[] => {
-        if (!transactionHistory?.transactions) return [];
-
-        const transactions = [...transactionHistory.transactions];
-        
-        // Sort by creation date (newest first)
-        transactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
-        // Group by user and modpack (should be same for all in this context)
-        // Find first completed transaction and hide duplicates that are pending/cancelled
-        const seen = new Set<string>();
-        const filtered: TransactionHistoryItem[] = [];
-
-        for (const transaction of transactions) {
-            const key = `${transaction.modpack?.id || modpack.id}-${transaction.type}`;
-            
-            if (transaction.status === 'Completado') {
-                // If this is a completed transaction and we haven't seen a completed one for this key
-                if (!seen.has(key)) {
-                    filtered.push(transaction);
-                    seen.add(key);
-                }
-            } else if (!seen.has(key)) {
-                // Only add pending/cancelled if we haven't seen any transaction for this key
-                filtered.push(transaction);
-            }
-        }
-
-        return filtered;
-    };
-
-    const handlePasswordAcquisition = async () => {
-        if (!password.trim()) {
-            toast.error("Por favor ingresa la contraseña");
-            return;
-        }
-
-        setIsProcessing(true);
-        try {
-            const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpack.id}/validate-password`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
-                },
-                body: JSON.stringify({ password: password.trim() }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok && data.valid) {
-                toast.success('¡Acceso concedido con contraseña!');
-                onSuccess();
-                handleClose();
-            } else {
-                toast.error(data.message || 'Contraseña incorrecta');
-            }
-        } catch (error) {
-            console.error('Error validating password:', error);
-            toast.error('Error al validar la contraseña');
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const handlePurchaseAcquisition = async (gatewayType?: string) => {
-        // For paid modpacks, ensure a gateway is selected
-        if (modpack.acquisitionMethod === 'paid' && !gatewayType) {
-            toast.error("Por favor selecciona un método de pago");
-            return;
-        }
-
-        setIsProcessing(true);
-        try {
-            // Detect user's country for gateway selection (optional)
-            let countryCode: string | undefined;
-            try {
-                // Simple IP-based country detection (optional)
-                // In a real app, you might want to use a proper geolocation service
-                countryCode = Intl.DateTimeFormat().resolvedOptions().timeZone?.split('/')[0];
-            } catch (error) {
-                // Fallback if detection fails
-                countryCode = undefined;
-            }
-
-            const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpack.id}/acquire/purchase`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
-                },
-                body: JSON.stringify({
-                    gatewayType,
-                    countryCode
-                }),
-            });
-
-            const data: PaymentResponse = await response.json();
-
-            if (response.ok && data.success) {
-                if (modpack.acquisitionMethod === 'free') {
-                    toast.success('¡Modpack gratuito adquirido!');
-                    onSuccess();
-                    handleClose();
-                } else {
-                    setPaymentData(data);
-                    toast.success(`Pago iniciado via ${data.gatewayType?.toUpperCase()}. Completa el pago para obtener acceso.`);
-                }
-            } else {
-                toast.error('Error al procesar la compra');
-            }
-        } catch (error) {
-            console.error('Error processing purchase:', error);
-            toast.error('Error al procesar la compra');
-        } finally {
-            setIsProcessing(false);
-        }
-    };
-
-    const handleTwitchAcquisition = async () => {
-        setIsProcessing(true);
-        try {
-            const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpack.id}/acquire/twitch`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
-                },
-            });
-
-            const data = await response.json();
-
-            if (response.ok && data.success) {
-                toast.success('¡Acceso concedido con suscripción de Twitch!');
-                onSuccess();
-                handleClose();
-            } else {
-                toast.error(data.message || 'Suscripción de Twitch requerida');
-            }
-        } catch (error) {
-            console.error('Error processing Twitch acquisition:', error);
-            toast.error('Error al verificar suscripción de Twitch');
-        } finally {
-            setIsProcessing(false);
-        }
-    };
+    const { isConnected, on } = useRealtimeContext();
 
     const handleClose = () => {
         setPassword("");
-        setSelectedGateway(undefined);
+        setSelectedGateway(null);
         setPaymentData(null);
-        setShowQR(false);
         setCopiedUrl(false);
         setIsProcessing(false);
-        setTransactionHistory(null);
         onClose();
-    };
-
-    const getMethodIcon = (method: AcquisitionMethod) => {
-        switch (method) {
-            case 'password': return <LucideShieldAlert className="w-5 h-5" />;
-            case 'free':
-            case 'paid': return <LucideShoppingCart className="w-5 h-5" />;
-            case 'twitch_sub': return <MdiTwitch className="w-5 h-5" />;
-        }
-    };
-
-    const getMethodTitle = (method: AcquisitionMethod) => {
-        switch (method) {
-            case 'password': return 'Acceso con Contraseña';
-            case 'free': return 'Obtener Gratis';
-            case 'paid': return `Comprar por $${modpack.price} USD`;
-            case 'twitch_sub': return 'Acceso con Suscripción de Twitch';
-        }
-    };
-
-    const getMethodDescription = (method: AcquisitionMethod) => {
-        switch (method) {
-            case 'password': return 'Ingresa la contraseña proporcionada por el creador';
-            case 'free': return 'Este modpack es gratuito';
-            case 'paid': return 'Pago único a través de múltiples opciones de pago';
-            case 'twitch_sub': return 'Requiere suscripción activa a los canales especificados';
-        }
-    };
-
-    const getGatewayIcon = (gatewayType?: string) => {
-        switch (gatewayType) {
-            case 'paypal': return '💳 PayPal';
-            case 'mercadopago': return '💳 MercadoPago';
-            default: return '💳 Procesando...';
-        }
-    };
-
-    const getStatusBadgeVariant = (status: TransactionHistoryItem['status']) => {
-        switch (status) {
-            case 'Completado': return 'default';
-            case 'Pendiente': return 'secondary';
-            case 'Cancelado': return 'destructive';
-        }
-    };
-
-    const getStatusIcon = (status: TransactionHistoryItem['status']) => {
-        switch (status) {
-            case 'Completado': return <LucideCheck className="w-3 h-3" />;
-            case 'Pendiente': return <LucideClock className="w-3 h-3" />;
-            case 'Cancelado': return <LucideX className="w-3 h-3" />;
-        }
     };
 
     const copyToClipboard = async (text: string) => {
         try {
             await navigator.clipboard.writeText(text);
             setCopiedUrl(true);
-            toast.success("Enlace copiado al portapapeles");
+            toast.success("Enlace copiado");
             setTimeout(() => setCopiedUrl(false), 2000);
         } catch (error) {
             toast.error("Error al copiar el enlace");
         }
     };
 
-    // Handle real-time payment status updates
+    const getAcquisitionInfo = (method: AcquisitionMethod) => {
+        switch (method) {
+            case 'password':
+                return {
+                    icon: <LucideShieldAlert className="w-5 h-5" />,
+                    title: 'Acceso con Contraseña',
+                    description: 'Ingresa la contraseña proporcionada por el creador.',
+                };
+            case 'free':
+                return {
+                    icon: <LucideShoppingCart className="w-5 h-5" />,
+                    title: 'Obtener Gratis',
+                    description: 'Este modpack es gratuito.',
+                };
+            case 'paid':
+                return {
+                    icon: <LucideCreditCard className="w-5 h-5" />,
+                    title: `Comprar por $${modpack.price} USD`,
+                    description: 'Pago único a través de múltiples opciones.',
+                };
+            case 'twitch_sub':
+                return {
+                    icon: <MdiTwitch className="w-5 h-5" />,
+                    title: 'Acceso con Suscripción de Twitch',
+                    description: 'Requiere suscripción activa a los canales especificados.',
+                };
+        }
+    };
+
+    const acquisitionInfo = getAcquisitionInfo(modpack.acquisitionMethod);
+
+    const handleAcquisition = useCallback(async () => {
+        setIsProcessing(true);
+        try {
+            let response;
+            switch (modpack.acquisitionMethod) {
+                case 'password':
+                    if (!password.trim()) {
+                        toast.error("Por favor ingresa la contraseña");
+                        setIsProcessing(false);
+                        return;
+                    }
+                    response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpack.id}/validate-password`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                        },
+                        body: JSON.stringify({ password: password.trim() }),
+                    });
+                    const data = await response.json();
+                    if (response.ok && data.valid) {
+                        toast.success('¡Acceso concedido!');
+                        onSuccess();
+                        handleClose();
+                    } else {
+                        toast.error(data.message || 'Contraseña incorrecta');
+                    }
+                    break;
+                case 'paid':
+                case 'free':
+                    if (modpack.acquisitionMethod === 'paid' && !selectedGateway) {
+                        toast.error("Selecciona un método de pago");
+                        setIsProcessing(false);
+                        return;
+                    }
+                    response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpack.id}/acquire/purchase`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                        },
+                        body: JSON.stringify({ gatewayType: selectedGateway }),
+                    });
+                    const paymentResponse: PaymentResponse = await response.json();
+                    if (response.ok && paymentResponse.success) {
+                        if (modpack.acquisitionMethod === 'free') {
+                            toast.success('¡Modpack gratuito adquirido!');
+                            onSuccess();
+                            handleClose();
+                        } else {
+                            setPaymentData(paymentResponse);
+                            toast.success(`Pago iniciado via ${paymentResponse.gatewayType?.toUpperCase()}. Completa el pago para obtener acceso.`);
+                        }
+                    } else {
+                        toast.error('Error al procesar la compra');
+                    }
+                    break;
+                case 'twitch_sub':
+                    response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpack.id}/acquire/twitch`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                        },
+                    });
+                    const twitchData = await response.json();
+                    if (response.ok && twitchData.success) {
+                        toast.success('¡Acceso concedido!');
+                        onSuccess();
+                        handleClose();
+                    } else {
+                        toast.error(twitchData.message || 'Suscripción de Twitch requerida');
+                    }
+                    break;
+                default:
+                    break;
+            }
+        } catch (error) {
+            console.error('Error durante la adquisición:', error);
+            toast.error('Ocurrió un error inesperado');
+        } finally {
+            setIsProcessing(false);
+        }
+    }, [modpack, password, selectedGateway, sessionTokens, onSuccess, handleClose]);
+
     useEffect(() => {
         if (!paymentData?.paymentId || !isConnected) return;
 
-        const handlePaymentProcessing = (payload: any) => {
-            if (payload.paymentId === paymentData.paymentId) {
-                setPaymentData(prev => prev ? { ...prev, status: 'processing' } : null);
-                toast.info(payload.message || 'Procesando pago...');
+        const handlePaymentUpdate = (payload: any) => {
+            if (payload.paymentId !== paymentData.paymentId) return;
+
+            setPaymentData(prev => prev ? { ...prev, status: payload.status } : null);
+            switch (payload.status) {
+                case 'completed':
+                    toast.success(payload.message || '¡Pago completado exitosamente!');
+                    setTimeout(() => {
+                        onSuccess();
+                        handleClose();
+                    }, 2000);
+                    break;
+                case 'processing':
+                    toast.info(payload.message || 'Procesando pago...');
+                    break;
+                case 'failed':
+                    toast.error(payload.message || 'Error en el pago');
+                    break;
+                default:
+                    break;
             }
         };
 
-        const handlePaymentCompleted = (payload: any) => {
-            if (payload.paymentId === paymentData.paymentId) {
-                setPaymentData(prev => prev ? { ...prev, status: 'completed' } : null);
-                toast.success(payload.message || '¡Pago completado exitosamente!');
-                setTimeout(() => {
-                    onSuccess();
-                    handleClose();
-                }, 2000);
-            }
-        };
-
-        const handlePaymentFailed = (payload: any) => {
-            if (payload.paymentId === paymentData.paymentId) {
-                setPaymentData(prev => prev ? { ...prev, status: 'failed' } : null);
-                toast.error(payload.message || 'Error en el pago');
-            }
-        };
-
-        // Subscribe to payment events
-        const unsubscribeProcessing = on('payment_processing', handlePaymentProcessing);
-        const unsubscribeCompleted = on('payment_completed', handlePaymentCompleted);
-        const unsubscribeFailed = on('payment_failed', handlePaymentFailed);
+        const unsubscribeCompleted = on('payment_completed', handlePaymentUpdate);
+        const unsubscribeProcessing = on('payment_processing', handlePaymentUpdate);
+        const unsubscribeFailed = on('payment_failed', handlePaymentUpdate);
 
         return () => {
-            unsubscribeProcessing();
             unsubscribeCompleted();
+            unsubscribeProcessing();
             unsubscribeFailed();
         };
     }, [paymentData?.paymentId, isConnected, on, onSuccess]);
 
+    // Renderizado del diálogo de pago en curso
     if (paymentData && modpack.acquisitionMethod === 'paid') {
+        const statusMap = {
+            completed: { text: 'Pago completado', color: 'green', icon: <LucideCheckCircle /> },
+            failed: { text: 'Pago fallido', color: 'red', icon: <LucideXCircle /> },
+            processing: { text: 'Procesando pago...', color: 'blue', icon: <LucideLoader2 className="animate-spin" /> },
+            pending: { text: 'Pendiente de confirmación', color: 'yellow', icon: <LucideInfo /> },
+        };
+        const currentStatus = statusMap[paymentData.status as keyof typeof statusMap] || statusMap.pending;
+
         return (
             <Dialog open={isOpen} onOpenChange={() => false}>
-                <DialogContent className="max-w-6xl w-full h-[700px] p-0">
-                    <div className="grid grid-cols-1 lg:grid-cols-3 h-full">
-                        {/* Left Column - Payment Information */}
-                        <div className="border-r border-border p-6 flex flex-col">
-                            <DialogHeader className="mb-4">
-                                <DialogTitle className="flex items-center gap-2 text-lg">
-                                    <LucideCreditCard className="w-5 h-5" />
-                                    Información de Pago
-                                </DialogTitle>
-                                <DialogDescription>
-                                    Completa tu pago usando el método seleccionado
-                                </DialogDescription>
-                            </DialogHeader>
+                <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <LucideCreditCard className="w-5 h-5" />
+                            Información de Pago
+                        </DialogTitle>
+                        <DialogDescription>
+                            Completa tu pago a través de {paymentData.gatewayType?.toUpperCase()}.
+                        </DialogDescription>
+                    </DialogHeader>
 
-                            <div className="flex-1 space-y-4">
-                                {/* Payment Status Indicator */}
-                                <div className={`p-4 rounded-lg border ${paymentData.status === 'completed' ? 'border-green-200 bg-green-50 dark:bg-green-900/20' :
-                                        paymentData.status === 'failed' ? 'border-red-200 bg-red-50 dark:bg-red-900/20' :
-                                            paymentData.status === 'processing' ? 'border-blue-200 bg-blue-50 dark:bg-blue-900/20' :
-                                                'border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20'
-                                    }`}>
-                                    <div className="flex items-center gap-3">
-                                        {paymentData?.status === 'completed' ? (
-                                            <LucideCheckCircle className="w-5 h-5 text-green-600" />
-                                        ) : paymentData?.status === 'failed' ? (
-                                            <LucideXCircle className="w-5 h-5 text-red-600" />
-                                        ) : paymentData?.status === 'processing' ? (
-                                            <LucideLoader2 className="w-5 h-5 text-blue-600 animate-spin" />
-                                        ) : (
-                                            <LucideLoader2 className="w-5 h-5 text-yellow-600 animate-spin" />
-                                        )}
-                                        <span className="font-medium">
-                                            {paymentData.status === 'completed' ? 'Pago completado' :
-                                                paymentData.status === 'failed' ? 'Pago fallido' :
-                                                    paymentData.status === 'processing' ? 'Procesando pago...' :
-                                                        'Pago pendiente de confirmación'}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Payment Amount */}
-                                <div className="text-center p-6 bg-muted/50 rounded-lg">
-                                    <div className="text-3xl font-bold text-primary">
-                                        ${paymentData.amount} USD
-                                    </div>
-                                    <div className="text-sm text-muted-foreground mt-1">
-                                        Procesador: {paymentData.gatewayType?.toUpperCase()}
-                                    </div>
-                                </div>
-
-                                {/* Payment Actions */}
-                                <div className="space-y-3">
-                                    <Button
-                                        onClick={() => window.open(paymentData.approvalUrl, '_blank')}
-                                        className="w-full"
-                                        size="lg"
-                                    >
-                                        <LucideExternalLink className="w-4 h-4 mr-2" />
-                                        Pagar en Navegador
-                                    </Button>
-
-                                    <Button
-                                        variant="outline"
-                                        onClick={() => copyToClipboard(paymentData.approvalUrl || '')}
-                                        className="w-full"
-                                        size="lg"
-                                    >
-                                        <LucideCopy className="w-4 h-4 mr-2" />
-                                        {copiedUrl ? 'Copiado!' : 'Copiar Enlace'}
-                                    </Button>
-
-                                    {/* Always show QR Code when available */}
-                                    {paymentData.qrCode && (
-                                        <div className="space-y-2">
-                                            <Button
-                                                variant="outline"
-                                                onClick={() => setShowQR(!showQR)}
-                                                className="w-full"
-                                                size="lg"
-                                            >
-                                                <LucideQrCode className="w-4 h-4 mr-2" />
-                                                {showQR ? 'Ocultar' : 'Mostrar'} QR para Móvil
-                                            </Button>
-
-                                            {showQR && (
-                                                <Card className="p-4">
-                                                    <div className="text-center space-y-3">
-                                                        <div className="text-sm text-muted-foreground">
-                                                            Escanea el código QR con tu teléfono
-                                                        </div>
-                                                        <div className="flex justify-center">
-                                                            <img
-                                                                src={paymentData.qrCode}
-                                                                alt="Código QR para pago móvil"
-                                                                className="max-w-48 max-h-48 border rounded-lg shadow-sm"
-                                                            />
-                                                        </div>
-                                                        <div className="text-xs text-muted-foreground space-y-1">
-                                                            <div>Abre la app de tu banco o PayPal en tu teléfono</div>
-                                                            <div>Escanea el código para completar el pago</div>
-                                                        </div>
-                                                    </div>
-                                                </Card>
-                                            )}
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Real-time status */}
-                                {isConnected && (
-                                    <div className="flex items-center justify-center gap-1 text-xs text-green-600 pt-2">
-                                        <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></div>
-                                        Actualizaciones en tiempo real activas
-                                    </div>
-                                )}
-
-                                <div className="text-center text-xs text-muted-foreground">
-                                    La confirmación de pago será automática.
-                                    <br />
-                                    No necesitas regresar a esta ventana.
-                                </div>
+                    <div className="space-y-4">
+                        <div className={`p-4 rounded-lg border border-${currentStatus.color}-200 bg-${currentStatus.color}-50 dark:bg-${currentStatus.color}-900/20`}>
+                            <div className="flex items-center gap-3">
+                                <span className={`text-${currentStatus.color}-600`}>
+                                    {currentStatus.icon}
+                                </span>
+                                <span className="font-medium text-sm">
+                                    {currentStatus.text}
+                                </span>
                             </div>
                         </div>
 
-                        {/* Middle Column - Purchase Summary */}
-                        <div className="border-r border-border p-6 flex flex-col">
-                            <DialogHeader className="mb-4">
-                                <DialogTitle className="flex items-center gap-2 text-lg">
-                                    <LucideShoppingCart className="w-5 h-5" />
-                                    Resumen de Compra
-                                </DialogTitle>
-                            </DialogHeader>
-
-                            <div className="flex-1 space-y-4">
-                                <Card>
-                                    <CardContent className="p-4 space-y-4">
-                                        <div className="text-center">
-                                            <div className="text-xl font-bold">
-                                                {modpack.name}
-                                            </div>
-                                            {paymentData.metadata?.modpackDetails && (
-                                                <div className="text-sm text-muted-foreground mt-1">
-                                                    {paymentData.metadata.modpackDetails.version && `v${paymentData.metadata.modpackDetails.version}`}
-                                                    {paymentData.metadata.modpackDetails.author && ` por ${paymentData.metadata.modpackDetails.author}`}
-                                                </div>
-                                            )}
-                                            {paymentData.metadata?.modpackDetails?.description && (
-                                                <div className="text-xs text-muted-foreground mt-2 px-3 py-2 bg-muted/50 rounded">
-                                                    {paymentData.metadata.modpackDetails.description.length > 150
-                                                        ? `${paymentData.metadata.modpackDetails.description.substring(0, 150)}...`
-                                                        : paymentData.metadata.modpackDetails.description
-                                                    }
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <Separator />
-
-                                        <div className="space-y-3">
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm text-muted-foreground">Precio:</span>
-                                                <span className="font-medium">${paymentData.amount} USD</span>
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm text-muted-foreground">Proveedor de Pago:</span>
-                                                <span className="font-medium">{getGatewayIcon(paymentData?.gatewayType)} {paymentData.gatewayType?.toUpperCase()}</span>
-                                            </div>
-                                            <div className="flex justify-between items-center">
-                                                <span className="text-sm text-muted-foreground">Estado:</span>
-                                                <span className={`font-medium ${paymentData.status === 'completed' ? 'text-green-600' :
-                                                        paymentData.status === 'failed' ? 'text-red-600' :
-                                                            paymentData.status === 'processing' ? 'text-blue-600' :
-                                                                'text-yellow-600'
-                                                    }`}>
-                                                    {paymentData.status === 'completed' ? 'Completado' :
-                                                        paymentData.status === 'failed' ? 'Fallido' :
-                                                            paymentData.status === 'processing' ? 'Procesando' :
-                                                                'Pendiente'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-
-                                <div className="mt-auto">
-                                    <Button
-                                        variant="outline"
-                                        onClick={handleClose}
-                                        className="w-full"
-                                        size="lg"
-                                    >
-                                        Cancelar Operación
-                                    </Button>
-                                </div>
+                        <div className="text-center p-6 bg-muted/50 rounded-lg">
+                            <div className="text-3xl font-bold text-primary">
+                                ${paymentData.amount} USD
+                            </div>
+                            <div className="text-sm text-muted-foreground mt-1">
+                                Estás adquiriendo: <span className="font-medium">{modpack.name}</span>
                             </div>
                         </div>
 
-                        {/* Right Column - Transaction History */}
-                        <div className="p-6 flex flex-col">
-                            <DialogHeader className="mb-4">
-                                <DialogTitle className="flex items-center gap-2 text-lg">
-                                    <LucideHistory className="w-5 h-5" />
-                                    Historial de Transacciones
-                                </DialogTitle>
-                            </DialogHeader>
+                        <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                            <Button
+                                onClick={() => window.open(paymentData?.approvalUrl, '_blank')}
+                                disabled={!paymentData?.approvalUrl}
+                                className="flex-1"
+                            >
+                                <LucideExternalLink className="w-4 h-4 mr-2" />
+                                Pagar en Navegador
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={() => copyToClipboard(paymentData?.approvalUrl || '')}
+                                className="flex-none"
+                            >
+                                <LucideCopy className="w-4 h-4 mr-2" />
+                                {copiedUrl ? 'Copiado' : 'Copiar Enlace'}
+                            </Button>
+                        </div>
 
-                            <div className="flex-1 space-y-4 overflow-y-auto">
-                                {loadingHistory ? (
-                                    <div className="flex items-center justify-center p-8">
-                                        <LucideLoader2 className="w-6 h-6 animate-spin" />
+                        {(paymentData.qrCodeUrl || paymentData.approvalUrl) && (
+                            <Card className="p-3 bg-muted/10 rounded-md">
+                                <div className="text-center space-y-2">
+                                    <div className="text-sm text-muted-foreground">
+                                        Escanea el código QR con tu teléfono
                                     </div>
-                                ) : (
-                                    <>
-                                        {getFilteredTransactions().length > 0 ? (
-                                            <div className="space-y-3">
-                                                {getFilteredTransactions().map((transaction) => (
-                                                    <Card key={transaction.id} className="p-3">
-                                                        <div className="space-y-2">
-                                                            <div className="flex items-center justify-between">
-                                                                <div className="text-sm font-medium">
-                                                                    ${transaction.amount} USD
-                                                                </div>
-                                                                <Badge variant={getStatusBadgeVariant(transaction.status)}>
-                                                                    <div className="flex items-center gap-1">
-                                                                        {getStatusIcon(transaction.status)}
-                                                                        {transaction.status}
-                                                                    </div>
-                                                                </Badge>
-                                                            </div>
-                                                            <div className="text-xs text-muted-foreground">
-                                                                {transaction.gatewayType?.toUpperCase()} • {new Date(transaction.createdAt).toLocaleDateString()}
-                                                            </div>
-                                                            {transaction.description && (
-                                                                <div className="text-xs text-muted-foreground">
-                                                                    {transaction.description}
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </Card>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="text-center py-8">
-                                                <LucideHistory className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                                                <p className="text-sm text-muted-foreground">
-                                                    No hay transacciones previas
-                                                </p>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-                            </div>
+                                    <div className="flex justify-center">
+                                        {(() => {
+                                            const qrSrc = paymentData.qrCodeUrl
+                                                ? `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(paymentData.qrCodeUrl)}&format=png`
+                                                : (paymentData.approvalUrl ? `https://api.qrserver.com/v1/create-qr-code/?size=360x360&data=${encodeURIComponent(paymentData.approvalUrl)}&format=png` : '');
+                                            return (
+                                                <img
+                                                    src={qrSrc}
+                                                    alt="Código QR para pago móvil"
+                                                    className="w-36 h-36 border rounded-md shadow-sm"
+                                                />
+                                            );
+                                        })()}
+                                    </div>
+                                </div>
+                            </Card>
+                        )}
+
+                        <div className="text-center text-xs text-muted-foreground">
+                            La confirmación de pago es automática. Puedes cerrar este diálogo.
                         </div>
+
+                    </div>
+                    <div className="flex justify-end pt-4 border-t border-border">
+                        <Button variant="ghost" onClick={handleClose}>
+                            Cerrar
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>
         );
     }
 
+    // Renderizado del diálogo de adquisición inicial
     return (
         <Dialog open={isOpen} onOpenChange={() => false}>
-            <DialogContent className="sm:max-w-lg">
+            <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        {getMethodIcon(selectedMethod)}
-                        {getMethodTitle(selectedMethod)}
+                        {acquisitionInfo.icon}
+                        {acquisitionInfo.title}
                     </DialogTitle>
                     <DialogDescription>
-                        {getMethodDescription(selectedMethod)}
+                        {acquisitionInfo.description}
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
-                    {selectedMethod === 'password' && (
+                    {modpack.acquisitionMethod === 'password' && (
                         <div className="space-y-2">
                             <Label htmlFor="password">Contraseña</Label>
                             <Input
@@ -695,23 +374,19 @@ export const ModpackAcquisitionDialog = ({
                                 type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                onKeyDown={(e) => {
-                                    if (e.key === "Enter" && password.trim() && !isProcessing) {
-                                        handlePasswordAcquisition();
-                                    }
-                                }}
+                                onKeyDown={(e) => e.key === "Enter" && handleAcquisition()}
                                 placeholder="Ingresa la contraseña del modpack"
                             />
                         </div>
                     )}
 
-                    {selectedMethod === 'paid' && (
+                    {modpack.acquisitionMethod === 'paid' && (
                         <div className="space-y-3">
                             <Label>Método de Pago</Label>
-                            <div className="text-sm text-muted-foreground mb-3">
-                                Selecciona manualmente tu proveedor de pago preferido:
+                            <div className="text-sm text-muted-foreground mb-2">
+                                Selecciona tu proveedor preferido:
                             </div>
-                            <div className="space-y-2">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                                 <Button
                                     variant={selectedGateway === 'paypal' ? 'default' : 'outline'}
                                     onClick={() => setSelectedGateway('paypal')}
@@ -720,79 +395,53 @@ export const ModpackAcquisitionDialog = ({
                                     💳 PayPal
                                 </Button>
                                 <Button
+                                    disabled
                                     variant={selectedGateway === 'mercadopago' ? 'default' : 'outline'}
                                     onClick={() => setSelectedGateway('mercadopago')}
                                     className="w-full justify-start"
                                 >
-                                    💳 MercadoPago
+                                    💳 MercadoPago (No disponible)
                                 </Button>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+                                <LucideQrCode className="w-4 h-4 text-muted-foreground" />
+                                <div>Se generará un código QR para pago móvil al iniciar la compra.</div>
                             </div>
                             {!selectedGateway && (
                                 <div className="text-xs text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-3 py-2 rounded">
-                                    Por favor selecciona un método de pago para continuar.
+                                    Por favor, selecciona un método de pago para continuar.
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* Transaction History Preview */}
-                    {transactionHistory && getFilteredTransactions().length > 0 && (
-                        <div className="space-y-3">
-                            <Label className="flex items-center gap-2">
-                                <LucideHistory className="w-4 h-4" />
-                                Transacciones Anteriores
-                            </Label>
-                            <div className="max-h-32 overflow-y-auto space-y-2">
-                                {getFilteredTransactions().slice(0, 3).map((transaction) => (
-                                    <div key={transaction.id} className="flex items-center justify-between p-2 bg-muted/50 rounded text-sm">
-                                        <div>
-                                            <div className="font-medium">${transaction.amount} USD</div>
-                                            <div className="text-xs text-muted-foreground">
-                                                {new Date(transaction.createdAt).toLocaleDateString()}
-                                            </div>
-                                        </div>
-                                        <Badge variant={getStatusBadgeVariant(transaction.status)} className="text-xs">
-                                            {getStatusIcon(transaction.status)}
-                                            {transaction.status}
-                                        </Badge>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* WebSocket Connection Status */}
                     {isConnected && (
                         <div className="flex items-center justify-center gap-1 text-xs text-green-600">
                             <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
                             Conectado en tiempo real
                         </div>
                     )}
+                </div>
 
-                    <div className="flex gap-2">
-                        <Button
-                            variant="outline"
-                            onClick={handleClose}
-                            className="flex-1"
-                        >
-                            Cancelar
-                        </Button>
-                        <Button
-                            onClick={
-                                selectedMethod === 'password' ? handlePasswordAcquisition :
-                                    selectedMethod === 'free' || selectedMethod === 'paid' ? () => handlePurchaseAcquisition(selectedGateway) :
-                                        handleTwitchAcquisition
-                            }
-                            disabled={isProcessing || (selectedMethod === 'password' && !password.trim()) || (selectedMethod === 'paid' && !selectedGateway)}
-                            className="flex-1"
-                        >
-                            {isProcessing && <LucideLoader2 className="w-4 h-4 mr-2 animate-spin" />}
-                            {selectedMethod === 'password' ? 'Validar Contraseña' :
-                                selectedMethod === 'free' ? 'Obtener' :
-                                    selectedMethod === 'paid' ? 'Comprar' :
-                                        'Verificar Suscripción'}
-                        </Button>
-                    </div>
+                <div className="flex flex-col gap-2 sm:flex-row-reverse sm:justify-between sm:items-center pt-4 border-t border-border">
+                    <Button
+                        onClick={handleAcquisition}
+                        disabled={isProcessing || (modpack.acquisitionMethod === 'password' && !password.trim()) || (modpack.acquisitionMethod === 'paid' && !selectedGateway)}
+                        className="flex-1"
+                    >
+                        {isProcessing && <LucideLoader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        {modpack.acquisitionMethod === 'password' ? 'Validar Contraseña' :
+                            modpack.acquisitionMethod === 'free' ? 'Obtener' :
+                                modpack.acquisitionMethod === 'paid' ? 'Comprar' :
+                                    'Verificar Suscripción'}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        onClick={handleClose}
+                        className="flex-1 sm:flex-none"
+                    >
+                        Cancelar
+                    </Button>
                 </div>
             </DialogContent>
         </Dialog>
