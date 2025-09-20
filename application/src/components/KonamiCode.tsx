@@ -117,8 +117,8 @@ export const KonamiCode = () => {
 
                     <video
                         ref={videoRef}
-                        src="/assets/videos/lava-chicken.mp4"
-                        className="size-72 object-cover animate-rotate-360 animate-iteration-count-infinite animate-duration-[3s]"
+                        src="/assets/videos/konami_2.webm"
+                        className="h-screen w-screen aspect-video object-cover animate-iteration-count-infinite animate-duration-[3s]"
                         loop={false}
                         playsInline
                     />
