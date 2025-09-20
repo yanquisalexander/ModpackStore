@@ -312,12 +312,11 @@ export const ModpackAcquisitionDialog = ({
 
                             <div className="flex-1 space-y-4">
                                 {/* Payment Status Indicator */}
-                                <div className={`p-4 rounded-lg border ${
-                                    paymentData.status === 'completed' ? 'border-green-200 bg-green-50 dark:bg-green-900/20' :
-                                    paymentData.status === 'failed' ? 'border-red-200 bg-red-50 dark:bg-red-900/20' :
-                                    paymentData.status === 'processing' ? 'border-blue-200 bg-blue-50 dark:bg-blue-900/20' :
-                                    'border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20'
-                                }`}>
+                                <div className={`p-4 rounded-lg border ${paymentData.status === 'completed' ? 'border-green-200 bg-green-50 dark:bg-green-900/20' :
+                                        paymentData.status === 'failed' ? 'border-red-200 bg-red-50 dark:bg-red-900/20' :
+                                            paymentData.status === 'processing' ? 'border-blue-200 bg-blue-50 dark:bg-blue-900/20' :
+                                                'border-yellow-200 bg-yellow-50 dark:bg-yellow-900/20'
+                                    }`}>
                                     <div className="flex items-center gap-3">
                                         {paymentData?.status === 'completed' ? (
                                             <LucideCheckCircle className="w-5 h-5 text-green-600" />
@@ -326,7 +325,7 @@ export const ModpackAcquisitionDialog = ({
                                         ) : paymentData?.status === 'processing' ? (
                                             <LucideLoader2 className="w-5 h-5 text-blue-600 animate-spin" />
                                         ) : (
-                                            <LucideLoader2 className="w-5 h-5 text-yellow-600" />
+                                            <LucideLoader2 className="w-5 h-5 text-yellow-600 animate-spin" />
                                         )}
                                         <span className="font-medium">
                                             {paymentData.status === 'completed' ? 'Pago completado' :
@@ -465,12 +464,11 @@ export const ModpackAcquisitionDialog = ({
                                             </div>
                                             <div className="flex justify-between items-center">
                                                 <span className="text-sm text-muted-foreground">Estado:</span>
-                                                <span className={`font-medium ${
-                                                    paymentData.status === 'completed' ? 'text-green-600' :
-                                                    paymentData.status === 'failed' ? 'text-red-600' :
-                                                    paymentData.status === 'processing' ? 'text-blue-600' :
-                                                    'text-yellow-600'
-                                                }`}>
+                                                <span className={`font-medium ${paymentData.status === 'completed' ? 'text-green-600' :
+                                                        paymentData.status === 'failed' ? 'text-red-600' :
+                                                            paymentData.status === 'processing' ? 'text-blue-600' :
+                                                                'text-yellow-600'
+                                                    }`}>
                                                     {paymentData.status === 'completed' ? 'Completado' :
                                                         paymentData.status === 'failed' ? 'Fallido' :
                                                             paymentData.status === 'processing' ? 'Procesando' :
