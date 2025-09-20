@@ -595,6 +595,53 @@ export class ExploreModpacksController {
         }
     }
 
+    static async getUserModpackTransactionHistory(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
+        const user = c.get('user');
+        const modpackId = c.req.param('modpackId');
+
+        if (!user) {
+            return c.json(serializeError({
+                status: '401',
+                title: 'Unauthorized',
+                detail: 'Authentication required.',
+            }), 401);
+        }
+
+        try {
+            // Verify modpack exists
+            const modpack = await Modpack.findOne({ where: { id: modpackId } });
+            if (!modpack) {
+                return c.json(serializeError({
+                    status: '404',
+                    title: 'Not Found',
+                    detail: 'Modpack not found.',
+                }), 404);
+            }
+
+            const result = await AcquisitionService.getUserModpackTransactionHistory(user.id, modpackId);
+
+            return c.json({
+                data: {
+                    transactions: result.transactions,
+                    acquisitions: result.acquisitions,
+                    modpack: {
+                        id: modpack.id,
+                        name: modpack.name
+                    }
+                }
+            }, 200);
+
+        } catch (error: any) {
+            console.error('[CONTROLLER_EXPLORE] Error getting user modpack transaction history:', error);
+            const statusCode = error.statusCode || 500;
+            return c.json(serializeError({
+                status: statusCode.toString(),
+                title: error.name || 'Transaction History Error',
+                detail: error.message || "Failed to fetch transaction history."
+            }), statusCode);
+        }
+    }
+
     static async getTwitchChannelInfo(c: Context): Promise<Response> {
         const { channelIds } = await c.req.json();
 
