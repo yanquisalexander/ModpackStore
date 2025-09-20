@@ -9,8 +9,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Badge } from "@/components/ui/badge";
 import {
     LucideShieldAlert,
     LucideShoppingCart,
@@ -21,7 +22,10 @@ import {
     LucideLoader2,
     LucideCopy,
     LucideCheckCircle,
-    LucideXCircle
+    LucideXCircle,
+    LucideHistory,
+    LucideClock,
+    LucideX
 } from "lucide-react";
 import { MdiTwitch } from "@/icons/MdiTwitch";
 import { toast } from "sonner";
@@ -62,6 +66,38 @@ interface PaymentResponse {
     metadata?: Record<string, any>;
 }
 
+interface TransactionHistoryItem {
+    id: string;
+    type: string;
+    amount: string;
+    description?: string;
+    status: 'Completado' | 'Pendiente' | 'Cancelado';
+    gatewayType: string;
+    externalTransactionId?: string;
+    createdAt: string;
+    modpack?: {
+        id: string;
+        name: string;
+    };
+}
+
+interface ModpackAcquisitionItem {
+    id: string;
+    method: 'free' | 'paid' | 'password' | 'twitch_sub';
+    status: 'active' | 'revoked' | 'suspended';
+    createdAt: string;
+    transactionId?: string;
+}
+
+interface TransactionHistoryData {
+    transactions: TransactionHistoryItem[];
+    acquisitions: ModpackAcquisitionItem[];
+    modpack: {
+        id: string;
+        name: string;
+    };
+}
+
 export const ModpackAcquisitionDialog = ({
     isOpen,
     onClose,
@@ -74,11 +110,76 @@ export const ModpackAcquisitionDialog = ({
     const [paymentData, setPaymentData] = useState<PaymentResponse | null>(null);
     const [showQR, setShowQR] = useState(false);
     const [copiedUrl, setCopiedUrl] = useState(false);
+    const [transactionHistory, setTransactionHistory] = useState<TransactionHistoryData | null>(null);
+    const [loadingHistory, setLoadingHistory] = useState(false);
     const { sessionTokens } = useAuthentication();
     const { isConnected, on, off } = useRealtimeContext();
 
     // Use the single acquisition method directly
     const selectedMethod = modpack.acquisitionMethod;
+
+    // Load transaction history when dialog opens
+    useEffect(() => {
+        if (isOpen && sessionTokens?.accessToken) {
+            loadTransactionHistory();
+        }
+    }, [isOpen, sessionTokens?.accessToken, modpack.id]);
+
+    const loadTransactionHistory = async () => {
+        if (!sessionTokens?.accessToken) return;
+
+        setLoadingHistory(true);
+        try {
+            const response = await fetch(`${API_ENDPOINT}/explore/user/modpacks/${modpack.id}/transaction-history`, {
+                headers: {
+                    'Authorization': `Bearer ${sessionTokens.accessToken}`,
+                },
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                setTransactionHistory(data.data);
+            } else {
+                console.error('Failed to load transaction history');
+            }
+        } catch (error) {
+            console.error('Error loading transaction history:', error);
+        } finally {
+            setLoadingHistory(false);
+        }
+    };
+
+    // Deduplication logic for transactions
+    const getFilteredTransactions = (): TransactionHistoryItem[] => {
+        if (!transactionHistory?.transactions) return [];
+
+        const transactions = [...transactionHistory.transactions];
+        
+        // Sort by creation date (newest first)
+        transactions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+        // Group by user and modpack (should be same for all in this context)
+        // Find first completed transaction and hide duplicates that are pending/cancelled
+        const seen = new Set<string>();
+        const filtered: TransactionHistoryItem[] = [];
+
+        for (const transaction of transactions) {
+            const key = `${transaction.modpack?.id || modpack.id}-${transaction.type}`;
+            
+            if (transaction.status === 'Completado') {
+                // If this is a completed transaction and we haven't seen a completed one for this key
+                if (!seen.has(key)) {
+                    filtered.push(transaction);
+                    seen.add(key);
+                }
+            } else if (!seen.has(key)) {
+                // Only add pending/cancelled if we haven't seen any transaction for this key
+                filtered.push(transaction);
+            }
+        }
+
+        return filtered;
+    };
 
     const handlePasswordAcquisition = async () => {
         if (!password.trim()) {
@@ -203,6 +304,7 @@ export const ModpackAcquisitionDialog = ({
         setShowQR(false);
         setCopiedUrl(false);
         setIsProcessing(false);
+        setTransactionHistory(null);
         onClose();
     };
 
@@ -238,6 +340,22 @@ export const ModpackAcquisitionDialog = ({
             case 'paypal': return '💳 PayPal';
             case 'mercadopago': return '💳 MercadoPago';
             default: return '💳 Procesando...';
+        }
+    };
+
+    const getStatusBadgeVariant = (status: TransactionHistoryItem['status']) => {
+        switch (status) {
+            case 'Completado': return 'default';
+            case 'Pendiente': return 'secondary';
+            case 'Cancelado': return 'destructive';
+        }
+    };
+
+    const getStatusIcon = (status: TransactionHistoryItem['status']) => {
+        switch (status) {
+            case 'Completado': return <LucideCheck className="w-3 h-3" />;
+            case 'Pendiente': return <LucideClock className="w-3 h-3" />;
+            case 'Cancelado': return <LucideX className="w-3 h-3" />;
         }
     };
 
@@ -296,8 +414,8 @@ export const ModpackAcquisitionDialog = ({
     if (paymentData && modpack.acquisitionMethod === 'paid') {
         return (
             <Dialog open={isOpen} onOpenChange={() => false}>
-                <DialogContent className="max-w-4xl w-full h-[600px] p-0">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 h-full">
+                <DialogContent className="max-w-6xl w-full h-[700px] p-0">
+                    <div className="grid grid-cols-1 lg:grid-cols-3 h-full">
                         {/* Left Column - Payment Information */}
                         <div className="border-r border-border p-6 flex flex-col">
                             <DialogHeader className="mb-4">
@@ -367,6 +485,7 @@ export const ModpackAcquisitionDialog = ({
                                         {copiedUrl ? 'Copiado!' : 'Copiar Enlace'}
                                     </Button>
 
+                                    {/* Always show QR Code when available */}
                                     {paymentData.qrCode && (
                                         <div className="space-y-2">
                                             <Button
@@ -419,8 +538,8 @@ export const ModpackAcquisitionDialog = ({
                             </div>
                         </div>
 
-                        {/* Right Column - Purchase Summary */}
-                        <div className="p-6 flex flex-col">
+                        {/* Middle Column - Purchase Summary */}
+                        <div className="border-r border-border p-6 flex flex-col">
                             <DialogHeader className="mb-4">
                                 <DialogTitle className="flex items-center gap-2 text-lg">
                                     <LucideShoppingCart className="w-5 h-5" />
@@ -491,6 +610,63 @@ export const ModpackAcquisitionDialog = ({
                                 </div>
                             </div>
                         </div>
+
+                        {/* Right Column - Transaction History */}
+                        <div className="p-6 flex flex-col">
+                            <DialogHeader className="mb-4">
+                                <DialogTitle className="flex items-center gap-2 text-lg">
+                                    <LucideHistory className="w-5 h-5" />
+                                    Historial de Transacciones
+                                </DialogTitle>
+                            </DialogHeader>
+
+                            <div className="flex-1 space-y-4 overflow-y-auto">
+                                {loadingHistory ? (
+                                    <div className="flex items-center justify-center p-8">
+                                        <LucideLoader2 className="w-6 h-6 animate-spin" />
+                                    </div>
+                                ) : (
+                                    <>
+                                        {getFilteredTransactions().length > 0 ? (
+                                            <div className="space-y-3">
+                                                {getFilteredTransactions().map((transaction) => (
+                                                    <Card key={transaction.id} className="p-3">
+                                                        <div className="space-y-2">
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="text-sm font-medium">
+                                                                    ${transaction.amount} USD
+                                                                </div>
+                                                                <Badge variant={getStatusBadgeVariant(transaction.status)}>
+                                                                    <div className="flex items-center gap-1">
+                                                                        {getStatusIcon(transaction.status)}
+                                                                        {transaction.status}
+                                                                    </div>
+                                                                </Badge>
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground">
+                                                                {transaction.gatewayType?.toUpperCase()} • {new Date(transaction.createdAt).toLocaleDateString()}
+                                                            </div>
+                                                            {transaction.description && (
+                                                                <div className="text-xs text-muted-foreground">
+                                                                    {transaction.description}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </Card>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-center py-8">
+                                                <LucideHistory className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                                                <p className="text-sm text-muted-foreground">
+                                                    No hay transacciones previas
+                                                </p>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </DialogContent>
             </Dialog>
@@ -499,7 +675,7 @@ export const ModpackAcquisitionDialog = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={() => false}>
-            <DialogContent className="sm:max-w-md">
+            <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
                         {getMethodIcon(selectedMethod)}
@@ -556,6 +732,32 @@ export const ModpackAcquisitionDialog = ({
                                     Por favor selecciona un método de pago para continuar.
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {/* Transaction History Preview */}
+                    {transactionHistory && getFilteredTransactions().length > 0 && (
+                        <div className="space-y-3">
+                            <Label className="flex items-center gap-2">
+                                <LucideHistory className="w-4 h-4" />
+                                Transacciones Anteriores
+                            </Label>
+                            <div className="max-h-32 overflow-y-auto space-y-2">
+                                {getFilteredTransactions().slice(0, 3).map((transaction) => (
+                                    <div key={transaction.id} className="flex items-center justify-between p-2 bg-muted/50 rounded text-sm">
+                                        <div>
+                                            <div className="font-medium">${transaction.amount} USD</div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {new Date(transaction.createdAt).toLocaleDateString()}
+                                            </div>
+                                        </div>
+                                        <Badge variant={getStatusBadgeVariant(transaction.status)} className="text-xs">
+                                            {getStatusIcon(transaction.status)}
+                                            {transaction.status}
+                                        </Badge>
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
 

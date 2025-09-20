@@ -1,7 +1,8 @@
 import { User } from '@/entities/User';
 import { Modpack } from '@/entities/Modpack';
 import { ModpackAcquisition } from '@/entities/ModpackAcquisition';
-import { AcquisitionMethod, AcquisitionStatus } from '@/types/enums';
+import { WalletTransaction } from '@/entities/WalletTransaction';
+import { AcquisitionMethod, AcquisitionStatus, TransactionType } from '@/types/enums';
 import { TwitchService } from './twitch.service';
 import { APIError } from '@/lib/APIError';
 
@@ -252,5 +253,89 @@ export class AcquisitionService {
             page,
             totalPages: Math.ceil(total / limit)
         };
+    }
+
+    /**
+     * Get user's transaction history for a specific modpack
+     */
+    static async getUserModpackTransactionHistory(userId: string, modpackId: string): Promise<{
+        transactions: any[];
+        acquisitions: ModpackAcquisition[];
+    }> {
+        // Get wallet transactions related to this user and modpack
+        const transactions = await WalletTransaction.find({
+            where: { 
+                relatedUserId: userId,
+                relatedModpackId: modpackId
+            },
+            order: { createdAt: 'DESC' },
+            relations: ['relatedModpack']
+        });
+
+        // Get all acquisitions for this user and modpack (including revoked/suspended ones)
+        const acquisitions = await ModpackAcquisition.find({
+            where: { 
+                userId,
+                modpackId 
+            },
+            order: { createdAt: 'DESC' },
+            relations: ['modpack']
+        });
+
+        // Transform transaction data to include status information
+        const transactionHistory = transactions.map(transaction => ({
+            id: transaction.id,
+            type: transaction.type,
+            amount: transaction.amount,
+            description: transaction.description,
+            status: this.getTransactionStatus(transaction),
+            gatewayType: this.extractGatewayFromDescription(transaction.description),
+            externalTransactionId: transaction.externalTransactionId,
+            createdAt: transaction.createdAt,
+            modpack: transaction.relatedModpack ? {
+                id: transaction.relatedModpack.id,
+                name: transaction.relatedModpack.name
+            } : null
+        }));
+
+        return {
+            transactions: transactionHistory,
+            acquisitions
+        };
+    }
+
+    /**
+     * Helper method to determine transaction status based on transaction data
+     */
+    private static getTransactionStatus(transaction: WalletTransaction): 'Completado' | 'Pendiente' | 'Cancelado' {
+        // If transaction exists and has positive amount, it's completed
+        if (transaction.type === TransactionType.PURCHASE && parseFloat(transaction.amount) > 0) {
+            return 'Completado';
+        }
+        
+        // For commission transactions (negative amounts), they're also completed
+        if (transaction.type === TransactionType.COMMISSION) {
+            return 'Completado';
+        }
+
+        // Check if external transaction ID exists - if so, likely completed
+        if (transaction.externalTransactionId) {
+            return 'Completado';
+        }
+
+        return 'Pendiente';
+    }
+
+    /**
+     * Helper method to extract gateway type from transaction description
+     */
+    private static extractGatewayFromDescription(description?: string): string {
+        if (!description) return 'desconocido';
+        
+        const lowerDesc = description.toLowerCase();
+        if (lowerDesc.includes('paypal')) return 'paypal';
+        if (lowerDesc.includes('mercadopago')) return 'mercadopago';
+        
+        return 'desconocido';
     }
 }

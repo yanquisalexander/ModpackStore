@@ -416,6 +416,35 @@ app.get('/user/acquisitions', requireAuth, ExploreModpacksController.getUserAcqu
 
 /**
  * @openapi
+ * /explore/user/modpacks/{modpackId}/transaction-history:
+ *   get:
+ *     summary: Get user's transaction history for a specific modpack
+ *     tags: [Explore]
+ *     description: Retrieves transaction history and acquisitions for the authenticated user and a specific modpack.
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: modpackId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The ID of the modpack to get transaction history for.
+ *     responses:
+ *       200:
+ *         description: Transaction history retrieved successfully.
+ *       401:
+ *         description: Unauthorized.
+ *       404:
+ *         description: Modpack not found.
+ *       500:
+ *         description: Internal Server Error.
+ */
+app.get('/user/modpacks/:modpackId/transaction-history', requireAuth, ExploreModpacksController.getUserModpackTransactionHistory);
+
+/**
+ * @openapi
  * /explore/twitch-channels:
  *   post:
  *     summary: Get Twitch channel information
