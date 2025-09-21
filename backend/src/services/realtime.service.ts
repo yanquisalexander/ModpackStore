@@ -27,6 +27,43 @@ export interface ModpackErrorMessage {
 
 export type ModpackProcessingMessage = ModpackProgressMessage | ModpackCompletedMessage | ModpackErrorMessage;
 
+// --- Types for Social System Notifications ---
+export interface FriendRequestMessage {
+    type: 'friend_request_received' | 'friend_request_accepted' | 'friend_request_declined' | 'friendship_established' | 'friendship_removed' | 'user_blocked';
+    friendshipId?: string;
+    requester?: any;
+    friend?: any;
+    addressee?: any;
+    blockerId?: string;
+    removedByUserId?: string;
+    removedFriendId?: string;
+}
+
+export interface GameInvitationMessage {
+    type: 'game_invitation_received' | 'game_invitation_accepted' | 'game_invitation_declined' | 'game_invitation_cancelled' | 'launch_modpack';
+    invitationId: string;
+    sender?: any;
+    receiver?: any;
+    modpack?: {
+        id: string;
+        name: string;
+        iconUrl?: string;
+    };
+    message?: string;
+    expiresAt?: Date;
+    modpackId?: string;
+}
+
+export interface ActivityMessage {
+    type: 'activity_update' | 'user_status_update' | 'activity_visibility_changed';
+    activity?: any;
+    userStatus?: any;
+    activityId?: string;
+    isVisible?: boolean;
+}
+
+export type SocialMessage = FriendRequestMessage | GameInvitationMessage | ActivityMessage;
+
 /**
  * Broadcast a message to all connected users or specific users
  * @param type - Message type
