@@ -22,6 +22,7 @@ import { ManagePublishersView } from '@/views/admin/ManagePublishersView';
 import { MaintenanceView } from '@/views/admin/MaintenanceView';
 import { ManageTicketsView } from "@/views/admin/ManageTicketsView";
 import { ManageCategoriesView } from "@/views/admin/ManageCategoriesView";
+import { ManageTermsAndConditionsView } from "@/views/admin/ManageTermsAndConditionsView";
 
 interface AdminLayoutProps {
     children?: React.ReactNode;
@@ -69,8 +70,7 @@ const adminNavItems = [
         path: '/admin/settings',
         label: 'Configuración',
         icon: LucideSettings,
-        description: 'Configuración del sistema y preferencias',
-        disabled: true // Not implemented yet
+        description: 'Términos y condiciones del sistema'
     }
 ];
 
@@ -207,6 +207,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                             <Route path="/tickets" element={<ManageTicketsView />} />
                             <Route path="/audit" element={<AuditLogsView />} />
                             <Route path="/maintenance" element={<MaintenanceView />} />
+                            <Route path="/settings" element={<ManageTermsAndConditionsView />} />
                             <Route path="*" element={<ManageUsersView />} /> {/* Default to users */}
                         </Routes>
                     )}
