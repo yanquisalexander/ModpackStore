@@ -1,10 +1,11 @@
 import { useAuthentication } from "@/stores/AuthContext";
-import { LucideAppWindowMac, LucideLogOut, LucidePackageOpen, LucideSettings2, LucideSquareUserRound, LucideTicket } from "lucide-react";
+import { LucideAppWindowMac, LucideLogOut, LucidePackageOpen, LucideSettings2, LucideSquareUserRound, LucideTicket, Users } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useConfigDialog } from "@/stores/ConfigDialogContext";
 import { useReloadApp } from "@/stores/ReloadContext"; // Importar el nuevo hook
 import { useConnection } from "@/utils/ConnectionContext";
+import { SocialPanel } from "@/components/social";
 
 export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) => {
     const { session, logout, isAuthenticated } = useAuthentication();
@@ -13,6 +14,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const { showReloadDialog } = useReloadApp(); // Usar el hook para acceder a la funcionalidad de recarga
     const [openMenu, setOpenMenu] = useState(false);
     const [showMoreOptions, setShowMoreOptions] = useState(false);
+    const [isSocialPanelOpen, setIsSocialPanelOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
     const toggleMenu = (event: React.MouseEvent) => {
@@ -46,6 +48,11 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const handleOpenConfig = () => {
         closeMenu();
         openConfigDialog();
+    };
+
+    const handleOpenSocial = () => {
+        closeMenu();
+        setIsSocialPanelOpen(true);
     };
 
     useEffect(() => {
@@ -123,6 +130,14 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                     </Link>
 
                     <button
+                        onClick={handleOpenSocial}
+                        className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-neutral-800/60 rounded text-left cursor-pointer whitespace-nowrap font-medium"
+                    >
+                        <Users size={16} />
+                        Social
+                    </button>
+
+                    <button
                         onClick={handleOpenConfig}
                         className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-neutral-800/60 rounded text-left cursor-pointer whitespace-nowrap font-medium"
                     >
@@ -178,6 +193,13 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                     )}
                 </ul>
             </div>
+
+            {/* Social Panel */}
+            <SocialPanel
+                isOpen={isSocialPanelOpen}
+                onClose={() => setIsSocialPanelOpen(false)}
+                token={session?.accessToken}
+            />
         </div>
     );
 };
