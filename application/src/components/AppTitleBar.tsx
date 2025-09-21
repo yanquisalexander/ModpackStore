@@ -1,10 +1,9 @@
-import { LucideArrowLeft, LucideWifiOff, LucideX } from "lucide-react";
+import { LucideArrowLeft, LucideWifiOff } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { getCurrentWindow, Window } from '@tauri-apps/api/window';
 import { useGlobalContext } from "../stores/GlobalContext";
 import { useNavigate } from "react-router-dom";
 import { exit } from '@tauri-apps/plugin-process';
-import { open } from "@tauri-apps/plugin-shell";
 import { CurrentUser } from "./CurrentUser";
 import { RunningInstances } from "./RunningInstances";
 import { RunningTasks } from "./RunningTasks";
@@ -24,6 +23,7 @@ import { WindowControls } from "./appbar/WindowControls";
 import { UpdateButton } from "./appbar/UpdateButton";
 import { PatreonButton } from "./appbar/PatreonButton";
 import { NativeContextMenu } from "./appbar/ContextMenu";
+import { SocialButton } from '@/components/social/SocialButton';
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState<Window | null>(null);
@@ -199,6 +199,7 @@ export const AppTitleBar = () => {
                         }
 
                         <UpdateButton updateState={updateState} applyUpdate={applyUpdate} />
+                        <SocialButton className="mr-1" titleBarOpaque={titleBarState.opaque} />
                         <RunningTasks />
                         <RunningInstances />
 

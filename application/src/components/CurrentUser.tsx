@@ -129,13 +129,13 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         Ver perfil
                     </Link>
 
-                    <button
+                    {/* <button
                         onClick={handleOpenSocial}
                         className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-neutral-800/60 rounded text-left cursor-pointer whitespace-nowrap font-medium"
                     >
                         <Users size={16} />
                         Social
-                    </button>
+                    </button> */}
 
                     <button
                         onClick={handleOpenConfig}
