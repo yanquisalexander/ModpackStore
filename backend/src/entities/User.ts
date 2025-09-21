@@ -70,6 +70,9 @@ export class User extends BaseEntity {
     @Column({ name: "last_login_at", type: "timestamp", nullable: true })
     lastLoginAt?: Date | null;
 
+    @Column({ name: "tos_accepted_at", type: "timestamp", nullable: true })
+    tosAcceptedAt?: Date | null;
+
     @CreateDateColumn({ name: "created_at" })
     createdAt: Date;
 
@@ -228,6 +231,7 @@ export class User extends BaseEntity {
             discordId: this.discordId,
             patreonId: this.patreonId,
             twitchId: this.twitchId,
+            tosAcceptedAt: this.tosAcceptedAt,
         };
     }
 }

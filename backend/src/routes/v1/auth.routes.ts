@@ -141,4 +141,43 @@ authRoutes.get('/twitch/callback', requireAuth, AccountsController.callbackTwitc
 authRoutes.post('/twitch/unlink', requireAuth, AccountsController.unlinkTwitch);
 authRoutes.get('/twitch/status', requireAuth, AccountsController.getTwitchStatus);
 
+/**
+ * @openapi
+ * /auth/accept-tos:
+ *   post:
+ *     summary: Accept Terms and Conditions
+ *     tags: [Auth]
+ *     description: Records that the authenticated user has accepted the Terms and Conditions.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Terms and Conditions accepted successfully.
+ *         content:
+ *           application/vnd.api+json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     tosAcceptedAt:
+ *                       type: string
+ *                       format: date-time
+ *                       description: Timestamp when ToS was accepted
+ *       401:
+ *         description: Unauthorized - if no valid token is provided.
+ *         content:
+ *           application/vnd.api+json:
+ *             schema:
+ *               $ref: '#/components/schemas/JsonApiErrorResponse'
+ *       500:
+ *         description: Internal Server Error.
+ *         content:
+ *           application/vnd.api+json:
+ *             schema:
+ *               $ref: '#/components/schemas/JsonApiErrorResponse'
+ */
+authRoutes.post('/accept-tos', requireAuth, AccountsController.acceptTermsAndConditions);
+
 export default authRoutes;
