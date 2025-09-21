@@ -3,6 +3,7 @@ import { Crown, Upload, Trash2, ExternalLink, Star, Users, Calendar, Settings } 
 import { useSocial } from '@/hooks/useSocial';
 import { SocialProfileService, PatreonTier } from '@/services/socialProfile';
 import { useToast } from '@/hooks/use-toast';
+import { invoke } from '@tauri-apps/api/core';
 
 interface SocialProfilePanelProps {
   token?: string;
@@ -64,10 +65,20 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
     }
   };
 
-  const handleLinkPatreon = () => {
-    const redirectUri = `${window.location.origin}/auth/patreon/callback`;
-    const oauthUrl = SocialProfileService.getPatreonOAuthUrl(redirectUri);
-    window.open(oauthUrl, '_blank');
+  const handleLinkPatreon = async () => {
+    try {
+      await invoke('start_patreon_auth');
+      toast({
+        title: "Patreon Auth Started",
+        description: "Please complete the authorization in your browser",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to start Patreon authorization",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleUnlinkPatreon = async () => {
@@ -241,7 +252,7 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
                 className="w-full px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
               >
                 <ExternalLink className="w-3 h-3" />
-                Vincular Patreon
+                Conectar Patreon
               </button>
             </div>
           )}

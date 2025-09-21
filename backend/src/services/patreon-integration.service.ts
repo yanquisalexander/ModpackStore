@@ -443,7 +443,7 @@ export class PatreonIntegrationService {
     /**
      * Create a new backend endpoint to receive OAuth code from Rust module
      */
-    static async handleOAuthCallback(code: string, state: string): Promise<{ success: boolean; error?: string }> {
+    static async handleOAuthCallback(code: string, state: string): Promise<{ success: boolean; error?: string; data?: any }> {
         try {
             // Validate state parameter for CSRF protection
             // You might want to implement state validation here

@@ -26,6 +26,7 @@ const TWITCH_CLIENT_ID: &str = "c8q2u0v3rqfks639ub8ybx54o623u0"; // This should 
 const TWITCH_REDIRECT_URI: &str = "http://localhost:1958/callback"; // Different port for Twitch
 
 // Patreon OAuth constants
+// TODO: These should be loaded from environment variables or configuration
 const PATREON_CLIENT_ID: &str = "YOUR_PATREON_CLIENT_ID"; // This should be set from environment
 const PATREON_REDIRECT_URI: &str = "http://localhost:1959/callback"; // Different port for Patreon
 
@@ -327,19 +328,44 @@ mod api {
                 .map_err(|e| format!("Error loading auth tokens: {}", e))?
                 .ok_or("No authentication tokens found")?;
 
+            // Get current user session to extract user ID
+            let me_endpoint = format!("{}/auth/me", *API_ENDPOINT);
+            let me_response = self
+                .client
+                .get(&me_endpoint)
+                .bearer_auth(&tokens.access_token)
+                .send()
+                .await
+                .map_err(|e| format!("Error fetching user session: {}", e))?;
+
+            if !me_response.status().is_success() {
+                return Err("Failed to get current user session".to_string());
+            }
+
+            let user_session: serde_json::Value = me_response
+                .json()
+                .await
+                .map_err(|e| format!("Error parsing user session: {}", e))?;
+
+            let user_id = user_session
+                .get("data")
+                .and_then(|data| data.get("user"))
+                .and_then(|user| user.get("id"))
+                .and_then(|id| id.as_str())
+                .ok_or("User ID not found in session")?;
+
             // Send code to backend for processing
             let patreon_endpoint = format!("{}/auth/patreon/callback", *API_ENDPOINT);
 
             let payload = serde_json::json!({
                 "code": code,
                 "state": "patreon_auth", // You might want to implement proper state handling
-                "userId": "current_user" // This should be the actual user ID
+                "userId": user_id
             });
 
             let response = self
                 .client
                 .post(&patreon_endpoint)
-                .bearer_auth(&tokens.access_token)
                 .json(&payload)
                 .send()
                 .await
