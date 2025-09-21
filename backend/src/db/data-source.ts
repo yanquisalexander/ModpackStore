@@ -19,6 +19,9 @@ import { AuditLog } from "../entities/AuditLog";
 import { Ticket } from "../entities/Ticket";
 import { TicketMessage } from "../entities/TicketMessage";
 import { SystemSettings } from "../entities/SystemSettings";
+import { Friendship } from "../entities/Friendship";
+import { GameInvitation } from "../entities/GameInvitation";
+import { UserActivity } from "../entities/UserActivity";
 
 export const AppDataSource = new DataSource({
     type: "postgres",
@@ -49,6 +52,9 @@ export const AppDataSource = new DataSource({
         AuditLog,
         Ticket,
         TicketMessage,
-        SystemSettings
+        SystemSettings,
+        Friendship,
+        GameInvitation,
+        UserActivity,
     ],
 });
