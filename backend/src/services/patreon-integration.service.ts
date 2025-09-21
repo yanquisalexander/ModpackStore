@@ -329,4 +329,158 @@ export class PatreonIntegrationService {
 
         return false;
     }
+
+    /**
+     * Handle Patreon webhook events
+     */
+    static async handleWebhook(payload: any): Promise<void> {
+        try {
+            const eventType = payload.data?.type;
+            const attributes = payload.data?.attributes;
+            const relationships = payload.data?.relationships;
+
+            console.log('[PATREON_WEBHOOK] Processing event:', {
+                eventType,
+                userId: relationships?.patron?.data?.id,
+                pledgeAmount: attributes?.currently_entitled_amount_cents
+            });
+
+            switch (eventType) {
+                case 'members:pledge:create':
+                case 'members:pledge:update':
+                case 'members:pledge:delete':
+                    await this.handleMembershipEvent(payload);
+                    break;
+                
+                case 'members:create':
+                case 'members:update':
+                case 'members:delete':
+                    await this.handleMemberEvent(payload);
+                    break;
+                
+                default:
+                    console.log('[PATREON_WEBHOOK] Unhandled event type:', eventType);
+            }
+        } catch (error) {
+            console.error('[PATREON_WEBHOOK] Error processing webhook:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Handle membership-related webhook events
+     */
+    private static async handleMembershipEvent(payload: any): Promise<void> {
+        const patronId = payload.data?.relationships?.patron?.data?.id;
+        const pledgeAmountCents = payload.data?.attributes?.currently_entitled_amount_cents || 0;
+        const patronStatus = payload.data?.attributes?.patron_status;
+        const lastChargeStatus = payload.data?.attributes?.last_charge_status;
+
+        if (!patronId) {
+            console.warn('[PATREON_WEBHOOK] No patron ID in membership event');
+            return;
+        }
+
+        // Find user by Patreon ID
+        const user = await User.findOne({ where: { patreonId: patronId } });
+        if (!user) {
+            console.warn('[PATREON_WEBHOOK] User not found for Patreon ID:', patronId);
+            return;
+        }
+
+        console.log('[PATREON_WEBHOOK] Updating user Patreon status:', {
+            userId: user.id,
+            patronId,
+            pledgeAmountCents,
+            patronStatus,
+            lastChargeStatus
+        });
+
+        // Update user's Patreon status
+        await this.updateUserPatreonStatus(user.id);
+    }
+
+    /**
+     * Handle member-related webhook events
+     */
+    private static async handleMemberEvent(payload: any): Promise<void> {
+        const patronId = payload.data?.id;
+        const attributes = payload.data?.attributes;
+
+        if (!patronId) {
+            console.warn('[PATREON_WEBHOOK] No patron ID in member event');
+            return;
+        }
+
+        // Find user by Patreon ID
+        const user = await User.findOne({ where: { patreonId: patronId } });
+        if (!user) {
+            console.warn('[PATREON_WEBHOOK] User not found for Patreon ID:', patronId);
+            return;
+        }
+
+        console.log('[PATREON_WEBHOOK] Processing member event for user:', {
+            userId: user.id,
+            patronId,
+            eventType: payload.data?.type,
+            patronStatus: attributes?.patron_status
+        });
+
+        // For member deletion, clear Patreon data
+        if (payload.data?.type === 'members:delete') {
+            user.patreonId = null;
+            user.patreonAccessToken = null;
+            user.patreonRefreshToken = null;
+            user.coverImageUrl = null; // Remove premium features
+            await user.save();
+            console.log('[PATREON_WEBHOOK] Cleared Patreon data for deleted member:', user.id);
+        } else {
+            // Update user's Patreon status
+            await this.updateUserPatreonStatus(user.id);
+        }
+    }
+
+    /**
+     * Create a new backend endpoint to receive OAuth code from Rust module
+     */
+    static async handleOAuthCallback(code: string, state: string): Promise<{ success: boolean; error?: string; data?: any }> {
+        try {
+            // Validate state parameter for CSRF protection
+            // You might want to implement state validation here
+
+            // Exchange code for tokens
+            const tokenResponse = await this.exchangeCodeForToken(code);
+            
+            if (!tokenResponse.access_token) {
+                return { success: false, error: 'Failed to get access token' };
+            }
+
+            // Get user info from Patreon
+            const userInfo = await this.getPatreonUserInfo(tokenResponse.access_token);
+            
+            if (!userInfo) {
+                return { success: false, error: 'Failed to get user info' };
+            }
+
+            console.log('[PATREON_OAUTH] Successfully processed OAuth callback:', {
+                patreonId: userInfo.id,
+                email: userInfo.attributes.email
+            });
+
+            return { 
+                success: true, 
+                data: {
+                    patreonId: userInfo.id,
+                    tokens: {
+                        access_token: tokenResponse.access_token,
+                        refresh_token: tokenResponse.refresh_token
+                    },
+                    userInfo: userInfo.attributes
+                }
+            };
+        } catch (error) {
+            console.error('[PATREON_OAUTH] Error handling OAuth callback:', error);
+            return { success: false, error: 'Internal server error' };
+        }
+    }
 }

@@ -1,5 +1,6 @@
 import { useAuthentication } from "@/stores/AuthContext";
 import { TwitchLinkingComponent } from "@/components/TwitchLinkingComponent";
+import { PatreonLinkingComponent } from "@/components/PatreonLinkingComponent";
 import { LucideUser, LucideMail, LucideCalendar, LucideShield, LucideSettings, LucideChevronRight, LucideHelpCircle, LucideTicket, LucideCopy, LucideCheck, LucidePlus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGlobalContext } from "@/stores/GlobalContext";
@@ -328,7 +329,10 @@ export const IntegrationsSection = () => {
       {/* Twitch Integration */}
       <TwitchLinkingComponent />
 
-      {/* Patreon Integration Status (if available) */}
+      {/* Patreon Integration */}
+      <PatreonLinkingComponent />
+
+      {/* Legacy Patreon Integration Status (if available) */}
       {session.patreonId && (
         <Card>
           <CardContent className="p-6">

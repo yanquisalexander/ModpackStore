@@ -2,6 +2,7 @@
 import { Context } from 'hono';
 import { AuthService } from '@/services/auth.service';
 import { TwitchService } from '@/services/twitch.service';
+import { PatreonIntegrationService } from '@/services/patreon-integration.service';
 import { APIError } from '@/lib/APIError';
 import { AuthVariables } from "@/middlewares/auth.middleware";
 
@@ -128,6 +129,49 @@ export class AccountsController {
             twitchId: authenticatedUser.twitchId,
             twitchUsername: await authenticatedUser.getTwitchUserInfo().then(info => info?.username || 'unknown'),
         });
+    }
+
+    /**
+     * Handle Patreon OAuth callback from Rust module
+     */
+    static async callbackPatreon(c: Context): Promise<Response> {
+        try {
+            const body = await c.req.json();
+            const { code, state, userId } = body;
+
+            if (!code || !userId) {
+                throw new APIError(400, 'Authorization code and user ID are required.', 'MISSING_PARAMETERS');
+            }
+
+            console.log(`[ACCOUNTS] Processing Patreon OAuth callback for user ID: ${userId}`);
+            
+            // Process OAuth callback
+            const result = await PatreonIntegrationService.handleOAuthCallback(code, state);
+            
+            if (!result.success) {
+                throw new APIError(400, result.error || 'Failed to process Patreon OAuth', 'PATREON_OAUTH_FAILED');
+            }
+
+            // Link Patreon account to user
+            const linkResult = await PatreonIntegrationService.handlePatreonCallback(code, userId);
+            
+            if (!linkResult.success) {
+                throw new APIError(400, linkResult.error || 'Failed to link Patreon account', 'PATREON_LINK_FAILED');
+            }
+
+            return c.json({
+                success: true,
+                message: 'Patreon account linked successfully'
+            });
+        } catch (error: any) {
+            console.error('[ACCOUNTS] Patreon OAuth callback error:', error);
+            
+            if (error instanceof APIError) {
+                throw error;
+            }
+            
+            throw new APIError(500, 'Internal server error during Patreon OAuth', 'INTERNAL_ERROR');
+        }
     }
 
     /**
