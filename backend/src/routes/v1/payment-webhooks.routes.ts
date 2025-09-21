@@ -81,6 +81,46 @@ app.post('/mercadopago', PaymentWebhookController.mercadopagoWebhook);
 
 /**
  * @openapi
+ * /webhooks/payments/patreon:
+ *   post:
+ *     summary: Patreon webhook
+ *     tags: [Payment Webhooks]
+ *     description: Handles Patreon webhook notifications for subscription changes, new pledges, cancellations, etc.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             description: Patreon webhook event payload
+ *     responses:
+ *       200:
+ *         description: Webhook processed successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *       401:
+ *         description: Invalid webhook signature.
+ *       500:
+ *         description: Webhook processing failed.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: string
+ *                 details:
+ *                   type: string
+ */
+app.post('/patreon', PaymentWebhookController.patreonWebhook);
+
+/**
+ * @openapi
  * /webhooks/payments/status:
  *   get:
  *     summary: Payment gateway status

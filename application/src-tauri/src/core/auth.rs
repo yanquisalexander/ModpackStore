@@ -25,10 +25,15 @@ const REDIRECT_URI: &str = "http://localhost:1957/callback";
 const TWITCH_CLIENT_ID: &str = "c8q2u0v3rqfks639ub8ybx54o623u0"; // This should be set from environment
 const TWITCH_REDIRECT_URI: &str = "http://localhost:1958/callback"; // Different port for Twitch
 
+// Patreon OAuth constants
+const PATREON_CLIENT_ID: &str = "YOUR_PATREON_CLIENT_ID"; // This should be set from environment
+const PATREON_REDIRECT_URI: &str = "http://localhost:1959/callback"; // Different port for Patreon
+
 const CALLBACK_TIMEOUT_SECS: u64 = 120;
 const POLL_INTERVAL_SECS: u64 = 1;
 const SERVER_ADDR: ([u8; 4], u16) = ([127, 0, 0, 1], 1957);
 const TWITCH_SERVER_ADDR: ([u8; 4], u16) = ([127, 0, 0, 1], 1958);
+const PATREON_SERVER_ADDR: ([u8; 4], u16) = ([127, 0, 0, 1], 1959);
 
 // --- Tipos y Estructuras ---
 type AuthResult<T> = Result<T, String>;
@@ -309,6 +314,49 @@ mod api {
 
             Ok(())
         }
+
+        pub async fn link_patreon_account(&self, code: &str) -> AuthResult<()> {
+            // First, get current auth tokens to authenticate the request
+            let app_handle = {
+                let binding = GLOBAL_APP_HANDLE.lock().unwrap();
+                binding.as_ref().ok_or("AppHandle no inicializado")?.clone()
+            };
+
+            let tokens = storage::load_tokens(&app_handle)
+                .await
+                .map_err(|e| format!("Error loading auth tokens: {}", e))?
+                .ok_or("No authentication tokens found")?;
+
+            // Send code to backend for processing
+            let patreon_endpoint = format!("{}/auth/patreon/callback", *API_ENDPOINT);
+
+            let payload = serde_json::json!({
+                "code": code,
+                "state": "patreon_auth", // You might want to implement proper state handling
+                "userId": "current_user" // This should be the actual user ID
+            });
+
+            let response = self
+                .client
+                .post(&patreon_endpoint)
+                .bearer_auth(&tokens.access_token)
+                .json(&payload)
+                .send()
+                .await
+                .map_err(|e| format!("Error contacting API: {}", e))?;
+
+            if !response.status().is_success() {
+                let raw_body = response
+                    .text()
+                    .await
+                    .unwrap_or_else(|_| "Could not get response body".into());
+                eprintln!("Patreon linking error response: {}", raw_body);
+
+                return Err(format!("Failed to link Patreon account: {}", raw_body));
+            }
+
+            Ok(())
+        }
     }
 }
 
@@ -479,6 +527,50 @@ async fn start_twitch_oauth_server(auth_state: Arc<AuthState>) -> AuthResult<()>
     Ok(())
 }
 
+async fn start_patreon_oauth_server(auth_state: Arc<AuthState>) -> AuthResult<()> {
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+
+    let app_state_mutex = Arc::new(Mutex::new(AppState {
+        auth_state: Arc::clone(&auth_state),
+        server_tx: Some(shutdown_tx),
+    }));
+
+    let addr = SocketAddr::from(PATREON_SERVER_ADDR);
+    let app_state_clone = app_state_mutex.clone();
+
+    let make_svc = make_service_fn(move |_conn| {
+        let app_state = app_state_clone.clone();
+        async move {
+            Ok::<_, Infallible>(service_fn(move |req| {
+                handle_patreon_callback(req, app_state.clone())
+            }))
+        }
+    });
+
+    let server = Server::bind(&addr)
+        .serve(make_svc)
+        .with_graceful_shutdown(async {
+            shutdown_rx.await.ok();
+            println!("Patreon callback server shutting down.");
+        });
+
+    tokio::spawn(async move {
+        println!("Patreon callback server listening on http://{}", addr);
+        if let Err(e) = server.await {
+            eprintln!("Patreon server error: {}", e);
+            events::emit_auth_error(format!("Patreon server error: {}", e));
+        }
+    });
+
+    // Start polling task to process the code
+    let auth_state_clone = Arc::clone(&auth_state);
+    tokio::spawn(async move {
+        poll_for_patreon_auth_code(auth_state_clone, app_state_mutex).await;
+    });
+
+    Ok(())
+}
+
 async fn poll_for_auth_code(auth_state: Arc<AuthState>, app_state_mutex: Arc<Mutex<AppState>>) {
     for i in 0..CALLBACK_TIMEOUT_SECS {
         let code_option = {
@@ -617,6 +709,34 @@ pub async fn start_twitch_auth(auth_state: State<'_, Arc<AuthState>>) -> AuthRes
         if let Err(e) = tauri_plugin_opener::open_url(twitch_url, None::<String>) {
             eprintln!("Error opening Twitch URL: {}", e);
             events::emit_auth_error("Error opening Twitch authorization URL".to_string());
+        }
+    });
+
+    events::emit_auth_step_changed(AuthStep::WaitingCallback);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn start_patreon_auth(auth_state: State<'_, Arc<AuthState>>) -> AuthResult<()> {
+    events::emit_auth_step_changed(AuthStep::StartingAuth);
+
+    // Clear previous state
+    auth_state.clear_all().await;
+
+    // Start OAuth server on different port for Patreon
+    start_patreon_oauth_server(Arc::clone(auth_state.inner())).await?;
+
+    // Open Patreon authorization URL
+    let patreon_url = format!(
+        "https://www.patreon.com/oauth2/authorize?response_type=code&client_id={}&redirect_uri={}&scope=identity%20identity.memberships",
+        PATREON_CLIENT_ID, PATREON_REDIRECT_URI
+    );
+
+    println!("Opening Patreon authorization URL: {}", patreon_url);
+    std::thread::spawn(move || {
+        if let Err(e) = tauri_plugin_opener::open_url(patreon_url, None::<String>) {
+            eprintln!("Error opening Patreon URL: {}", e);
+            events::emit_auth_error("Error opening Patreon authorization URL".to_string());
         }
     });
 
@@ -800,6 +920,62 @@ async fn handle_twitch_callback(
     }
 }
 
+async fn handle_patreon_callback(
+    req: Request<Body>,
+    app_state_mutex: Arc<Mutex<AppState>>,
+) -> Result<Response<Body>, Infallible> {
+    let uri = req.uri();
+
+    if uri.path() != "/callback" {
+        let mut response = Response::new(Body::from("Not Found"));
+        *response.status_mut() = HyperStatusCode::NOT_FOUND;
+        return Ok(response);
+    }
+
+    // Extract authorization code and state
+    let query_params: std::collections::HashMap<String, String> = uri
+        .query()
+        .unwrap_or("")
+        .split('&')
+        .filter_map(|pair| {
+            let mut parts = pair.splitn(2, '=');
+            if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
+                Some((key.to_string(), value.to_string()))
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    match query_params.get("code") {
+        Some(code_str) => {
+            // Save code and shutdown server
+            let mut state = app_state_mutex.lock().await;
+            let mut auth_code_guard = state.auth_state.auth_code.lock().await;
+            *auth_code_guard = Some(code_str.clone());
+            drop(auth_code_guard);
+
+            if let Some(tx) = state.server_tx.take() {
+                let _ = tx.send(());
+            }
+
+            // Success response
+            let mut response = Response::new(Body::from(PATREON_SUCCESS_HTML));
+            response.headers_mut().insert(
+                CONTENT_TYPE,
+                HeaderValue::from_static("text/html; charset=utf-8"),
+            );
+            Ok(response)
+        }
+        None => {
+            eprintln!("Patreon OAuth Callback Error: No code received");
+            let mut response = Response::new(Body::from("Error: No authorization code received"));
+            *response.status_mut() = HyperStatusCode::BAD_REQUEST;
+            Ok(response)
+        }
+    }
+}
+
 async fn poll_for_twitch_auth_code(
     auth_state: Arc<AuthState>,
     app_state_mutex: Arc<Mutex<AppState>>,
@@ -852,6 +1028,58 @@ async fn poll_for_twitch_auth_code(
     events::emit_auth_error("Timeout waiting for Twitch authorization".to_string());
 }
 
+async fn poll_for_patreon_auth_code(
+    auth_state: Arc<AuthState>,
+    app_state_mutex: Arc<Mutex<AppState>>,
+) {
+    for i in 0..CALLBACK_TIMEOUT_SECS {
+        let auth_code_guard = auth_state.auth_code.lock().await;
+        if let Some(code) = auth_code_guard.clone() {
+            drop(auth_code_guard);
+            println!(
+                "Patreon authorization code received: {}",
+                &code[..std::cmp::min(code.len(), 10)]
+            );
+
+            events::emit_auth_step_changed(AuthStep::ProcessingCallback);
+
+            match process_patreon_auth_code(&code, &auth_state).await {
+                Ok(()) => {
+                    events::emit_auth_step_changed(AuthStep::RequestingSession);
+                    println!("Patreon account linked successfully");
+                    // Emit success event for frontend
+                    events::emit_event("patreon-auth-success", Some(json!({"success": true})));
+
+                    // focus the Modpack Store window
+                    let app_handle = {
+                        let binding = GLOBAL_APP_HANDLE.lock().unwrap();
+                        binding
+                            .as_ref()
+                            .ok_or("AppHandle no inicializado")
+                            .unwrap()
+                            .clone()
+                    };
+
+                    if let Some(main_window) = app_handle.get_webview_window("main") {
+                        let _ = main_window.set_focus();
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Error processing Patreon auth code: {}", e);
+                    events::emit_auth_error(format!("Error linking Patreon account: {}", e));
+                }
+            }
+            return;
+        }
+        drop(auth_code_guard);
+
+        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
+    }
+
+    eprintln!("Timeout waiting for Patreon authorization code");
+    events::emit_auth_error("Timeout waiting for Patreon authorization".to_string());
+}
+
 async fn process_twitch_auth_code(code: &str, auth_state: &Arc<AuthState>) -> AuthResult<()> {
     let api_client = api::ApiClient::new();
 
@@ -864,6 +1092,22 @@ async fn process_twitch_auth_code(code: &str, auth_state: &Arc<AuthState>) -> Au
         Err(e) => {
             eprintln!("Error linking Twitch account: {}", e);
             Err(format!("Failed to link Twitch account: {}", e))
+        }
+    }
+}
+
+async fn process_patreon_auth_code(code: &str, auth_state: &Arc<AuthState>) -> AuthResult<()> {
+    let api_client = api::ApiClient::new();
+
+    // Send the Patreon code to backend to complete the linking
+    match api_client.link_patreon_account(code).await {
+        Ok(_) => {
+            println!("Patreon account linked successfully via backend");
+            Ok(())
+        }
+        Err(e) => {
+            eprintln!("Error linking Patreon account: {}", e);
+            Err(format!("Failed to link Patreon account: {}", e))
         }
     }
 }
@@ -898,6 +1142,41 @@ const TWITCH_SUCCESS_HTML: &str = r#"
         <h1>Twitch Account Linked Successfully!</h1>
         <p>You can now close this window and go back to the Modpack Store Launcher.</p>
         <p>Your Twitch account has been linked and you can now access Twitch subscriber-only content.</p>
+    </div>
+</body>
+</html>
+"#;
+
+// Patreon success HTML page
+const PATREON_SUCCESS_HTML: &str = r#"
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Modpack Store - Patreon Connected</title>
+    <style>
+        @import url(https://fonts.googleapis.com/css2?family=Montserrat&display=swap);
+        body {
+            margin: 3em;
+            max-width: 600px;
+            background-color: #f9f9f9;
+            color: #333;
+            font-family: Montserrat, sans-serif;
+        }
+        .container {
+            background-color: #fff;
+            padding: 2em;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        h1 { color: #ff424d; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Patreon Account Connected Successfully!</h1>
+        <p>You can now close this window and go back to the Modpack Store Launcher.</p>
+        <p>Your Patreon account has been connected and your supporter benefits are now active.</p>
     </div>
 </body>
 </html>

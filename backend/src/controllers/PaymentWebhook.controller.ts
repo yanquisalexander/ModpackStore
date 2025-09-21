@@ -1,6 +1,8 @@
 import { type Context } from 'hono';
 import { PaymentService } from '@/services/payment.service';
 import { paymentGatewayManager, PaymentGatewayType } from '@/services/payment-gateways';
+import { PatreonIntegrationService } from '@/services/patreon-integration.service';
+import crypto from 'crypto';
 
 export class PaymentWebhookController {
     /**
@@ -93,6 +95,81 @@ export class PaymentWebhookController {
 
             // Return 200 even on error to prevent MercadoPago from retrying invalid webhooks
             // Log the error but don't expose internal details
+            return c.json({
+                success: false,
+                requestId,
+                error: 'Webhook processing failed'
+            }, 200);
+        }
+    }
+
+    /**
+     * Handle Patreon webhook
+     */
+    static async patreonWebhook(c: Context): Promise<Response> {
+        const requestId = Date.now().toString();
+        const startTime = Date.now();
+
+        try {
+            // Get the raw body for signature validation
+            const body = await c.req.text();
+            const signature = c.req.header('X-Patreon-Signature');
+            
+            if (!signature) {
+                console.warn('[WEBHOOK_PATREON] Missing signature header:', { requestId });
+                return c.json({ error: 'Missing signature' }, 401);
+            }
+
+            // Validate webhook signature
+            const webhookSecret = process.env.PATREON_WEBHOOK_SECRET;
+            if (!webhookSecret) {
+                console.error('[WEBHOOK_PATREON] Webhook secret not configured:', { requestId });
+                return c.json({ error: 'Webhook not configured' }, 500);
+            }
+
+            const expectedSignature = crypto
+                .createHmac('md5', webhookSecret)
+                .update(body)
+                .digest('hex');
+
+            if (signature !== expectedSignature) {
+                console.warn('[WEBHOOK_PATREON] Invalid signature:', { 
+                    requestId,
+                    receivedSignature: signature,
+                    expectedSignature 
+                });
+                return c.json({ error: 'Invalid signature' }, 401);
+            }
+
+            const payload = JSON.parse(body);
+
+            console.log('[WEBHOOK_PATREON] Received webhook:', {
+                requestId,
+                timestamp: new Date().toISOString(),
+                eventType: payload.data?.type,
+                resourceId: payload.data?.id
+            });
+
+            // Process the webhook
+            await PatreonIntegrationService.handleWebhook(payload);
+
+            const processingTime = Date.now() - startTime;
+            console.log('[WEBHOOK_PATREON] Webhook processed successfully:', {
+                requestId,
+                processingTimeMs: processingTime
+            });
+
+            return c.json({ success: true, requestId }, 200);
+        } catch (error: any) {
+            const processingTime = Date.now() - startTime;
+            console.error('[WEBHOOK_PATREON] Webhook processing failed:', {
+                requestId,
+                error: error.message || 'Unknown error',
+                processingTimeMs: processingTime,
+                stack: error.stack
+            });
+
+            // Return 200 even on error to prevent Patreon from retrying invalid webhooks
             return c.json({
                 success: false,
                 requestId,

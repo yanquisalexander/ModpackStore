@@ -141,6 +141,52 @@ authRoutes.get('/twitch/callback', requireAuth, AccountsController.callbackTwitc
 authRoutes.post('/twitch/unlink', requireAuth, AccountsController.unlinkTwitch);
 authRoutes.get('/twitch/status', requireAuth, AccountsController.getTwitchStatus);
 
+// Patreon OAuth routes
+/**
+ * @openapi
+ * /auth/patreon/callback:
+ *   post:
+ *     summary: Patreon OAuth callback (from Rust module)
+ *     tags: [Auth]
+ *     description: Receives OAuth authorization code from Rust module and processes Patreon authentication
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               code:
+ *                 type: string
+ *                 required: true
+ *                 description: Patreon OAuth authorization code
+ *               state:
+ *                 type: string
+ *                 required: true
+ *                 description: CSRF protection state parameter
+ *               userId:
+ *                 type: string
+ *                 required: true
+ *                 description: User ID for linking the account
+ *     responses:
+ *       200:
+ *         description: OAuth callback processed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *       400:
+ *         description: Bad request - invalid or missing parameters
+ *       500:
+ *         description: Internal server error
+ */
+authRoutes.post('/patreon/callback', AccountsController.callbackPatreon);
+
 /**
  * @openapi
  * /auth/accept-tos:
