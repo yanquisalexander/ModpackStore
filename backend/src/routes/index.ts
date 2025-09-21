@@ -1,6 +1,7 @@
 import { Hono, Context } from 'hono';
 import authRoutes from './v1/auth.routes'; // Now a Hono app
 import adminRoutes from './v1/admin.routes'; // Now a Hono app
+import publicRoutes from './v1/public.routes';
 // TODO: MIGRATE_ROUTES - These routes need to be migrated to Hono
 import exploreRoutes from './v1/explore.routes';
 import categoriesRoutes from './v1/categories.routes';
@@ -15,6 +16,7 @@ const rootRouter = new Hono();
 // v1 routes
 rootRouter.route('/auth', authRoutes);
 rootRouter.route('/admin', adminRoutes); // Mount Hono adminRoutes
+rootRouter.route('/public', publicRoutes);
 rootRouter.route('/explore', exploreRoutes); // Mount Hono exploreRoutes
 rootRouter.route('/categories', categoriesRoutes);
 rootRouter.route('/creators', CreatorsRoute);

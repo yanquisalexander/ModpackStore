@@ -28,6 +28,8 @@ import { PublisherLayout } from "./components/publisher/PublisherLayout";
 import { ConfigurationDialog } from "./components/ConfigurationDialog";
 import { useConfigDialog } from "./stores/ConfigDialogContext";
 import { OnboardingFlow } from "./components/onboarding";
+import { TermsAndConditionsDialog } from "./components/TermsAndConditionsDialog";
+import { useTermsAndConditions } from "./hooks/useTermsAndConditions";
 import { useOnboarding } from "./hooks/useOnboarding";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
@@ -53,6 +55,7 @@ function App() {
   const { isConnected, isLoading: connectionLoading, hasInternetAccess } = useConnection();
   const { isConfigOpen, closeConfigDialog } = useConfigDialog();
   const { onboardingStatus, loading: onboardingLoading, isFirstRun, refreshStatus } = useOnboarding();
+  const { shouldShowDialog: shouldShowToSDialog, tosContent, acceptTerms, rejectTerms } = useTermsAndConditions();
   const navigate = useNavigate();
   const hasLaunched = useRef(false);
 
@@ -187,6 +190,12 @@ function App() {
       <NoticeTestBuild />
       <CommandPalette />
       <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />
+      <TermsAndConditionsDialog 
+        open={shouldShowToSDialog}
+        content={tosContent}
+        onAccept={acceptTerms}
+        onReject={rejectTerms}
+      />
       <KonamiCode />
     </main>
   );

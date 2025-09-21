@@ -18,6 +18,7 @@ interface UserSession {
   createdAt: string;
   patreonId: string;
   role: 'user' | 'admin' | 'superadmin' | 'support';
+  tosAcceptedAt?: string | null;
   publisherMemberships: null | {
     createdAt: string;
     id: number;

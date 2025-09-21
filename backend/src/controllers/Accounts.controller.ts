@@ -129,4 +129,27 @@ export class AccountsController {
             twitchUsername: await authenticatedUser.getTwitchUserInfo().then(info => info?.username || 'unknown'),
         });
     }
+
+    /**
+     * Accept Terms and Conditions for the current user
+     */
+    static async acceptTermsAndConditions(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
+        const authenticatedUser = c.get('user');
+
+        if (!authenticatedUser) {
+            throw new APIError(401, 'User must be authenticated.', 'USER_NOT_AUTHENTICATED');
+        }
+
+        console.log(`[ACCOUNTS] User ${authenticatedUser.id} accepting Terms and Conditions`);
+        
+        // Update the user's tosAcceptedAt timestamp
+        authenticatedUser.tosAcceptedAt = new Date();
+        await authenticatedUser.save();
+
+        return c.json({
+            data: {
+                tosAcceptedAt: authenticatedUser.tosAcceptedAt
+            }
+        });
+    }
 }

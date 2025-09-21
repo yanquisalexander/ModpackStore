@@ -18,6 +18,7 @@ import { ModpackAcquisition } from "../entities/ModpackAcquisition";
 import { AuditLog } from "../entities/AuditLog";
 import { Ticket } from "../entities/Ticket";
 import { TicketMessage } from "../entities/TicketMessage";
+import { SystemSettings } from "../entities/SystemSettings";
 
 export const AppDataSource = new DataSource({
     type: "postgres",
@@ -47,6 +48,7 @@ export const AppDataSource = new DataSource({
         ModpackAcquisition,
         AuditLog,
         Ticket,
-        TicketMessage
+        TicketMessage,
+        SystemSettings
     ],
 });
