@@ -59,3 +59,28 @@ export enum AcquisitionStatus {
     REVOKED = 'revoked',
     SUSPENDED = 'suspended'
 }
+
+// Social system enums
+export enum FriendshipStatus {
+    PENDING = 'pending',
+    ACCEPTED = 'accepted',
+    BLOCKED = 'blocked'
+}
+
+export enum InvitationStatus {
+    PENDING = 'pending',
+    ACCEPTED = 'accepted',
+    DECLINED = 'declined',
+    EXPIRED = 'expired'
+}
+
+export enum ActivityType {
+    USER_ONLINE = 'user_online',
+    USER_OFFLINE = 'user_offline',
+    PLAYING_MODPACK = 'playing_modpack',
+    STOPPED_PLAYING = 'stopped_playing',
+    MODPACK_INSTALLED = 'modpack_installed',
+    MODPACK_UNINSTALLED = 'modpack_uninstalled',
+    ACHIEVEMENT_UNLOCKED = 'achievement_unlocked',
+    FRIENDSHIP_CREATED = 'friendship_created'
+}

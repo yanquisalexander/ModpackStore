@@ -6,11 +6,14 @@ import { ModpackVersion } from "./ModpackVersion";
 import { UserPurchase } from "./UserPurchase";
 import { WalletTransaction } from "./WalletTransaction";
 import { Publisher } from "./Publisher";
-import { PublisherMemberRole, UserRole } from "@/types/enums";
+import { PublisherMemberRole, UserRole, FriendshipStatus } from "@/types/enums";
 import { sign } from "jsonwebtoken";
 import { TwitchService } from "@/services/twitch.service";
 import { Ticket } from "./Ticket";
 import { ModpackAcquisition } from "./ModpackAcquisition";
+import { Friendship } from "./Friendship";
+import { GameInvitation } from "./GameInvitation";
+import { UserActivity } from "./UserActivity";
 
 @Entity({ name: "users" })
 export class User extends BaseEntity {
@@ -25,6 +28,9 @@ export class User extends BaseEntity {
 
     @Column({ name: "avatar_url", type: "text", nullable: true })
     avatarUrl?: string | null;
+
+    @Column({ name: "cover_image_url", type: "text", nullable: true })
+    coverImageUrl?: string | null;
 
     // Discord fields
     @Column({ name: "discord_id", type: "text", nullable: true, unique: true })
@@ -103,6 +109,22 @@ export class User extends BaseEntity {
 
     @OneToMany(() => ModpackAcquisition, acquisition => acquisition.user)
     modpackAcquisitions: ModpackAcquisition[];
+
+    // Social relations
+    @OneToMany(() => Friendship, friendship => friendship.requester)
+    sentFriendRequests: Friendship[];
+
+    @OneToMany(() => Friendship, friendship => friendship.addressee)
+    receivedFriendRequests: Friendship[];
+
+    @OneToMany(() => GameInvitation, invitation => invitation.sender)
+    sentGameInvitations: GameInvitation[];
+
+    @OneToMany(() => GameInvitation, invitation => invitation.receiver)
+    receivedGameInvitations: GameInvitation[];
+
+    @OneToMany(() => UserActivity, activity => activity.user)
+    activities: UserActivity[];
 
     async getPublishers(): Promise<Publisher[]> {
         const memberships = await PublisherMember.find({ where: { user: { id: this.id } }, relations: ["publisher"] });
@@ -225,6 +247,7 @@ export class User extends BaseEntity {
             username: this.username,
             email: this.email,
             avatarUrl: this.avatarUrl,
+            coverImageUrl: this.coverImageUrl,
             role: this.role,
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
@@ -233,5 +256,53 @@ export class User extends BaseEntity {
             twitchId: this.twitchId,
             tosAcceptedAt: this.tosAcceptedAt,
         };
+    }
+
+    // Social feature helper methods
+    async getFriends(): Promise<User[]> {
+        const friendships = await Friendship.find({
+            where: [
+                { requesterId: this.id, status: 'accepted' },
+                { addresseeId: this.id, status: 'accepted' }
+            ],
+            relations: ["requester", "addressee"]
+        });
+
+        return friendships.map(friendship => 
+            friendship.requesterId === this.id ? friendship.addressee : friendship.requester
+        );
+    }
+
+    async getPendingFriendRequests(): Promise<Friendship[]> {
+        return await Friendship.find({
+            where: { addresseeId: this.id, status: 'pending' },
+            relations: ["requester"]
+        });
+    }
+
+    async getSentFriendRequests(): Promise<Friendship[]> {
+        return await Friendship.find({
+            where: { requesterId: this.id, status: 'pending' },
+            relations: ["addressee"]
+        });
+    }
+
+    async canUpdateCoverImage(): Promise<boolean> {
+        // Only Patreon supporters can update cover image
+        return this.isPatron();
+    }
+
+    // Static method to find users by username or Discord ID for friend search
+    static async searchForFriends(query: string, excludeUserId?: string): Promise<User[]> {
+        const queryBuilder = User.createQueryBuilder("user")
+            .where("user.username ILIKE :query", { query: `%${query}%` })
+            .orWhere("user.discordId = :discordId", { discordId: query })
+            .limit(10);
+
+        if (excludeUserId) {
+            queryBuilder.andWhere("user.id != :excludeUserId", { excludeUserId });
+        }
+
+        return await queryBuilder.getMany();
     }
 }

@@ -10,6 +10,7 @@ import websocketRoutes from './v1/websocket.routes';
 import ticketRoutes from './v1/tickets.routes';
 import publisherPermissionsRoutes from './v1/publisher-permissions.route';
 import webhooksRoutes from './webhooks.routes';
+import { socialRoutes } from './v1/social.routes';
 
 const rootRouter = new Hono();
 
@@ -23,6 +24,7 @@ rootRouter.route('/creators', CreatorsRoute);
 rootRouter.route('/websocket', websocketRoutes);
 rootRouter.route('/tickets', ticketRoutes);
 rootRouter.route('/publishers', publisherPermissionsRoutes);
+rootRouter.route('/social', socialRoutes); // Mount social routes
 
 // Webhook routes (separate from API versioning)
 rootRouter.route('/webhooks', webhooksRoutes);
