@@ -35,7 +35,7 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
             const { scrollTop, scrollHeight, clientHeight } = scrollArea;
             const threshold = 10; // Allow 10px threshold
             const isAtBottom = scrollTop + clientHeight >= scrollHeight - threshold;
-            
+
             if (isAtBottom && !hasReachedBottom) {
                 setHasReachedBottom(true);
                 startTimer();
@@ -46,14 +46,14 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
     // Start the 5-second timer when user reaches bottom
     const startTimer = () => {
         if (timerRef.current) return; // Timer already running
-        
+
         let counter = 5;
         setTimeRemaining(counter);
-        
+
         timerRef.current = setInterval(() => {
             counter--;
             setTimeRemaining(counter);
-            
+
             if (counter <= 0) {
                 setCanAccept(true);
                 if (timerRef.current) {
@@ -71,7 +71,7 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
             setTimeRemaining(5);
             setCanAccept(false);
             setIsAccepting(false);
-            
+
             // Clear any existing timer
             if (timerRef.current) {
                 clearInterval(timerRef.current);
@@ -92,7 +92,7 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
 
     const handleAccept = async () => {
         if (!canAccept || isAccepting) return;
-        
+
         setIsAccepting(true);
         try {
             await onAccept();
@@ -106,7 +106,7 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
         toast.error('Se cerrará la aplicación ya que no se aceptaron los términos y condiciones', {
             duration: 3000,
         });
-        
+
         // Wait a bit to show the toast, then close the app
         setTimeout(async () => {
             try {
@@ -124,10 +124,9 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
     }
 
     return (
-        <Dialog open={open} onOpenChange={() => {}} modal>
-            <DialogContent 
-                className="fixed inset-0 z-50 bg-background flex flex-col h-screen w-screen max-w-none max-h-none rounded-none border-none p-0"
-                style={{ transform: 'none', top: 'auto', left: 'auto' }}
+        <Dialog open={open} onOpenChange={() => { }} modal>
+            <DialogContent
+                className="fixed inset-0 border-none ring-0 z-50 top-9 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !w-screen !h-[calc(100%-36px)] !max-w-none !rounded-none m-0 p-0 flex flex-col bg-background"
             >
                 {/* Header */}
                 <DialogHeader className="border-b px-6 py-4 flex-shrink-0">
@@ -141,10 +140,10 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
                 </DialogHeader>
 
                 {/* Content */}
-                <div className="flex-1 flex flex-col overflow-hidden">
-                    <ScrollArea 
+                <div className="flex-1 flex flex-col min-h-0">
+                    <ScrollArea
                         ref={scrollAreaRef}
-                        className="flex-1 px-6"
+                        className="flex-1 px-6 overflow-auto"
                         onScrollCapture={handleScroll}
                     >
                         <div className="py-6 prose prose-sm dark:prose-invert max-w-none">
@@ -166,7 +165,7 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
                                 {content}
                             </ReactMarkdown>
                         </div>
-                        
+
                         {/* Spacer to ensure user can scroll past the content */}
                         <div className="h-20" />
                     </ScrollArea>
@@ -184,17 +183,17 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
                                 <span>Ya puedes aceptar los términos y condiciones</span>
                             )}
                         </div>
-                        
+
                         <div className="flex gap-3">
-                            <Button 
-                                variant="outline" 
+                            <Button
+                                variant="outline"
                                 onClick={handleReject}
                                 className="hover:bg-destructive hover:text-destructive-foreground"
                             >
                                 <LucideX className="h-4 w-4 mr-2" />
                                 Rechazar
                             </Button>
-                            <Button 
+                            <Button
                                 onClick={handleAccept}
                                 disabled={!canAccept || isAccepting}
                                 className="min-w-[120px]"

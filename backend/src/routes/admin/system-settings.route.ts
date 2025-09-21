@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { SystemSettingsController } from '../../controllers/SystemSettings.controller';
-import { requireAdminAuth } from '../../middlewares/adminAuth.middleware';
+import { ensureAdmin } from '../../middlewares/adminAuth.middleware';
 
 const systemSettingsRouter = new Hono();
 
 // Apply admin authentication middleware
-systemSettingsRouter.use('*', requireAdminAuth);
+systemSettingsRouter.use('*', ensureAdmin);
 
 /**
  * @openapi
