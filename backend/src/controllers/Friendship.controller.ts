@@ -29,14 +29,14 @@ export class FriendshipController {
         } else if (body.targetUsername || body.targetDiscordId) {
             const searchQuery = body.targetUsername || body.targetDiscordId || '';
             const users = await FriendshipService.searchUsers(searchQuery, userId);
-            
+
             if (users.length === 0) {
                 throw new APIError(404, 'User not found', 'USER_NOT_FOUND');
             }
 
             // Find exact match
-            let targetUser = users.find(user => 
-                user.username === body.targetUsername || 
+            let targetUser = users.find(user =>
+                user.username === body.targetUsername ||
                 user.discordId === body.targetDiscordId
             );
 
@@ -202,16 +202,20 @@ export class FriendshipController {
         return c.json({
             success: true,
             data: {
-                received: pendingRequests.map(req => ({
-                    id: req.id,
-                    requester: req.requester.toPublicJson(),
-                    createdAt: req.createdAt
-                })),
-                sent: sentRequests.map(req => ({
-                    id: req.id,
-                    addressee: req.addressee.toPublicJson(),
-                    createdAt: req.createdAt
-                }))
+                received: pendingRequests
+                    .filter((req: any) => req.requester) // Filter out requests with null requester
+                    .map((req: any) => ({
+                        id: req.id,
+                        requester: req.requester!.toPublicJson(),
+                        createdAt: req.createdAt
+                    })),
+                sent: sentRequests
+                    .filter((req: any) => req.addressee) // Filter out requests with null addressee
+                    .map((req: any) => ({
+                        id: req.id,
+                        addressee: req.addressee!.toPublicJson(),
+                        createdAt: req.createdAt
+                    }))
             }
         });
     }

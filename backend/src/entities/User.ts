@@ -262,27 +262,29 @@ export class User extends BaseEntity {
     async getFriends(): Promise<User[]> {
         const friendships = await Friendship.find({
             where: [
-                { requesterId: this.id, status: 'accepted' },
-                { addresseeId: this.id, status: 'accepted' }
+                { requesterId: this.id, status: FriendshipStatus.ACCEPTED },
+                { addresseeId: this.id, status: FriendshipStatus.ACCEPTED }
             ],
             relations: ["requester", "addressee"]
         });
 
-        return friendships.map(friendship => 
-            friendship.requesterId === this.id ? friendship.addressee : friendship.requester
-        );
+        return friendships
+            .map(friendship =>
+                friendship.requesterId === this.id ? friendship.addressee : friendship.requester
+            )
+            .filter((friend): friend is User => friend !== null); // Filter out null friends with type guard
     }
 
     async getPendingFriendRequests(): Promise<Friendship[]> {
         return await Friendship.find({
-            where: { addresseeId: this.id, status: 'pending' },
+            where: { addresseeId: this.id, status: FriendshipStatus.PENDING },
             relations: ["requester"]
         });
     }
 
     async getSentFriendRequests(): Promise<Friendship[]> {
         return await Friendship.find({
-            where: { requesterId: this.id, status: 'pending' },
+            where: { requesterId: this.id, status: FriendshipStatus.PENDING },
             relations: ["addressee"]
         });
     }

@@ -44,10 +44,10 @@ export const SocialPanel: React.FC<SocialPanelProps> = ({ isOpen, onClose, token
   if (!isOpen) return null;
 
   const tabs = [
-    { id: 'activity' as SocialTab, label: 'Activity', icon: Activity },
-    { id: 'friends' as SocialTab, label: 'Friends', icon: Users },
-    { id: 'invitations' as SocialTab, label: 'Invitations', icon: MessageSquare },
-    { id: 'profile' as SocialTab, label: 'Profile', icon: User },
+    { id: 'activity' as SocialTab, label: 'Actividad', icon: Activity },
+    { id: 'friends' as SocialTab, label: 'Amigos', icon: Users },
+    { id: 'invitations' as SocialTab, label: 'Invitaciones', icon: MessageSquare },
+    { id: 'profile' as SocialTab, label: 'Perfil', icon: User },
   ];
 
   const renderTabContent = () => {
@@ -75,31 +75,38 @@ export const SocialPanel: React.FC<SocialPanelProps> = ({ isOpen, onClose, token
 
   return (
     // Floating panel (no dark backdrop) placed near top-right like a dropdown
-    <div ref={panelRef} className="fixed z-50 w-96 max-h-[80vh] bg-background border border-border shadow-2xl rounded-lg overflow-hidden" style={style}>
+    <div ref={panelRef} className="fixed z-50 w-96 max-h-[80vh] bg-neutral-900/95 backdrop-blur-sm border border-neutral-700/60 shadow-2xl rounded-lg overflow-hidden" style={style}>
       <div className="flex flex-col h-full">
+        {/* Decorative caret */}
+        <div className="absolute -top-2 right-6 w-3 h-3 rotate-45 bg-neutral-900/95 border-t border-l border-neutral-700/60" />
+
         {/* Header */}
-        <div className="flex items-center justify-between p-3 border-b border-border">
-          <h2 className="text-lg font-semibold">Social</h2>
+        <div className="flex items-center justify-between p-3 border-b border-neutral-700/60">
+          <div className="flex items-center gap-2">
+            <Activity className="w-5 h-5 text-white/90" />
+            <h2 className="text-lg font-semibold text-white">Social</h2>
+          </div>
+
           <button
             onClick={onClose}
-            className="p-1 rounded-md hover:bg-accent transition-colors"
-            aria-label="Close social panel"
+            className="p-1 rounded-md hover:bg-neutral-800/60 transition-colors text-white"
+            aria-label="Cerrar panel social"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-border">
+        <div className="flex border-b border-neutral-700/60">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-2 py-2 px-2 text-sm font-medium transition-colors ${activeTab === tab.id
-                  ? 'text-primary border-b-2 border-primary bg-accent/50'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/30'
+                className={`flex-1 flex items-center justify-center gap-2 py-2 px-2 text-sm font-medium transition-colors text-white ${activeTab === tab.id
+                  ? 'border-b-2 border-primary bg-neutral-800/60'
+                  : 'hover:bg-neutral-800/60'
                   }`}
               >
                 <Icon className="w-4 h-4" />

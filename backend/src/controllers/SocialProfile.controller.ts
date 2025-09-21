@@ -2,7 +2,7 @@ import { Context } from 'hono';
 import { User } from '@/entities/User';
 import { PatreonIntegrationService } from '@/services/patreon-integration.service';
 import { APIError } from '@/lib/APIError';
-import { AuthVariables } from "@/middlewares/auth.middleware";
+import { AuthVariables, USER_CONTEXT_KEY } from "@/middlewares/auth.middleware";
 
 type ProfileUpdatePayload = {
     coverImageUrl?: string;
@@ -13,18 +13,27 @@ export class SocialProfileController {
      * Get user's social profile
      */
     static async getProfile(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
-        const userId = c.req.param('userId') || c.get('userId');
-        const currentUserId = c.get('userId');
+        const currentUser = c.get(USER_CONTEXT_KEY) as User;
+        const userId = c.req.param('userId') || currentUser.id;
+        const currentUserId = currentUser.id;
 
-        const user = await User.findOne({ where: { id: userId } });
-        
-        if (!user) {
-            throw new APIError(404, 'User not found', 'USER_NOT_FOUND');
+        let user: User | null;
+
+        if (userId === currentUserId) {
+            // Es el perfil del usuario actual
+            user = currentUser;
+        } else {
+            // Es el perfil de otro usuario
+            user = await User.findOne({ where: { id: userId } });
+
+            if (!user) {
+                throw new APIError(404, 'User not found', 'USER_NOT_FOUND');
+            }
         }
 
         // Check if user can view this profile (privacy considerations)
         let canViewFullProfile = userId === currentUserId;
-        
+
         if (!canViewFullProfile) {
             // Check if they are friends
             const { FriendshipService } = await import('@/services/friendship.service');
@@ -68,7 +77,7 @@ export class SocialProfileController {
 
         // Verify user can upload cover image (Patreon feature)
         const canUpload = await PatreonIntegrationService.canUploadCoverImage(userId);
-        
+
         if (!canUpload) {
             throw new APIError(403, 'Cover image upload is a Patreon-only feature', 'PATREON_REQUIRED');
         }
@@ -79,7 +88,7 @@ export class SocialProfileController {
         }
 
         const user = await User.findOne({ where: { id: userId } });
-        
+
         if (!user) {
             throw new APIError(404, 'User not found', 'USER_NOT_FOUND');
         }
@@ -103,7 +112,7 @@ export class SocialProfileController {
         const userId = c.get('userId');
 
         const user = await User.findOne({ where: { id: userId } });
-        
+
         if (!user) {
             throw new APIError(404, 'User not found', 'USER_NOT_FOUND');
         }
@@ -173,7 +182,7 @@ export class SocialProfileController {
         const userId = c.get('userId');
 
         const user = await User.findOne({ where: { id: userId } });
-        
+
         if (!user) {
             throw new APIError(404, 'User not found', 'USER_NOT_FOUND');
         }
@@ -182,12 +191,12 @@ export class SocialProfileController {
         user.patreonId = null;
         user.patreonAccessToken = null;
         user.patreonRefreshToken = null;
-        
+
         // Remove cover image if user had one (since they lose premium access)
         if (user.coverImageUrl) {
             user.coverImageUrl = null;
         }
-        
+
         await user.save();
 
         return c.json({
@@ -206,14 +215,14 @@ export class SocialProfileController {
         const currentUserId = c.get('userId');
 
         const user = await User.findOne({ where: { id: userId } });
-        
+
         if (!user) {
             throw new APIError(404, 'User not found', 'USER_NOT_FOUND');
         }
 
         // Check if user can view stats
         let canViewStats = userId === currentUserId;
-        
+
         if (!canViewStats) {
             const { FriendshipService } = await import('@/services/friendship.service');
             const friendshipStatus = await FriendshipService.getFriendshipStatus(currentUserId, userId);
@@ -252,7 +261,7 @@ export class SocialProfileController {
 
         // Verify user can upload cover image
         const canUpload = await PatreonIntegrationService.canUploadCoverImage(userId);
-        
+
         if (!canUpload) {
             throw new APIError(403, 'Cover image upload is a Patreon-only feature', 'PATREON_REQUIRED');
         }
@@ -276,12 +285,12 @@ export class SocialProfileController {
             const parsedUrl = new URL(url);
             const validHosts = ['i.imgur.com', 'cdn.discordapp.com', 'your-cdn-domain.com'];
             const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-            
+
             const isValidHost = validHosts.some(host => parsedUrl.hostname === host);
-            const isValidExtension = validExtensions.some(ext => 
+            const isValidExtension = validExtensions.some(ext =>
                 parsedUrl.pathname.toLowerCase().endsWith(ext)
             );
-            
+
             return isValidHost && isValidExtension;
         } catch {
             return false;

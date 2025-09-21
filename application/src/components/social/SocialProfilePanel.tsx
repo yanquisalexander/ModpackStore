@@ -25,7 +25,7 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
     if (!coverImageUrl.trim()) {
       toast({
         title: "Error",
-        description: "Please enter a valid image URL",
+        description: "Por favor ingresa una URL de imagen válida",
         variant: "destructive",
       });
       return;
@@ -34,7 +34,7 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
     if (!SocialProfileService.isValidImageUrl(coverImageUrl)) {
       toast({
         title: "Error",
-        description: "Invalid image URL. Please use a supported image host.",
+        description: "URL de imagen inválida. Usa un host de imagen soportado.",
         variant: "destructive",
       });
       return;
@@ -51,14 +51,14 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
     try {
       await SocialProfileService.removeCoverImage(token);
       toast({
-        title: "Success",
-        description: "Cover image removed",
+        title: "Éxito",
+        description: "Imagen de portada eliminada",
       });
       await refreshProfile();
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to remove cover image",
+        description: "Error al eliminar imagen de portada",
         variant: "destructive",
       });
     }
@@ -76,14 +76,14 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
     try {
       await SocialProfileService.unlinkPatreon(token);
       toast({
-        title: "Success",
-        description: "Patreon account unlinked",
+        title: "Éxito",
+        description: "Cuenta de Patreon desvinculada",
       });
       await refreshProfile();
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to unlink Patreon account",
+        description: "Error al desvincular cuenta de Patreon",
         variant: "destructive",
       });
     }
@@ -135,7 +135,7 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
     <div className="h-full overflow-y-auto">
       {/* Cover Image Section */}
       <div className="relative">
-        <div 
+        <div
           className="h-32 bg-gradient-to-r from-primary/20 to-accent bg-cover bg-center"
           style={profile.coverImageUrl ? { backgroundImage: `url(${profile.coverImageUrl})` } : {}}
         >
@@ -158,7 +158,7 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
             </div>
           )}
         </div>
-        
+
         {/* Profile Avatar */}
         <div className="absolute -bottom-8 left-4">
           <img
@@ -180,7 +180,7 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
             </span>
           )}
         </div>
-        
+
         <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
           {profile.friendsCount !== null && (
             <div className="flex items-center gap-1">
@@ -197,22 +197,22 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
         {/* Patreon Section */}
         <div className="border border-border rounded-lg p-4 mb-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-medium">Patreon Status</h3>
+            <h3 className="font-medium">Estado de Patreon</h3>
             <Settings className="w-4 h-4 text-muted-foreground" />
           </div>
-          
+
           {profile.isPatron && patreonStatus ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-sm">Status</span>
+                <span className="text-sm">Estado</span>
                 <span className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${getTierColor(patreonStatus.tier)}`}>
                   {getTierIcon(patreonStatus.tier)}
-                  {patreonStatus.tier.toUpperCase()} PATRON
+                  {patreonStatus.tier.toUpperCase()} PATRÓN
                 </span>
               </div>
-              
+
               <div className="text-sm">
-                <p className="font-medium mb-2">Premium Features:</p>
+                <p className="font-medium mb-2">Características premium:</p>
                 <ul className="space-y-1 text-muted-foreground">
                   {patreonStatus.availableFeatures.map((feature, index) => (
                     <li key={index} className="flex items-center gap-2">
@@ -222,26 +222,26 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
                   ))}
                 </ul>
               </div>
-              
+
               <button
                 onClick={handleUnlinkPatreon}
                 className="w-full px-3 py-2 text-sm border border-border rounded-md hover:bg-accent transition-colors"
               >
-                Unlink Patreon
+                Desvincular Patreon
               </button>
             </div>
           ) : (
             <div className="text-center">
               <Crown className="w-8 h-8 mx-auto mb-2 text-muted-foreground opacity-50" />
               <p className="text-sm text-muted-foreground mb-3">
-                Link your Patreon account to unlock premium features
+                Vincula tu cuenta de Patreon para desbloquear características premium
               </p>
               <button
                 onClick={handleLinkPatreon}
                 className="w-full px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
               >
                 <ExternalLink className="w-3 h-3" />
-                Link Patreon
+                Vincular Patreon
               </button>
             </div>
           )}
@@ -250,19 +250,19 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
         {/* Premium Features Info */}
         {!profile.isPatron && (
           <div className="border border-dashed border-border rounded-lg p-4">
-            <h4 className="font-medium mb-2">Premium Features</h4>
+            <h4 className="font-medium mb-2">Características premium</h4>
             <div className="space-y-2 text-sm text-muted-foreground">
               <div className="flex items-center gap-2">
                 <Crown className="w-3 h-3" />
-                <span>Custom profile cover images</span>
+                <span>Imágenes de portada de perfil personalizadas</span>
               </div>
               <div className="flex items-center gap-2">
                 <Star className="w-3 h-3" />
-                <span>Priority support</span>
+                <span>Soporte prioritario</span>
               </div>
               <div className="flex items-center gap-2">
                 <Users className="w-3 h-3" />
-                <span>Early access to new features</span>
+                <span>Acceso temprano a nuevas características</span>
               </div>
             </div>
           </div>
@@ -274,11 +274,11 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
         <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
           <div className="bg-background border border-border rounded-lg w-full max-w-md">
             <div className="p-4 border-b border-border">
-              <h3 className="text-lg font-semibold">Update Cover Image</h3>
+              <h3 className="text-lg font-semibold">Actualizar imagen de portada</h3>
             </div>
-            
+
             <div className="p-4">
-              <label className="block text-sm font-medium mb-2">Image URL</label>
+              <label className="block text-sm font-medium mb-2">URL de imagen</label>
               <input
                 type="url"
                 value={coverImageUrl}
@@ -287,10 +287,10 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
                 className="w-full px-3 py-2 bg-accent border border-border rounded-md"
               />
               <p className="text-xs text-muted-foreground mt-2">
-                Supported hosts: i.imgur.com, cdn.discordapp.com
+                Hosts soportados: i.imgur.com, cdn.discordapp.com
               </p>
             </div>
-            
+
             <div className="p-4 border-t border-border flex gap-2 justify-end">
               <button
                 onClick={() => {
@@ -299,14 +299,14 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
                 }}
                 className="px-4 py-2 text-sm bg-accent hover:bg-accent/80 rounded-md transition-colors"
               >
-                Cancel
+                Cancelar
               </button>
               <button
                 onClick={handleUpdateCoverImage}
                 disabled={!coverImageUrl.trim()}
                 className="px-4 py-2 text-sm bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors disabled:opacity-50"
               >
-                Update
+                Actualizar
               </button>
             </div>
           </div>

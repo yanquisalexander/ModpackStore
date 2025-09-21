@@ -39,7 +39,7 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ token }) => {
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to search users",
+        description: "Error al buscar usuarios",
         variant: "destructive",
       });
     } finally {
@@ -54,12 +54,12 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ token }) => {
   };
 
   const getFriendshipStatusText = (status: any) => {
-    if (status.areFriends) return 'Friends';
-    if (status.isBlocked) return 'Blocked';
+    if (status.areFriends) return 'Amigos';
+    if (status.isBlocked) return 'Bloqueado';
     if (status.pendingRequest) {
-      return status.pendingRequest.requesterId === 'current-user-id' 
-        ? 'Request Sent' 
-        : 'Request Received';
+      return status.pendingRequest.requesterId === 'current-user-id'
+        ? 'Solicitud enviada'
+        : 'Solicitud recibida';
     }
     return null;
   };
@@ -71,24 +71,24 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ token }) => {
   };
 
   const getStatusText = (friend: any) => {
-    if (friend.status.currentModpack) return `Playing ${friend.status.currentModpack.name}`;
-    if (friend.status.isOnline) return 'Online';
-    return 'Offline';
+    if (friend.status.currentModpack) return `Jugando ${friend.status.currentModpack.name}`;
+    if (friend.status.isOnline) return 'En línea';
+    return 'Desconectado';
   };
 
   const renderFriendsList = () => (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-medium text-sm text-muted-foreground">
-          FRIENDS — {friends.length}
+          AMIGOS — {friends.length}
         </h3>
       </div>
 
       {friends.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">No friends yet</p>
-          <p className="text-xs mt-1">Search for users to add as friends</p>
+          <p className="text-sm">Aún no tienes amigos</p>
+          <p className="text-xs mt-1">Busca usuarios para agregar como amigos</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -100,11 +100,10 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ token }) => {
                   alt={friend.user.username}
                   className="w-10 h-10 rounded-full"
                 />
-                <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background ${
-                  friend.status.currentModpack ? 'bg-blue-500' : friend.status.isOnline ? 'bg-green-500' : 'bg-gray-500'
-                }`} />
+                <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background ${friend.status.currentModpack ? 'bg-blue-500' : friend.status.isOnline ? 'bg-green-500' : 'bg-gray-500'
+                  }`} />
               </div>
-              
+
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{friend.user.username}</p>
                 <p className={`text-xs truncate ${getStatusColor(friend)}`}>
@@ -122,35 +121,26 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ token }) => {
 
                 {showDropdown === friend.user.id && (
                   <div className="absolute right-0 mt-1 w-32 bg-popover border border-border rounded-md shadow-lg z-10">
-                    <button
-                      onClick={() => {
-                        // Handle send message (if implemented)
-                        setShowDropdown(null);
-                      }}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-accent flex items-center gap-2"
-                    >
-                      <MessageCircle className="w-3 h-3" />
-                      Message
-                    </button>
+
                     <button
                       onClick={() => {
                         removeFriend(friend.user.id);
                         setShowDropdown(null);
                       }}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-accent text-red-600 flex items-center gap-2"
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-accent text-red-400 flex items-center gap-2"
                     >
                       <UserMinus className="w-3 h-3" />
-                      Remove
+                      Eliminar
                     </button>
                     <button
                       onClick={() => {
                         blockUser(friend.user.id);
                         setShowDropdown(null);
                       }}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-accent text-red-600 flex items-center gap-2"
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-accent text-red-400 flex items-center gap-2"
                     >
                       <UserX className="w-3 h-3" />
-                      Block
+                      Bloquear
                     </button>
                   </div>
                 )}
@@ -165,19 +155,19 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ token }) => {
   const renderFriendRequests = () => (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-medium text-sm text-muted-foreground">FRIEND REQUESTS</h3>
+        <h3 className="font-medium text-sm text-muted-foreground">SOLICITUDES DE AMISTAD</h3>
       </div>
 
       {!friendRequests || (friendRequests.received.length === 0 && friendRequests.sent.length === 0) ? (
         <div className="text-center py-8 text-muted-foreground">
           <Mail className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">No pending requests</p>
+          <p className="text-sm">Sin solicitudes pendientes</p>
         </div>
       ) : (
         <div className="space-y-4">
           {friendRequests.received.length > 0 && (
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground mb-2">RECEIVED</h4>
+              <h4 className="text-xs font-medium text-muted-foreground mb-2">RECIBIDAS</h4>
               <div className="space-y-2">
                 {friendRequests.received.map((request) => (
                   <div key={request.id} className="flex items-center gap-3 p-2 rounded-md bg-accent/30">
@@ -211,7 +201,7 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ token }) => {
 
           {friendRequests.sent.length > 0 && (
             <div>
-              <h4 className="text-xs font-medium text-muted-foreground mb-2">SENT</h4>
+              <h4 className="text-xs font-medium text-muted-foreground mb-2">ENVIADAS</h4>
               <div className="space-y-2">
                 {friendRequests.sent.map((request) => (
                   <div key={request.id} className="flex items-center gap-3 p-2 rounded-md bg-accent/30">
@@ -222,7 +212,7 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ token }) => {
                     />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{request.addressee.username}</p>
-                      <p className="text-xs text-muted-foreground">Request pending</p>
+                      <p className="text-xs text-muted-foreground">Solicitud pendiente</p>
                     </div>
                   </div>
                 ))}
@@ -237,14 +227,14 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ token }) => {
   const renderUserSearch = () => (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-medium text-sm text-muted-foreground">SEARCH RESULTS</h3>
+        <h3 className="font-medium text-sm text-muted-foreground">RESULTADOS DE BÚSQUEDA</h3>
       </div>
 
       {searchResults.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Search className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">No users found</p>
-          <p className="text-xs mt-1">Try searching with a different username or Discord ID</p>
+          <p className="text-sm">No se encontraron usuarios</p>
+          <p className="text-xs mt-1">Intenta buscar con un nombre de usuario o ID de Discord diferente</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -290,7 +280,7 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ token }) => {
           <div className="flex-1 relative">
             <input
               type="text"
-              placeholder="Search users..."
+              placeholder="Buscar usuarios..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
@@ -311,23 +301,21 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ token }) => {
       <div className="flex border-b border-border">
         <button
           onClick={() => setSelectedView('friends')}
-          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${
-            selectedView === 'friends'
-              ? 'text-primary border-b-2 border-primary bg-accent/50'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${selectedView === 'friends'
+            ? 'text-primary border-b-2 border-primary bg-accent/50'
+            : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
-          Friends
+          Amigos
         </button>
         <button
           onClick={() => setSelectedView('requests')}
-          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors relative ${
-            selectedView === 'requests'
-              ? 'text-primary border-b-2 border-primary bg-accent/50'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors relative ${selectedView === 'requests'
+            ? 'text-primary border-b-2 border-primary bg-accent/50'
+            : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
-          Requests
+          Solicitudes
           {friendRequests && friendRequests.received.length > 0 && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
               {friendRequests.received.length}
@@ -337,13 +325,12 @@ export const FriendsPanel: React.FC<FriendsPanelProps> = ({ token }) => {
         {searchResults.length > 0 && (
           <button
             onClick={() => setSelectedView('search')}
-            className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${
-              selectedView === 'search'
-                ? 'text-primary border-b-2 border-primary bg-accent/50'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${selectedView === 'search'
+              ? 'text-primary border-b-2 border-primary bg-accent/50'
+              : 'text-muted-foreground hover:text-foreground'
+              }`}
           >
-            Search
+            Buscar
           </button>
         )}
       </div>

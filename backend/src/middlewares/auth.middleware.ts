@@ -16,6 +16,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 export type AuthVariables = {
     jwt_payload: { sub: string; iat: number; exp: number };
     user: User;
+    userId: string;
 };
 
 // Use constants for keys and headers to avoid typos.
@@ -52,6 +53,7 @@ export async function requireAuth(c: Context<{ Variables: AuthVariables }>, next
 
         c.set(USER_CONTEXT_KEY, user);
         c.set(JWT_CONTEXT_KEY, payload);
+        c.set('userId', user.id);
 
         await next();
     } catch (err) {

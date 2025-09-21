@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, BaseEntity, Index } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, BaseEntity, Index, In } from "typeorm";
 import { User } from "./User";
 import { Modpack } from "./Modpack";
 import { ActivityType } from "@/types/enums";
@@ -50,16 +50,16 @@ export class UserActivity extends BaseEntity {
             WHERE (requester_id = $1 OR addressee_id = $1) 
             AND status = 'accepted'
         `;
-        
+
         const friendships = await this.query(friendshipQuery, [userId]);
         const friendIds = friendships.map((f: any) => f.friend_id);
-        
+
         // Include user's own activities and friends' activities
         const userIds = [userId, ...friendIds];
-        
+
         return await UserActivity.find({
             where: {
-                userId: userIds.length > 0 ? userIds : [userId],
+                userId: In(userIds),
                 isVisible: true
             },
             relations: ["user", "modpack"],
@@ -69,9 +69,9 @@ export class UserActivity extends BaseEntity {
     }
 
     static async createActivity(
-        userId: string, 
-        activityType: ActivityType, 
-        modpackId?: string, 
+        userId: string,
+        activityType: ActivityType,
+        modpackId?: string,
         metadata?: Record<string, any>
     ): Promise<UserActivity> {
         const activity = UserActivity.create({
@@ -81,7 +81,7 @@ export class UserActivity extends BaseEntity {
             metadata,
             isVisible: true
         });
-        
+
         await activity.save();
         return activity;
     }
@@ -102,8 +102,8 @@ export class UserActivity extends BaseEntity {
         }
 
         const isOnline = latestActivity.activityType === ActivityType.USER_ONLINE ||
-                        latestActivity.activityType === ActivityType.PLAYING_MODPACK;
-        
+            latestActivity.activityType === ActivityType.PLAYING_MODPACK;
+
         const currentModpack = latestActivity.activityType === ActivityType.PLAYING_MODPACK && latestActivity.modpack
             ? { id: latestActivity.modpack.id, name: latestActivity.modpack.name }
             : undefined;
@@ -119,7 +119,7 @@ export class UserActivity extends BaseEntity {
     static async cleanupOldActivities(): Promise<void> {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        
+
         await UserActivity.delete({
             createdAt: thirtyDaysAgo
         });

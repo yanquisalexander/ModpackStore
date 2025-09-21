@@ -43,23 +43,23 @@ export const ActivityFeedPanel: React.FC<ActivityFeedPanelProps> = ({ token }) =
   const getActivityText = (activity: ActivityFeedItem) => {
     switch (activity.activityType) {
       case ActivityType.USER_ONLINE:
-        return `${activity.user.username} came online`;
+        return `${activity.user.username} se conectó`;
       case ActivityType.USER_OFFLINE:
-        return `${activity.user.username} went offline`;
+        return `${activity.user.username} se desconectó`;
       case ActivityType.PLAYING_MODPACK:
-        return `${activity.user.username} is playing ${activity.modpack?.name}`;
+        return `${activity.user.username} está jugando ${activity.modpack?.name}`;
       case ActivityType.STOPPED_PLAYING:
-        return `${activity.user.username} stopped playing ${activity.modpack?.name}`;
+        return `${activity.user.username} dejó de jugar ${activity.modpack?.name}`;
       case ActivityType.MODPACK_INSTALLED:
-        return `${activity.user.username} installed ${activity.modpack?.name}`;
+        return `${activity.user.username} instaló ${activity.modpack?.name}`;
       case ActivityType.MODPACK_UNINSTALLED:
-        return `${activity.user.username} uninstalled ${activity.modpack?.name}`;
+        return `${activity.user.username} desinstaló ${activity.modpack?.name}`;
       case ActivityType.ACHIEVEMENT_UNLOCKED:
-        return `${activity.user.username} unlocked ${activity.metadata?.achievementName}`;
+        return `${activity.user.username} desbloqueó ${activity.metadata?.achievementName}`;
       case ActivityType.FRIENDSHIP_CREATED:
-        return `${activity.user.username} became friends with ${activity.metadata?.friendUsername}`;
+        return `${activity.user.username} se hizo amigo de ${activity.metadata?.friendUsername}`;
       default:
-        return `${activity.user.username} did something`;
+        return `${activity.user.username} realizó una acción`;
     }
   };
 
@@ -81,25 +81,25 @@ export const ActivityFeedPanel: React.FC<ActivityFeedPanelProps> = ({ token }) =
   };
 
   const getStatusText = (status: UserStatus) => {
-    if (status.currentModpack) return `Playing ${status.currentModpack.name}`;
-    if (status.isOnline) return 'Online';
-    return 'Offline';
+    if (status.currentModpack) return `Jugando ${status.currentModpack.name}`;
+    if (status.isOnline) return 'En línea';
+    return 'Desconectado';
   };
 
   const renderFriendsStatus = () => (
     <div className="p-4 space-y-3">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-medium text-sm text-muted-foreground">FRIENDS STATUS</h3>
+        <h3 className="font-medium text-sm text-muted-foreground">ESTADO DE AMIGOS</h3>
         <span className="text-xs text-muted-foreground">
-          {friendsStatus.filter(f => f.isOnline).length} online
+          {friendsStatus.filter(f => f.isOnline).length} en línea
         </span>
       </div>
-      
+
       {friendsStatus.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">No friends yet</p>
-          <p className="text-xs mt-1">Add friends to see their status</p>
+          <p className="text-sm">Aún no tienes amigos</p>
+          <p className="text-xs mt-1">Agrega amigos para ver su estado</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -111,11 +111,10 @@ export const ActivityFeedPanel: React.FC<ActivityFeedPanelProps> = ({ token }) =
                   alt={friend.username}
                   className="w-8 h-8 rounded-full"
                 />
-                <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background ${
-                  friend.currentModpack ? 'bg-blue-500' : friend.isOnline ? 'bg-green-500' : 'bg-gray-500'
-                }`} />
+                <div className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-background ${friend.currentModpack ? 'bg-blue-500' : friend.isOnline ? 'bg-green-500' : 'bg-gray-500'
+                  }`} />
               </div>
-              
+
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium truncate">{friend.username}</p>
                 <p className={`text-xs truncate ${getStatusColor(friend)}`}>
@@ -132,7 +131,7 @@ export const ActivityFeedPanel: React.FC<ActivityFeedPanelProps> = ({ token }) =
   const renderActivityFeed = () => (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="font-medium text-sm text-muted-foreground">RECENT ACTIVITY</h3>
+        <h3 className="font-medium text-sm text-muted-foreground">ACTIVIDAD RECIENTE</h3>
         <button
           onClick={refreshActivityFeed}
           disabled={activityLoading}
@@ -145,8 +144,8 @@ export const ActivityFeedPanel: React.FC<ActivityFeedPanelProps> = ({ token }) =
       {activityFeed.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Clock className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">No recent activity</p>
-          <p className="text-xs mt-1">Friend activities will appear here</p>
+          <p className="text-sm">Sin actividad reciente</p>
+          <p className="text-xs mt-1">Las actividades de amigos aparecerán aquí</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -155,14 +154,14 @@ export const ActivityFeedPanel: React.FC<ActivityFeedPanelProps> = ({ token }) =
               <div className="flex-shrink-0 mt-1">
                 {getActivityIcon(activity.activityType)}
               </div>
-              
+
               <div className="flex-1 min-w-0">
                 <p className="text-sm">{getActivityText(activity)}</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {formatTimeAgo(activity.createdAt)}
                 </p>
               </div>
-              
+
               {activity.modpack && (
                 <div className="flex-shrink-0">
                   <img
@@ -185,23 +184,21 @@ export const ActivityFeedPanel: React.FC<ActivityFeedPanelProps> = ({ token }) =
       <div className="flex border-b border-border">
         <button
           onClick={() => setSelectedView('status')}
-          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${
-            selectedView === 'status'
+          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${selectedView === 'status'
               ? 'text-primary border-b-2 border-primary bg-accent/50'
               : 'text-muted-foreground hover:text-foreground'
-          }`}
+            }`}
         >
-          Status
+          Estado
         </button>
         <button
           onClick={() => setSelectedView('feed')}
-          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${
-            selectedView === 'feed'
+          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${selectedView === 'feed'
               ? 'text-primary border-b-2 border-primary bg-accent/50'
               : 'text-muted-foreground hover:text-foreground'
-          }`}
+            }`}
         >
-          Activity
+          Actividad
         </button>
       </div>
 

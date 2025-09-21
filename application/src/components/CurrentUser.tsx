@@ -194,12 +194,6 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                 </ul>
             </div>
 
-            {/* Social Panel */}
-            <SocialPanel
-                isOpen={isSocialPanelOpen}
-                onClose={() => setIsSocialPanelOpen(false)}
-                token={session?.accessToken}
-            />
         </div>
     );
 };

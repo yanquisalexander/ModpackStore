@@ -1,17 +1,17 @@
 import React, { useState, useRef } from 'react';
 import { Users } from 'lucide-react';
 import { SocialPanel } from './SocialPanel';
+import { useAuthentication } from "@/stores/AuthContext";
 
 interface SocialButtonProps {
-  token?: string;
   className?: string;
   titleBarOpaque?: boolean;
 }
 
-export const SocialButton: React.FC<SocialButtonProps> = ({ token, className = '', titleBarOpaque = false }) => {
+export const SocialButton: React.FC<SocialButtonProps> = ({ className = '', titleBarOpaque = false }) => {
   const [isSocialPanelOpen, setIsSocialPanelOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement | null>(null);
-
+  const { sessionTokens } = useAuthentication();
   // Make the button visually similar to PatreonButton (square, size-9, centered)
   const baseClasses = 'cursor-pointer flex group size-9 aspect-square items-center justify-center';
   const lightMode = 'hover:bg-white/60 text-neutral-900';
@@ -35,7 +35,7 @@ export const SocialButton: React.FC<SocialButtonProps> = ({ token, className = '
       <SocialPanel
         isOpen={isSocialPanelOpen}
         onClose={() => setIsSocialPanelOpen(false)}
-        token={token}
+        token={sessionTokens?.accessToken}
         anchorRef={buttonRef}
       />
     </>
