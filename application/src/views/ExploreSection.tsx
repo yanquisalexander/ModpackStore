@@ -15,6 +15,7 @@ import { JavaStatusBanner } from "@/components/JavaStatusBanner"
 import { useOnboarding } from "@/hooks/useOnboarding"
 import { useAuthentication } from "@/stores/AuthContext"
 import { useTour, defaultTourSteps } from '@/tour';
+import { NotificationExample } from "@/components/NotificationExample"
 
 
 const Greeting = ({ username }: { username: string | null }) => {

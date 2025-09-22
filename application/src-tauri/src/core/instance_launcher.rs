@@ -294,7 +294,8 @@ impl InstanceLauncher {
         let mut instance_bootstrap = InstanceBootstrap::new();
 
         // Use asset revalidation for better performance
-        instance_bootstrap.revalidate_assets(&instance_clone_for_bootstrap)
+        instance_bootstrap
+            .revalidate_assets(&instance_clone_for_bootstrap)
             .map_err(|e| e.to_string())?;
 
         info!(

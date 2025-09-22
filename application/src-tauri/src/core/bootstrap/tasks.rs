@@ -207,7 +207,7 @@ pub fn emit_bootstrap_error(instance: &MinecraftInstance, error: &BootstrapError
         error.step,
         error.message
     );
-    
+
     // Log additional context for debugging
     log::debug!(
         "[Instance: {}] Bootstrap error details - Category: {:?}, Step: {:?}",
@@ -215,7 +215,7 @@ pub fn emit_bootstrap_error(instance: &MinecraftInstance, error: &BootstrapError
         error.category,
         error.step
     );
-    
+
     if let Some(suggestion) = &error.suggestion {
         log::info!(
             "[Instance: {}] Bootstrap error suggestion: {}",
@@ -223,7 +223,7 @@ pub fn emit_bootstrap_error(instance: &MinecraftInstance, error: &BootstrapError
             suggestion
         );
     }
-    
+
     if let Some(technical_details) = &error.technical_details {
         log::debug!(
             "[Instance: {}] Bootstrap error technical details: {}",

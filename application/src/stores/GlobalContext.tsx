@@ -9,6 +9,7 @@ import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from '@tauri-apps/api/app';
+import { useNotifications } from "@/hooks/useNotifications";
 
 
 
@@ -61,6 +62,7 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
     const [updateProgress, setUpdateProgress] = useState(0);
     const [updateVersion, setUpdateVersion] = useState<string | null>(null);
     const [updateState, setUpdateState] = useState<UpdateState>("idle");
+    const { notifyCustom } = useNotifications();
 
     const applyUpdate = async () => {
         if (updateState !== "ready-to-install") {
@@ -80,8 +82,10 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     };
 
+
     // Consulta periódica de actualizaciones en segundo plano (cada 30 minutos)
     useEffect(() => {
+
         let stopped = false;
         const interval = setInterval(async () => {
             if (stopped) return;
@@ -105,6 +109,15 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
                             case 'Finished':
                                 setUpdateState("ready-to-install");
                                 stopped = true;
+                                notifyCustom({
+                                    title: "Listo para actualizar",
+                                    body: `La versión ${hasUpdate.version} está lista para instalar. Reinicia para aplicar la actualización.`,
+                                    icon: '⬆️',
+                                    sound: true,
+                                    soundVolume: 0.7,
+                                    persistent: true,
+                                    customSound: '/sounds/instance-created.mp3',
+                                })
                                 clearInterval(interval);
                                 break;
                         }

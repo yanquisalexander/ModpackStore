@@ -1,11 +1,11 @@
 // src/core/bootstrap/validate.rs
 // Validation functionality extracted from instance_bootstrap.rs
 
-use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::bootstrap::download::download_file;
-use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
 use crate::core::bootstrap::filesystem::create_asset_directories;
 use crate::core::bootstrap::manifest::get_asset_index_info;
+use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
+use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::modpack_file_manager::DownloadManager;
 use serde_json::Value;
 use std::fs;
@@ -48,24 +48,22 @@ pub fn revalidate_assets(
             "Descargando índice de assets para la versión {}",
             instance.minecraftVersion
         );
-        download_file(client, &assets_index_url, &assets_index_file)
-            .map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Error al descargar índice de assets: {}", e),
-                )
-            })?;
+        download_file(client, &assets_index_url, &assets_index_file).map_err(|e| {
+            io::Error::new(
+                io::ErrorKind::Other,
+                format!("Error al descargar índice de assets: {}", e),
+            )
+        })?;
     }
 
     // Leer y procesar el índice de assets
     let assets_index_content = fs::read_to_string(&assets_index_file)?;
-    let assets_index_root: Value =
-        serde_json::from_str(&assets_index_content).map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::InvalidData,
-                format!("Error al parsear índice de assets: {}", e),
-            )
-        })?;
+    let assets_index_root: Value = serde_json::from_str(&assets_index_content).map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Error al parsear índice de assets: {}", e),
+        )
+    })?;
 
     let objects = assets_index_root
         .get("objects")
@@ -129,23 +127,22 @@ fn download_missing_assets(
                 "https://resources.download.minecraft.net/{}/{}",
                 hash_prefix, hash
             );
-            
-            missing_assets_info.push((
-                asset_url.clone(),
-                asset_file.clone(),
-                hash.to_string(),
-            ));
+
+            missing_assets_info.push((asset_url.clone(), asset_file.clone(), hash.to_string()));
         }
     }
 
     let missing_count = missing_assets_info.len();
-    
+
     if missing_count == 0 {
         log::info!("Todos los assets están validados.");
         return Ok(());
     }
 
-    log::info!("Se encontraron {} assets faltantes. Iniciando descarga con DownloadManager...", missing_count);
+    log::info!(
+        "Se encontraron {} assets faltantes. Iniciando descarga con DownloadManager...",
+        missing_count
+    );
 
     // Use async runtime to run the DownloadManager
     let runtime = tokio::runtime::Runtime::new().map_err(|e| {
@@ -158,21 +155,18 @@ fn download_missing_assets(
     runtime.block_on(async {
         // Create DownloadManager optimized for asset downloads (higher concurrency for small files)
         let download_manager = DownloadManager::with_concurrency(8);
-        
+
         let instance_clone = instance.clone();
-        
+
         // Download all missing assets in parallel with progress reporting
         download_manager
             .download_files_parallel_with_progress(
                 missing_assets_info,
                 move |current, total, message| {
                     // Update progress for asset downloads
-                    let stage = Stage::ValidatingAssets {
-                        current,
-                        total,
-                    };
+                    let stage = Stage::ValidatingAssets { current, total };
                     emit_status_with_stage(&instance_clone, "instance-downloading-assets", &stage);
-                    
+
                     // Log progress periodically to avoid spam
                     if current % 10 == 0 || current == total {
                         log::info!("Descargando assets: {}/{} - {}", current, total, message);
@@ -187,7 +181,10 @@ fn download_missing_assets(
                 )
             })?;
 
-        log::info!("Se han descargado {} assets faltantes usando DownloadManager.", missing_count);
+        log::info!(
+            "Se han descargado {} assets faltantes usando DownloadManager.",
+            missing_count
+        );
         Ok::<(), io::Error>(())
     })?;
 
@@ -195,7 +192,7 @@ fn download_missing_assets(
 }
 
 /// Downloads a single asset file
-/// 
+///
 /// NOTE: This function is deprecated in favor of the DownloadManager-based approach.
 /// It's kept for compatibility but should not be used for new code.
 #[deprecated(
@@ -213,7 +210,7 @@ fn download_single_asset(
         "https://resources.download.minecraft.net/{}/{}",
         hash_prefix, hash
     );
-    
+
     let target_dir = asset_file.parent().unwrap();
     if !target_dir.exists() {
         fs::create_dir_all(target_dir)?;
@@ -233,7 +230,10 @@ pub fn validate_file_exists(file_path: &Path) -> bool {
 }
 
 /// Validates that all required directories exist for a Minecraft instance
-pub fn validate_minecraft_directories(minecraft_dir: &Path, minecraft_version: &str) -> Result<(), String> {
+pub fn validate_minecraft_directories(
+    minecraft_dir: &Path,
+    minecraft_version: &str,
+) -> Result<(), String> {
     let required_dirs = [
         minecraft_dir.join("versions"),
         minecraft_dir.join("libraries"),
@@ -270,7 +270,7 @@ pub fn validate_minecraft_files(version_dir: &Path, minecraft_version: &str) -> 
 pub fn validate_json_file(file_path: &Path) -> Result<Value, String> {
     let content = fs::read_to_string(file_path)
         .map_err(|e| format!("Error reading file {}: {}", file_path.display(), e))?;
-        
+
     serde_json::from_str(&content)
         .map_err(|e| format!("Error parsing JSON file {}: {}", file_path.display(), e))
 }
@@ -286,13 +286,13 @@ mod tests {
     fn test_validate_file_exists() {
         let temp_dir = tempdir().unwrap();
         let test_file = temp_dir.path().join("test_file.txt");
-        
+
         // File doesn't exist yet
         assert!(!validate_file_exists(&test_file));
-        
+
         // Create the file
         fs::write(&test_file, "test content").unwrap();
-        
+
         // Now it should exist
         assert!(validate_file_exists(&test_file));
     }
@@ -301,18 +301,18 @@ mod tests {
     fn test_validate_json_file() {
         let temp_dir = tempdir().unwrap();
         let json_file = temp_dir.path().join("test.json");
-        
+
         // Valid JSON
         let valid_json = json!({
             "name": "test",
             "version": "1.0.0"
         });
         fs::write(&json_file, valid_json.to_string()).unwrap();
-        
+
         let result = validate_json_file(&json_file);
         assert!(result.is_ok());
         assert_eq!(result.unwrap()["name"], "test");
-        
+
         // Invalid JSON
         fs::write(&json_file, "{ invalid json }").unwrap();
         let result = validate_json_file(&json_file);
@@ -324,17 +324,17 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let minecraft_dir = temp_dir.path().join("minecraft");
         let minecraft_version = "1.20.1";
-        
+
         // Missing directories should fail
         let result = validate_minecraft_directories(&minecraft_dir, minecraft_version);
         assert!(result.is_err());
-        
+
         // Create required directories
         fs::create_dir_all(minecraft_dir.join("versions")).unwrap();
         fs::create_dir_all(minecraft_dir.join("libraries")).unwrap();
         fs::create_dir_all(minecraft_dir.join("assets")).unwrap();
         fs::create_dir_all(minecraft_dir.join("versions").join(minecraft_version)).unwrap();
-        
+
         // Now it should pass
         let result = validate_minecraft_directories(&minecraft_dir, minecraft_version);
         assert!(result.is_ok());
@@ -345,17 +345,25 @@ mod tests {
         let temp_dir = tempdir().unwrap();
         let version_dir = temp_dir.path().join("versions").join("1.20.1");
         let minecraft_version = "1.20.1";
-        
+
         fs::create_dir_all(&version_dir).unwrap();
-        
+
         // Missing files should fail
         let result = validate_minecraft_files(&version_dir, minecraft_version);
         assert!(result.is_err());
-        
+
         // Create required files
-        fs::write(version_dir.join(format!("{}.json", minecraft_version)), "{}").unwrap();
-        fs::write(version_dir.join(format!("{}.jar", minecraft_version)), "fake jar").unwrap();
-        
+        fs::write(
+            version_dir.join(format!("{}.json", minecraft_version)),
+            "{}",
+        )
+        .unwrap();
+        fs::write(
+            version_dir.join(format!("{}.jar", minecraft_version)),
+            "fake jar",
+        )
+        .unwrap();
+
         // Now it should pass
         let result = validate_minecraft_files(&version_dir, minecraft_version);
         assert!(result.is_ok());
@@ -392,12 +400,12 @@ mod tests {
             json!({
                 "hash": "da39a3ee5e6b4b0d3255bfef95601890afd80709",
                 "size": 0
-            })
+            }),
         );
 
         // Test that the function can handle empty assets (all exist)
         let client = reqwest::blocking::Client::new();
-        
+
         // For the assets that "exist", create the expected file structure
         let hash = "da39a3ee5e6b4b0d3255bfef95601890afd80709";
         let hash_prefix = &hash[0..2];
@@ -418,13 +426,16 @@ mod tests {
             "https://resources.download.minecraft.net/{}/{}",
             hash_prefix, hash
         );
-        
+
         // This tests the URL format used in the download logic
-        assert_eq!(expected_url, "https://resources.download.minecraft.net/da/da39a3ee5e6b4b0d3255bfef95601890afd80709");
+        assert_eq!(
+            expected_url,
+            "https://resources.download.minecraft.net/da/da39a3ee5e6b4b0d3255bfef95601890afd80709"
+        );
         assert_eq!(hash_prefix, "da");
     }
 
-    #[test] 
+    #[test]
     fn test_hash_prefix_extraction() {
         let test_cases = vec![
             ("da39a3ee5e6b4b0d3255bfef95601890afd80709", "da"),
@@ -434,7 +445,11 @@ mod tests {
 
         for (hash, expected_prefix) in test_cases {
             let actual_prefix = &hash[0..2];
-            assert_eq!(actual_prefix, expected_prefix, "Hash prefix extraction failed for {}", hash);
+            assert_eq!(
+                actual_prefix, expected_prefix,
+                "Hash prefix extraction failed for {}",
+                hash
+            );
         }
     }
 }

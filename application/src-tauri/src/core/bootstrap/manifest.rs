@@ -106,7 +106,8 @@ pub fn get_download_urls(version_details: &Value) -> Result<(String, String), St
 
 /// Gets asset index information from version details
 pub fn get_asset_index_info(version_details: &Value) -> Result<(String, String), String> {
-    let asset_index_node = version_details.get("assetIndex")
+    let asset_index_node = version_details
+        .get("assetIndex")
         .ok_or_else(|| "Asset index information not found".to_string())?;
 
     let assets_index_id = asset_index_node

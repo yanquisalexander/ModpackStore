@@ -60,11 +60,7 @@ pub struct BootstrapError {
 }
 
 impl BootstrapError {
-    pub fn new(
-        step: BootstrapStep,
-        category: ErrorCategory,
-        message: impl Into<String>,
-    ) -> Self {
+    pub fn new(step: BootstrapStep, category: ErrorCategory, message: impl Into<String>) -> Self {
         Self {
             step,
             category,
@@ -86,8 +82,9 @@ impl BootstrapError {
 
     /// Create a Java-related error
     pub fn java_error(step: BootstrapStep, message: impl Into<String>) -> Self {
-        Self::new(step, ErrorCategory::Java, message)
-            .with_suggestion("Verifica que Java esté instalado correctamente y que la ruta sea válida")
+        Self::new(step, ErrorCategory::Java, message).with_suggestion(
+            "Verifica que Java esté instalado correctamente y que la ruta sea válida",
+        )
     }
 
     /// Create a network-related error
@@ -98,8 +95,14 @@ impl BootstrapError {
 
     /// Create a Forge installation error
     pub fn forge_error(message: impl Into<String>) -> Self {
-        Self::new(BootstrapStep::RunningForgeInstaller, ErrorCategory::Forge, message)
-            .with_suggestion("Verifica que la versión de Forge sea compatible con la versión de Minecraft")
+        Self::new(
+            BootstrapStep::RunningForgeInstaller,
+            ErrorCategory::Forge,
+            message,
+        )
+        .with_suggestion(
+            "Verifica que la versión de Forge sea compatible con la versión de Minecraft",
+        )
     }
 
     /// Create a filesystem error

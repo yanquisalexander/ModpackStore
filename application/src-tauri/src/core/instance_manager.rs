@@ -6,7 +6,8 @@ use crate::core::instance_bootstrap::InstanceBootstrap;
 use crate::core::minecraft_instance::{self, MinecraftInstance};
 use crate::core::modpack_file_manager::ModpackManifest;
 use crate::core::tasks_manager::{
-    add_task, add_task_with_auto_start, remove_task, update_task, update_task_with_bootstrap_error, TaskStatus,
+    add_task, add_task_with_auto_start, remove_task, update_task, update_task_with_bootstrap_error,
+    TaskStatus,
 };
 use crate::API_ENDPOINT;
 use base64::{engine::general_purpose, Engine as _};
@@ -125,7 +126,7 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
     if let (Some(modpack_id), Some(version_id)) = (&instance.modpackId, &instance.modpackVersionId)
     {
         let modpack_id = modpack_id.clone(); // Extract modpack_id to avoid immutable borrow conflict
-        
+
         // Optimized flow: Check if modpack is already up to date
         if version_id == "latest" {
             // Check if instance is already up to date
@@ -995,16 +996,16 @@ fn spawn_modpack_creation_task(
 }
 
 /// Spawns a background task to update a modpack instance using incremental validation
-/// 
+///
 /// This function implements the enhanced modpack update approach that reuses the proven
 /// incremental validation logic from the "Play Now" functionality. Instead of performing
 /// a destructive reinstall, this approach:
-/// 
+///
 /// 1. Validates existing files against the new manifest
 /// 2. Downloads only files that are missing, corrupt, or have changed
 /// 3. Moves files with correct hashes to new locations when possible
 /// 4. Cleans up obsolete files after the update
-/// 
+///
 /// Benefits:
 /// - Significantly faster updates (only downloads changed content)
 /// - Preserves unchanged files (no unnecessary re-downloading)
@@ -1036,29 +1037,35 @@ fn spawn_modpack_update_task(
                 None,
             );
 
-            let files_to_download = match crate::core::modpack_file_manager::validate_modpack_assets(
-                &instance,
-                &manifest,
-                Some(task_id.clone()),
-            ).await {
-                Ok(files) => files,
-                Err(e) => {
-                    update_task(
-                        &task_id,
-                        TaskStatus::Failed,
-                        0.0,
-                        &format!("Error validando archivos: {}", e),
-                        None,
-                    );
-                    return Err(e);
-                }
-            };
+            let files_to_download =
+                match crate::core::modpack_file_manager::validate_modpack_assets(
+                    &instance,
+                    &manifest,
+                    Some(task_id.clone()),
+                )
+                .await
+                {
+                    Ok(files) => files,
+                    Err(e) => {
+                        update_task(
+                            &task_id,
+                            TaskStatus::Failed,
+                            0.0,
+                            &format!("Error validando archivos: {}", e),
+                            None,
+                        );
+                        return Err(e);
+                    }
+                };
 
             update_task(
                 &task_id,
                 TaskStatus::Running,
                 50.0,
-                &format!("Encontrados {} archivos para actualizar", files_to_download.len()),
+                &format!(
+                    "Encontrados {} archivos para actualizar",
+                    files_to_download.len()
+                ),
                 None,
             );
 
@@ -1071,7 +1078,9 @@ fn spawn_modpack_update_task(
                     &instance,
                     &manifest,
                     Some(task_id.clone()),
-                ).await {
+                )
+                .await
+                {
                     Ok(count) => count,
                     Err(e) => {
                         update_task(
@@ -1095,7 +1104,9 @@ fn spawn_modpack_update_task(
                 None,
             );
 
-            let removed_files = match crate::core::modpack_file_manager::cleanup_obsolete_files(&instance, &manifest) {
+            let removed_files = match crate::core::modpack_file_manager::cleanup_obsolete_files(
+                &instance, &manifest,
+            ) {
                 Ok(files) => files,
                 Err(e) => {
                     log::warn!("Error during cleanup (non-fatal): {}", e);
@@ -1105,8 +1116,8 @@ fn spawn_modpack_update_task(
             };
 
             log::info!(
-                "Incremental update completed: {} files processed, {} obsolete files removed", 
-                processed_count, 
+                "Incremental update completed: {} files processed, {} obsolete files removed",
+                processed_count,
                 removed_files.len()
             );
 
@@ -1131,7 +1142,10 @@ fn spawn_modpack_update_task(
             &task_id,
             TaskStatus::Running,
             90.0,
-            &format!("Actualización incremental completada - {} archivos procesados", files_processed),
+            &format!(
+                "Actualización incremental completada - {} archivos procesados",
+                files_processed
+            ),
             None,
         );
 
@@ -1139,7 +1153,10 @@ fn spawn_modpack_update_task(
             &task_id,
             TaskStatus::Completed,
             100.0,
-            &format!("Modpack {} actualizado exitosamente mediante actualización incremental", instance.instanceName),
+            &format!(
+                "Modpack {} actualizado exitosamente mediante actualización incremental",
+                instance.instanceName
+            ),
             None,
         );
 

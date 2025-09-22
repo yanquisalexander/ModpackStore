@@ -291,7 +291,7 @@ fn is_native_library_enhanced(library: &Value, os_info: &OsInfo) -> bool {
         let native_patterns = [
             "lwjgl",    // LWJGL libraries like org.lwjgl.tinyfd, org.lwjgl.glfw
             "tinyfd",   // Specific TinyFileDialogs library
-            "glfw",     // GLFW windowing library  
+            "glfw",     // GLFW windowing library
             "openal",   // OpenAL audio library
             "opengl",   // OpenGL libraries
             "jinput",   // JInput libraries

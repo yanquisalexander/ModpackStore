@@ -396,10 +396,7 @@ pub fn resync_tasks_command() -> bool {
 }
 
 /// Update task with bootstrap error information
-pub fn update_task_with_bootstrap_error(
-    id: &str,
-    error: &BootstrapError,
-) {
+pub fn update_task_with_bootstrap_error(id: &str, error: &BootstrapError) {
     let error_data = serde_json::json!({
         "step": error.step,
         "category": error.category,
@@ -467,7 +464,10 @@ pub fn cleanup_stuck_pending_tasks(max_pending_seconds: u64) -> usize {
     }
 
     if stuck_count > 0 {
-        info!("Auto-failed {} tasks that were stuck in pending state", stuck_count);
+        info!(
+            "Auto-failed {} tasks that were stuck in pending state",
+            stuck_count
+        );
     }
 
     stuck_count
@@ -477,14 +477,14 @@ pub fn cleanup_stuck_pending_tasks(max_pending_seconds: u64) -> usize {
 /// Automatically transitions to Running state after a brief delay if still pending
 pub fn add_task_with_auto_start(label: &str, data: Option<serde_json::Value>) -> String {
     let task_id = add_task(label, data);
-    
+
     // Clone task_id for the async task
     let task_id_clone = task_id.clone();
-    
+
     // Spawn a task to auto-start if still pending after 2 seconds
     tokio::spawn(async move {
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-        
+
         // Check if task is still pending and auto-start it
         if let Some(task) = get_task(&task_id_clone) {
             if task.status == TaskStatus::Pending {
@@ -495,11 +495,14 @@ pub fn add_task_with_auto_start(label: &str, data: Option<serde_json::Value>) ->
                     "Iniciando tarea...",
                     None,
                 );
-                info!("Auto-started pending task: {} ({})", task_id_clone, task.label);
+                info!(
+                    "Auto-started pending task: {} ({})",
+                    task_id_clone, task.label
+                );
             }
         }
     });
-    
+
     task_id
 }
 
@@ -508,23 +511,29 @@ pub fn add_task_with_auto_start(label: &str, data: Option<serde_json::Value>) ->
 pub fn start_periodic_task_cleanup() {
     tokio::spawn(async {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300)); // Check every 5 minutes
-        
+
         loop {
             interval.tick().await;
-            
+
             // Cleanup tasks stuck in pending state for more than 2 minutes
             let stuck_count = cleanup_stuck_pending_tasks(120);
             if stuck_count > 0 {
-                warn!("Periodic cleanup: Auto-failed {} stuck pending tasks", stuck_count);
+                warn!(
+                    "Periodic cleanup: Auto-failed {} stuck pending tasks",
+                    stuck_count
+                );
             }
-            
+
             // Also cleanup old completed/failed tasks older than 1 hour
             let old_count = cleanup_old_tasks(3600);
             if old_count > 0 {
-                info!("Periodic cleanup: Removed {} old completed tasks", old_count);
+                info!(
+                    "Periodic cleanup: Removed {} old completed tasks",
+                    old_count
+                );
             }
         }
     });
-    
+
     info!("Started periodic task cleanup service");
 }

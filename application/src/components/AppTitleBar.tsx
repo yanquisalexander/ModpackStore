@@ -24,6 +24,7 @@ import { UpdateButton } from "./appbar/UpdateButton";
 import { PatreonButton } from "./appbar/PatreonButton";
 import { NativeContextMenu } from "./appbar/ContextMenu";
 import { SocialButton } from '@/components/social/SocialButton';
+import { NotificationType, useNotifications } from "@/hooks/useNotifications";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState<Window | null>(null);
@@ -44,6 +45,10 @@ export const AppTitleBar = () => {
         initWindow().catch(error => {
             console.error("Error initializing window:", error);
         });
+
+
+
+
     }, []);
 
     useEffect(() => {

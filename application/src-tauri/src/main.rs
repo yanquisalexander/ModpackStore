@@ -83,6 +83,7 @@ pub fn main() {
     );
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             let _ = app
                 .get_webview_window("main")

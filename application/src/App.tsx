@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { use, useEffect, useRef } from "react";
 import "./App.css";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { HomeMainHeader } from "./components/home/MainHeader";
@@ -31,6 +31,7 @@ import { OnboardingFlow } from "./components/onboarding";
 import { TermsAndConditionsDialog } from "./components/TermsAndConditionsDialog";
 import { useTermsAndConditions } from "./hooks/useTermsAndConditions";
 import { useOnboarding } from "./hooks/useOnboarding";
+import { useNotifications } from "./hooks/useNotifications";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
@@ -59,6 +60,13 @@ function App() {
   const navigate = useNavigate();
   const hasLaunched = useRef(false);
 
+  const { requestPermission, permissionGranted } = useNotifications()
+
+  useEffect(() => {
+    if (!permissionGranted) {
+      requestPermission()
+    }
+  }, [permissionGranted, requestPermission])
   // Use a ref to track if we've already tried to check connection
   const hasCheckedConnectionRef = useRef(false);
 
@@ -190,7 +198,7 @@ function App() {
       <NoticeTestBuild />
       <CommandPalette />
       <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />
-      <TermsAndConditionsDialog 
+      <TermsAndConditionsDialog
         open={shouldShowToSDialog}
         content={tosContent}
         onAccept={acceptTerms}

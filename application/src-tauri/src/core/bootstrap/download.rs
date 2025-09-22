@@ -11,7 +11,7 @@ use tauri_plugin_http::reqwest;
 
 /// Downloads a file from the given URL to the specified destination
 /// Creates parent directories if they don't exist
-/// 
+///
 /// NOTE: This function is deprecated in favor of the DownloadManager-based approach.
 /// It's kept for compatibility but should not be used for new code.
 #[deprecated(
@@ -60,13 +60,18 @@ pub async fn download_file_with_manager(
 ) -> Result<(), String> {
     match expected_hash {
         Some(hash) => {
-            download_manager.download_file_with_hash(url, destination, hash).await
+            download_manager
+                .download_file_with_hash(url, destination, hash)
+                .await
         }
         None => {
             // If no hash is provided, we still use the DownloadManager but with a dummy hash
             // and just verify the file was downloaded successfully
             let dummy_hash = "0000000000000000000000000000000000000000";
-            match download_manager.download_file_with_hash(url, destination, dummy_hash).await {
+            match download_manager
+                .download_file_with_hash(url, destination, dummy_hash)
+                .await
+            {
                 Ok(()) => Ok(()),
                 Err(e) if e.contains("Hash mismatch") => {
                     // Ignore hash mismatch errors when no hash was expected
@@ -638,17 +643,16 @@ pub async fn download_libraries_enhanced(
         // Process libraries with direct download information
         if let Some(downloads) = library.get("downloads") {
             if let Some(artifact) = downloads.get("artifact") {
-                if let (Some(artifact_path), Some(artifact_url)) = (
-                    artifact["path"].as_str(),
-                    artifact["url"].as_str(),
-                ) {
+                if let (Some(artifact_path), Some(artifact_url)) =
+                    (artifact["path"].as_str(), artifact["url"].as_str())
+                {
                     let target_path = libraries_dir.join(artifact_path);
-                    
+
                     // Only download if file doesn't exist
                     if !target_path.exists() {
                         // Extract hash if available for verification
                         let expected_hash = artifact["sha1"].as_str().unwrap_or("");
-                        
+
                         downloads_to_process.push((
                             artifact_url.to_string(),
                             target_path,
@@ -661,17 +665,17 @@ pub async fn download_libraries_enhanced(
             // Handle native libraries with classifiers
             if let Some(classifiers) = downloads.get("classifiers") {
                 let current_os = get_current_os_classifier();
-                
+
                 if let Some(classifier_info) = classifiers.get(&current_os) {
                     if let (Some(classifier_path), Some(classifier_url)) = (
                         classifier_info["path"].as_str(),
                         classifier_info["url"].as_str(),
                     ) {
                         let target_path = libraries_dir.join(classifier_path);
-                        
+
                         if !target_path.exists() {
                             let expected_hash = classifier_info["sha1"].as_str().unwrap_or("");
-                            
+
                             downloads_to_process.push((
                                 classifier_url.to_string(),
                                 target_path,
@@ -684,7 +688,9 @@ pub async fn download_libraries_enhanced(
         }
         // Handle Maven-format libraries
         else if let Some(name) = library["name"].as_str() {
-            if let Some((url, target_path)) = build_maven_download_info(name, library, libraries_dir) {
+            if let Some((url, target_path)) =
+                build_maven_download_info(name, library, libraries_dir)
+            {
                 if !target_path.exists() {
                     downloads_to_process.push((
                         url,
@@ -712,12 +718,15 @@ pub async fn download_libraries_enhanced(
     emit_status(
         instance,
         "instance-downloading-libraries-start",
-        &format!("Iniciando descarga de {} librerías con DownloadManager", effective_total),
+        &format!(
+            "Iniciando descarga de {} librerías con DownloadManager",
+            effective_total
+        ),
     );
 
     // Create DownloadManager optimized for library downloads
     let download_manager = DownloadManager::with_concurrency(4);
-    
+
     let instance_clone = instance.clone();
 
     // Download all libraries in parallel with progress reporting
@@ -726,12 +735,9 @@ pub async fn download_libraries_enhanced(
             downloads_to_process,
             move |current, total, message| {
                 // Update progress for library downloads
-                let stage = Stage::DownloadingFiles {
-                    current,
-                    total,
-                };
+                let stage = Stage::DownloadingFiles { current, total };
                 emit_status_with_stage(&instance_clone, "instance-downloading-libraries", &stage);
-                
+
                 // Log progress
                 log::info!("Descargando librerías: {}/{} - {}", current, total, message);
             },
@@ -778,12 +784,11 @@ pub async fn download_forge_libraries_enhanced(
         if let Some(downloads) = library.get("downloads") {
             // Download main artifact
             if let Some(artifact) = downloads.get("artifact") {
-                if let (Some(path), Some(url)) = (
-                    artifact["path"].as_str(),
-                    artifact["url"].as_str(),
-                ) {
+                if let (Some(path), Some(url)) =
+                    (artifact["path"].as_str(), artifact["url"].as_str())
+                {
                     let target_path = libraries_dir.join(path);
-                    
+
                     if !target_path.exists() {
                         let expected_hash = artifact["sha1"].as_str().unwrap_or("");
                         downloads_to_process.push((
@@ -798,14 +803,13 @@ pub async fn download_forge_libraries_enhanced(
             // Download native libraries
             if let Some(classifiers) = downloads.get("classifiers") {
                 let current_os = get_current_os_classifier_forge();
-                
+
                 if let Some(native) = classifiers.get(&current_os) {
-                    if let (Some(url), Some(path)) = (
-                        native["url"].as_str(),
-                        native["path"].as_str(),
-                    ) {
+                    if let (Some(url), Some(path)) =
+                        (native["url"].as_str(), native["path"].as_str())
+                    {
                         let target_path = libraries_dir.join(path);
-                        
+
                         if !target_path.exists() {
                             let expected_hash = native["sha1"].as_str().unwrap_or("");
                             downloads_to_process.push((
@@ -820,7 +824,9 @@ pub async fn download_forge_libraries_enhanced(
         }
         // Handle Maven-format libraries
         else if !name.is_empty() {
-            if let Some((url, target_path)) = build_maven_download_info(name, library, libraries_dir) {
+            if let Some((url, target_path)) =
+                build_maven_download_info(name, library, libraries_dir)
+            {
                 if !target_path.exists() {
                     downloads_to_process.push((
                         url,
@@ -845,7 +851,7 @@ pub async fn download_forge_libraries_enhanced(
 
     // Create DownloadManager optimized for Forge library downloads
     let download_manager = DownloadManager::with_concurrency(4);
-    
+
     let instance_clone = instance.clone();
 
     // Download all Forge libraries in parallel
@@ -853,19 +859,24 @@ pub async fn download_forge_libraries_enhanced(
         .download_files_parallel_with_progress(
             downloads_to_process,
             move |current, total, message| {
-                let stage = Stage::DownloadingForgeLibraries {
+                let stage = Stage::DownloadingForgeLibraries { current, total };
+                emit_status_with_stage(&instance_clone, "instance-downloading-forge", &stage);
+
+                log::info!(
+                    "Descargando librerías de Forge: {}/{} - {}",
                     current,
                     total,
-                };
-                emit_status_with_stage(&instance_clone, "instance-downloading-forge", &stage);
-                
-                log::info!("Descargando librerías de Forge: {}/{} - {}", current, total, message);
+                    message
+                );
             },
         )
         .await
         .map_err(|e| format!("Error al descargar librerías de Forge: {}", e))?;
 
-    log::info!("Descarga de {} librerías de Forge completada con DownloadManager", total_downloads);
+    log::info!(
+        "Descarga de {} librerías de Forge completada con DownloadManager",
+        total_downloads
+    );
     Ok(())
 }
 
@@ -930,7 +941,8 @@ fn get_current_os_classifier_forge() -> String {
         "natives-osx"
     } else {
         "natives-linux"
-    }.to_string()
+    }
+    .to_string()
 }
 
 /// Build download URL and target path for Maven-format library
@@ -1043,7 +1055,7 @@ mod tests {
     #[test]
     fn test_get_current_os_classifier() {
         let classifier = get_current_os_classifier();
-        
+
         if cfg!(target_os = "windows") {
             assert!(classifier.starts_with("windows-"));
         } else if cfg!(target_os = "macos") {
@@ -1053,13 +1065,15 @@ mod tests {
         }
 
         // Should include architecture
-        assert!(classifier.contains("64") || classifier.contains("32") || classifier.contains("arm64"));
+        assert!(
+            classifier.contains("64") || classifier.contains("32") || classifier.contains("arm64")
+        );
     }
 
     #[test]
     fn test_get_current_os_classifier_forge() {
         let classifier = get_current_os_classifier_forge();
-        
+
         if cfg!(target_os = "windows") {
             assert_eq!(classifier, "natives-windows");
         } else if cfg!(target_os = "macos") {
@@ -1080,17 +1094,19 @@ mod tests {
             "url": "https://repo.example.com/"
         });
 
-        let result = build_maven_download_info(
-            "org.example:test-lib:1.0.0",
-            &library,
-            libraries_dir,
-        );
+        let result =
+            build_maven_download_info("org.example:test-lib:1.0.0", &library, libraries_dir);
 
         assert!(result.is_some());
         let (url, path) = result.unwrap();
-        
-        assert_eq!(url, "https://repo.example.com/org/example/test-lib/1.0.0/test-lib-1.0.0.jar");
-        assert!(path.to_string_lossy().contains("org/example/test-lib/1.0.0/test-lib-1.0.0.jar"));
+
+        assert_eq!(
+            url,
+            "https://repo.example.com/org/example/test-lib/1.0.0/test-lib-1.0.0.jar"
+        );
+        assert!(path
+            .to_string_lossy()
+            .contains("org/example/test-lib/1.0.0/test-lib-1.0.0.jar"));
 
         // Test with classifier
         let result = build_maven_download_info(
@@ -1101,16 +1117,17 @@ mod tests {
 
         assert!(result.is_some());
         let (url, path) = result.unwrap();
-        
-        assert_eq!(url, "https://repo.example.com/org/example/test-lib/1.0.0/test-lib-1.0.0-natives.jar");
-        assert!(path.to_string_lossy().contains("test-lib-1.0.0-natives.jar"));
+
+        assert_eq!(
+            url,
+            "https://repo.example.com/org/example/test-lib/1.0.0/test-lib-1.0.0-natives.jar"
+        );
+        assert!(path
+            .to_string_lossy()
+            .contains("test-lib-1.0.0-natives.jar"));
 
         // Test invalid format
-        let result = build_maven_download_info(
-            "invalid",
-            &library,
-            libraries_dir,
-        );
+        let result = build_maven_download_info("invalid", &library, libraries_dir);
 
         assert!(result.is_none());
     }
@@ -1121,15 +1138,16 @@ mod tests {
         // This ensures we maintain API compatibility
         let temp_dir = tempdir().unwrap();
         let test_file = temp_dir.path().join("test.txt");
-        
+
         // We can't actually test HTTP downloads in unit tests,
         // but we can test the path handling logic
         assert!(test_file.parent().is_some());
-        
+
         // Test that the function signature is still available
         let client = reqwest::blocking::Client::new();
-        let _test_fn: fn(&reqwest::blocking::Client, &str, &Path) -> Result<(), String> = download_file;
-        
+        let _test_fn: fn(&reqwest::blocking::Client, &str, &Path) -> Result<(), String> =
+            download_file;
+
         // Function should exist and be callable (even if it fails due to no network)
         assert!(true); // This test passes if compilation succeeds
     }
@@ -1166,7 +1184,8 @@ mod tests {
         let result = download_libraries_enhanced(&instance, &version_details, &libraries_dir).await;
         assert!(result.is_ok()); // Should succeed with empty libraries
 
-        let result = download_forge_libraries_enhanced(&instance, &version_details, &libraries_dir).await;
+        let result =
+            download_forge_libraries_enhanced(&instance, &version_details, &libraries_dir).await;
         assert!(result.is_ok()); // Should succeed with empty libraries
     }
 
@@ -1174,7 +1193,7 @@ mod tests {
     async fn test_download_file_with_manager() {
         let temp_dir = tempdir().unwrap();
         let test_file = temp_dir.path().join("test.txt");
-        
+
         let download_manager = DownloadManager::with_concurrency(1);
 
         // Test with no hash (should use dummy hash logic)
@@ -1183,8 +1202,9 @@ mod tests {
             "https://httpbin.org/status/404", // This will fail, but tests the function signature
             &test_file,
             None,
-        ).await;
-        
+        )
+        .await;
+
         // We expect this to fail due to 404, but the function should handle it gracefully
         assert!(result.is_err());
 
@@ -1194,8 +1214,9 @@ mod tests {
             "https://httpbin.org/status/404",
             &test_file,
             Some("da39a3ee5e6b4b0d3255bfef95601890afd80709"),
-        ).await;
-        
+        )
+        .await;
+
         assert!(result.is_err());
     }
 
@@ -1216,9 +1237,18 @@ mod tests {
         // Verify we can extract artifact information
         if let Some(downloads) = library_with_downloads.get("downloads") {
             if let Some(artifact) = downloads.get("artifact") {
-                assert_eq!(artifact["path"].as_str().unwrap(), "test/library/1.0/library-1.0.jar");
-                assert_eq!(artifact["url"].as_str().unwrap(), "https://repo.example.com/test/library/1.0/library-1.0.jar");
-                assert_eq!(artifact["sha1"].as_str().unwrap(), "da39a3ee5e6b4b0d3255bfef95601890afd80709");
+                assert_eq!(
+                    artifact["path"].as_str().unwrap(),
+                    "test/library/1.0/library-1.0.jar"
+                );
+                assert_eq!(
+                    artifact["url"].as_str().unwrap(),
+                    "https://repo.example.com/test/library/1.0/library-1.0.jar"
+                );
+                assert_eq!(
+                    artifact["sha1"].as_str().unwrap(),
+                    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+                );
             }
         }
 
@@ -1239,7 +1269,10 @@ mod tests {
         if let Some(downloads) = library_with_classifiers.get("downloads") {
             if let Some(classifiers) = downloads.get("classifiers") {
                 if let Some(native_linux) = classifiers.get("natives-linux") {
-                    assert_eq!(native_linux["path"].as_str().unwrap(), "test/native/1.0/native-1.0-natives-linux.jar");
+                    assert_eq!(
+                        native_linux["path"].as_str().unwrap(),
+                        "test/native/1.0/native-1.0-natives-linux.jar"
+                    );
                 }
             }
         }

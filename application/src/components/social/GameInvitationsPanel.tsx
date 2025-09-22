@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Send, Clock, Check, X, Trash2, Mail } from 'lucide-react';
 import { useSocial } from '@/hooks/useSocial';
 import { InvitationStatus } from '@/services/gameInvitations';
+import { useNotifications } from '@/hooks/useNotifications';
 
 interface GameInvitationsPanelProps {
   token?: string;
@@ -107,6 +108,8 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
     respondToInvitation,
   } = useSocial(token);
 
+  const { addNotification } = useNotifications();
+
   const [selectedView, setSelectedView] = useState<'received' | 'sent'>('received');
   const [showSendModal, setShowSendModal] = useState(false);
 
@@ -176,223 +179,220 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
         return 'Desconocido';
     }
   };
+};
 
-  const handleSendInvitation = async (receiverId: string, modpackId: string, message?: string) => {
-    await sendGameInvitation(receiverId, modpackId, message);
-  };
+const renderReceivedInvitations = () => (
+  <div className="p-4">
+    <div className="flex items-center justify-between mb-4">
+      <h3 className="font-medium text-sm text-muted-foreground">
+        INVITACIONES RECIBIDAS — {pendingInvitations.length}
+      </h3>
+    </div>
 
-  const renderReceivedInvitations = () => (
-    <div className="p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-medium text-sm text-muted-foreground">
-          INVITACIONES RECIBIDAS — {pendingInvitations.length}
-        </h3>
+    {pendingInvitations.length === 0 ? (
+      <div className="text-center py-8 text-muted-foreground">
+        <Mail className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">No hay invitaciones pendientes</p>
+        <p className="text-xs mt-1">Las invitaciones de juego de amigos aparecerán aquí</p>
       </div>
+    ) : (
+      <div className="space-y-3">
+        {pendingInvitations.map((invitation) => (
+          <div key={invitation.id} className="border border-border rounded-lg p-3 bg-accent/30">
+            <div className="flex items-start gap-3">
+              <img
+                src={invitation.sender?.avatarUrl || '/default-avatar.png'}
+                alt={invitation.sender?.username || 'Usuario desconocido'}
+                className="w-10 h-10 rounded-full"
+              />
 
-      {pendingInvitations.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          <Mail className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">No hay invitaciones pendientes</p>
-          <p className="text-xs mt-1">Las invitaciones de juego de amigos aparecerán aquí</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {pendingInvitations.map((invitation) => (
-            <div key={invitation.id} className="border border-border rounded-lg p-3 bg-accent/30">
-              <div className="flex items-start gap-3">
-                <img
-                  src={invitation.sender?.avatarUrl || '/default-avatar.png'}
-                  alt={invitation.sender?.username || 'Usuario desconocido'}
-                  className="w-10 h-10 rounded-full"
-                />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm font-medium truncate">
+                    {invitation.sender?.username || 'Usuario desconocido'}
+                  </p>
+                  {getStatusIcon(invitation.status)}
+                </div>
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-sm font-medium truncate">
-                      {invitation.sender?.username || 'Usuario desconocido'}
-                    </p>
-                    {getStatusIcon(invitation.status)}
-                  </div>
+                <div className="flex items-center gap-2 mb-2">
+                  <img
+                    src={invitation.modpack?.iconUrl || '/default-modpack.png'}
+                    alt={invitation.modpack?.name || 'Modpack desconocido'}
+                    className="w-6 h-6 rounded"
+                  />
+                  <p className="text-sm text-muted-foreground truncate">
+                    {invitation.modpack?.name || 'Modpack desconocido'}
+                  </p>
+                </div>
 
-                  <div className="flex items-center gap-2 mb-2">
-                    <img
-                      src={invitation.modpack?.iconUrl || '/default-modpack.png'}
-                      alt={invitation.modpack?.name || 'Modpack desconocido'}
-                      className="w-6 h-6 rounded"
-                    />
-                    <p className="text-sm text-muted-foreground truncate">
-                      {invitation.modpack?.name || 'Modpack desconocido'}
-                    </p>
-                  </div>
+                {invitation.message && (
+                  <p className="text-sm text-muted-foreground mb-2 italic">
+                    "{invitation.message}"
+                  </p>
+                )}
 
-                  {invitation.message && (
-                    <p className="text-sm text-muted-foreground mb-2 italic">
-                      "{invitation.message}"
-                    </p>
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{formatTimeAgo(invitation.createdAt)}</span>
+                  <span className={`px-2 py-1 rounded-full ${getStatusColor(invitation.status)}`}>
+                    {formatExpiryTime(invitation.expiresAt)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {invitation.status === InvitationStatus.PENDING && (
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => respondToInvitation(invitation.id, 'accept')}
+                  className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <Check className="w-3 h-3" />
+                  Aceptar
+                </button>
+                <button
+                  onClick={() => respondToInvitation(invitation.id, 'decline')}
+                  className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
+                >
+                  <X className="w-3 h-3" />
+                  Rechazar
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
+const renderSentInvitations = () => (
+  <div className="p-4">
+    <div className="flex items-center justify-between mb-4">
+      <h3 className="font-medium text-sm text-muted-foreground">
+        INVITACIONES ENVIADAS — {sentInvitations.length}
+      </h3>
+      <button
+        onClick={() => setShowSendModal(true)}
+        className="px-3 py-2 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
+      >
+        <Send className="w-3 h-3" />
+        Enviar
+      </button>
+    </div>
+
+    {sentInvitations.length === 0 ? (
+      <div className="text-center py-8 text-muted-foreground">
+        <Send className="w-8 h-8 mx-auto mb-2 opacity-50" />
+        <p className="text-sm">No hay invitaciones enviadas</p>
+        <p className="text-xs mt-1">Invita a amigos a jugar modpacks juntos</p>
+      </div>
+    ) : (
+      <div className="space-y-3">
+        {sentInvitations.map((invitation) => (
+          <div key={invitation.id} className="border border-border rounded-lg p-3">
+            <div className="flex items-start gap-3">
+              <img
+                src={invitation.receiver?.avatarUrl || '/default-avatar.png'}
+                alt={invitation.receiver?.username || 'Usuario desconocido'}
+                className="w-10 h-10 rounded-full"
+              />
+
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-sm font-medium truncate">
+                    {invitation.receiver?.username || 'Usuario desconocido'}
+                  </p>
+                  {getStatusIcon(invitation.status)}
+                  <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(invitation.status)}`}>
+                    {getStatusText(invitation.status)}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2 mb-2">
+                  <img
+                    src={invitation.modpack?.iconUrl || '/default-modpack.png'}
+                    alt={invitation.modpack?.name || 'Modpack desconocido'}
+                    className="w-6 h-6 rounded"
+                  />
+                  <p className="text-sm text-muted-foreground truncate">
+                    {invitation.modpack?.name || 'Modpack desconocido'}
+                  </p>
+                </div>
+
+                {invitation.message && (
+                  <p className="text-sm text-muted-foreground mb-2 italic">
+                    "{invitation.message}"
+                  </p>
+                )}
+
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{formatTimeAgo(invitation.createdAt)}</span>
+                  {invitation.status === InvitationStatus.PENDING && (
+                    <span>{formatExpiryTime(invitation.expiresAt)}</span>
                   )}
-
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{formatTimeAgo(invitation.createdAt)}</span>
-                    <span className={`px-2 py-1 rounded-full ${getStatusColor(invitation.status)}`}>
-                      {formatExpiryTime(invitation.expiresAt)}
-                    </span>
-                  </div>
                 </div>
               </div>
 
               {invitation.status === InvitationStatus.PENDING && (
-                <div className="flex gap-2 mt-3">
-                  <button
-                    onClick={() => respondToInvitation(invitation.id, 'accept')}
-                    className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Check className="w-3 h-3" />
-                    Aceptar
-                  </button>
-                  <button
-                    onClick={() => respondToInvitation(invitation.id, 'decline')}
-                    className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <X className="w-3 h-3" />
-                    Rechazar
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    // Manejar cancelación de invitación
+                    console.log('Cancelar invitación:', invitation.id);
+                  }}
+                  className="p-1 rounded-md hover:bg-accent transition-colors text-red-600"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               )}
             </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-
-  const renderSentInvitations = () => (
-    <div className="p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-medium text-sm text-muted-foreground">
-          INVITACIONES ENVIADAS — {sentInvitations.length}
-        </h3>
-        <button
-          onClick={() => setShowSendModal(true)}
-          className="px-3 py-2 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
-        >
-          <Send className="w-3 h-3" />
-          Enviar
-        </button>
+          </div>
+        ))}
       </div>
+    )}
+  </div>
+);
 
-      {sentInvitations.length === 0 ? (
-        <div className="text-center py-8 text-muted-foreground">
-          <Send className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">No hay invitaciones enviadas</p>
-          <p className="text-xs mt-1">Invita a amigos a jugar modpacks juntos</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {sentInvitations.map((invitation) => (
-            <div key={invitation.id} className="border border-border rounded-lg p-3">
-              <div className="flex items-start gap-3">
-                <img
-                  src={invitation.receiver?.avatarUrl || '/default-avatar.png'}
-                  alt={invitation.receiver?.username || 'Usuario desconocido'}
-                  className="w-10 h-10 rounded-full"
-                />
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-sm font-medium truncate">
-                      {invitation.receiver?.username || 'Usuario desconocido'}
-                    </p>
-                    {getStatusIcon(invitation.status)}
-                    <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(invitation.status)}`}>
-                      {getStatusText(invitation.status)}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 mb-2">
-                    <img
-                      src={invitation.modpack?.iconUrl || '/default-modpack.png'}
-                      alt={invitation.modpack?.name || 'Modpack desconocido'}
-                      className="w-6 h-6 rounded"
-                    />
-                    <p className="text-sm text-muted-foreground truncate">
-                      {invitation.modpack?.name || 'Modpack desconocido'}
-                    </p>
-                  </div>
-
-                  {invitation.message && (
-                    <p className="text-sm text-muted-foreground mb-2 italic">
-                      "{invitation.message}"
-                    </p>
-                  )}
-
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{formatTimeAgo(invitation.createdAt)}</span>
-                    {invitation.status === InvitationStatus.PENDING && (
-                      <span>{formatExpiryTime(invitation.expiresAt)}</span>
-                    )}
-                  </div>
-                </div>
-
-                {invitation.status === InvitationStatus.PENDING && (
-                  <button
-                    onClick={() => {
-                      // Manejar cancelación de invitación
-                      console.log('Cancelar invitación:', invitation.id);
-                    }}
-                    className="p-1 rounded-md hover:bg-accent transition-colors text-red-600"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+return (
+  <div className="h-full flex flex-col">
+    {/* View Selector */}
+    <div className="flex border-b border-border">
+      <button
+        onClick={() => setSelectedView('received')}
+        className={`flex-1 py-2 px-3 text-sm font-medium transition-colors relative ${selectedView === 'received'
+          ? 'text-primary border-b-2 border-primary bg-accent/50'
+          : 'text-muted-foreground hover:text-foreground'
+          }`}
+      >
+        Recibidas
+        {pendingInvitations.length > 0 && (
+          <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">
+            {pendingInvitations.length}
+          </span>
+        )}
+      </button>
+      <button
+        onClick={() => setSelectedView('sent')}
+        className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${selectedView === 'sent'
+          ? 'text-primary border-b-2 border-primary bg-accent/50'
+          : 'text-muted-foreground hover:text-foreground'
+          }`}
+      >
+        Enviadas
+      </button>
     </div>
-  );
 
-  return (
-    <div className="h-full flex flex-col">
-      {/* View Selector */}
-      <div className="flex border-b border-border">
-        <button
-          onClick={() => setSelectedView('received')}
-          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors relative ${selectedView === 'received'
-            ? 'text-primary border-b-2 border-primary bg-accent/50'
-            : 'text-muted-foreground hover:text-foreground'
-            }`}
-        >
-          Recibidas
-          {pendingInvitations.length > 0 && (
-            <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">
-              {pendingInvitations.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setSelectedView('sent')}
-          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${selectedView === 'sent'
-            ? 'text-primary border-b-2 border-primary bg-accent/50'
-            : 'text-muted-foreground hover:text-foreground'
-            }`}
-        >
-          Enviadas
-        </button>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        {selectedView === 'received' ? renderReceivedInvitations() : renderSentInvitations()}
-      </div>
-
-      {/* Send Invitation Modal */}
-      <SendInvitationModal
-        isOpen={showSendModal}
-        onClose={() => setShowSendModal(false)}
-        friends={friends}
-        onSend={handleSendInvitation}
-      />
+    {/* Content */}
+    <div className="flex-1 overflow-y-auto">
+      {selectedView === 'received' ? renderReceivedInvitations() : renderSentInvitations()}
     </div>
-  );
+
+    {/* Send Invitation Modal */}
+    <SendInvitationModal
+      isOpen={showSendModal}
+      onClose={() => setShowSendModal(false)}
+      friends={friends}
+      onSend={handleSendInvitation}
+    />
+  </div>
+);
 };

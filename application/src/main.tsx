@@ -9,11 +9,15 @@ import { UpdateStatus } from "./components/UpdateStatus";
 import { start as startDiscordRpc } from "tauri-plugin-drpc";
 import { AppProviders } from "./providers/AppProviders"; // Importas el nuevo componente
 import { info, debug, error, warn } from "@tauri-apps/plugin-log";
+import { preloadSounds } from '@/utils/sounds';
 
 // La llamada a Discord RPC se mantiene igual
 startDiscordRpc("943184136976334879").catch((err) => {
   console.error("Failed to start Discord RPC:", err);
 });
+
+// Preload sounds including notification sounds
+preloadSounds();
 
 const $root = document.getElementById("root");
 
