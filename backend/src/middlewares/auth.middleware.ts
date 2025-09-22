@@ -14,7 +14,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // Define a type for Hono's context variables for full type safety.
 // This eliminates the need for type assertions like `as User`.
 export type AuthVariables = {
-    jwt_payload: { sub: string; iat: number; exp: number };
+    jwt_payload: { sub: string; sessionId: number; iat: number; exp: number };
     user: User;
     userId: string;
 };

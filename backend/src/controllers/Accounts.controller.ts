@@ -4,7 +4,9 @@ import { AuthService } from '@/services/auth.service';
 import { TwitchService } from '@/services/twitch.service';
 import { PatreonIntegrationService } from '@/services/patreon-integration.service';
 import { APIError } from '@/lib/APIError';
-import { AuthVariables } from "@/middlewares/auth.middleware";
+import { AuthVariables, USER_CONTEXT_KEY } from "@/middlewares/auth.middleware";
+import { Session } from '@/entities/Session';
+import { User } from '@/entities/User';
 
 // Define un tipo para el cuerpo de la petición de refresh para mayor seguridad
 type RefreshTokenPayload = {
@@ -36,15 +38,43 @@ export class AccountsController {
      */
     static async getCurrentUser(c: Context<{ Variables: AuthVariables }>) {
         // 4. El contexto ya está tipado, no se necesita `as User`.
-        const authenticatedUser = c.get('user');
+        const authenticatedUser = c.get(USER_CONTEXT_KEY) as AuthVariables['user'];
+        const jwtPayload = c.get('jwt_payload') as AuthVariables['jwt_payload'];
 
         // Esta comprobación es una capa extra de seguridad, aunque `requireAuth` ya lo garantiza.
         if (!authenticatedUser) {
             throw new APIError(401, 'No valid user found in context.', 'USER_NOT_IN_CONTEXT');
         }
 
-        console.log(`[ACCOUNTS] Getting profile for user ID: ${authenticatedUser.id}`);
-        const userProfile = await AuthService.getAuthenticatedUserProfile(authenticatedUser.id);
+        // Verificar que la sesión es válida y existe en la base de datos
+        const session = await Session.findBySessionId(jwtPayload.sessionId);
+        if (!session) {
+            throw new APIError(401, 'Session has been revoked or does not exist.', 'SESSION_INVALID');
+        }
+
+        // Verificar que la sesión pertenece al usuario correcto
+        if (session.userId !== authenticatedUser.id) {
+            throw new APIError(401, 'Session does not belong to authenticated user.', 'SESSION_MISMATCH');
+        }
+
+        // Verificar que el usuario aún existe en la base de datos
+        // Esto proporciona una capa adicional de seguridad en caso de que el usuario haya sido eliminado
+        const currentUser = await User.findOne({
+            where: { id: authenticatedUser.id },
+            relations: ['publisherMemberships']
+        });
+
+        if (!currentUser) {
+            throw new APIError(401, 'User no longer exists.', 'USER_NOT_FOUND');
+        }
+
+        // Verificar si el usuario está activo (puedes agregar campos como isActive, isBanned, etc.)
+        // if (!currentUser.isActive) {
+        //     throw new APIError(401, 'User account is disabled.', 'USER_DISABLED');
+        // }
+
+        console.log(`[ACCOUNTS] Getting profile for user ID: ${currentUser.id} with session ID: ${session.id}`);
+        const userProfile = await AuthService.getAuthenticatedUserProfile(currentUser.id);
 
         return c.json(userProfile);
     }
