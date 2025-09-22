@@ -27,6 +27,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useAuthentication } from "@/stores/AuthContext";
 import { getModpackById } from "@/services/getModpacks";
 import { API_ENDPOINT } from "@/consts";
+import { MarkdownRenderer } from "@/components/ui/markdown-renderer";
 
 // Hook personalizado para verificar el acceso del usuario a un modpack
 const useModpackAccess = (modpackId: string, requiresTwitchSubscription: boolean) => {
@@ -665,10 +666,13 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 </TabsList>
 
                                 <TabsContent value="overview" className="mt-6">
-                                    <h2 className="text-xl font-semibold text-white">Descripción</h2>
-                                    <p className="text-white/80 mt-2">
-                                        {modpackData.description ?? "Este modpack aún no tiene una descripción."}
-                                    </p>
+                                    <h2 className="text-xl font-semibold text-white mb-4">Descripción</h2>
+                                    <div className="prose prose-invert max-w-none">
+                                        <MarkdownRenderer 
+                                            content={modpackData.description || ""}
+                                            className="text-white/80"
+                                        />
+                                    </div>
                                 </TabsContent>
 
                                 <TabsContent value="files" className="mt-6">
