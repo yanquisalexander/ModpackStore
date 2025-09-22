@@ -144,17 +144,17 @@ export class AccountsController {
             }
 
             console.log(`[ACCOUNTS] Processing Patreon OAuth callback for user ID: ${userId}`);
-            
+
             // Process OAuth callback
             const result = await PatreonIntegrationService.handleOAuthCallback(code, state);
-            
+
             if (!result.success) {
                 throw new APIError(400, result.error || 'Failed to process Patreon OAuth', 'PATREON_OAUTH_FAILED');
             }
 
-            // Link Patreon account to user
-            const linkResult = await PatreonIntegrationService.handlePatreonCallback(code, userId);
-            
+            // Link Patreon account to user using the data from OAuth callback
+            const linkResult = await PatreonIntegrationService.linkPatreonAccount(userId, result.data);
+
             if (!linkResult.success) {
                 throw new APIError(400, linkResult.error || 'Failed to link Patreon account', 'PATREON_LINK_FAILED');
             }
@@ -165,11 +165,11 @@ export class AccountsController {
             });
         } catch (error: any) {
             console.error('[ACCOUNTS] Patreon OAuth callback error:', error);
-            
+
             if (error instanceof APIError) {
                 throw error;
             }
-            
+
             throw new APIError(500, 'Internal server error during Patreon OAuth', 'INTERNAL_ERROR');
         }
     }
@@ -185,7 +185,7 @@ export class AccountsController {
         }
 
         console.log(`[ACCOUNTS] User ${authenticatedUser.id} accepting Terms and Conditions`);
-        
+
         // Update the user's tosAcceptedAt timestamp
         authenticatedUser.tosAcceptedAt = new Date();
         await authenticatedUser.save();

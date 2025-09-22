@@ -79,11 +79,11 @@ export class SocialProfileController {
         const canUpload = await PatreonIntegrationService.canUploadCoverImage(userId);
 
         if (!canUpload) {
-            throw new APIError(403, 'Cover image upload is a Patreon-only feature', 'PATREON_REQUIRED');
+            throw new APIError(403, 'Cover image upload requires premium access', 'PREMIUM_REQUIRED');
         }
 
         // Validate image URL (basic validation)
-        if (!this.isValidImageUrl(body.coverImageUrl)) {
+        if (!SocialProfileController.isValidImageUrl(body.coverImageUrl)) {
             throw new APIError(400, 'Invalid image URL', 'INVALID_IMAGE_URL');
         }
 
@@ -136,6 +136,7 @@ export class SocialProfileController {
 
         const patreonStatus = await PatreonIntegrationService.verifyPatreonStatus(userId);
         const availableFeatures = PatreonIntegrationService.getPremiumFeaturesForTier(patreonStatus.tier);
+        const canUploadCoverImage = await PatreonIntegrationService.canUploadCoverImage(userId);
 
         return c.json({
             success: true,
@@ -145,7 +146,8 @@ export class SocialProfileController {
                 isActive: patreonStatus.isActive,
                 entitledAmount: patreonStatus.entitledAmount,
                 availableFeatures,
-                canUploadCoverImage: patreonStatus.isPatron && patreonStatus.isActive
+                canUploadCoverImage,
+                isConnected: patreonStatus.isConnected
             }
         });
     }
@@ -192,8 +194,8 @@ export class SocialProfileController {
         user.patreonAccessToken = null;
         user.patreonRefreshToken = null;
 
-        // Remove cover image if user had one (since they lose premium access)
-        if (user.coverImageUrl) {
+        // Remove cover image if user had one and is not an admin (admins keep premium access)
+        if (user.coverImageUrl && user.role !== UserRole.ADMIN && user.role !== UserRole.SUPERADMIN) {
             user.coverImageUrl = null;
         }
 
@@ -263,7 +265,7 @@ export class SocialProfileController {
         const canUpload = await PatreonIntegrationService.canUploadCoverImage(userId);
 
         if (!canUpload) {
-            throw new APIError(403, 'Cover image upload is a Patreon-only feature', 'PATREON_REQUIRED');
+            throw new APIError(403, 'Cover image upload requires premium access', 'PREMIUM_REQUIRED');
         }
 
         // This would handle file upload logic
@@ -278,20 +280,18 @@ export class SocialProfileController {
     }
 
     /**
-     * Validate image URL format
+     * Validate image URL for cover image
      */
     private static isValidImageUrl(url: string): boolean {
         try {
             const parsedUrl = new URL(url);
-            const validHosts = ['i.imgur.com', 'cdn.discordapp.com', 'your-cdn-domain.com'];
             const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
 
-            const isValidHost = validHosts.some(host => parsedUrl.hostname === host);
             const isValidExtension = validExtensions.some(ext =>
                 parsedUrl.pathname.toLowerCase().endsWith(ext)
             );
 
-            return isValidHost && isValidExtension;
+            return isValidExtension;
         } catch {
             return false;
         }

@@ -35,18 +35,18 @@ const SendInvitationModal: React.FC<SendInvitationModalProps> = ({ isOpen, onClo
     <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center p-4">
       <div className="bg-background border border-border rounded-lg w-full max-w-md">
         <div className="p-4 border-b border-border">
-          <h3 className="text-lg font-semibold">Send Game Invitation</h3>
+          <h3 className="text-lg font-semibold">Enviar Invitación de Juego</h3>
         </div>
-        
+
         <div className="p-4 space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-2">Friend</label>
+            <label className="block text-sm font-medium mb-2">Amigo</label>
             <select
               value={selectedFriend}
               onChange={(e) => setSelectedFriend(e.target.value)}
               className="w-full px-3 py-2 bg-accent border border-border rounded-md"
             >
-              <option value="">Select a friend</option>
+              <option value="">Seleccionar un amigo</option>
               {friends.map((friend) => (
                 <option key={friend.user.id} value={friend.user.id}>
                   {friend.user.username}
@@ -54,43 +54,43 @@ const SendInvitationModal: React.FC<SendInvitationModalProps> = ({ isOpen, onClo
               ))}
             </select>
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium mb-2">Modpack ID</label>
+            <label className="block text-sm font-medium mb-2">ID del Modpack</label>
             <input
               type="text"
               value={modpackId}
               onChange={(e) => setModpackId(e.target.value)}
-              placeholder="Enter modpack ID"
+              placeholder="Ingresa el ID del modpack"
               className="w-full px-3 py-2 bg-accent border border-border rounded-md"
             />
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium mb-2">Message (optional)</label>
+            <label className="block text-sm font-medium mb-2">Mensaje (opcional)</label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              placeholder="Add a message..."
+              placeholder="Agrega un mensaje..."
               rows={3}
               className="w-full px-3 py-2 bg-accent border border-border rounded-md resize-none"
             />
           </div>
         </div>
-        
+
         <div className="p-4 border-t border-border flex gap-2 justify-end">
           <button
             onClick={onClose}
             className="px-4 py-2 text-sm bg-accent hover:bg-accent/80 rounded-md transition-colors"
           >
-            Cancel
+            Cancelar
           </button>
           <button
             onClick={handleSend}
             disabled={!selectedFriend || !modpackId}
             className="px-4 py-2 text-sm bg-primary text-primary-foreground hover:bg-primary/90 rounded-md transition-colors disabled:opacity-50"
           >
-            Send Invitation
+            Enviar
           </button>
         </div>
       </div>
@@ -103,10 +103,8 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
     friends,
     pendingInvitations,
     sentInvitations,
-    invitationsLoading,
     sendGameInvitation,
     respondToInvitation,
-    refreshInvitations,
   } = useSocial(token);
 
   const [selectedView, setSelectedView] = useState<'received' | 'sent'>('received');
@@ -117,10 +115,10 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
     const now = new Date();
     const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
 
-    if (diffInMinutes < 1) return 'Just now';
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h ago`;
-    return `${Math.floor(diffInMinutes / 1440)}d ago`;
+    if (diffInMinutes < 1) return 'Ahora mismo';
+    if (diffInMinutes < 60) return `Hace ${diffInMinutes}m`;
+    if (diffInMinutes < 1440) return `Hace ${Math.floor(diffInMinutes / 60)}h`;
+    return `Hace ${Math.floor(diffInMinutes / 1440)}d`;
   };
 
   const formatExpiryTime = (dateString: string) => {
@@ -128,10 +126,10 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
     const now = new Date();
     const diffInMinutes = Math.floor((date.getTime() - now.getTime()) / (1000 * 60));
 
-    if (diffInMinutes <= 0) return 'Expired';
-    if (diffInMinutes < 60) return `${diffInMinutes}m left`;
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h left`;
-    return `${Math.floor(diffInMinutes / 1440)}d left`;
+    if (diffInMinutes <= 0) return 'Expirado';
+    if (diffInMinutes < 60) return `${diffInMinutes}m restantes`;
+    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)}h restantes`;
+    return `${Math.floor(diffInMinutes / 1440)}d restantes`;
   };
 
   const getStatusIcon = (status: InvitationStatus) => {
@@ -164,6 +162,21 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
     }
   };
 
+  const getStatusText = (status: InvitationStatus) => {
+    switch (status) {
+      case InvitationStatus.PENDING:
+        return 'Pendiente';
+      case InvitationStatus.ACCEPTED:
+        return 'Aceptada';
+      case InvitationStatus.DECLINED:
+        return 'Rechazada';
+      case InvitationStatus.EXPIRED:
+        return 'Expirada';
+      default:
+        return 'Desconocido';
+    }
+  };
+
   const handleSendInvitation = async (receiverId: string, modpackId: string, message?: string) => {
     await sendGameInvitation(receiverId, modpackId, message);
   };
@@ -172,15 +185,15 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-medium text-sm text-muted-foreground">
-          RECEIVED INVITATIONS — {pendingInvitations.length}
+          INVITACIONES RECIBIDAS — {pendingInvitations.length}
         </h3>
       </div>
 
       {pendingInvitations.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Mail className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">No pending invitations</p>
-          <p className="text-xs mt-1">Game invitations from friends will appear here</p>
+          <p className="text-sm">No hay invitaciones pendientes</p>
+          <p className="text-xs mt-1">Las invitaciones de juego de amigos aparecerán aquí</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -189,35 +202,35 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
               <div className="flex items-start gap-3">
                 <img
                   src={invitation.sender?.avatarUrl || '/default-avatar.png'}
-                  alt={invitation.sender?.username}
+                  alt={invitation.sender?.username || 'Usuario desconocido'}
                   className="w-10 h-10 rounded-full"
                 />
-                
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-sm font-medium truncate">
-                      {invitation.sender?.username}
+                      {invitation.sender?.username || 'Usuario desconocido'}
                     </p>
                     {getStatusIcon(invitation.status)}
                   </div>
-                  
+
                   <div className="flex items-center gap-2 mb-2">
                     <img
                       src={invitation.modpack?.iconUrl || '/default-modpack.png'}
-                      alt={invitation.modpack?.name}
+                      alt={invitation.modpack?.name || 'Modpack desconocido'}
                       className="w-6 h-6 rounded"
                     />
                     <p className="text-sm text-muted-foreground truncate">
-                      {invitation.modpack?.name}
+                      {invitation.modpack?.name || 'Modpack desconocido'}
                     </p>
                   </div>
-                  
+
                   {invitation.message && (
                     <p className="text-sm text-muted-foreground mb-2 italic">
                       "{invitation.message}"
                     </p>
                   )}
-                  
+
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{formatTimeAgo(invitation.createdAt)}</span>
                     <span className={`px-2 py-1 rounded-full ${getStatusColor(invitation.status)}`}>
@@ -226,7 +239,7 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
                   </div>
                 </div>
               </div>
-              
+
               {invitation.status === InvitationStatus.PENDING && (
                 <div className="flex gap-2 mt-3">
                   <button
@@ -234,14 +247,14 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
                     className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-md hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <Check className="w-3 h-3" />
-                    Accept
+                    Aceptar
                   </button>
                   <button
                     onClick={() => respondToInvitation(invitation.id, 'decline')}
                     className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded-md hover:bg-red-700 transition-colors flex items-center justify-center gap-2"
                   >
                     <X className="w-3 h-3" />
-                    Decline
+                    Rechazar
                   </button>
                 </div>
               )}
@@ -256,22 +269,22 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-medium text-sm text-muted-foreground">
-          SENT INVITATIONS — {sentInvitations.length}
+          INVITACIONES ENVIADAS — {sentInvitations.length}
         </h3>
         <button
           onClick={() => setShowSendModal(true)}
           className="px-3 py-2 bg-primary text-primary-foreground text-sm rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2"
         >
           <Send className="w-3 h-3" />
-          Send
+          Enviar
         </button>
       </div>
 
       {sentInvitations.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <Send className="w-8 h-8 mx-auto mb-2 opacity-50" />
-          <p className="text-sm">No sent invitations</p>
-          <p className="text-xs mt-1">Invite friends to play modpacks together</p>
+          <p className="text-sm">No hay invitaciones enviadas</p>
+          <p className="text-xs mt-1">Invita a amigos a jugar modpacks juntos</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -280,38 +293,38 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
               <div className="flex items-start gap-3">
                 <img
                   src={invitation.receiver?.avatarUrl || '/default-avatar.png'}
-                  alt={invitation.receiver?.username}
+                  alt={invitation.receiver?.username || 'Usuario desconocido'}
                   className="w-10 h-10 rounded-full"
                 />
-                
+
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="text-sm font-medium truncate">
-                      {invitation.receiver?.username}
+                      {invitation.receiver?.username || 'Usuario desconocido'}
                     </p>
                     {getStatusIcon(invitation.status)}
                     <span className={`px-2 py-1 rounded-full text-xs ${getStatusColor(invitation.status)}`}>
-                      {invitation.status}
+                      {getStatusText(invitation.status)}
                     </span>
                   </div>
-                  
+
                   <div className="flex items-center gap-2 mb-2">
                     <img
                       src={invitation.modpack?.iconUrl || '/default-modpack.png'}
-                      alt={invitation.modpack?.name}
+                      alt={invitation.modpack?.name || 'Modpack desconocido'}
                       className="w-6 h-6 rounded"
                     />
                     <p className="text-sm text-muted-foreground truncate">
-                      {invitation.modpack?.name}
+                      {invitation.modpack?.name || 'Modpack desconocido'}
                     </p>
                   </div>
-                  
+
                   {invitation.message && (
                     <p className="text-sm text-muted-foreground mb-2 italic">
                       "{invitation.message}"
                     </p>
                   )}
-                  
+
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{formatTimeAgo(invitation.createdAt)}</span>
                     {invitation.status === InvitationStatus.PENDING && (
@@ -323,8 +336,8 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
                 {invitation.status === InvitationStatus.PENDING && (
                   <button
                     onClick={() => {
-                      // Handle cancelling invitation
-                      console.log('Cancel invitation:', invitation.id);
+                      // Manejar cancelación de invitación
+                      console.log('Cancelar invitación:', invitation.id);
                     }}
                     className="p-1 rounded-md hover:bg-accent transition-colors text-red-600"
                   >
@@ -345,13 +358,12 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
       <div className="flex border-b border-border">
         <button
           onClick={() => setSelectedView('received')}
-          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors relative ${
-            selectedView === 'received'
-              ? 'text-primary border-b-2 border-primary bg-accent/50'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors relative ${selectedView === 'received'
+            ? 'text-primary border-b-2 border-primary bg-accent/50'
+            : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
-          Received
+          Recibidas
           {pendingInvitations.length > 0 && (
             <span className="absolute -top-1 -right-1 w-5 h-5 bg-blue-500 text-white text-xs rounded-full flex items-center justify-center">
               {pendingInvitations.length}
@@ -360,13 +372,12 @@ export const GameInvitationsPanel: React.FC<GameInvitationsPanelProps> = ({ toke
         </button>
         <button
           onClick={() => setSelectedView('sent')}
-          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${
-            selectedView === 'sent'
-              ? 'text-primary border-b-2 border-primary bg-accent/50'
-              : 'text-muted-foreground hover:text-foreground'
-          }`}
+          className={`flex-1 py-2 px-3 text-sm font-medium transition-colors ${selectedView === 'sent'
+            ? 'text-primary border-b-2 border-primary bg-accent/50'
+            : 'text-muted-foreground hover:text-foreground'
+            }`}
         >
-          Sent
+          Enviadas
         </button>
       </div>
 

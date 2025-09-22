@@ -41,7 +41,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
     const errorData = await response.json().catch(() => ({ message: 'Unknown error' }));
     throw new Error(errorData.message || `HTTP ${response.status}`);
   }
-  
+
   const json = await response.json();
   return json.data;
 }
@@ -50,8 +50,8 @@ async function handleResponse<T>(response: Response): Promise<T> {
  * Get user's social profile
  */
 export async function getProfile(token: string, userId?: string): Promise<{ profile: SocialProfile }> {
-  const url = userId 
-    ? `${API_ENDPOINT}/social/profile/${userId}` 
+  const url = userId
+    ? `${API_ENDPOINT}/social/profile/${userId}`
     : `${API_ENDPOINT}/social/profile`;
 
   const response = await fetch(url, {
@@ -173,8 +173,8 @@ export async function unlinkPatreon(token: string): Promise<{ message: string }>
  * Get social statistics
  */
 export async function getSocialStats(token: string, userId?: string): Promise<SocialStats> {
-  const url = userId 
-    ? `${API_ENDPOINT}/social/profile/${userId}/stats` 
+  const url = userId
+    ? `${API_ENDPOINT}/social/profile/${userId}/stats`
     : `${API_ENDPOINT}/social/profile/stats`;
 
   const response = await fetch(url, {
@@ -194,7 +194,7 @@ export async function getSocialStats(token: string, userId?: string): Promise<So
 export function getPatreonOAuthUrl(redirectUri: string): string {
   const clientId = process.env.PATREON_CLIENT_ID || 'your-patreon-client-id';
   const scopes = 'identity identity[email] identity.memberships';
-  
+
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: clientId,
@@ -212,15 +212,13 @@ export function getPatreonOAuthUrl(redirectUri: string): string {
 export function isValidImageUrl(url: string): boolean {
   try {
     const parsedUrl = new URL(url);
-    const validHosts = ['i.imgur.com', 'cdn.discordapp.com', 'your-cdn-domain.com'];
     const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp'];
-    
-    const isValidHost = validHosts.some(host => parsedUrl.hostname === host);
-    const isValidExtension = validExtensions.some(ext => 
+
+    const isValidExtension = validExtensions.some(ext =>
       parsedUrl.pathname.toLowerCase().endsWith(ext)
     );
-    
-    return isValidHost && isValidExtension;
+
+    return isValidExtension;
   } catch {
     return false;
   }

@@ -81,10 +81,11 @@ export const SocialPanel: React.FC<SocialPanelProps> = ({ isOpen, onClose, token
         <div className="absolute -top-2 right-6 w-3 h-3 rotate-45 bg-neutral-900/95 border-t border-l border-neutral-700/60" />
 
         {/* Header */}
-        <div className="flex items-center justify-between p-3 border-b border-neutral-700/60">
+        <div className="flex items-center justify-between p-3  border-neutral-700/60">
           <div className="flex items-center gap-2">
-            <Activity className="w-5 h-5 text-white/90" />
-            <h2 className="text-lg font-semibold text-white">Social</h2>
+            <h2 className="text-lg font-semibold text-white">
+              Panel Social
+            </h2>
           </div>
 
           <button

@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, BaseEntity } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, BaseEntity, JoinColumn } from "typeorm";
 import { User } from "./User";
 import { Modpack } from "./Modpack";
 import { InvitationStatus } from "@/types/enums";
@@ -36,12 +36,15 @@ export class GameInvitation extends BaseEntity {
 
     // Relations
     @ManyToOne(() => User, { onDelete: "CASCADE" })
+    @JoinColumn({ name: "sender_id" })
     sender: User;
 
     @ManyToOne(() => User, { onDelete: "CASCADE" })
+    @JoinColumn({ name: "receiver_id" })
     receiver: User;
 
     @ManyToOne(() => Modpack, { onDelete: "CASCADE" })
+    @JoinColumn({ name: "modpack_id" })
     modpack: Modpack;
 
     // Helper methods
@@ -66,7 +69,7 @@ export class GameInvitation extends BaseEntity {
 
     static async markExpiredInvitations(): Promise<void> {
         await GameInvitation.update(
-            { 
+            {
                 status: InvitationStatus.PENDING,
                 expiresAt: new Date() // Less than current date
             },

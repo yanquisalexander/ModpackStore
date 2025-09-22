@@ -108,16 +108,16 @@ export class GameInvitationService {
         // Notify sender
         sendToUser(invitation.senderId, 'game_invitation_accepted', {
             invitationId: invitation.id,
-            receiver: invitation.receiver.toPublicJson(),
-            modpack: {
+            receiver: invitation.receiver ? invitation.receiver.toPublicJson() : null,
+            modpack: invitation.modpack ? {
                 id: invitation.modpack.id,
                 name: invitation.modpack.name
-            }
+            } : null
         });
 
         // Send launch instruction to receiver
         sendToUser(invitation.receiverId, 'launch_modpack', {
-            modpackId: invitation.modpack.id,
+            modpackId: invitation.modpack?.id,
             invitationId: invitation.id
         });
 
@@ -159,22 +159,25 @@ export class GameInvitationService {
      * Get pending invitations for a user
      */
     static async getPendingInvitations(userId: string): Promise<GameInvitation[]> {
-        // Mark expired invitations first
-        await GameInvitation.markExpiredInvitations();
-
-        return await GameInvitation.findPendingForUser(userId);
+        return await GameInvitation.createQueryBuilder("invitation")
+            .leftJoinAndSelect("invitation.sender", "sender")
+            .leftJoinAndSelect("invitation.modpack", "modpack")
+            .where("invitation.receiverId = :userId", { userId })
+            .andWhere("invitation.status = :status", { status: InvitationStatus.PENDING })
+            .orderBy("invitation.createdAt", "DESC")
+            .getMany();
     }
 
     /**
      * Get sent invitations by a user
      */
     static async getSentInvitations(userId: string): Promise<GameInvitation[]> {
-        return await GameInvitation.find({
-            where: { senderId: userId },
-            relations: ["receiver", "modpack"],
-            order: { createdAt: "DESC" },
-            take: 20
-        });
+        return await GameInvitation.createQueryBuilder("invitation")
+            .leftJoinAndSelect("invitation.receiver", "receiver")
+            .leftJoinAndSelect("invitation.modpack", "modpack")
+            .where("invitation.senderId = :userId", { userId })
+            .orderBy("invitation.createdAt", "DESC")
+            .getMany();
     }
 
     /**
@@ -265,7 +268,7 @@ export class GameInvitationService {
      */
     static async cleanupExpiredInvitations(): Promise<number> {
         await GameInvitation.markExpiredInvitations();
-        
+
         const expiredInvitations = await GameInvitation.find({
             where: { status: InvitationStatus.EXPIRED }
         });

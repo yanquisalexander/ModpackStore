@@ -4,6 +4,7 @@ import { useSocial } from '@/hooks/useSocial';
 import { SocialProfileService, PatreonTier } from '@/services/socialProfile';
 import { useToast } from '@/hooks/use-toast';
 import { invoke } from '@tauri-apps/api/core';
+import { useAuthentication } from '@/stores/AuthContext';
 
 interface SocialProfilePanelProps {
   token?: string;
@@ -11,6 +12,7 @@ interface SocialProfilePanelProps {
 
 export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token }) => {
   const { toast } = useToast();
+  const { session } = useAuthentication();
   const {
     profile,
     patreonStatus,
@@ -18,6 +20,16 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
     updateCoverImage,
     refreshProfile,
   } = useSocial(token);
+
+  // Helper function to check if current user is admin/superadmin
+  const isCurrentUserAdmin = () => {
+    return session?.isAdmin?.() || session?.isSuperAdmin?.();
+  };
+
+  // Helper function to check if user has premium access (Patreon or admin)
+  const hasPremiumAccess = () => {
+    return isCurrentUserAdmin() || (patreonStatus?.isPatron && patreonStatus?.isActive);
+  };
 
   const [isEditingCover, setIsEditingCover] = useState(false);
   const [coverImageUrl, setCoverImageUrl] = useState('');
@@ -150,7 +162,7 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
           className="h-32 bg-gradient-to-r from-primary/20 to-accent bg-cover bg-center"
           style={profile.coverImageUrl ? { backgroundImage: `url(${profile.coverImageUrl})` } : {}}
         >
-          {patreonStatus?.canUploadCoverImage && (
+          {hasPremiumAccess() && (
             <div className="absolute top-2 right-2 flex gap-1">
               <button
                 onClick={() => setIsEditingCover(true)}
@@ -184,10 +196,10 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
       <div className="pt-10 p-4">
         <div className="flex items-center gap-2 mb-1">
           <h2 className="text-lg font-semibold">{profile.username}</h2>
-          {profile.isPatron && patreonStatus && (
-            <span className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${getTierColor(patreonStatus.tier)}`}>
-              {getTierIcon(patreonStatus.tier)}
-              {patreonStatus.tier.toUpperCase()}
+          {hasPremiumAccess() && (
+            <span className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${getTierColor(isCurrentUserAdmin() ? PatreonTier.ELITE : patreonStatus!.tier)}`}>
+              {getTierIcon(isCurrentUserAdmin() ? PatreonTier.ELITE : patreonStatus!.tier)}
+              {isCurrentUserAdmin() ? 'ADMIN' : patreonStatus!.tier.toUpperCase()}
             </span>
           )}
         </div>
@@ -212,34 +224,67 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
             <Settings className="w-4 h-4 text-muted-foreground" />
           </div>
 
-          {profile.isPatron && patreonStatus ? (
+          {hasPremiumAccess() ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm">Estado</span>
-                <span className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${getTierColor(patreonStatus.tier)}`}>
-                  {getTierIcon(patreonStatus.tier)}
-                  {patreonStatus.tier.toUpperCase()} PATRÓN
+                <span className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${getTierColor(isCurrentUserAdmin() ? PatreonTier.ELITE : patreonStatus!.tier)}`}>
+                  {getTierIcon(isCurrentUserAdmin() ? PatreonTier.ELITE : patreonStatus!.tier)}
+                  {isCurrentUserAdmin() ? 'ADMIN' : `${patreonStatus!.tier.toUpperCase()} PATRÓN`}
                 </span>
               </div>
 
               <div className="text-sm">
                 <p className="font-medium mb-2">Características premium:</p>
                 <ul className="space-y-1 text-muted-foreground">
-                  {patreonStatus.availableFeatures.map((feature, index) => (
-                    <li key={index} className="flex items-center gap-2">
-                      <div className="w-1 h-1 bg-primary rounded-full" />
-                      {feature}
-                    </li>
-                  ))}
+                  {isCurrentUserAdmin() ? (
+                    // Show all features for admins
+                    <>
+                      <li className="flex items-center gap-2">
+                        <div className="w-1 h-1 bg-primary rounded-full" />
+                        Imágenes de portada de perfil personalizadas
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-1 h-1 bg-primary rounded-full" />
+                        Soporte prioritario
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-1 h-1 bg-primary rounded-full" />
+                        Acceso temprano a nuevas características
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-1 h-1 bg-primary rounded-full" />
+                        Modpacks exclusivos para patrocinadores
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-1 h-1 bg-primary rounded-full" />
+                        Insignias personalizadas
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-1 h-1 bg-primary rounded-full" />
+                        Acceso completo a todas las funciones
+                      </li>
+                    </>
+                  ) : (
+                    // Show Patreon features
+                    patreonStatus!.availableFeatures.map((feature, index) => (
+                      <li key={index} className="flex items-center gap-2">
+                        <div className="w-1 h-1 bg-primary rounded-full" />
+                        {feature}
+                      </li>
+                    ))
+                  )}
                 </ul>
               </div>
 
-              <button
-                onClick={handleUnlinkPatreon}
-                className="w-full px-3 py-2 text-sm border border-border rounded-md hover:bg-accent transition-colors"
-              >
-                Desvincular Patreon
-              </button>
+              {!isCurrentUserAdmin() && (
+                <button
+                  onClick={handleUnlinkPatreon}
+                  className="w-full px-3 py-2 text-sm border border-border rounded-md hover:bg-accent transition-colors"
+                >
+                  Desvincular Patreon
+                </button>
+              )}
             </div>
           ) : (
             <div className="text-center">
@@ -259,7 +304,7 @@ export const SocialProfilePanel: React.FC<SocialProfilePanelProps> = ({ token })
         </div>
 
         {/* Premium Features Info */}
-        {!profile.isPatron && (
+        {!hasPremiumAccess() && (
           <div className="border border-dashed border-border rounded-lg p-4">
             <h4 className="font-medium mb-2">Características premium</h4>
             <div className="space-y-2 text-sm text-muted-foreground">

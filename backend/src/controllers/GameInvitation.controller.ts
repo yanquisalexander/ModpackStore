@@ -72,8 +72,8 @@ export class GameInvitationController {
                     status: result.invitation.status
                 },
                 nextAction: result.nextAction,
-                message: body.action === 'accept' 
-                    ? 'Invitation accepted successfully' 
+                message: body.action === 'accept'
+                    ? 'Invitation accepted successfully'
                     : 'Invitation declined'
             }
         });
@@ -92,12 +92,12 @@ export class GameInvitationController {
             data: {
                 invitations: invitations.map(inv => ({
                     id: inv.id,
-                    sender: inv.sender.toPublicJson(),
-                    modpack: {
+                    sender: inv.sender ? inv.sender.toPublicJson() : null,
+                    modpack: inv.modpack ? {
                         id: inv.modpack.id,
                         name: inv.modpack.name,
                         iconUrl: inv.modpack.iconUrl
-                    },
+                    } : null,
                     message: inv.message,
                     createdAt: inv.createdAt,
                     expiresAt: inv.expiresAt
@@ -119,12 +119,12 @@ export class GameInvitationController {
             data: {
                 invitations: invitations.map(inv => ({
                     id: inv.id,
-                    receiver: inv.receiver.toPublicJson(),
-                    modpack: {
+                    receiver: inv.receiver ? inv.receiver.toPublicJson() : null,
+                    modpack: inv.modpack ? {
                         id: inv.modpack.id,
                         name: inv.modpack.name,
                         iconUrl: inv.modpack.iconUrl
-                    },
+                    } : null,
                     message: inv.message,
                     status: inv.status,
                     createdAt: inv.createdAt,
@@ -179,7 +179,7 @@ export class GameInvitationController {
      */
     static async getInvitationStats(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
         const userId = c.get('userId');
-        
+
         // This could be enhanced with more detailed analytics
         const [pendingInvitations, sentInvitations] = await Promise.all([
             GameInvitationService.getPendingInvitations(userId),

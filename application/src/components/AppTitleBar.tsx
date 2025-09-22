@@ -199,7 +199,7 @@ export const AppTitleBar = () => {
                         }
 
                         <UpdateButton updateState={updateState} applyUpdate={applyUpdate} />
-                        <SocialButton titleBarOpaque={titleBarState.opaque} />
+                        {/* <SocialButton titleBarOpaque={titleBarState.opaque} /> */}
                         <RunningTasks />
                         <RunningInstances />
 

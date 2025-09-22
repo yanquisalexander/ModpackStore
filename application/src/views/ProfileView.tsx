@@ -331,29 +331,6 @@ export const IntegrationsSection = () => {
 
       {/* Patreon Integration */}
       <PatreonLinkingComponent />
-
-      {/* Legacy Patreon Integration Status (if available) */}
-      {session.patreonId && (
-        <Card>
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3 mb-4">
-              <div className="w-6 h-6 bg-orange-500 rounded flex items-center justify-center">
-                <span className="text-white text-xs font-bold">P</span>
-              </div>
-              <h3 className="text-lg font-semibold">Integración con Patreon</h3>
-            </div>
-
-            <div className="flex items-center space-x-2 mb-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              <span className="text-green-400 font-medium">Conectado</span>
-            </div>
-
-            <div className="text-sm text-muted-foreground">
-              ID de Patreon: {session.patreonId}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };

@@ -27,7 +27,7 @@ const TWITCH_REDIRECT_URI: &str = "http://localhost:1958/callback"; // Different
 
 // Patreon OAuth constants
 // TODO: These should be loaded from environment variables or configuration
-const PATREON_CLIENT_ID: &str = "YOUR_PATREON_CLIENT_ID"; // This should be set from environment
+const PATREON_CLIENT_ID: &str = "SS11fubTxRKD1nONqu3ttDJeN6wqMyB8Y1Gzxi1gNYfOs5ukeNFlD9iyujEAnrr7"; // This should be set from environment
 const PATREON_REDIRECT_URI: &str = "http://localhost:1959/callback"; // Different port for Patreon
 
 const CALLBACK_TIMEOUT_SECS: u64 = 120;
@@ -348,9 +348,7 @@ mod api {
                 .map_err(|e| format!("Error parsing user session: {}", e))?;
 
             let user_id = user_session
-                .get("data")
-                .and_then(|data| data.get("user"))
-                .and_then(|user| user.get("id"))
+                .get("id")
                 .and_then(|id| id.as_str())
                 .ok_or("User ID not found in session")?;
 

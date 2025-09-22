@@ -52,6 +52,21 @@ export class User extends BaseEntity {
     @Column({ name: "patreon_refresh_token", type: "text", nullable: true })
     patreonRefreshToken?: string | null;
 
+    @Column({ name: "patreon_tier", type: "varchar", length: 20, nullable: true, default: "none" })
+    patreonTier?: string | null;
+
+    @Column({ name: "patreon_status", type: "varchar", length: 20, nullable: true })
+    patreonStatus?: string | null;
+
+    @Column({ name: "patreon_entitled_amount", type: "integer", nullable: true, default: 0 })
+    patreonEntitledAmount?: number | null;
+
+    @Column({ name: "patreon_is_active", type: "boolean", nullable: true, default: false })
+    patreonIsActive?: boolean | null;
+
+    @Column({ name: "patreon_last_verified", type: "timestamp", nullable: true })
+    patreonLastVerified?: Date | null;
+
     // Twitch fields
     @Column({ name: "twitch_id", type: "text", nullable: true, unique: true })
     twitchId?: string | null;
@@ -253,6 +268,9 @@ export class User extends BaseEntity {
             updatedAt: this.updatedAt,
             discordId: this.discordId,
             patreonId: this.patreonId,
+            patreonTier: this.patreonTier,
+            patreonIsActive: this.patreonIsActive,
+            patreonLastVerified: this.patreonLastVerified,
             twitchId: this.twitchId,
             tosAcceptedAt: this.tosAcceptedAt,
         };

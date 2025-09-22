@@ -7,6 +7,7 @@ import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from "@/consts";
 import { listen } from "@tauri-apps/api/event";
 import { MdiTwitch } from "@/icons/MdiTwitch";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface TwitchStatus {
   linked: boolean;
@@ -128,82 +129,86 @@ export const TwitchLinkingComponent = () => {
 
   if (!twitchStatus) {
     return (
-      <div className="bg-neutral-800 rounded-lg p-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <MdiTwitch className="text-[#9146FF]" />
-          <h3 className="text-lg font-semibold text-white">Integración de Twitch</h3>
-        </div>
-        <div className="text-neutral-400">Cargando estado de Twitch...</div>
-      </div>
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex items-center space-x-3 mb-4">
+            <MdiTwitch className="text-[#9146FF]" />
+            <h3 className="text-lg font-semibold text-white">Integración de Twitch</h3>
+          </div>
+          <div className="text-neutral-400">Cargando estado de Twitch...</div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="bg-neutral-800 rounded-lg p-6">
-      <div className="flex items-center space-x-3 mb-4">
-        <MdiTwitch className="text-[#9146FF]" />
-        <h3 className="text-lg font-semibold text-white">Integración de Twitch</h3>
-      </div>
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex items-center space-x-3 mb-4">
+          <MdiTwitch className="text-[#9146FF]" />
+          <h3 className="text-lg font-semibold text-white">Integración de Twitch</h3>
+        </div>
 
-      {twitchStatus.linked ? (
-        <div>
-          <div className="flex items-center space-x-2 mb-4">
-            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-            <span className="text-green-400 font-medium">Conectado</span>
-          </div>
-
-          {twitchStatus.twitchId && (
-            <div className="text-sm text-neutral-400 mb-4">
-              ID de Twitch: {twitchStatus.twitchId} ({twitchStatus.twitchUsername || 'unknown'})
+        {twitchStatus.linked ? (
+          <div>
+            <div className="flex items-center space-x-2 mb-4">
+              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+              <span className="text-green-400 font-medium">Conectado</span>
             </div>
-          )}
 
-          <p className="text-neutral-300 text-sm mb-4">
-            Tu cuenta de Twitch está conectada. Ahora puedes acceder a modpacks exclusivos para suscriptores de los creadores a los que estés suscrito.
-          </p>
+            {twitchStatus.twitchId && (
+              <div className="text-sm text-muted-foreground mb-4">
+                ID de Twitch: {twitchStatus.twitchId} ({twitchStatus.twitchUsername || 'unknown'})
+              </div>
+            )}
 
-          <Button
-            onClick={handleUnlinkTwitch}
-            disabled={unlinking}
-            variant="destructive"
-            size="sm"
-            className="flex items-center space-x-2"
-          >
-            <LucideUnlink size={16} />
-            <span>{unlinking ? 'Desvinculando...' : 'Desvincular Twitch'}</span>
-          </Button>
-        </div>
-      ) : (
-        <div>
-          <div className="flex items-center space-x-2 mb-4">
-            <div className="w-2 h-2 bg-neutral-500 rounded-full"></div>
-            <span className="text-neutral-400 font-medium">No conectado</span>
+            <p className="text-neutral-300 text-sm mb-4">
+              Tu cuenta de Twitch está conectada. Ahora puedes acceder a modpacks exclusivos para suscriptores de los creadores a los que estés suscrito.
+            </p>
+
+            <Button
+              onClick={handleUnlinkTwitch}
+              disabled={unlinking}
+              variant="destructive"
+              size="sm"
+              className="flex items-center space-x-2"
+            >
+              <LucideUnlink size={16} />
+              <span>{unlinking ? 'Desvinculando...' : 'Desvincular Twitch'}</span>
+            </Button>
           </div>
+        ) : (
+          <div>
+            <div className="flex items-center space-x-2 mb-4">
+              <div className="w-2 h-2 bg-neutral-500 rounded-full"></div>
+              <span className="text-neutral-400 font-medium">No conectado</span>
+            </div>
 
-          <p className="text-neutral-300 text-sm mb-4">
-            Vincula tu cuenta de Twitch para acceder a modpacks exclusivos para suscriptores de tus creadores favoritos.
-          </p>
+            <p className="text-neutral-300 text-sm mb-4">
+              Vincula tu cuenta de Twitch para acceder a modpacks exclusivos para suscriptores de tus creadores favoritos.
+            </p>
 
-          <div className="space-y-2 mb-4">
-            <div className="text-xs text-neutral-400">Beneficios de vincular tu cuenta de Twitch:</div>
-            <ul className="text-xs text-neutral-300 space-y-1 ml-4">
-              <li>• Acceder a modpacks solo para suscriptores</li>
-              <li>• Apoyar a tus creadores favoritos</li>
-              <li>• Contenido exclusivo y acceso anticipado</li>
-            </ul>
+            <div className="space-y-2 mb-4">
+              <div className="text-xs text-neutral-400">Beneficios de vincular tu cuenta de Twitch:</div>
+              <ul className="text-xs text-neutral-300 space-y-1 ml-4">
+                <li>• Acceder a modpacks solo para suscriptores</li>
+                <li>• Apoyar a tus creadores favoritos</li>
+                <li>• Contenido exclusivo y acceso anticipado</li>
+              </ul>
+            </div>
+
+            <Button
+              onClick={handleLinkTwitch}
+              disabled={loading}
+              className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700"
+              size="sm"
+            >
+              <LucideExternalLink size={16} />
+              <span>{loading ? 'Conectando...' : 'Vincular cuenta de Twitch'}</span>
+            </Button>
           </div>
-
-          <Button
-            onClick={handleLinkTwitch}
-            disabled={loading}
-            className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700"
-            size="sm"
-          >
-            <LucideExternalLink size={16} />
-            <span>{loading ? 'Conectando...' : 'Vincular cuenta de Twitch'}</span>
-          </Button>
-        </div>
-      )}
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 };
