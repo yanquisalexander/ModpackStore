@@ -41,6 +41,7 @@ static API_ENDPOINT: once_cell::sync::Lazy<&'static str> = once_cell::sync::Lazy
 
 struct PendingInstance {
     id: Mutex<Option<String>>,
+    mstorepack_file: Mutex<Option<String>>,
 }
 
 #[tauri::command]
@@ -59,14 +60,15 @@ fn splash_done(app: tauri::AppHandle) {
     log::info!("Splash screen closed, main window focused.");
     main_window.show().unwrap();
 
-    let id = {
-        let state: tauri::State<Arc<PendingInstance>> = app.state();
-        let id = state.id.lock().unwrap().take();
-        id
-    };
+    let state: tauri::State<Arc<PendingInstance>> = app.state();
+    let id = state.id.lock().unwrap().take();
+    let mstorepack_file = state.mstorepack_file.lock().unwrap().take();
+    
     if let Some(id) = id {
         let _ = app.emit("open-instance", id);
-    };
+    } else if let Some(mstorepack_path) = mstorepack_file {
+        let _ = app.emit("open-mstorepack", mstorepack_path);
+    }
 }
 
 pub fn main() {
@@ -90,8 +92,13 @@ pub fn main() {
                 .expect("no main window")
                 .set_focus();
 
+            // Check for instance ID argument first
             if let Some(id) = get_instance_arg(&args) {
                 let _ = app.emit("open-instance", id);
+            } 
+            // Check for .mstorepack file argument
+            else if let Some(mstorepack_path) = get_mstorepack_file_arg(&args) {
+                let _ = app.emit("open-mstorepack", mstorepack_path);
             }
         }))
         .plugin(tauri_plugin_log::Builder::new().build())
@@ -120,6 +127,7 @@ pub fn main() {
         .manage(Arc::new(AuthState::new()))
         .manage(Arc::new(PendingInstance {
             id: Mutex::new(None),
+            mstorepack_file: Mutex::new(None),
         }))
         .setup(|app| {
             log::info!("Starting Modpack Store...");
@@ -135,9 +143,12 @@ pub fn main() {
             // Emit an event to the main window
 
             let args: Vec<String> = std::env::args().collect();
+            let state: tauri::State<Arc<PendingInstance>> = app.state();
+            
             if let Some(id) = get_instance_arg(&args) {
-                let state: tauri::State<Arc<PendingInstance>> = app.state();
                 *state.id.lock().unwrap() = Some(id);
+            } else if let Some(mstorepack_path) = get_mstorepack_file_arg(&args) {
+                *state.mstorepack_file.lock().unwrap() = Some(mstorepack_path);
             }
 
             Ok(())
@@ -191,6 +202,8 @@ pub fn main() {
             core::prelaunch_appearance::update_prelaunch_appearance,
             core::tasks_manager::get_all_tasks_command,
             core::tasks_manager::resync_tasks_command,
+            core::mstorepack_handler::process_mstorepack_file,
+            core::mstorepack_handler::install_from_mstorepack,
             utils::desktop_integration::create_shortcut,
             get_git_hash,
             splash_done,
@@ -203,6 +216,15 @@ fn get_instance_arg(args: &[String]) -> Option<String> {
     for arg in args {
         if let Some(rest) = arg.strip_prefix("--instance=") {
             return Some(rest.to_string());
+        }
+    }
+    None
+}
+
+fn get_mstorepack_file_arg(args: &[String]) -> Option<String> {
+    for arg in args {
+        if arg.ends_with(".mstorepack") {
+            return Some(arg.to_string());
         }
     }
     None

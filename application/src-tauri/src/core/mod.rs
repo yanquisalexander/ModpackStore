@@ -12,6 +12,7 @@ pub mod minecraft_account;
 pub mod minecraft_instance;
 pub mod models;
 pub mod modpack_file_manager;
+pub mod mstorepack_handler;
 pub mod network_utilities;
 pub mod onboarding;
 pub mod prelaunch_appearance;
