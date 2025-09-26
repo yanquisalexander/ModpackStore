@@ -5,6 +5,28 @@ use std::path::{Path, PathBuf};
 
 use super::{launcher, ManifestParser};
 
+/// Expands path variables like tilde (~) and environment variables
+fn expand_path(path: &str) -> PathBuf {
+    let mut result = path.to_string();
+
+    // Replace ~ with home directory
+    if result.starts_with("~") {
+        if let Some(home) = dirs::home_dir() {
+            result = result.replacen("~", home.to_str().unwrap_or(""), 1);
+        }
+    }
+
+    // Replace environment variables (handles both $VAR and %VAR%)
+    if result.contains("$") || result.contains("%") {
+        for (key, value) in std::env::vars() {
+            result = result.replace(&format!("${}", key), &value);
+            result = result.replace(&format!("%{}%", key), &value);
+        }
+    }
+
+    PathBuf::from(result)
+}
+
 #[derive(Debug)]
 pub struct MinecraftPaths {
     game_dir: PathBuf,
@@ -26,7 +48,7 @@ impl MinecraftPaths {
         let java_path = instance
             .javaPath
             .as_ref()
-            .map(PathBuf::from)
+            .map(|path| expand_path(path))
             .unwrap_or_else(|| {
                 config
                     .get_java_dir()
@@ -38,7 +60,7 @@ impl MinecraftPaths {
         let game_dir = instance
             .instanceDirectory
             .as_ref()
-            .map(PathBuf::from)
+            .map(|path| expand_path(path))
             .unwrap_or_else(|| PathBuf::from("default_path"))
             .join("minecraft");
 
