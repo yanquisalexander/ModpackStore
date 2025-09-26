@@ -1,6 +1,7 @@
 use crate::config::get_config_manager;
 use crate::core::minecraft::{classpath::ClasspathBuilder, manifest::ManifestMerger};
 use crate::core::minecraft_instance::MinecraftInstance;
+use dirs;
 use std::path::{Path, PathBuf};
 
 use super::{launcher, ManifestParser};
@@ -38,7 +39,7 @@ impl MinecraftPaths {
         let game_dir = instance
             .instanceDirectory
             .as_ref()
-            .map(PathBuf::from)
+            .map(|s| expand_path(s))
             .unwrap_or_else(|| PathBuf::from("default_path"))
             .join("minecraft");
 
@@ -241,4 +242,26 @@ impl MinecraftPaths {
             }
         }
     }
+}
+
+// Expande una ruta con variables de entorno y ~
+fn expand_path(path: &str) -> PathBuf {
+    let mut result = path.to_string();
+
+    // Reemplazar ~ con la ruta del home
+    if result.starts_with("~") {
+        if let Some(home) = dirs::home_dir() {
+            result = result.replacen("~", home.to_str().unwrap_or(""), 1);
+        }
+    }
+
+    // Reemplazar variables de entorno (maneja tanto $VAR como %VAR%)
+    if result.contains("$") || result.contains("%") {
+        for (key, value) in std::env::vars() {
+            result = result.replace(&format!("${}", key), &value);
+            result = result.replace(&format!("%{}%", key), &value);
+        }
+    }
+
+    PathBuf::from(result)
 }
