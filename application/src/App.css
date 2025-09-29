@@ -218,6 +218,8 @@ body,
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-width: 64px;
+  --app-top-bar-height: 36px;
 }
 
 .dark {
@@ -346,9 +348,17 @@ body,
   display: grid;
   grid-template-areas: 
     "appbar appbar"
-    "sidebar main";
-  grid-template-columns: [start] 72px [sidebarEnd] 1fr [end];
+    var(--grid-row-2, "sidebar main");
+  grid-template-columns: var(--grid-columns, [start] var(--sidebar-width) [sidebarEnd] 1fr [end]);
+  grid-template-rows: [top] var(--app-top-bar-height) [topbarEnd] 1fr [end];
   height: 100vh;
+}
+
+.mstore-layout-base.no-sidebar {
+  grid-template-areas: 
+    "appbar appbar"
+    "main main";
+  grid-template-columns: [start] 1fr [end];
 }
 
 .mstore-layout-content {

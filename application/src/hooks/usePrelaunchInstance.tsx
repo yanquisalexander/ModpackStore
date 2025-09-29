@@ -91,7 +91,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
             if (!instance) throw new Error("Instance not found");
 
             setPrelaunchState({ isLoading: false, error: null, instance });
-            setTitleBarState(prev => ({ ...prev, title: instance.instanceName, canGoBack: true, customIconClassName: "", opaque: false }));
+            setTitleBarState(prev => ({ ...prev, title: instance.instanceName, canGoBack: true, customIconClassName: "", opaque: true }));
             return instance;
         } catch (error) {
             console.error("Error fetching instance data:", error);

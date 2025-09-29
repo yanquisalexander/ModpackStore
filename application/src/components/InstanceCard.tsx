@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import { LucidePlay, LucideHardDrive, LucideMoreVertical, LucideSettings, LucideTrash2, LucideDownload, LucideRefreshCw, LucideGamepad2, LucideFolderSymlink, LucidePackageOpen } from "lucide-react"
-import { useState } from "react"
+import { LucidePlay, LucideHardDrive, LucideMoreVertical, LucideSettings, LucideTrash2, LucideDownload, LucideRefreshCw, LucideGamepad2, LucideFolderSymlink, LucidePackageOpen, LucideStar } from "lucide-react"
+import { useState, useEffect } from "react"
 import {
     ContextMenu,
     ContextMenuContent,
@@ -26,13 +26,30 @@ import { useNavigate } from "react-router-dom";
 //                            onDelete={() => openDeleteDialog(instance)}
 
 
-export const InstanceCard = ({ instance, className = "", running, onInstanceRemoved, isBootstrapping }: { instance: any, className?: string, running?: boolean, onInstanceRemoved: () => void, isBootstrapping: boolean }) => {
+export const InstanceCard = ({ instance, className = "", running, onInstanceUpdated, isBootstrapping }: { instance: any, className?: string, running?: boolean, onInstanceUpdated: (updatedInstance: any) => void, isBootstrapping: boolean }) => {
     const [isOpen, setIsOpen] = useState(false)
     const [showDeleteAlert, setShowDeleteAlert] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const [isFavorite, setIsFavorite] = useState(instance.favorite || false)
 
     const navigate = useNavigate()
 
+    useEffect(() => {
+        setIsFavorite(instance.favorite || false)
+    }, [instance.favorite])
+
+    const handleToggleFavorite = async () => {
+        try {
+            await invoke('toggle_favorite', { instanceId: instance.instanceId })
+            const newFavorite = !isFavorite
+            setIsFavorite(newFavorite)
+            // Actualizar la instancia en el estado padre
+            onInstanceUpdated({ ...instance, favorite: newFavorite })
+        } catch (error) {
+            console.error('Error toggling favorite:', error)
+            toast.error('Error al cambiar favorito')
+        }
+    }
 
     const handleDeleteInstance = async () => {
         if (isDeleting) return; // Prevenir múltiples clics
@@ -42,7 +59,7 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
             await invoke('remove_instance', { instanceId: instance.instanceId })
             //playSound("SUCCESS_NOTIFICATION")
             toast.success('Instancia eliminada correctamente')
-            onInstanceRemoved()
+            onInstanceUpdated(null)
         } catch (error) {
             playSound("ERROR_NOTIFICATION")
             console.error('Error al eliminar instancia:', error)
@@ -192,6 +209,15 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceRemo
                                 )
                             }
                         </Link>
+
+                        <div className="absolute top-2 right-2 z-30">
+                            <button
+                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleToggleFavorite(); }}
+                                className="p-1 rounded-full bg-black/50 hover:bg-black/70 transition"
+                            >
+                                <LucideStar className={`h-4 w-4 ${isFavorite ? 'text-yellow-400 fill-yellow-400' : 'text-white'}`} />
+                            </button>
+                        </div>
                     </article>
                 </ContextMenuTrigger>
                 <ContextMenuContent className="w-64 text-gray-100">

@@ -15,7 +15,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 // --- Welcome Step Component ---
 const WelcomeStep: React.FC<OnboardingStepProps> = ({ onNext, onSkip }) => {
   return (
-    <div className=" mx-auto p-6 min-h-screen flex items-center">
+    <div className=" mx-auto p-6 h-full flex items-center">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45 }} className="grid md:grid-cols-3 gap-6 w-full">
         <div className="md:col-span-1">
           <Card>
@@ -167,7 +167,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
   // Show loading overlay when completing onboarding
   if (completingOnboarding) {
     return (
-      <div className="container mx-auto p-6 min-h-screen flex items-center">
+      <div className="container mx-auto p-6 h-full flex items-center">
         <div className="w-full flex justify-center">
           <Card>
             <CardContent className="p-8 flex flex-col items-center gap-4">

@@ -24,6 +24,10 @@ pub struct MinecraftInstance {
     pub instanceDirectory: Option<String>,
     pub forgeVersion: Option<String>,
     pub javaPath: Option<String>, // In the future, we automatically download the correct Java version
+    #[serde(default)]
+    pub favorite: bool,
+    #[serde(default)]
+    pub favorite_order: Option<i32>,
 }
 
 impl MinecraftInstance {
@@ -46,6 +50,8 @@ impl MinecraftInstance {
             instanceDirectory: None,
             forgeVersion: None,
             javaPath: None,
+            favorite: false,
+            favorite_order: None,
         }
     }
 

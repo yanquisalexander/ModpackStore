@@ -61,6 +61,14 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
         return instancesOnContext.some((i) => i.id === instanceId && i.status === "running")
     }, [instancesOnContext])
 
+    const handleInstanceUpdated = useCallback((updatedInstance: TauriCommandReturns['get_instance_by_id']) => {
+        setInstances(prevInstances =>
+            prevInstances.map(inst =>
+                inst.instanceId === updatedInstance.instanceId ? updatedInstance : inst
+            )
+        )
+    }, [])
+
 
     return (
         <div className="mx-auto max-w-7xl px-8 py-10 overflow-y-auto h-full">
@@ -85,7 +93,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                             key={instance.instanceId}
                             instance={instance}
                             isBootstrapping={isBootstrapping(instance.instanceId)}
-                            onInstanceRemoved={fetchInstances}
+                            onInstanceUpdated={handleInstanceUpdated}
                             running={isRunning(instance.instanceId)}
                         />
                     ))}

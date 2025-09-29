@@ -10,6 +10,8 @@ import { start as startDiscordRpc } from "tauri-plugin-drpc";
 import { AppProviders } from "./providers/AppProviders"; // Importas el nuevo componente
 import { info, debug, error, warn } from "@tauri-apps/plugin-log";
 import { preloadSounds } from '@/utils/sounds';
+import { useLayout } from './providers/LayoutProvider';
+
 
 // La llamada a Discord RPC se mantiene igual
 startDiscordRpc("943184136976334879").catch((err) => {
@@ -57,15 +59,25 @@ const patchConsoleMethod = (method: keyof Console, logger: (...args: any[]) => v
 patchConsoleMethod('error', error);
 patchConsoleMethod('warn', warn);
 
+// Componente wrapper para usar el contexto
+const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { hasSidebar } = useLayout();
+  return (
+    <div id="mstore-layout" className={`mstore-layout-base ${!hasSidebar ? 'no-sidebar' : ''}`}>
+      {children}
+    </div>
+  );
+};
+
 createRoot($root).render(
   <AppProviders>
     <BrowserRouter>
-      <div id="mstore-layout" className="mstore-layout-base">
+      <LayoutWrapper>
         <AppTitleBar />
         <App />
         <Toaster theme="dark" />
         <UpdateStatus />
-      </div>
+      </LayoutWrapper>
     </BrowserRouter>
   </AppProviders>
 );

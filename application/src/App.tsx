@@ -33,6 +33,7 @@ import { useTermsAndConditions } from "./hooks/useTermsAndConditions";
 import { useOnboarding } from "./hooks/useOnboarding";
 import { useNotifications } from "./hooks/useNotifications";
 import { AppSidebar } from "./components/AppSidebar";
+import { useLayout } from "./providers/LayoutProvider";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
@@ -60,6 +61,7 @@ function App() {
   const { shouldShowDialog: shouldShowToSDialog, tosContent, acceptTerms, rejectTerms } = useTermsAndConditions();
   const navigate = useNavigate();
   const hasLaunched = useRef(false);
+  const { setHasSidebar, hasSidebar } = useLayout();
 
   const { requestPermission, permissionGranted } = useNotifications()
 
@@ -120,13 +122,14 @@ function App() {
     }
   }, [connectionLoading]);
 
+  // Cambiar la clase del layout div dinámicamente
+  useEffect(() => {
+    const hasSidebar = (isAuthenticated || !isConnected) && !isFirstRun;
+    setHasSidebar(hasSidebar);
+  }, [isAuthenticated, isConnected, isFirstRun, setHasSidebar]);
+
   if (shouldShowLoading) {
     return <LoadingScreen />;
-  }
-
-  // Show onboarding for first-time users
-  if (isFirstRun) {
-    return <OnboardingFlow onComplete={refreshStatus} />;
   }
 
   // CAMBIO 1: Lógica de renderizado unificada
@@ -187,14 +190,15 @@ function App() {
   };
 
   return (
-    <div className="h-full mstore-layout-content">
-      <AppSidebar />
-      <main className="overflow-y-auto h-full border rounded-tl-md" style={{ gridArea: 'main' }}>
-        {/* El header solo se muestra si el usuario está autenticado y conectado */}
-        {isAuthenticated && isConnected && <HomeMainHeader />}
-
+    <>
+      {(isAuthenticated || !isConnected) && !isFirstRun && <AppSidebar />}
+      <main className={`overflow-y-auto h-full border-t relative ${hasSidebar ? 'rounded-tl-md border-l' : 'border-l-transparent'}`} style={{ gridArea: 'main' }}>
         <div className="">
-          {renderRoutes()}
+          {isFirstRun ? (
+            <OnboardingFlow onComplete={refreshStatus} />
+          ) : (
+            renderRoutes()
+          )}
         </div>
 
         {/* Componentes globales que siempre están presentes */}
@@ -209,7 +213,7 @@ function App() {
         />
         <KonamiCode />
       </main>
-    </div>
+    </>
   );
 }
 

@@ -975,6 +975,8 @@ pub fn audit_user_data_protection(
         instanceDirectory: None,
         forgeVersion: None,
         javaPath: None,
+        favorite: false,
+        favorite_order: None,
     };
 
     let essential_paths = get_essential_minecraft_paths(minecraft_dir, &dummy_instance);
@@ -2340,7 +2342,7 @@ mod tests {
     #[test]
     fn test_enhanced_cleanup_differentiated_behavior() {
         // Test that demonstrates the differentiated cleanup behavior:
-        // - Strict cleanup for mods/ (remove everything not in manifest)
+        // - Strict cleanup for mods/ (removal)
         // - Synchronized cleanup for other folders (move files when possible)
 
         // Simulate files in different directories

@@ -72,6 +72,7 @@ pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
 
         existing_instance.instanceName = instance.instanceName;
         existing_instance.accountUuid = instance.accountUuid;
+        existing_instance.favorite = instance.favorite;
 
         existing_instance
             .save()
@@ -1379,4 +1380,70 @@ pub async fn validate_modpack_password(
         .map_err(|e| format!("Failed to parse JSON: {}", e))?;
 
     Ok(json["valid"].as_bool().unwrap_or(false))
+}
+
+#[tauri::command]
+pub fn toggle_favorite(app: tauri::AppHandle, instance_id: String) -> Result<(), String> {
+    let instances_dir = get_instances_dir()?;
+    let mut instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
+
+    if let Some(instance) = instances.iter_mut().find(|i| i.instanceId == instance_id) {
+        instance.favorite = !instance.favorite;
+        instance
+            .save()
+            .map_err(|e| format!("Error saving instance: {}", e))?;
+    } else {
+        return Err(format!("Instance with ID {} not found", instance_id));
+    }
+
+    // Emitir evento para sincronizar la UI
+    app.emit("favorite_updated", ())
+        .map_err(|e| format!("Error emitting event: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn update_favorite_order(
+    app: tauri::AppHandle,
+    instance_ids: Vec<String>,
+) -> Result<(), String> {
+    let instances_dir = get_instances_dir()?;
+    let mut instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
+
+    // Actualizar el orden de favoritos
+    for (index, instance_id) in instance_ids.iter().enumerate() {
+        if let Some(instance) = instances.iter_mut().find(|i| i.instanceId == *instance_id) {
+            instance.favorite_order = Some(index as i32);
+            instance
+                .save()
+                .map_err(|e| format!("Error saving instance {}: {}", instance_id, e))?;
+        }
+    }
+
+    // Emitir evento para sincronizar la UI
+    app.emit("favorite_updated", ())
+        .map_err(|e| format!("Error emitting event: {}", e))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_favorite_instances() -> Result<Vec<MinecraftInstance>, String> {
+    let instances_dir = get_instances_dir()?;
+    let mut instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
+    let mut favorites = instances
+        .into_iter()
+        .filter(|i| i.favorite)
+        .collect::<Vec<_>>();
+
+    // Ordenar por favorite_order, luego por nombre como fallback
+    favorites.sort_by(|a, b| match (a.favorite_order, b.favorite_order) {
+        (Some(order_a), Some(order_b)) => order_a.cmp(&order_b),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => a.instanceName.cmp(&b.instanceName),
+    });
+
+    Ok(favorites)
 }

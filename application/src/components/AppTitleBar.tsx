@@ -142,7 +142,8 @@ export const AppTitleBar = () => {
                     ref={contextMenuTriggerRef}
                     data-tauri-drag-region
                     style={{ gridArea: 'appbar' }}
-                    className={`flex z-40 top-0 h-9 transition ease-in-out w-full items-center justify-between sticky text-white select-none ${titleBarState.opaque ? 'bg-ms-primary' : 'bg-transparent'}`}
+                    className={`flex z-40 top-0 h-[var(--app-top-bar-height)] transition ease-in-out w-full items-center justify-between 
+                     text-white select-none ${titleBarState.opaque ? 'bg-ms-primary' : 'bg-transparent'}`}
                 >
                     <div className="flex items-center justify-center">
                         <div className="flex items-center gap-2">

@@ -415,12 +415,6 @@ export const ModpackAcquisitionDialog = ({
                         </div>
                     )}
 
-                    {isConnected && (
-                        <div className="flex items-center justify-center gap-1 text-xs text-green-600">
-                            <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
-                            Conectado en tiempo real
-                        </div>
-                    )}
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row-reverse sm:justify-between sm:items-center pt-4 border-t border-border">

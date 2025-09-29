@@ -7,6 +7,7 @@ import { ReloadProvider } from "../stores/ReloadContext";
 import { ConfigDialogProvider } from "../stores/ConfigDialogContext";
 import { ConnectionProvider } from "../utils/ConnectionContext";
 import { RealtimeProvider } from "./RealtimeProvider";
+import { LayoutProvider } from "./LayoutProvider";
 
 // Este componente recibe 'children', que será el resto de tu aplicación.
 export const AppProviders = ({ children }: { children: React.ReactNode }) => {
@@ -19,7 +20,9 @@ export const AppProviders = ({ children }: { children: React.ReactNode }) => {
                             <InstancesProvider>
                                 <ReloadProvider>
                                     <ConfigDialogProvider>
-                                        {children}
+                                        <LayoutProvider>
+                                            {children}
+                                        </LayoutProvider>
                                     </ConfigDialogProvider>
                                 </ReloadProvider>
                             </InstancesProvider>
