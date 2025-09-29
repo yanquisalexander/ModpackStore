@@ -16,7 +16,16 @@ use tauri_plugin_store::StoreExt;
 use tokio::sync::{oneshot, Mutex};
 
 // Constantes centralizadas
-const STORAGE_PATH: &str = "auth_store.json";
+// Current changelog version ID - increment this when updating changelog content
+const CHANGELOG_ID: u32 = 1;
+
+// Determine storage path based on environment
+const STORAGE_PATH: &str = if cfg!(debug_assertions) {
+    "auth_store.dev.json"
+} else {
+    "auth_store.json"
+};
+
 const STORAGE_KEY_TOKENS: &str = "auth_tokens";
 const CLIENT_ID: &str = "943184136976334879";
 const REDIRECT_URI: &str = "http://localhost:1957/callback";

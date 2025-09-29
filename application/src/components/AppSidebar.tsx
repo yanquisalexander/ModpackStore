@@ -3,7 +3,7 @@
 
 import { useAuthentication } from "@/stores/AuthContext";
 import { LucideLayoutGrid, LucideLibrary, LucideServer, LucideUsers } from "lucide-react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState, useCallback, useMemo, memo } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -14,6 +14,7 @@ import {
 } from "@formkit/drag-and-drop";
 import type { MinecraftInstance } from "@/types/TauriCommandReturns";
 import { useConnection } from "@/utils/ConnectionContext";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 
 export const AppSidebar: React.FC = memo(() => {
@@ -134,14 +135,21 @@ export const AppSidebar: React.FC = memo(() => {
                 {NAV_ITEMS.map((item) => {
                     const isActive = location.pathname === item.path;
                     return (
-                        <div
+                        <Tooltip
                             key={item.name}
-                            className={`group relative flex size-12 items-center justify-center p-2.5 rounded-md transition-all duration-200 ease-in-out cursor-pointer ${isActive ? "bg-neutral-800 text-white before:content-[''] before:absolute before:left-[-8px] before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-white before:rounded-full" : "text-ms-text hover:bg-neutral-700 hover:text-white"
-                                }`}
-                            onClick={() => navigate(item.path)}
                         >
-                            <item.icon className="size-5 transition-transform duration-200 group-hover:scale-110" />
-                        </div>
+                            <TooltipTrigger>
+                                <Link
+                                    to={item.path}
+                                    className={`group relative flex size-12 items-center justify-center p-2.5 rounded-md transition-all duration-200 ease-in-out cursor-pointer ${isActive ? "bg-neutral-800 text-white before:content-[''] before:absolute before:left-[-8px] before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-white before:rounded-full" : "text-ms-text hover:bg-neutral-700 hover:text-white"
+                                        }`} >
+                                    <item.icon className="size-5 transition-transform duration-200 group-hover:scale-110" />
+                                </Link>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">
+                                {item.name}
+                            </TooltipContent>
+                        </Tooltip>
                     );
                 })}
             </div>
@@ -166,21 +174,28 @@ export const AppSidebar: React.FC = memo(() => {
                                 key={fav.instanceId}
                                 className="mb-2"
                             >
-                                <motion.div
-                                    initial={{ opacity: 0, scale: 0.8 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    exit={{ opacity: 0, scale: 0.8 }}
-                                    transition={{
-                                        type: "spring",
-                                        stiffness: 300,
-                                        damping: 25
-                                    }}
-                                    className={`group relative flex size-12 items-center justify-center rounded-xl overflow-hidden transition-all duration-200 ease-in-out hover:rounded-md cursor-pointer ${isActive ? "bg-neutral-800 text-white border-2 border-white before:content-[''] before:absolute before:left-[-8px] before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-white before:rounded-full" : "text-ms-text hover:bg-neutral-700 hover:text-white border-2 border-transparent"
-                                        }`}
-                                    onClick={handleClick}
-                                >
-                                    <img src={fav.iconUrl || "/images/modpack-fallback.webp"} alt={fav.instanceName} className="transition-all duration-200 group-hover:brightness-110 group-hover:saturate-150" />
-                                </motion.div>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <motion.div
+                                            initial={{ opacity: 0, scale: 0.8 }}
+                                            animate={{ opacity: 1, scale: 1 }}
+                                            exit={{ opacity: 0, scale: 0.8 }}
+                                            transition={{
+                                                type: "spring",
+                                                stiffness: 300,
+                                                damping: 25
+                                            }}
+                                            className={`group relative flex size-12 items-center justify-center rounded-xl overflow-hidden transition-all duration-200 ease-in-out hover:rounded-md cursor-pointer ${isActive ? "bg-neutral-800 text-white border-2 border-white before:content-[''] before:absolute before:left-[-8px] before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-white before:rounded-full" : "text-ms-text hover:bg-neutral-700 hover:text-white border-2 border-transparent"
+                                                }`}
+                                            onClick={handleClick}
+                                        >
+                                            <img src={fav.iconUrl || "/images/modpack-fallback.webp"} alt={fav.instanceName} className="transition-all duration-200 group-hover:brightness-110 group-hover:saturate-150" />
+                                        </motion.div>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="right">
+                                        {fav.instanceName}
+                                    </TooltipContent>
+                                </Tooltip>
                             </div>
                         );
                     })}

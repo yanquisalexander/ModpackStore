@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence, useScroll, useTransform } from "motion/react";
 import { getModpacks } from "@/services/getModpacks";
 import { Link } from "react-router-dom";
-import { LucideChevronLeft, LucideChevronRight, LucideGamepad2, LucidePlay, LucideStar } from "lucide-react";
+import { LucideChevronLeft, LucideChevronRight, LucideGamepad2, LucideStar } from "lucide-react";
 
 export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: string }> = ({
     className = "",
@@ -11,18 +11,13 @@ export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: str
     const [slides, setSlides] = useState<any[]>([]);
     const [activeIndex, setActiveIndex] = useState(0);
     const [isAutoPlaying, setIsAutoPlaying] = useState(true);
-    const [isHydrated, setIsHydrated] = useState(false);
     const timerRef = useRef<number | null>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const interval = 6000; // 6s
 
-    // Scroll-based parallax effect - use global scroll for simplicity
+    // Scroll-based parallax effect
     const { scrollYProgress } = useScroll();
     const parallaxY = useTransform(scrollYProgress, [0, 1], [0, -50]);
-
-    useEffect(() => {
-        setIsHydrated(true);
-    }, []);
 
     useEffect(() => {
         let mounted = true;
@@ -94,18 +89,16 @@ export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: str
     return (
         <div
             ref={containerRef}
-            className={`relative rounded-[40px] w-full ${heightClass} ${className}`}
+            className={`relative w-full  ${heightClass} ${className}`} // <-- overflow-hidden REMOVED HERE
             onMouseEnter={() => setIsAutoPlaying(false)}
             onMouseLeave={() => setIsAutoPlaying(true)}
         >
-            {/* Background blur layers for depth */}
-
-            <div className="absolute inset-0 rounded-[40px]">
-                {/* Corrected: The background blur layer should be from the current slide */}
+            {/* Background layers for depth */}
+            <div className="absolute inset-0">
                 <AnimatePresence mode="wait">
                     <motion.div
                         key={`blur-${currentSlide.id}`}
-                        className="absolute inset-0 bg-cover bg-center w-full h-full opacity-30 rounded-[40px] overflow-auto blur-lg"
+                        className="absolute inset-0 bg-cover bg-center w-full h-full opacity-40 blur-2xl"
                         style={{
                             backgroundImage: `url(${currentSlide.bannerUrl || currentSlide.iconUrl || '/images/modpack-fallback.webp'})`,
                         }}
@@ -117,74 +110,66 @@ export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: str
                 </AnimatePresence>
             </div>
 
-            {/* Main slide */}
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={currentSlide.id}
-                    initial={{ x: 300, opacity: 0, scale: 1.1 }}
-                    animate={{ x: 0, opacity: 1, scale: 1 }}
-                    exit={{ x: -300, opacity: 0, scale: 0.9 }}
-                    transition={{
-                        duration: 0.8,
-                        ease: [0.25, 0.46, 0.45, 0.94],
-                        scale: { duration: 1.2 }
-                    }}
-                    className="absolute w-full h-full rounded-[40px] overflow-hidden"
-                    style={{
-                        y: parallaxY,
-                    }}
-                >
-                    <img
-                        src={currentSlide.bannerUrl || currentSlide.iconUrl || '/images/modpack-fallback.webp'}
-                        className="absolute inset-0 w-full h-full object-cover z-10"
-                        alt="Slide background"
-                    />
-                    {/* Gradient overlays */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/80 z-20" />
-                    <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-transparent z-20" />
-
-                    {/* Content */}
+            {/* ======== NEW SLIDE WRAPPER ADDED ======== */}
+            <div className="absolute inset-0 overflow-hidden">
+                {/* Main slide */}
+                <AnimatePresence mode="wait">
                     <motion.div
-                        initial={{ y: 60, opacity: 0 }}
-                        animate={{ y: 0, opacity: 1 }}
-                        transition={{ duration: 0.6, delay: 0.3 }}
-                        className="absolute left-6 md:left-12 bottom-12 md:bottom-16 max-w-xl text-white z-30"
+                        key={currentSlide.id}
+                        initial={{ x: 300, opacity: 0, scale: 1.1 }}
+                        animate={{ x: 0, opacity: 1, scale: 1 }}
+                        exit={{ x: -300, opacity: 0, scale: 0.9 }}
+                        transition={{
+                            duration: 0.8,
+                            ease: [0.25, 0.46, 0.45, 0.94],
+                            scale: { duration: 1.2 }
+                        }}
+                        className="absolute w-full h-full" // overflow-hidden is optional here
+                        style={{
+                            y: parallaxY,
+                        }}
                     >
+                        <img
+                            src={currentSlide.bannerUrl || currentSlide.iconUrl || '/images/modpack-fallback.webp'}
+                            className="absolute inset-0 w-full h-full object-cover z-10"
+                            alt="Slide background"
+                            style={{
+                                maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 100%)',
+                                WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 100%)',
+                            }}
+                        />
+
+                        {/* CONTENT BLOCK */}
                         <motion.div
-                            initial={{ y: 40, opacity: 0 }}
+                            initial={{ y: 50, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
-                            transition={{ duration: 0.5, delay: 0.4 }}
-                            className="mb-2"
+                            transition={{ duration: 0.6, delay: 0.2 }}
+                            className="absolute left-1/2 -translate-x-1/2 bottom-2 w-full max-w-2xl text-white text-center z-30 px-4"
                         >
-                            <span className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm text-white/90 px-3 py-1 rounded-full text-xs font-medium border border-white/10">
-                                <LucideStar className="w-3 h-3" />
-                                Destacado
-                            </span>
+                            <motion.h3
+                                initial={{ y: 30, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                transition={{ duration: 0.5, delay: 0.5 }}
+                                className="text-xl md:text-3xl font-bold mb-2 [text-shadow:0_3px_10px_rgba(0,0,0,0.8)]"
+                            >
+                                {currentSlide.name}
+                            </motion.h3>
+
+                            <motion.p
+                                initial={{ y: 30, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                transition={{ duration: 0.5, delay: 0.6 }}
+                                className="text-sm md:text-base text-white/80 max-w-lg mx-auto mb-4 [text-shadow:0_2px_6px_rgba(0,0,0,0.7)]"
+                            >
+                                {currentSlide.shortDescription || currentSlide.description}
+                            </motion.p>
+
                         </motion.div>
-
-                        <motion.h3
-                            initial={{ y: 40, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ duration: 0.5, delay: 0.5 }}
-                            className="text-2xl md:text-4xl lg:text-5xl font-bold leading-tight mb-3"
-                        >
-                            {currentSlide.name}
-                        </motion.h3>
-
-                        <motion.p
-                            initial={{ y: 30, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ duration: 0.5, delay: 0.6 }}
-                            className="text-sm md:text-base text-white/90 line-clamp-3 mb-6 max-w-md"
-                        >
-                            {currentSlide.shortDescription || currentSlide.description}
-                        </motion.p>
-
                         <motion.div
                             initial={{ y: 30, opacity: 0 }}
                             animate={{ y: 0, opacity: 1 }}
                             transition={{ duration: 0.5, delay: 0.7 }}
-                            className="flex gap-3"
+                            className="absolute bottom-6 right-4 z-30"
                         >
                             <Link
                                 to={`/modpack/${currentSlide.id}`}
@@ -195,8 +180,22 @@ export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: str
                             </Link>
                         </motion.div>
                     </motion.div>
-                </motion.div>
-            </AnimatePresence>
+                </AnimatePresence>
+            </div>
+            {/* ======================================= */}
+
+            {/* Featured badge - always visible */}
+            <motion.div
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.3 }}
+                className="absolute top-6 left-6 z-40"
+            >
+                <span className="inline-flex items-center gap-2 bg-black/30 backdrop-blur-md text-white/95 px-3 py-1.5 rounded-full text-xs font-semibold border border-white/15 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]">
+                    <LucideStar className="w-3.5 h-3.5" />
+                    Destacado
+                </span>
+            </motion.div>
 
             {/* Navigation buttons */}
             {slides.length > 1 && (
@@ -207,7 +206,7 @@ export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: str
                         whileHover={{ scale: 1.1, x: -2 }}
                         whileTap={{ scale: 0.95 }}
                         transition={{ duration: 0.2 }}
-                        className="absolute left-4 top-1/2 -translate-y-1/2 z-30 bg-black/20 backdrop-blur-md hover:bg-black/40 p-3 rounded-full text-white border border-white/10 hover:border-white/20 transition-all duration-300"
+                        className="absolute left-6 top-1/2 -translate-y-1/2 z-30 bg-black/20 backdrop-blur-md hover:bg-black/40 p-3 rounded-full text-white border border-white/10 hover:border-white/20 transition-all duration-300"
                     >
                         <LucideChevronLeft className="w-5 h-5" />
                     </motion.button>
@@ -218,7 +217,7 @@ export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: str
                         whileHover={{ scale: 1.1, x: 2 }}
                         whileTap={{ scale: 0.95 }}
                         transition={{ duration: 0.2 }}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 z-30 bg-black/20 backdrop-blur-md hover:bg-black/40 p-3 rounded-full text-white border border-white/10 hover:border-white/20 transition-all duration-300"
+                        className="absolute right-6 top-1/2 -translate-y-1/2 z-30 bg-black/20 backdrop-blur-md hover:bg-black/40 p-3 rounded-full text-white border border-white/10 hover:border-white/20 transition-all duration-300"
                     >
                         <LucideChevronRight className="w-5 h-5" />
                     </motion.button>
@@ -227,7 +226,7 @@ export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: str
 
             {/* Progress indicators */}
             {slides.length > 1 && (
-                <div className="absolute left-1/2 -translate-x-1/2 bottom-6 z-30 flex items-center gap-3">
+                <div className="absolute left-1/2 -translate-x-1/2 bottom-8 z-30 flex items-center gap-3 px-4">
                     {slides.map((_, i) => (
                         <motion.button
                             key={i}
@@ -240,15 +239,14 @@ export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: str
                             whileHover={{ scale: 1.2 }}
                             whileTap={{ scale: 0.9 }}
                         >
-                            {i === activeIndex && (
+                            {i === activeIndex && isAutoPlaying && (
                                 <motion.div
-                                    className="absolute inset-0 bg-white rounded-full"
-                                    initial={{ x: "-100%" }}
-                                    animate={{ x: isAutoPlaying ? "100%" : "0%" }}
+                                    className="absolute top-0 left-0 h-full bg-white/50"
+                                    initial={{ width: "0%" }}
+                                    animate={{ width: "100%" }}
                                     transition={{
-                                        duration: isAutoPlaying ? interval / 1000 : 0,
+                                        duration: interval / 1000,
                                         ease: "linear",
-                                        repeat: isAutoPlaying ? Infinity : 0,
                                     }}
                                 />
                             )}
@@ -261,7 +259,7 @@ export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: str
             <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: isAutoPlaying ? 0 : 1 }}
-                className="absolute top-4 right-4 z-30 bg-black/20 backdrop-blur-md px-3 py-1 rounded-full text-white/80 text-xs"
+                className="absolute top-6 right-6 z-30 bg-black/20 backdrop-blur-md px-3 py-1 rounded-full text-white/80 text-xs"
             >
                 Pausado
             </motion.div>

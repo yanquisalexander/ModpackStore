@@ -146,7 +146,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const authStatusUnlisten = await listen<UserSession | null>('auth-status-changed', async (event) => {
         if (!isMounted) return;
         try {
-          const store = await load('auth_store.json');
+          const store = await load(import.meta.env.PROD ? 'auth_store.json' : 'auth_store.dev.json');
           const tokens = await store.get<any>('auth_tokens');
           if (tokens) {
             setSessionTokens({

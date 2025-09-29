@@ -117,6 +117,8 @@ function App() {
   const shouldShowLoading = authLoading || onboardingLoading ||
     (connectionLoading && !hasCheckedConnectionRef.current);
 
+  const isShowingLogin = !isAuthenticated && isConnected && !isFirstRun;
+
   useEffect(() => {
     if (!connectionLoading) {
       hasCheckedConnectionRef.current = true;
@@ -194,7 +196,7 @@ function App() {
   return (
     <>
       {(isAuthenticated || !isConnected) && !isFirstRun && <AppSidebar />}
-      <main className={`overflow-y-auto h-full border-t relative ${hasSidebar ? 'rounded-tl-md border-l' : 'border-l-transparent'}`} style={{ gridArea: 'main' }}>
+      <main className={`overflow-y-auto h-full border-t ${isShowingLogin ? "border-transparent" : "relative"} ${hasSidebar ? 'rounded-tl-md border-l' : 'border-l-transparent'}`} style={{ gridArea: 'main' }}>
         <div className="">
           {isFirstRun ? (
             <OnboardingFlow onComplete={refreshStatus} />

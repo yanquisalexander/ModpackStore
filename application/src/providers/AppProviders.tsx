@@ -8,6 +8,7 @@ import { ConfigDialogProvider } from "../stores/ConfigDialogContext";
 import { ConnectionProvider } from "../utils/ConnectionContext";
 import { RealtimeProvider } from "./RealtimeProvider";
 import { LayoutProvider } from "./LayoutProvider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 // Este componente recibe 'children', que será el resto de tu aplicación.
 export const AppProviders = ({ children }: { children: React.ReactNode }) => {
@@ -20,8 +21,11 @@ export const AppProviders = ({ children }: { children: React.ReactNode }) => {
                             <InstancesProvider>
                                 <ReloadProvider>
                                     <ConfigDialogProvider>
+
                                         <LayoutProvider>
-                                            {children}
+                                            <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+                                                {children}
+                                            </TooltipProvider>
                                         </LayoutProvider>
                                     </ConfigDialogProvider>
                                 </ReloadProvider>
