@@ -34,6 +34,7 @@ import { useOnboarding } from "./hooks/useOnboarding";
 import { useNotifications } from "./hooks/useNotifications";
 import { AppSidebar } from "./components/AppSidebar";
 import { useLayout } from "./providers/LayoutProvider";
+import { Changelog } from "./components/Changelog";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
@@ -212,6 +213,7 @@ function App() {
           onAccept={acceptTerms}
           onReject={rejectTerms}
         />
+        <Changelog />
         <KonamiCode />
       </main>
     </>
