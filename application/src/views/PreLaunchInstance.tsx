@@ -63,7 +63,7 @@ const Logo = memo(({ logo, onLoadError }: { logo: PreLaunchAppearance['logo'], o
                 animationDuration: logo.fadeInDuration,
                 height: logo.height,
             }}
-            className={`absolute z-10 animate-fade-in duration-500 ease-in-out ${logoHasCustomPosition ? "fixed" : ""}`}
+            className="absolute z-10 animate-fade-in duration-500 ease-in-out"
         />
     );
 });
@@ -255,7 +255,7 @@ export const PreLaunchInstance = () => {
                     data={crashErrorState.data}
                     exitCode={crashErrorState.exitCode}
                 />
-                
+
                 <AccountSelectionDialog
                     open={showAccountSelection}
                     onOpenChange={setShowAccountSelection}
