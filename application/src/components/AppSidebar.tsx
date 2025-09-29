@@ -13,6 +13,7 @@ import {
     animations
 } from "@formkit/drag-and-drop";
 import type { MinecraftInstance } from "@/types/TauriCommandReturns";
+import { useConnection } from "@/utils/ConnectionContext";
 
 
 export const AppSidebar: React.FC = memo(() => {
@@ -20,6 +21,9 @@ export const AppSidebar: React.FC = memo(() => {
     const location = useLocation();
     const [favoriteInstances, setFavoriteInstances] = useState<MinecraftInstance[]>([]);
     const { session } = useAuthentication();
+
+    const { isLoading: isLoadingConnectionCheck, isConnected } = useConnection();
+
 
     // Estado separado para drag and drop
     const [dragItems, setDragItems] = useState<MinecraftInstance[]>([]);
@@ -89,28 +93,39 @@ export const AppSidebar: React.FC = memo(() => {
         }
     }, [favoriteInstances, dragItems.length, setDragAndDropItems]);
 
-    const NAV_ITEMS = useMemo(() => [
-        {
-            name: "Explorar",
-            icon: LucideLayoutGrid,
-            path: "/"
-        },
-        {
-            name: "Biblioteca",
-            icon: LucideLibrary,
-            path: "/library"
-        },
-        {
-            name: "Instancias",
-            icon: LucideServer,
-            path: "/my-instances"
-        },
-        {
-            name: "Cuentas",
-            icon: LucideUsers,
-            path: "/mc-accounts"
-        }
-    ], []);
+    const isOfflineMode = !isLoadingConnectionCheck && !isConnected
+
+    const NAV_ITEMS = useMemo(() => {
+        const baseItems = [
+            {
+                name: "Explorar",
+                icon: LucideLayoutGrid,
+                path: "/",
+                requiresConnection: true
+            },
+            {
+                name: "Biblioteca",
+                icon: LucideLibrary,
+                path: "/library",
+                requiresConnection: true
+            },
+            {
+                name: "Instancias",
+                icon: LucideServer,
+                path: isOfflineMode ? "/" : "/my-instances",
+                requiresConnection: false
+            },
+            {
+                name: "Cuentas",
+                icon: LucideUsers,
+                path: "/mc-accounts",
+                requiresConnection: false
+            }
+        ];
+
+        // Filtrar items basados en el estado de conexión
+        return isConnected ? baseItems : baseItems.filter(item => !item.requiresConnection);
+    }, [isConnected]);
 
     return (
         <aside className="bg-ms-secondary h-full scrollbar-hide flex flex-col overflow-y-auto" style={{ gridArea: 'sidebar' }}>

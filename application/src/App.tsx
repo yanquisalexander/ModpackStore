@@ -139,6 +139,7 @@ function App() {
       return (
         <Routes>
           <Route path="/" element={<OfflineMode />} />
+          <Route path="/my-instances" element={<MyInstancesSection offlineMode={true} />} />
           <Route path="/mc-accounts" element={<AccountsSection />} />
           <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
           <Route path="*" element={<NotFound />} />
