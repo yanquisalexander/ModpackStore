@@ -58,12 +58,14 @@ patchConsoleMethod('error', error);
 patchConsoleMethod('warn', warn);
 
 createRoot($root).render(
-  <BrowserRouter>
-    <AppProviders>
-      <AppTitleBar />
-      <App />
-      <Toaster theme="dark" />
-      <UpdateStatus />
-    </AppProviders>
-  </BrowserRouter>
+  <AppProviders>
+    <BrowserRouter>
+      <div id="mstore-layout" className="mstore-layout-base">
+        <AppTitleBar />
+        <App />
+        <Toaster theme="dark" />
+        <UpdateStatus />
+      </div>
+    </BrowserRouter>
+  </AppProviders>
 );

@@ -32,6 +32,7 @@ import { TermsAndConditionsDialog } from "./components/TermsAndConditionsDialog"
 import { useTermsAndConditions } from "./hooks/useTermsAndConditions";
 import { useOnboarding } from "./hooks/useOnboarding";
 import { useNotifications } from "./hooks/useNotifications";
+import { AppSidebar } from "./components/AppSidebar";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
@@ -186,26 +187,29 @@ function App() {
   };
 
   return (
-    <main className="overflow-y-auto h-full">
-      {/* El header solo se muestra si el usuario está autenticado y conectado */}
-      {isAuthenticated && isConnected && <HomeMainHeader />}
+    <div className="h-full mstore-layout-content">
+      <AppSidebar />
+      <main className="overflow-y-auto h-full border rounded-tl-md" style={{ gridArea: 'main' }}>
+        {/* El header solo se muestra si el usuario está autenticado y conectado */}
+        {isAuthenticated && isConnected && <HomeMainHeader />}
 
-      <div className="">
-        {renderRoutes()}
-      </div>
+        <div className="">
+          {renderRoutes()}
+        </div>
 
-      {/* Componentes globales que siempre están presentes */}
-      <NoticeTestBuild />
-      <CommandPalette />
-      <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />
-      <TermsAndConditionsDialog
-        open={shouldShowToSDialog}
-        content={tosContent}
-        onAccept={acceptTerms}
-        onReject={rejectTerms}
-      />
-      <KonamiCode />
-    </main>
+        {/* Componentes globales que siempre están presentes */}
+        <NoticeTestBuild />
+        <CommandPalette />
+        <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />
+        <TermsAndConditionsDialog
+          open={shouldShowToSDialog}
+          content={tosContent}
+          onAccept={acceptTerms}
+          onReject={rejectTerms}
+        />
+        <KonamiCode />
+      </main>
+    </div>
   );
 }
 

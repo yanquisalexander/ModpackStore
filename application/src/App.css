@@ -341,3 +341,21 @@ body,
 .driver-popover.ms-popover .driver-popover-progress-text {
   @apply text-sm font-jost;
 }
+
+.mstore-layout-base {
+  display: grid;
+  grid-template-areas: 
+    "appbar appbar"
+    "sidebar main";
+  grid-template-columns: [start] 72px [sidebarEnd] 1fr [end];
+  height: 100vh;
+}
+
+.mstore-layout-content {
+    display: grid;
+    grid-column: start / end;     /* ocupa toda la fila de contenido */
+    grid-row: topbarEnd / end;    /* debajo del topbar */
+    grid-template-columns: subgrid;
+    grid-template-rows: subgrid;
+  
+}
