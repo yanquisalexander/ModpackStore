@@ -35,7 +35,6 @@ import { useNotifications } from "./hooks/useNotifications";
 import { AppSidebar } from "./components/AppSidebar";
 import { useLayout } from "./providers/LayoutProvider";
 import { Changelog } from "./components/Changelog";
-import { ChangelogDemo } from "./components/ChangelogDemo";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
@@ -144,7 +143,6 @@ function App() {
           <Route path="/my-instances" element={<MyInstancesSection offlineMode={true} />} />
           <Route path="/mc-accounts" element={<AccountsSection />} />
           <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
-          <Route path="/changelog-demo" element={<ChangelogDemo />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       );
@@ -187,9 +185,6 @@ function App() {
         {session?.isAdmin?.() && (
           <Route path="/admin/*" element={<AdminLayout />} />
         )}
-
-        {/* Development/Demo route for testing Changelog component */}
-        <Route path="/changelog-demo" element={<ChangelogDemo />} />
 
         <Route path="*" element={<NotFound />} />
       </Routes>
