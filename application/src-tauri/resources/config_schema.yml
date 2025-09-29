@@ -62,6 +62,12 @@ firstRunAt:
   description: "Timestamp de la primera ejecución de la aplicación"
   ui_section: internal
 
+lastChangelogId:
+  type: integer
+  default: 0
+  description: "ID del último changelog mostrado"
+  ui_section: internal
+
 ramAllocation:
   type: integer
   default: 2048
