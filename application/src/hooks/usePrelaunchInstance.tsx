@@ -314,7 +314,14 @@ export const usePrelaunchInstance = (instanceId: string) => {
             // Crear nuevo audio con la nueva URL
             audioRef.current = new Audio(appearance.audio.url);
             audioRef.current.loop = true;
-            audioRef.current.volume = appearance.audio.volume !== undefined ? appearance.audio.volume : 0.5;
+        }
+
+        // Siempre actualizar el volumen aunque el objeto ya exista
+        if (audioRef.current) {
+            audioRef.current.volume =
+                typeof appearance.audio.volume === "number"
+                    ? Math.max(0, Math.min(1, appearance.audio.volume))
+                    : 0.5;
         }
 
         const audio = audioRef.current;
@@ -331,7 +338,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
                 audioRef.current.currentTime = 0;
             }
         };
-    }, [appearance?.audio?.url, isPlaying]);
+    }, [appearance?.audio?.url, appearance?.audio?.volume, isPlaying]);
 
     // Enhanced effect to handle loading state with better cleanup and message management
     useEffect(() => {
