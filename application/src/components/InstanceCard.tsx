@@ -21,12 +21,13 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { invoke } from "@tauri-apps/api/core"
+import { emit } from "@tauri-apps/api/event"
 import { useNavigate } from "react-router-dom";
 
 //                            onDelete={() => openDeleteDialog(instance)}
 
 
-export const InstanceCard = ({ instance, className = "", running, onInstanceUpdated, isBootstrapping }: { instance: any, className?: string, running?: boolean, onInstanceUpdated: (updatedInstance: any) => void, isBootstrapping: boolean }) => {
+export const InstanceCard = ({ instance, className = "", running, onInstanceUpdated, onInstanceDeleted, isBootstrapping }: { instance: any, className?: string, running?: boolean, onInstanceUpdated: (updatedInstance: any) => void, onInstanceDeleted: () => void, isBootstrapping: boolean }) => {
     const [isOpen, setIsOpen] = useState(false)
     const [showDeleteAlert, setShowDeleteAlert] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
@@ -57,9 +58,13 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceUpda
         setIsDeleting(true);
         try {
             await invoke('remove_instance', { instanceId: instance.instanceId })
+            // Si la instancia era favorita, emitir evento para actualizar la lista de favoritos
+            if (isFavorite) {
+                await emit('favorite_updated');
+            }
             //playSound("SUCCESS_NOTIFICATION")
             toast.success('Instancia eliminada correctamente')
-            onInstanceUpdated(null)
+            onInstanceDeleted()
         } catch (error) {
             playSound("ERROR_NOTIFICATION")
             console.error('Error al eliminar instancia:', error)

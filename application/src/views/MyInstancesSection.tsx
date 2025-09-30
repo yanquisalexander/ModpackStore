@@ -64,7 +64,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
     const handleInstanceUpdated = useCallback((updatedInstance: TauriCommandReturns['get_instance_by_id']) => {
         setInstances(prevInstances =>
             prevInstances.map(inst =>
-                inst.instanceId === updatedInstance.instanceId ? updatedInstance : inst
+                inst?.instanceId === updatedInstance?.instanceId ? updatedInstance : inst
             )
         )
     }, [])
@@ -88,12 +88,13 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                 </div>
             ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {instances.map((instance) => (
+                    {instances.filter(instance => instance != null).map((instance) => (
                         <InstanceCard
                             key={instance.instanceId}
                             instance={instance}
                             isBootstrapping={isBootstrapping(instance.instanceId)}
                             onInstanceUpdated={handleInstanceUpdated}
+                            onInstanceDeleted={fetchInstances}
                             running={isRunning(instance.instanceId)}
                         />
                     ))}
