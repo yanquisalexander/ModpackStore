@@ -293,9 +293,25 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
     // Efecto para manejar el audio de fondo
     useEffect(() => {
-        if (!appearance?.audio?.url) return;
+        // Si no hay URL de audio, pausar cualquier audio que esté reproduciéndose
+        if (!appearance?.audio?.url) {
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+                audioRef.current = null;
+            }
+            return;
+        }
 
-        if (!audioRef.current) {
+        // Si hay URL de audio, crear o actualizar el audio
+        if (!audioRef.current || audioRef.current.src !== appearance.audio.url) {
+            // Pausar audio anterior si existe
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+            }
+
+            // Crear nuevo audio con la nueva URL
             audioRef.current = new Audio(appearance.audio.url);
             audioRef.current.loop = true;
             audioRef.current.volume = 0.01;
@@ -309,8 +325,11 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }
 
         return () => {
-            audio.pause();
-            audio.currentTime = 0;
+            // Este cleanup solo se ejecuta cuando el componente se desmonta
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+            }
         };
     }, [appearance?.audio?.url, isPlaying]);
 
@@ -377,6 +396,12 @@ export const usePrelaunchInstance = (instanceId: string) => {
         return () => {
             clearAllTimers();
             lastMessageRef.current = null;
+            // Limpiar audio cuando cambia la instancia
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.currentTime = 0;
+                audioRef.current = null;
+            }
         };
     }, [instanceId, clearAllTimers, clearLoadingState]); // Cleanup when instanceId changes
 
