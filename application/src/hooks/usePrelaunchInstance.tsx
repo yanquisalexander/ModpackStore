@@ -148,12 +148,6 @@ export const usePrelaunchInstance = (instanceId: string) => {
             }
         } catch (err) {
             console.warn("Failed to update prelaunch appearance:", err);
-            if (prelaunchState.instance?.modpackId) {
-                toast.warning("Modo offline", {
-                    description: "No se pudo verificar actualizaciones del modpack. Usando datos locales.",
-                    duration: 3000
-                });
-            }
             await loadAppearance();
         }
     }, [instanceId, loadAppearance, prelaunchState.instance?.modpackId]);
