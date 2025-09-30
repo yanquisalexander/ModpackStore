@@ -8,11 +8,10 @@ import { useGlobalContext } from "@/stores/GlobalContext";
 import { useInstances } from "@/stores/InstancesContext";
 import { useTasksContext } from "@/stores/TasksContext";
 import { getDefaultAppeareance } from "@/utils/prelaunch";
-import { playSound, SOUNDS } from "@/utils/sounds";
+import { playSound } from "@/utils/sounds";
 import { trackEvent } from "@aptabase/web";
 import { Activity, Timestamps } from "tauri-plugin-drpc/activity";
 import { setActivity } from "tauri-plugin-drpc";
-import { LucideUnplug } from "lucide-react";
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance";
 import { MinecraftInstance, TauriCommandReturns } from "@/types/TauriCommandReturns";
 import { InstallationStage } from "@/types/InstallationStage";
@@ -35,22 +34,19 @@ const RANDOM_MESSAGES = [
     "Casi listo para jugar...",
     "Preparando las minas...",
     "Crafteando tu experiencia..."
-];
+] as const;
 
 export const usePrelaunchInstance = (instanceId: string) => {
-    // Contextos
     const { setTitleBarState } = useGlobalContext();
     const { instances } = useInstances();
     const { instancesBootstraping } = useTasksContext();
     const navigate = useNavigate();
 
-    // Refs
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const messageIntervalRef = useRef<number | null>(null);
     const lastMessageRef = useRef<string | null>(null);
     const messageTimeoutRef = useRef<number | null>(null);
 
-    // Estados
     const [appearance, setAppearance] = useState<PreLaunchAppearance | undefined>(undefined);
     const [prelaunchState, setPrelaunchState] = useState({
         isLoading: true,
@@ -67,15 +63,35 @@ export const usePrelaunchInstance = (instanceId: string) => {
     const [showConfig, setShowConfig] = useState(false);
     const [showAccountSelection, setShowAccountSelection] = useState(false);
 
-    // Valores derivados del estado
     const currentInstanceRunning = instances.find(inst => inst.id === instanceId) || null;
     const isPlaying = currentInstanceRunning?.status === "running";
     const isInstanceBootstraping = instancesBootstraping.includes(instanceId);
     const IS_FORGE = prelaunchState.instance?.forgeVersion != null;
 
-    // --- FUNCIONES Y CALLBACKS ---
+    const getRandomMessage = useCallback(() =>
+        RANDOM_MESSAGES[Math.floor(Math.random() * RANDOM_MESSAGES.length)],
+        []);
 
-    const getRandomMessage = useCallback(() => RANDOM_MESSAGES[Math.floor(Math.random() * RANDOM_MESSAGES.length)], []);
+    const clearAllTimers = useCallback(() => {
+        if (messageIntervalRef.current) {
+            clearInterval(messageIntervalRef.current);
+            messageIntervalRef.current = null;
+        }
+        if (messageTimeoutRef.current) {
+            clearTimeout(messageTimeoutRef.current);
+            messageTimeoutRef.current = null;
+        }
+    }, []);
+
+    const clearLoadingState = useCallback(() => {
+        clearAllTimers();
+        lastMessageRef.current = null;
+        setLoadingStatus({
+            isLoading: false,
+            message: "Preparando instancia...",
+            stage: undefined
+        });
+    }, [clearAllTimers]);
 
     const handleResourceError = useCallback((resourceName: string, errorDetails: string) => {
         console.warn(`Error loading prelaunch resource: ${resourceName}`, errorDetails);
@@ -91,11 +107,21 @@ export const usePrelaunchInstance = (instanceId: string) => {
             if (!instance) throw new Error("Instance not found");
 
             setPrelaunchState({ isLoading: false, error: null, instance });
-            setTitleBarState(prev => ({ ...prev, title: instance.instanceName, canGoBack: true, customIconClassName: "", opaque: true }));
+            setTitleBarState(prev => ({
+                ...prev,
+                title: instance.instanceName,
+                canGoBack: true,
+                customIconClassName: "",
+                opaque: true
+            }));
             return instance;
         } catch (error) {
             console.error("Error fetching instance data:", error);
-            setPrelaunchState({ isLoading: false, error: "Ocurrió un error al cargar la instancia", instance: null });
+            setPrelaunchState({
+                isLoading: false,
+                error: "Ocurrió un error al cargar la instancia",
+                instance: null
+            });
             return null;
         }
     }, [instanceId, setTitleBarState]);
@@ -115,28 +141,19 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
     const updateAppearance = useCallback(async () => {
         try {
-            console.log("Attempting to update prelaunch appearance for instance:", instanceId);
             const updated = await invoke<boolean>("update_prelaunch_appearance", { instanceId });
             if (updated) {
-                console.log("Prelaunch appearance updated successfully, reloading...");
-                // Reload the appearance after successful update
                 await loadAppearance();
                 info(`Apariencia actualizada para la instancia: ${instanceId}`);
-            } else {
-                console.log("No prelaunch appearance available for this instance");
             }
         } catch (err) {
             console.warn("Failed to update prelaunch appearance:", err);
-
-            // Mostrar notificación no bloqueante de modo offline para modpacks
             if (prelaunchState.instance?.modpackId) {
                 toast.warning("Modo offline", {
                     description: "No se pudo verificar actualizaciones del modpack. Usando datos locales.",
                     duration: 3000
                 });
             }
-
-            // Still load the existing appearance
             await loadAppearance();
         }
     }, [instanceId, loadAppearance, prelaunchState.instance?.modpackId]);
@@ -148,71 +165,35 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }, 5000);
     }, [getRandomMessage]);
 
-    // Enhanced function to clear loading state and prevent old messages from showing
-    const clearLoadingState = useCallback(() => {
-        // Clear any existing intervals
-        if (messageIntervalRef.current) {
-            clearInterval(messageIntervalRef.current);
-            messageIntervalRef.current = null;
-        }
-
-        // Clear any existing timeouts
-        if (messageTimeoutRef.current) {
-            clearTimeout(messageTimeoutRef.current);
-            messageTimeoutRef.current = null;
-        }
-
-        // Reset message reference
-        lastMessageRef.current = null;
-
-        // Reset loading status to clean state
-        setLoadingStatus({
-            isLoading: false,
-            message: "Preparando instancia...", // Fresh message instead of old residual one
-            stage: undefined
-        });
-
-        console.log("LoadingIndicator state cleared for new instance launch");
-    }, []);
-
-    // Helper function to clear all timers
-    const clearAllTimers = useCallback(() => {
-        if (messageIntervalRef.current) {
-            clearInterval(messageIntervalRef.current);
-            messageIntervalRef.current = null;
-        }
-
-        if (messageTimeoutRef.current) {
-            clearTimeout(messageTimeoutRef.current);
-            messageTimeoutRef.current = null;
-        }
-    }, []);
-
-    const launchInstance = async () => {
+    const launchInstance = useCallback(async () => {
         if (loadingStatus.isLoading || isPlaying || isInstanceBootstraping) return;
 
         const { instance } = prelaunchState;
         if (!instance) {
             playSound('ERROR_NOTIFICATION');
-            toast.error("Error al iniciar la instancia", { description: "No se encontró la información de la instancia." });
+            toast.error("Error al iniciar la instancia", {
+                description: "No se encontró la información de la instancia."
+            });
             return;
         }
 
-        // Check if account exists
         const accountExists = await invoke<boolean>("ensure_account_exists", { uuid: instance.accountUuid });
         if (!accountExists) {
             playSound('ERROR_NOTIFICATION');
-            toast.error("Cuenta no encontrada", { description: "La cuenta asociada no existe. Revísala en la configuración." });
+            toast.error("Cuenta no encontrada", {
+                description: "La cuenta asociada no existe. Revísala en la configuración."
+            });
             return;
         }
 
         try {
-            trackEvent("play_instance_clicked", { name: "Play Minecraft Instance Clicked", modpackId: "null", timestamp: new Date().toISOString() });
+            trackEvent("play_instance_clicked", {
+                name: "Play Minecraft Instance Clicked",
+                modpackId: "null",
+                timestamp: new Date().toISOString()
+            });
 
-            // Clear any previous loading state and messages before starting new instance
             clearLoadingState();
-
-            // Set initial loading state for new instance
             setLoadingStatus({
                 isLoading: true,
                 message: "Preparando instancia...",
@@ -224,10 +205,12 @@ export const usePrelaunchInstance = (instanceId: string) => {
         } catch (error) {
             console.error("Error launching instance:", error);
             playSound('ERROR_NOTIFICATION');
-            toast.error("Error al iniciar la instancia", { description: "Ocurrió un problema al intentar lanzar Minecraft." });
+            toast.error("Error al iniciar la instancia", {
+                description: "Ocurrió un problema al intentar lanzar Minecraft."
+            });
             setLoadingStatus(DEFAULT_LOADING_STATE);
         }
-    };
+    }, [instanceId, loadingStatus.isLoading, isPlaying, isInstanceBootstraping, prelaunchState, clearLoadingState, startMessageInterval]);
 
     const handlePlayButtonClick = useCallback(async () => {
         if (loadingStatus.isLoading || isPlaying || isInstanceBootstraping) return;
@@ -235,9 +218,12 @@ export const usePrelaunchInstance = (instanceId: string) => {
         const { instance } = prelaunchState;
         if (!instance) {
             playSound('ERROR_NOTIFICATION');
-            toast.error("Error al iniciar la instancia", { description: "No se encontró la información de la instancia." });
+            toast.error("Error al iniciar la instancia", {
+                description: "No se encontró la información de la instancia."
+            });
             return;
         }
+
         if (!instance.accountUuid) {
             setShowAccountSelection(true);
             return;
@@ -246,106 +232,79 @@ export const usePrelaunchInstance = (instanceId: string) => {
         const accountExists = await invoke<boolean>("ensure_account_exists", { uuid: instance.accountUuid });
         if (!accountExists) {
             playSound('ERROR_NOTIFICATION');
-            toast.error("Cuenta no encontrada", { description: "La cuenta asociada no existe. Revísala en la configuración." });
+            toast.error("Cuenta no encontrada", {
+                description: "La cuenta asociada no existe. Revísala en la configuración."
+            });
             return;
         }
 
         await launchInstance();
-    }, [instanceId, loadingStatus.isLoading, isPlaying, isInstanceBootstraping, prelaunchState.instance]);
+    }, [loadingStatus.isLoading, isPlaying, isInstanceBootstraping, prelaunchState, launchInstance]);
 
-    const handleAccountSelected = async () => {
-        // The AccountSelectionDialog will handle setting the account for the instance
-        // After account is set, we need to refresh instance data and then launch
+    const handleAccountSelected = useCallback(async () => {
         setShowAccountSelection(false);
-
-        // Refresh instance data to get the updated account info
         const updatedInstance = await fetchInstanceData();
-
-        // Check if the account was successfully assigned and launch
-        if (updatedInstance && updatedInstance.accountUuid) {
-            // Re-trigger the play action with updated instance data
-            setTimeout(() => {
-                // We can't call handlePlayButtonClick directly as it would cause recursion
-                // Instead, we'll trigger the launch directly
-                launchInstance();
-            }, 100);
+        if (updatedInstance?.accountUuid) {
+            setTimeout(() => launchInstance(), 100);
         }
-    };
+    }, [fetchInstanceData, launchInstance]);
 
-    // --- EFECTOS SECUNDARIOS ---
-
-    // Efecto para cargar datos iniciales
+    // Cargar datos iniciales
     useEffect(() => {
         const loadInitialData = async () => {
             const instance = await fetchInstanceData();
-            if (instance && instance.modpackId) {
-                // For modpack instances, load existing appearance first, then update in background
+            if (instance?.modpackId) {
                 await loadAppearance();
-                // Update appearance in background without blocking
                 updateAppearance();
             } else {
-                // For non-modpack instances, just load existing appearance
                 await loadAppearance();
             }
         };
         loadInitialData();
     }, [fetchInstanceData, loadAppearance, updateAppearance]);
 
-    // Efecto para manejar el audio de fondo
+    // Manejar audio de fondo
     useEffect(() => {
-        // Si no hay URL de audio, pausar cualquier audio que esté reproduciéndose
         if (!appearance?.audio?.url) {
             if (audioRef.current) {
                 audioRef.current.pause();
-                audioRef.current.currentTime = 0;
                 audioRef.current = null;
             }
             return;
         }
 
-        // Si hay URL de audio, crear o actualizar el audio
         if (!audioRef.current || audioRef.current.src !== appearance.audio.url) {
-            // Pausar audio anterior si existe
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current.currentTime = 0;
-            }
-
-            // Crear nuevo audio con la nueva URL
+            if (audioRef.current) audioRef.current.pause();
             audioRef.current = new Audio(appearance.audio.url);
             audioRef.current.loop = true;
         }
 
-        // Siempre actualizar el volumen aunque el objeto ya exista
         if (audioRef.current) {
-            audioRef.current.volume =
-                typeof appearance.audio.volume === "number"
-                    ? Math.max(0, Math.min(1, appearance.audio.volume))
+            const volumeValue = typeof appearance.audio.volume === "number"
+                ? appearance.audio.volume
+                : typeof appearance.audio.volume === "string"
+                    ? parseFloat(appearance.audio.volume)
                     : 0.5;
+            audioRef.current.volume = Math.max(0, Math.min(1, volumeValue));
         }
 
         const audio = audioRef.current;
-        if (isPlaying) {
-            audio.pause();
-        } else {
-            audio.play().catch(e => console.error("Audio playback error:", e));
-        }
+        isPlaying ? audio.pause() : audio.play().catch(e => console.error("Audio playback error:", e));
 
         return () => {
-            // Este cleanup solo se ejecuta cuando el componente se desmonta
             if (audioRef.current) {
                 audioRef.current.pause();
-                audioRef.current.currentTime = 0;
+                audioRef.current = null;
             }
         };
     }, [appearance?.audio?.url, appearance?.audio?.volume, isPlaying]);
 
-    // Enhanced effect to handle loading state with better cleanup and message management
+    // Manejar estado de carga
     useEffect(() => {
         if (currentInstanceRunning) {
-            const isLoading = ["preparing", "downloading-assets", "downloading-modpack-assets"].includes(currentInstanceRunning.status);
+            const isLoading = ["preparing", "downloading-assets", "downloading-modpack-assets"]
+                .includes(currentInstanceRunning.status);
 
-            // Use stage information if available, otherwise fall back to existing message
             const formattedMessage = currentInstanceRunning.stage
                 ? formatStageMessage(currentInstanceRunning.stage, currentInstanceRunning.message || "Procesando...")
                 : currentInstanceRunning.message || (isLoading ? getRandomMessage() : DEFAULT_LOADING_STATE.message);
@@ -358,20 +317,11 @@ export const usePrelaunchInstance = (instanceId: string) => {
             }));
 
             if (isLoading) {
-                // Check if the message has changed for this specific instance
                 const messageKey = `${instanceId}-${formattedMessage}`;
                 if (lastMessageRef.current !== messageKey) {
-                    // Message changed: update ref and reset timeout
                     lastMessageRef.current = messageKey;
-
-                    // Clear any existing timeout
-                    if (messageTimeoutRef.current) {
-                        clearTimeout(messageTimeoutRef.current);
-                    }
-
-                    // Set a new timeout to start rotating after 5 seconds of stability
+                    if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
                     messageTimeoutRef.current = window.setTimeout(() => {
-                        // Start rotating interval if not already active and still loading
                         if (!messageIntervalRef.current && loadingStatus.isLoading) {
                             messageIntervalRef.current = window.setInterval(() => {
                                 setLoadingStatus(prev => ({ ...prev, message: getRandomMessage() }));
@@ -380,40 +330,29 @@ export const usePrelaunchInstance = (instanceId: string) => {
                     }, 5000);
                 }
             } else {
-                // Not loading: clear all timers and reset state for clean start
                 clearAllTimers();
-
                 setLoadingStatus(DEFAULT_LOADING_STATE);
-
             }
         } else {
-            // No instance running - ensure clean state
             clearAllTimers();
-            if (loadingStatus.isLoading) {
-                setLoadingStatus(DEFAULT_LOADING_STATE);
-            }
+            if (loadingStatus.isLoading) setLoadingStatus(DEFAULT_LOADING_STATE);
         }
-    }, [currentInstanceRunning, getRandomMessage, instanceId, loadingStatus.isLoading]);
+    }, [currentInstanceRunning, getRandomMessage, instanceId, loadingStatus.isLoading, clearAllTimers]);
 
-    // Enhanced cleanup effect to ensure no timers leak between instances
+    // Cleanup al cambiar instancia
     useEffect(() => {
-        // Clear state when instance changes to prevent old messages
         clearLoadingState();
-
         return () => {
             clearAllTimers();
             lastMessageRef.current = null;
-            // Limpiar audio cuando cambia la instancia
             if (audioRef.current) {
                 audioRef.current.pause();
-                audioRef.current.currentTime = 0;
                 audioRef.current = null;
             }
         };
-    }, [instanceId, clearAllTimers, clearLoadingState]); // Cleanup when instanceId changes
+    }, [instanceId, clearAllTimers, clearLoadingState]);
 
-
-    // Efecto para Discord RPC
+    // Discord RPC
     useEffect(() => {
         if (!prelaunchState.instance) return;
         const activity = new Activity()
@@ -423,9 +362,14 @@ export const usePrelaunchInstance = (instanceId: string) => {
         setActivity(activity).catch(e => console.error("DRPC Error:", e));
     }, [isPlaying, prelaunchState.instance]);
 
-    // Efecto para manejar eventos de crash
+    // Manejar eventos de crash
     useEffect(() => {
-        const handleInstanceCrash = (event: CustomEvent<{ instanceId: string; message?: string; data?: any; exitCode: number }>) => {
+        const handleInstanceCrash = (event: CustomEvent<{
+            instanceId: string;
+            message?: string;
+            data?: any;
+            exitCode: number
+        }>) => {
             if (event.detail.instanceId === instanceId) {
                 setCrashErrorState({
                     exitCode: event.detail.exitCode,
@@ -439,22 +383,16 @@ export const usePrelaunchInstance = (instanceId: string) => {
         return () => document.removeEventListener("instance-crash", handleInstanceCrash as EventListener);
     }, [instanceId]);
 
-    // Efecto para leer parámetros de URL y limpiar
+    // Leer parámetros de URL
     useEffect(() => {
         setTitleBarState(prev => ({ ...prev, canGoBack: true }));
         const params = new URLSearchParams(window.location.search);
         if (params.get("showSettings") === "true") {
             setShowConfig(true);
-            // Limpia la URL para no mostrar los parámetros
             window.history.replaceState({}, '', window.location.pathname);
         }
-        return () => {
-            if (messageIntervalRef.current) clearInterval(messageIntervalRef.current);
-            if (messageTimeoutRef.current) clearTimeout(messageTimeoutRef.current);
-        };
     }, [setTitleBarState]);
 
-    // --- RETORNO DEL HOOK ---
     return {
         prelaunchState,
         appearance,
@@ -471,6 +409,6 @@ export const usePrelaunchInstance = (instanceId: string) => {
         handleAccountSelected,
         fetchInstanceData,
         handleResourceError,
-        navigate, // Exportamos navigate para el botón de error
+        navigate,
     };
 };
