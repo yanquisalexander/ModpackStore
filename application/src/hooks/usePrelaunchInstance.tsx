@@ -341,14 +341,17 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
     // Cleanup al cambiar instancia
     useEffect(() => {
+        // Limpiar audio inmediatamente cuando cambia la instancia
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            audioRef.current = null;
+        }
+
         clearLoadingState();
         return () => {
             clearAllTimers();
             lastMessageRef.current = null;
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current = null;
-            }
         };
     }, [instanceId, clearAllTimers, clearLoadingState]);
 

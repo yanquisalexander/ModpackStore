@@ -1,7 +1,7 @@
 import { usePrelaunchInstance } from "@/hooks/usePrelaunchInstance";
 import { LucideGamepad2, LucideLoaderCircle } from "lucide-react";
 import { toast } from "sonner";
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance";
 import { BackgroundVideo } from "@/components/LauncherBackgroundVideo";
 import PreLaunchQuickActions from "@/components/PreLaunchQuickActions";
@@ -38,6 +38,10 @@ const Background = memo((props: PreLaunchAppearance['background'] | undefined) =
         );
     }
     return null;
+}, (prevProps, nextProps) => {
+    // Custom comparison to prevent re-renders when props are the same
+    return prevProps?.imageUrl === nextProps?.imageUrl &&
+        JSON.stringify(prevProps?.videoUrl) === JSON.stringify(nextProps?.videoUrl);
 });
 
 // Memoized Logo Component
@@ -195,6 +199,11 @@ export const PreLaunchInstance = () => {
         navigate
     } = usePrelaunchInstance(instanceId);
 
+    // Memoizar las props del background para evitar re-renders innecesarios
+    const backgroundProps = useMemo(() => ({
+        imageUrl: appearance?.background?.imageUrl,
+        videoUrl: appearance?.background?.videoUrl,
+    }), [appearance?.background?.imageUrl, appearance?.background?.videoUrl]);
 
     if (prelaunchState.isLoading) {
         return (
@@ -221,8 +230,7 @@ export const PreLaunchInstance = () => {
         <div className="absolute inset-0">
             <div className="relative h-full w-full overflow-hidden">
                 <Background
-                    imageUrl={appearance?.background?.imageUrl}
-                    videoUrl={appearance?.background?.videoUrl}
+                    {...backgroundProps}
                 />
                 <LoadingIndicator
                     isLoading={loadingStatus.isLoading}

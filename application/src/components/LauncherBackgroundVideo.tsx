@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, memo } from "react";
 
-export function BackgroundVideo({ videoUrls }: { videoUrls: string | string[] }) {
+export const BackgroundVideo = memo(function BackgroundVideo({ videoUrls }: { videoUrls: string | string[] }) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [currentIndex, setCurrentIndex] = useState(0);
 
@@ -40,4 +40,4 @@ export function BackgroundVideo({ videoUrls }: { videoUrls: string | string[] })
             loop={isSingleVideo}
         />
     );
-}
+});
