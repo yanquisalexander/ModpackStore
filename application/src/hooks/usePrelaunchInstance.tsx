@@ -314,7 +314,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
             // Crear nuevo audio con la nueva URL
             audioRef.current = new Audio(appearance.audio.url);
             audioRef.current.loop = true;
-            audioRef.current.volume = 0.01;
+            audioRef.current.volume = appearance.audio.volume !== undefined ? appearance.audio.volume : 0.5;
         }
 
         const audio = audioRef.current;
