@@ -65,6 +65,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
     const currentInstanceRunning = instances.find(inst => inst.id === instanceId) || null;
     const isPlaying = currentInstanceRunning?.status === "running";
+    const hasInstancesRunning = instances.some(i => i.status === "running");
     const isInstanceBootstraping = instancesBootstraping.includes(instanceId);
     const IS_FORGE = prelaunchState.instance?.forgeVersion != null;
 
@@ -283,7 +284,8 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }
 
         const audio = audioRef.current;
-        isPlaying ? audio.pause() : audio.play().catch(e => console.error("Audio playback error:", e));
+        // Si se está jugando esta instancia o hay instancias en ejecución, se pausa el audio
+        (isPlaying || hasInstancesRunning) ? audio.pause() : audio.play().catch(e => console.error("Audio playback error:", e));
 
         return () => {
             if (audioRef.current) {
@@ -291,7 +293,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
                 audioRef.current = null;
             }
         };
-    }, [appearance?.audio?.url, appearance?.audio?.volume, isPlaying]);
+    }, [appearance?.audio?.url, appearance?.audio?.volume, isPlaying, hasInstancesRunning]);
 
     // Manejar estado de carga
     useEffect(() => {
@@ -395,6 +397,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
         appearance,
         loadingStatus,
         isPlaying,
+        hasInstancesRunning,
         isInstanceBootstraping,
         IS_FORGE,
         showConfig,
