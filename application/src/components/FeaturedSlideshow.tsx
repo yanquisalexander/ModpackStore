@@ -130,6 +130,7 @@ export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: str
                         }}
                     >
                         <img
+                            draggable={false}
                             src={currentSlide.bannerUrl || currentSlide.iconUrl || '/images/modpack-fallback.webp'}
                             className="absolute inset-0 w-full h-full object-cover z-10"
                             alt="Slide background"
@@ -172,6 +173,7 @@ export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: str
                             className="absolute bottom-6 right-4 z-30"
                         >
                             <Link
+                                draggable={false}
                                 to={`/modpack/${currentSlide.id}`}
                                 className="group inline-flex items-center gap-2 bg-white hover:bg-white/90 text-black px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
                             >

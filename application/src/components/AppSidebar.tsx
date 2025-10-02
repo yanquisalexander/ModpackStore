@@ -140,6 +140,7 @@ export const AppSidebar: React.FC = memo(() => {
                         >
                             <TooltipTrigger>
                                 <Link
+                                    draggable={false}
                                     to={item.path}
                                     className={`group relative flex size-12 items-center justify-center p-2.5 rounded-md transition-all duration-200 ease-in-out cursor-pointer ${isActive ? "bg-neutral-800 text-white before:content-[''] before:absolute before:left-[-8px] before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-white before:rounded-full" : "text-ms-text hover:bg-neutral-700 hover:text-white"
                                         }`} >

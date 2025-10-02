@@ -43,6 +43,7 @@ export const AccountCard = ({ account, onRemove }: { account: TauriCommandReturn
                 {/* Background image - using a standard minecraft themed background */}
                 <img
                     src="/images/account-bg.webp"
+                    draggable={false}
                     className="absolute inset-0 -z-20 transform-gpu animate-fade-in object-cover w-full h-full rounded-xl transition duration-500 group-hover:scale-105 group-hover:opacity-80"
                     alt="Minecraft background"
                     style={{
@@ -57,6 +58,7 @@ export const AccountCard = ({ account, onRemove }: { account: TauriCommandReturn
                         <div className="w-24 h-24 relative transition duration-300 transform group-hover:scale-120 group-hover:-rotate-6">
                             <img
                                 src={headUrl}
+                                draggable={false}
                                 alt={account.username}
                                 onLoad={(e) => {
                                     // fade in effect

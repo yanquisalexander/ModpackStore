@@ -9,10 +9,12 @@ const PreLaunchQuickActions = ({
     instanceId,
     isForge = false,
     onReloadInfo,
+    isModpack = false,
     defaultShowEditInfo = false,
 }: {
     instanceId: string;
     isForge?: boolean;
+    isModpack?: boolean;
     onReloadInfo: () => void;
     defaultShowEditInfo?: boolean;
 }) => {
@@ -211,16 +213,21 @@ const PreLaunchQuickActions = ({
                             onUpdate={onReloadInfo}
                             defaultShowEditInfo={defaultShowEditInfo}
                         />
+                        {/* 
+                            Los modpacks no tienen mods editables, así que no mostramos el botón
+                        */}
 
-                        {isForge && (
+                        {isForge && !isModpack ? (
                             <button
                                 onClick={notAvailable}
+                                type="button"
+                                aria-label="Descargar mods"
                                 className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
                             >
                                 <LucideLoaderCircle className="size-4 text-white" />
                                 Descargar mods
                             </button>
-                        )}
+                        ) : null}
 
                         <button
                             onClick={verifyIntegrity}

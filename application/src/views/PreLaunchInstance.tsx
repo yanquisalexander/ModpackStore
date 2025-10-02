@@ -199,6 +199,7 @@ export const PreLaunchInstance = () => {
         navigate
     } = usePrelaunchInstance(instanceId);
 
+
     // Memoizar las props del background para evitar re-renders innecesarios
     const backgroundProps = useMemo(() => ({
         imageUrl: appearance?.background?.imageUrl,
@@ -252,6 +253,7 @@ export const PreLaunchInstance = () => {
                     <PreLaunchQuickActions
                         instanceId={instanceId}
                         isForge={IS_FORGE}
+                        isModpack={!!prelaunchState.instance?.modpackId}
                         onReloadInfo={fetchInstanceData}
                         defaultShowEditInfo={showConfig}
                     />

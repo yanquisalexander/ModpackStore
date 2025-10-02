@@ -105,7 +105,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                 className={`${baseClasses} !rounded-none !hover:bg-white/5 !transition-none ${titleBarOpaque ? darkMode : lightMode}`}
                 title="Usuario actual"
             >
-                <img src={session?.avatarUrl} alt="Avatar" className="size-5 rounded-md object-cover" />
+                <img draggable={false} src={session?.avatarUrl} alt="Avatar" className="size-5 rounded-md object-cover" />
                 <span className="text-sm font-medium whitespace-nowrap">{session?.username}</span>
             </div>
 

@@ -136,7 +136,9 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceUpda
                       after:rounded-2xl after:bg-black after:absolute after:blur-3xl hover:after:opacity-40 
                       after:-z-10 after:opacity-0 after:transition after:duration-200 ${className} ${isOpen ? 'ring-2 ring-sky-500 ring-offset-2 ring-offset-black' : ''}`}>
 
-                        <Link to={`/prelaunch/${instance.instanceId}`} className="flex aspect-video flex-col h-full p-4">
+                        <Link
+                            draggable={false}
+                            to={`/prelaunch/${instance.instanceId}`} className="flex aspect-video flex-col h-full p-4">
                             {/* Background image */}
                             <img
                                 {...isBootstrapping && { "data-bootstraping": true }}

@@ -64,7 +64,9 @@ export const ModpackCard = ({ modpack, to = "/prelaunch/", className = "" }: { m
                 </div>
             )}
 
-            <Link to={to} className="flex aspect-video flex-col h-full p-4">
+            <Link
+                draggable={false}
+                to={to} className="flex aspect-video flex-col h-full p-4">
                 {/* Background image */}
                 <img
                     src={modpack.bannerUrl}
