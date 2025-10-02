@@ -126,7 +126,7 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
             } catch (err) {
                 // Silencioso, solo log si es necesario
             }
-        }, 30 * 60 * 1000); // 30 minutos
+        }, 5 * 60 * 1000); // 5 minutos
         return () => clearInterval(interval);
     }, []);
 

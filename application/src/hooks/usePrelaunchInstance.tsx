@@ -46,6 +46,8 @@ export const usePrelaunchInstance = (instanceId: string) => {
     const messageIntervalRef = useRef<number | null>(null);
     const lastMessageRef = useRef<string | null>(null);
     const messageTimeoutRef = useRef<number | null>(null);
+    const mountedRef = useRef(true);
+    const currentInstanceIdRef = useRef(instanceId);
 
     const [appearance, setAppearance] = useState<PreLaunchAppearance | undefined>(undefined);
     const [prelaunchState, setPrelaunchState] = useState({
@@ -94,6 +96,34 @@ export const usePrelaunchInstance = (instanceId: string) => {
         });
     }, [clearAllTimers]);
 
+    const stopAudio = useCallback(() => {
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            audioRef.current.src = '';
+            audioRef.current = null;
+        }
+    }, []);
+
+    const resetState = useCallback(() => {
+        stopAudio();
+        clearLoadingState();
+        setAppearance(undefined);
+        setPrelaunchState({
+            isLoading: true,
+            error: null,
+            instance: null,
+        });
+        setCrashErrorState({
+            exitCode: -1,
+            message: "",
+            showModal: false,
+            data: null,
+        });
+        setShowConfig(false);
+        setShowAccountSelection(false);
+    }, [stopAudio, clearLoadingState]);
+
     const handleResourceError = useCallback((resourceName: string, errorDetails: string) => {
         console.warn(`Error loading prelaunch resource: ${resourceName}`, errorDetails);
         toast.warning("Error de recurso", {
@@ -102,10 +132,14 @@ export const usePrelaunchInstance = (instanceId: string) => {
     }, []);
 
     const fetchInstanceData = useCallback(async () => {
+        if (!mountedRef.current || currentInstanceIdRef.current !== instanceId) return null;
+
         setPrelaunchState(prev => ({ ...prev, isLoading: true, error: null }));
         try {
             const instance = await invoke<TauriCommandReturns['get_instance_by_id']>("get_instance_by_id", { instanceId });
             if (!instance) throw new Error("Instance not found");
+
+            if (!mountedRef.current || currentInstanceIdRef.current !== instanceId) return null;
 
             setPrelaunchState({ isLoading: false, error: null, instance });
             setTitleBarState(prev => ({
@@ -118,40 +152,53 @@ export const usePrelaunchInstance = (instanceId: string) => {
             return instance;
         } catch (error) {
             console.error("Error fetching instance data:", error);
-            setPrelaunchState({
-                isLoading: false,
-                error: "Ocurrió un error al cargar la instancia",
-                instance: null
-            });
+            if (mountedRef.current && currentInstanceIdRef.current === instanceId) {
+                setPrelaunchState({
+                    isLoading: false,
+                    error: "Ocurrió un error al cargar la instancia",
+                    instance: null
+                });
+            }
             return null;
         }
     }, [instanceId, setTitleBarState]);
 
     const loadAppearance = useCallback(async () => {
+        if (!mountedRef.current || currentInstanceIdRef.current !== instanceId) return;
+
         try {
             const defaultAppearance = getDefaultAppeareance({ logoUrl: "/images/mc_logo.svg" });
             const appearanceData = await invoke<PreLaunchAppearance>("get_prelaunch_appearance", { instanceId });
+
+            if (!mountedRef.current || currentInstanceIdRef.current !== instanceId) return;
+
             const mergedAppearance = merge(defaultAppearance, appearanceData || {});
             setAppearance(mergedAppearance);
         } catch (err) {
             console.error("Error loading appearance:", err);
-            handleResourceError("Apariencia General", err instanceof Error ? err.message : String(err));
-            setAppearance(getDefaultAppeareance({ logoUrl: "/images/mc_logo.svg" }));
+            if (mountedRef.current && currentInstanceIdRef.current === instanceId) {
+                handleResourceError("Apariencia General", err instanceof Error ? err.message : String(err));
+                setAppearance(getDefaultAppeareance({ logoUrl: "/images/mc_logo.svg" }));
+            }
         }
     }, [instanceId, handleResourceError]);
 
     const updateAppearance = useCallback(async () => {
+        if (!mountedRef.current || currentInstanceIdRef.current !== instanceId) return;
+
         try {
             const updated = await invoke<boolean>("update_prelaunch_appearance", { instanceId });
-            if (updated) {
+            if (updated && mountedRef.current && currentInstanceIdRef.current === instanceId) {
                 await loadAppearance();
                 info(`Apariencia actualizada para la instancia: ${instanceId}`);
             }
         } catch (err) {
             console.warn("Failed to update prelaunch appearance:", err);
-            await loadAppearance();
+            if (mountedRef.current && currentInstanceIdRef.current === instanceId) {
+                await loadAppearance();
+            }
         }
-    }, [instanceId, loadAppearance, prelaunchState.instance?.modpackId]);
+    }, [instanceId, loadAppearance]);
 
     const startMessageInterval = useCallback(() => {
         if (messageIntervalRef.current) clearInterval(messageIntervalRef.current);
@@ -244,10 +291,23 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }
     }, [fetchInstanceData, launchInstance]);
 
+    // Reset completo cuando cambia instanceId
+    useEffect(() => {
+        currentInstanceIdRef.current = instanceId;
+        mountedRef.current = true;
+        resetState();
+
+        return () => {
+            mountedRef.current = false;
+        };
+    }, [instanceId, resetState]);
+
     // Cargar datos iniciales
     useEffect(() => {
         const loadInitialData = async () => {
             const instance = await fetchInstanceData();
+            if (!mountedRef.current || currentInstanceIdRef.current !== instanceId) return;
+
             if (instance?.modpackId) {
                 await loadAppearance();
                 updateAppearance();
@@ -256,20 +316,19 @@ export const usePrelaunchInstance = (instanceId: string) => {
             }
         };
         loadInitialData();
-    }, [fetchInstanceData, loadAppearance, updateAppearance]);
+    }, [instanceId, fetchInstanceData, loadAppearance, updateAppearance]);
 
     // Manejar audio de fondo
     useEffect(() => {
+        if (currentInstanceIdRef.current !== instanceId) return;
+
         if (!appearance?.audio?.url) {
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current = null;
-            }
+            stopAudio();
             return;
         }
 
         if (!audioRef.current || audioRef.current.src !== appearance.audio.url) {
-            if (audioRef.current) audioRef.current.pause();
+            stopAudio();
             audioRef.current = new Audio(appearance.audio.url);
             audioRef.current.loop = true;
         }
@@ -284,19 +343,19 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }
 
         const audio = audioRef.current;
-        // Si se está jugando esta instancia o hay instancias en ejecución, se pausa el audio
         (isPlaying || hasInstancesRunning) ? audio.pause() : audio.play().catch(e => console.error("Audio playback error:", e));
 
         return () => {
-            if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current = null;
+            if (currentInstanceIdRef.current !== instanceId) {
+                stopAudio();
             }
         };
-    }, [appearance?.audio?.url, appearance?.audio?.volume, isPlaying, hasInstancesRunning]);
+    }, [appearance?.audio?.url, appearance?.audio?.volume, isPlaying, hasInstancesRunning, instanceId, stopAudio]);
 
     // Manejar estado de carga
     useEffect(() => {
+        if (currentInstanceIdRef.current !== instanceId) return;
+
         if (currentInstanceRunning) {
             const isLoading = ["preparing", "downloading-assets", "downloading-modpack-assets"]
                 .includes(currentInstanceRunning.status);
@@ -335,25 +394,19 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }
     }, [currentInstanceRunning, getRandomMessage, instanceId, loadingStatus.isLoading, clearAllTimers]);
 
-    // Cleanup al cambiar instancia
+    // Cleanup final
     useEffect(() => {
-        // Limpiar audio inmediatamente cuando cambia la instancia
-        if (audioRef.current) {
-            audioRef.current.pause();
-            audioRef.current.currentTime = 0;
-            audioRef.current = null;
-        }
-
-        clearLoadingState();
         return () => {
+            stopAudio();
             clearAllTimers();
             lastMessageRef.current = null;
         };
-    }, [instanceId, clearAllTimers, clearLoadingState]);
+    }, [stopAudio, clearAllTimers]);
 
     // Discord RPC
     useEffect(() => {
-        if (!prelaunchState.instance) return;
+        if (!prelaunchState.instance || currentInstanceIdRef.current !== instanceId) return;
+
         const activity = new Activity()
             .setActivity(ActivityType.Playing)
             .setState(isPlaying ? "Jugando" : "Preparando instancia")
@@ -366,7 +419,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
                 .setSmallText(isPlaying ? "Jugando Minecraft" : "En el lanzador")
             );
         setActivity(activity).catch(e => console.error("DRPC Error:", e));
-    }, [isPlaying, prelaunchState.instance]);
+    }, [isPlaying, prelaunchState.instance, instanceId]);
 
     // Manejar eventos de crash
     useEffect(() => {
@@ -376,7 +429,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
             data?: any;
             exitCode: number
         }>) => {
-            if (event.detail.instanceId === instanceId) {
+            if (event.detail.instanceId === instanceId && currentInstanceIdRef.current === instanceId) {
                 setCrashErrorState({
                     exitCode: event.detail.exitCode,
                     message: event.detail.message || "Minecraft se ha cerrado inesperadamente",
