@@ -10,7 +10,7 @@ import { useTasksContext } from "@/stores/TasksContext";
 import { getDefaultAppeareance } from "@/utils/prelaunch";
 import { playSound } from "@/utils/sounds";
 import { trackEvent } from "@aptabase/web";
-import { Activity, Timestamps } from "tauri-plugin-drpc/activity";
+import { Activity, ActivityType, Assets, Timestamps } from "tauri-plugin-drpc/activity";
 import { setActivity } from "tauri-plugin-drpc";
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance";
 import { MinecraftInstance, TauriCommandReturns } from "@/types/TauriCommandReturns";
@@ -355,9 +355,16 @@ export const usePrelaunchInstance = (instanceId: string) => {
     useEffect(() => {
         if (!prelaunchState.instance) return;
         const activity = new Activity()
+            .setActivity(ActivityType.Playing)
             .setState(isPlaying ? "Jugando" : "Preparando instancia")
             .setDetails(prelaunchState.instance.instanceName)
-            .setTimestamps(new Timestamps(Date.now()));
+            .setTimestamps(new Timestamps(Date.now()))
+            .setAssets(new Assets()
+                .setLargeImage(prelaunchState.instance.modpackId ? `https://cdn-mstore.saltouruguayserver.com/modpacks/${prelaunchState.instance.modpackId}/icon` : "explore")
+                .setLargeText(prelaunchState.instance.instanceName)
+                .setSmallImage("exploring")
+                .setSmallText(isPlaying ? "Jugando Minecraft" : "En el lanzador")
+            );
         setActivity(activity).catch(e => console.error("DRPC Error:", e));
     }, [isPlaying, prelaunchState.instance]);
 

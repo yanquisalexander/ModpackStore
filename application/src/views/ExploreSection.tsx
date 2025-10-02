@@ -4,7 +4,7 @@ import { LucideLoader, LucideSearch, LucideShoppingBag } from "lucide-react"
 import { getModpacks, searchModpacks } from "@/services/getModpacks"
 import { CategoryHorizontalSection } from "../components/CategoryHorizontalSection"
 import { clearActivity, setActivity } from "tauri-plugin-drpc"
-import { Activity, Assets, Timestamps } from "tauri-plugin-drpc/activity"
+import { Activity, ActivityType, Assets, Timestamps } from "tauri-plugin-drpc/activity"
 import { useDebounce } from 'use-debounce'
 import { ModpackCard } from "@/components/ModpackCard"
 import { trackEvent } from "@aptabase/web"
@@ -115,11 +115,16 @@ export const ExploreSection = () => {
         trackSectionView('explore')
 
         const activity = new Activity()
+            .setActivity(ActivityType.Playing)
             .setState("Explorando Modpacks")
             .setTimestamps(new Timestamps(Date.now()))
             .setAssets(new Assets().setLargeImage("exploring").setSmallImage("exploring"))
 
         setActivity(activity)
+
+        return () => {
+            clearActivity().catch(e => console.error("DRPC Clear Error:", e))
+        }
     }, [])
 
     useEffect(() => {
