@@ -6,7 +6,7 @@
 
 @custom-variant dark (&:is(.dark *));
 @plugin "@midudev/tailwind-animations";
-
+@plugin "@tailwindcss/typography";
 
 @font-face {
   font-family: "Monocraft";

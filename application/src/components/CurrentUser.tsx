@@ -6,6 +6,7 @@ import { useConfigDialog } from "@/stores/ConfigDialogContext";
 import { useReloadApp } from "@/stores/ReloadContext"; // Importar el nuevo hook
 import { useConnection } from "@/utils/ConnectionContext";
 import { SocialPanel } from "@/components/social";
+import { CreatorInviteDialog } from "@/components/CreatorInviteDialog";
 
 export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) => {
     const { session, logout, isAuthenticated } = useAuthentication();
@@ -15,6 +16,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const [openMenu, setOpenMenu] = useState(false);
     const [showMoreOptions, setShowMoreOptions] = useState(false);
     const [isSocialPanelOpen, setIsSocialPanelOpen] = useState(false);
+    const [isCreatorDialogOpen, setIsCreatorDialogOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
 
     const toggleMenu = (event: React.MouseEvent) => {
@@ -53,6 +55,11 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const handleOpenSocial = () => {
         closeMenu();
         setIsSocialPanelOpen(true);
+    };
+
+    const handleOpenCreatorDialog = () => {
+        closeMenu();
+        setIsCreatorDialogOpen(true);
     };
 
     useEffect(() => {
@@ -169,14 +176,6 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         </Link>
                     )}
 
-                    <button
-                        onClick={handleLogout}
-                        className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-red-600/30 rounded text-left cursor-pointer whitespace-nowrap font-medium text-red-100"
-                    >
-                        <LucideLogOut size={16} />
-                        Cerrar sesión
-                    </button>
-
                     {/* Conditional rendering based on showMoreOptions */}
                     {showMoreOptions && (
                         <>
@@ -191,8 +190,32 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                             </button>
                         </>
                     )}
+
+                    {/* New button to become a creator, only visible if the user is not a creator */}
+                    {!isPublisher && (
+                        <button
+                            onClick={handleOpenCreatorDialog}
+                            className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-purple-600/30 rounded text-left cursor-pointer whitespace-nowrap font-medium text-purple-100"
+                        >
+                            <LucidePackageOpen size={16} />
+                            Conviértete en creador
+                        </button>
+                    )}
+
+                    <button
+                        onClick={handleLogout}
+                        className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-red-600/30 rounded text-left cursor-pointer whitespace-nowrap font-medium text-red-100"
+                    >
+                        <LucideLogOut size={16} />
+                        Cerrar sesión
+                    </button>
                 </ul>
             </div>
+
+            <CreatorInviteDialog
+                isOpen={isCreatorDialogOpen}
+                onClose={() => setIsCreatorDialogOpen(false)}
+            />
 
         </div>
     );
