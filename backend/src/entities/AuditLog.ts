@@ -8,6 +8,8 @@ export enum AuditAction {
     USER_UPDATED = 'user_updated',
     USER_DELETED = 'user_deleted',
     USER_ROLE_CHANGED = 'user_role_changed',
+    USER_BANNED = 'user_banned',
+    USER_UNBANNED = 'user_unbanned',
     MODPACK_CREATED = 'modpack_created',
     MODPACK_UPDATED = 'modpack_updated',
     MODPACK_DELETED = 'modpack_deleted',

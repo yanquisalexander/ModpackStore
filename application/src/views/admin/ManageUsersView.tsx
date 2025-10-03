@@ -33,7 +33,7 @@ interface User {
     avatarUrl?: string;
     createdAt: string;
     updatedAt: string;
-    isBanned?: boolean;
+    isBanned: boolean; // Now included directly from API
 }
 
 interface BanHistoryItem {
@@ -490,7 +490,6 @@ export const ManageUsersView: React.FC = () => {
     const [deletingUser, setDeletingUser] = useState<User | null>(null);
     const [banningUser, setBanningUser] = useState<User | null>(null);
     const [viewingBanHistory, setViewingBanHistory] = useState<User | null>(null);
-    const [banStatuses, setBanStatuses] = useState<Record<string, boolean>>({});
 
     const { toast } = useToast();
     const { session, sessionTokens } = useAuthentication();
@@ -638,7 +637,7 @@ export const ManageUsersView: React.FC = () => {
         try {
             await AdminUsersAPI.banUser(banningUser.id, reason, sessionTokens.accessToken);
             setBanningUser(null);
-            await loadUsers();
+            await loadUsers(); // Reload users to get updated ban status
             toast({
                 title: 'Success',
                 description: 'User banned successfully'
@@ -660,7 +659,7 @@ export const ManageUsersView: React.FC = () => {
 
         try {
             await AdminUsersAPI.unbanUser(user.id, sessionTokens.accessToken);
-            await loadUsers();
+            await loadUsers(); // Reload users to get updated ban status
             toast({
                 title: 'Success',
                 description: 'User unbanned successfully'
@@ -673,28 +672,6 @@ export const ManageUsersView: React.FC = () => {
             });
         }
     };
-
-    // Check ban status for users
-    useEffect(() => {
-        const checkBanStatuses = async () => {
-            if (!sessionTokens?.accessToken || usersData.users.length === 0) return;
-
-            const statuses: Record<string, boolean> = {};
-            await Promise.all(
-                usersData.users.map(async (user) => {
-                    try {
-                        const status = await AdminUsersAPI.checkBanStatus(user.id, sessionTokens.accessToken);
-                        statuses[user.id] = status.isBanned;
-                    } catch {
-                        statuses[user.id] = false;
-                    }
-                })
-            );
-            setBanStatuses(statuses);
-        };
-
-        checkBanStatuses();
-    }, [usersData.users, sessionTokens?.accessToken]);
 
     // Prevent non-admin users from accessing this view
     if (!session?.isAdmin?.()) {
@@ -805,92 +782,92 @@ export const ManageUsersView: React.FC = () => {
                                     </TableRow>
                                 ) : (
                                     usersData.users.map((user) => {
-                                        const isBanned = banStatuses[user.id] || false;
+                                        const isBanned = user.isBanned;
                                         const isAdmin = user.role === 'admin' || user.role === 'superadmin';
-                                        
+
                                         return (
-                                        <TableRow key={user.id}>
-                                            <TableCell className="font-medium">
-                                                <div className="flex items-center gap-2">
-                                                    {user.avatarUrl && (
-                                                        <img
-                                                            src={user.avatarUrl}
-                                                            alt={user.username}
-                                                            className="w-6 h-6 rounded-full"
-                                                        />
-                                                    )}
-                                                    {user.username}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>{user.email}</TableCell>
-                                            <TableCell>
-                                                <RoleBadge role={user.role} />
-                                            </TableCell>
-                                            <TableCell>
-                                                {isBanned ? (
-                                                    <Badge variant="destructive">BANEADO</Badge>
-                                                ) : (
-                                                    <Badge variant="secondary">ACTIVO</Badge>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                {new Date(user.createdAt).toLocaleDateString()}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        disabled={user.username === "system"}
-                                                        onClick={() => setEditingUser(user)}
-                                                        title="Editar usuario"
-                                                    >
-                                                        <LucideEdit className="h-3 w-3" />
-                                                    </Button>
-                                                    
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => setViewingBanHistory(user)}
-                                                        title="Ver historial de bans"
-                                                    >
-                                                        <LucideHistory className="h-3 w-3" />
-                                                    </Button>
-
+                                            <TableRow key={user.id}>
+                                                <TableCell className="font-medium">
+                                                    <div className="flex items-center gap-2">
+                                                        {user.avatarUrl && (
+                                                            <img
+                                                                src={user.avatarUrl}
+                                                                alt={user.username}
+                                                                className="w-6 h-6 rounded-full"
+                                                            />
+                                                        )}
+                                                        {user.username}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>{user.email}</TableCell>
+                                                <TableCell>
+                                                    <RoleBadge role={user.role} />
+                                                </TableCell>
+                                                <TableCell>
                                                     {isBanned ? (
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => handleUnbanUser(user)}
-                                                            disabled={user.username === "system"}
-                                                            title="Desbanear usuario"
-                                                        >
-                                                            <LucideShieldCheck className="h-3 w-3 text-green-500" />
-                                                        </Button>
+                                                        <Badge variant="destructive">BANEADO</Badge>
                                                     ) : (
+                                                        <Badge variant="secondary">ACTIVO</Badge>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {new Date(user.createdAt).toLocaleDateString()}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-2">
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
-                                                            onClick={() => setBanningUser(user)}
-                                                            disabled={isAdmin || user.username === "system"}
-                                                            title={isAdmin ? "No se pueden banear administradores" : "Banear usuario"}
+                                                            disabled={user.username === "system"}
+                                                            onClick={() => setEditingUser(user)}
+                                                            title="Editar usuario"
                                                         >
-                                                            <LucideBan className="h-3 w-3 text-red-500" />
+                                                            <LucideEdit className="h-3 w-3" />
                                                         </Button>
-                                                    )}
 
-                                                    <Button
-                                                        variant="destructive"
-                                                        size="sm"
-                                                        onClick={() => handleDeleteUser(user)}
-                                                        disabled={user.id === session?.id || user.username === "system"}
-                                                        title="Eliminar usuario"
-                                                    >
-                                                        <LucideTrash className="h-3 w-3" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setViewingBanHistory(user)}
+                                                            title="Ver historial de bans"
+                                                        >
+                                                            <LucideHistory className="h-3 w-3" />
+                                                        </Button>
+
+                                                        {isBanned ? (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => handleUnbanUser(user)}
+                                                                disabled={user.username === "system"}
+                                                                title="Desbanear usuario"
+                                                            >
+                                                                <LucideShieldCheck className="h-3 w-3 text-green-500" />
+                                                            </Button>
+                                                        ) : (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() => setBanningUser(user)}
+                                                                disabled={isAdmin || user.username === "system"}
+                                                                title={isAdmin ? "No se pueden banear administradores" : "Banear usuario"}
+                                                            >
+                                                                <LucideBan className="h-3 w-3 text-red-500" />
+                                                            </Button>
+                                                        )}
+
+                                                        <Button
+                                                            variant="destructive"
+                                                            size="sm"
+                                                            onClick={() => handleDeleteUser(user)}
+                                                            disabled={user.id === session?.id || user.username === "system"}
+                                                            title="Eliminar usuario"
+                                                        >
+                                                            <LucideTrash className="h-3 w-3" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
                                         );
                                     })
                                 )}

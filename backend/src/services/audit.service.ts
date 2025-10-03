@@ -161,6 +161,24 @@ export class AuditService {
         });
     }
 
+    static async logUserBanned(bannedByUserId: string, targetUserId: string, details?: Record<string, any>): Promise<AuditLog> {
+        return this.createLog({
+            action: AuditAction.USER_BANNED,
+            userId: bannedByUserId,
+            targetUserId,
+            details
+        });
+    }
+
+    static async logUserUnbanned(unbannedByUserId: string, targetUserId: string, details?: Record<string, any>): Promise<AuditLog> {
+        return this.createLog({
+            action: AuditAction.USER_UNBANNED,
+            userId: unbannedByUserId,
+            targetUserId,
+            details
+        });
+    }
+
     static async logAdminAccess(userId: string, details?: Record<string, any>, ipAddress?: string, userAgent?: string): Promise<AuditLog> {
         return this.createLog({
             action: AuditAction.ADMIN_ACCESS,

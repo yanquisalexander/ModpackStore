@@ -2,6 +2,7 @@ import { Ban } from '../entities/Ban';
 import { User } from '../entities/User';
 import { AuditService } from './audit.service';
 import { wsManager } from './websocket.service';
+import { IsNull } from 'typeorm';
 
 export interface BanUserData {
     userId: string;
@@ -50,7 +51,8 @@ export async function banUser(data: BanUserData): Promise<Ban> {
 
     // Check if user is already banned
     const existingBan = await Ban.findOne({
-        where: { userId, unbanDate: null }
+        where: { userId, unbanDate: IsNull() },
+        relations: ['admin']
     });
 
     if (existingBan) {
@@ -66,9 +68,7 @@ export async function banUser(data: BanUserData): Promise<Ban> {
     const savedBan = await ban.save();
 
     // Log the audit event
-    await AuditService.logAdminAction(adminId, {
-        action: 'ban_user',
-        targetUserId: userId,
+    await AuditService.logUserBanned(adminId, userId, {
         reason: reason || 'No reason provided'
     });
 
@@ -81,7 +81,7 @@ export async function banUser(data: BanUserData): Promise<Ban> {
 export async function unbanUser(userId: string, adminId: string): Promise<void> {
     // Get the active ban
     const activeBan = await Ban.findOne({
-        where: { userId, unbanDate: null }
+        where: { userId, unbanDate: IsNull() }
     });
 
     if (!activeBan) {
@@ -94,10 +94,7 @@ export async function unbanUser(userId: string, adminId: string): Promise<void> 
     await activeBan.save();
 
     // Log the audit event
-    await AuditService.logAdminAction(adminId, {
-        action: 'unban_user',
-        targetUserId: userId
-    });
+    await AuditService.logUserUnbanned(adminId, userId);
 }
 
 export async function getUserBanHistory(userId: string): Promise<BanHistoryItem[]> {
@@ -174,9 +171,8 @@ export async function getAllBans(includeInactive: boolean = false): Promise<BanH
 
 export async function checkUserBanStatus(userId: string): Promise<{ isBanned: boolean; ban?: BanHistoryItem }> {
     const activeBan = await Ban.findOne({
-        where: { userId, unbanDate: null },
-        relations: ['user', 'admin'],
-        order: { banDate: 'DESC' }
+        where: { userId, unbanDate: IsNull() },
+        relations: ['admin']
     });
 
     if (!activeBan) {

@@ -1,6 +1,7 @@
 import { User } from '../entities/User';
 import { UserRole } from '../types/enums';
 import { AuditService } from './audit.service';
+import { BanService } from './ban.service';
 
 export interface UserQueryOptions {
     page?: number;
@@ -12,7 +13,7 @@ export interface UserQueryOptions {
 }
 
 export interface PaginatedUsers {
-    users: User[];
+    users: any[]; // Using any for now to avoid type conflicts
     total: number;
     page: number;
     totalPages: number;
@@ -45,7 +46,7 @@ export async function getAllUsers(options: UserQueryOptions = {}): Promise<Pagin
     const query = User.createQueryBuilder('user')
         .select([
             'user.id',
-            'user.username', 
+            'user.username',
             'user.email',
             'user.avatarUrl',
             'user.role',
@@ -75,8 +76,19 @@ export async function getAllUsers(options: UserQueryOptions = {}): Promise<Pagin
         .take(limit)
         .getManyAndCount();
 
+    // Check ban status for each user
+    const usersWithBanStatus = await Promise.all(
+        users.map(async (user) => {
+            const isBanned = await BanService.isBanned(user.id);
+            return {
+                ...user,
+                isBanned
+            };
+        })
+    );
+
     return {
-        users,
+        users: usersWithBanStatus,
         total,
         page,
         totalPages: Math.ceil(total / limit)
@@ -89,7 +101,7 @@ export async function getUserById(id: string): Promise<User | null> {
         select: [
             'id',
             'username',
-            'email', 
+            'email',
             'avatarUrl',
             'role',
             'createdAt',
@@ -134,12 +146,12 @@ export async function updateUser(id: string, data: UpdateUserData, updatedByUser
     if (data.username !== undefined) user.username = data.username;
     if (data.email !== undefined) user.email = data.email;
     if (data.avatarUrl !== undefined) user.avatarUrl = data.avatarUrl;
-    
+
     // Handle role change with audit logging
     if (data.role !== undefined && data.role !== user.role) {
         const oldRole = user.role;
         user.role = data.role;
-        
+
         await AuditService.logUserRoleChanged(updatedByUserId, user.id, {
             oldRole,
             newRole: data.role
@@ -184,7 +196,7 @@ export async function getUserStats(): Promise<{
     recentUsers: User[];
 }> {
     const totalUsers = await User.count();
-    
+
     const usersByRole = {
         [UserRole.USER]: await User.count({ where: { role: UserRole.USER } }),
         [UserRole.ADMIN]: await User.count({ where: { role: UserRole.ADMIN } }),
