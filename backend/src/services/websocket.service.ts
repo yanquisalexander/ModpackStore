@@ -87,6 +87,24 @@ export class WebSocketManager {
                     };
                 }
 
+                // Check if user is banned
+                const isBanned = await user.isBanned();
+                if (isBanned) {
+                    console.log(`WebSocket connection rejected: User ${user.username} is banned`);
+                    return {
+                        onOpen: (_event: any, ws: any) => {
+                            ws.send(JSON.stringify({
+                                type: 'error',
+                                payload: {
+                                    code: 'USER_BANNED',
+                                    message: 'Your account has been banned.'
+                                }
+                            }));
+                            ws.close(1008, 'USER_BANNED'); // 1008 = Policy Violation
+                        }
+                    };
+                }
+
                 return {
                     onOpen: (_event: any, ws: any) => {
                         console.log(`WebSocket connection established for user: ${user.username}`);
@@ -358,6 +376,39 @@ export class WebSocketManager {
     public isUserConnected(userId: string): boolean {
         const userConnections = this.connections.get(userId);
         return !!(userConnections && userConnections.length > 0);
+    }
+
+    /**
+     * Disconnect a user from all their WebSocket connections
+     */
+    public disconnectUser(userId: string, reason: string = 'DISCONNECTED'): void {
+        const userConnections = this.connections.get(userId);
+        if (!userConnections) {
+            return;
+        }
+
+        // Send disconnect message and close all connections for this user
+        userConnections.forEach(connection => {
+            try {
+                if (connection.ws.readyState === 1) { // OPEN state
+                    this.sendToConnection(connection, 'disconnect', {
+                        reason,
+                        message: reason === 'USER_BANNED' 
+                            ? 'Your account has been banned.' 
+                            : 'You have been disconnected.',
+                        timestamp: new Date().toISOString()
+                    });
+                    connection.ws.close(1008, reason); // 1008 = Policy Violation
+                }
+            } catch (error) {
+                console.error(`Error disconnecting user ${userId}:`, error);
+            }
+        });
+
+        // Remove all connections for this user
+        this.connections.delete(userId);
+        console.log(`User ${userId} disconnected. Reason: ${reason}`);
+    }
     }
 
     /**

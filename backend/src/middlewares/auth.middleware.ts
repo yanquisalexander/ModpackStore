@@ -51,6 +51,16 @@ export async function requireAuth(c: Context<{ Variables: AuthVariables }>, next
             throw new APIError(401, 'Unauthorized', 'USER_NOT_FOUND');
         }
 
+        // Check if user is banned
+        const isBanned = await user.isBanned();
+        if (isBanned) {
+            const activeBan = await user.getActiveBan();
+            throw new APIError(403, 'User is banned', 'USER_BANNED', {
+                banReason: activeBan?.reason || 'No reason provided',
+                banDate: activeBan?.banDate
+            });
+        }
+
         c.set(USER_CONTEXT_KEY, user);
         c.set(JWT_CONTEXT_KEY, payload);
         c.set('userId', user.id);

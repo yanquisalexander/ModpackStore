@@ -14,6 +14,7 @@ import { ModpackAcquisition } from "./ModpackAcquisition";
 import { Friendship } from "./Friendship";
 import { GameInvitation } from "./GameInvitation";
 import { UserActivity } from "./UserActivity";
+import { Ban } from "./Ban";
 
 @Entity({ name: "users" })
 export class User extends BaseEntity {
@@ -140,6 +141,9 @@ export class User extends BaseEntity {
 
     @OneToMany(() => UserActivity, activity => activity.user)
     activities: UserActivity[];
+
+    @OneToMany(() => Ban, ban => ban.user)
+    bans: Ban[];
 
     async getPublishers(): Promise<Publisher[]> {
         const memberships = await PublisherMember.find({ where: { user: { id: this.id } }, relations: ["publisher"] });
@@ -324,5 +328,29 @@ export class User extends BaseEntity {
         }
 
         return await queryBuilder.getMany();
+    }
+
+    // Ban-related helper methods
+    async getActiveBan(): Promise<Ban | null> {
+        const Ban = (await import("./Ban")).Ban;
+        return await Ban.findOne({
+            where: { userId: this.id, unbanDate: null },
+            relations: ["admin"],
+            order: { banDate: "DESC" }
+        });
+    }
+
+    async isBanned(): Promise<boolean> {
+        const activeBan = await this.getActiveBan();
+        return activeBan !== null;
+    }
+
+    async getBanHistory(): Promise<Ban[]> {
+        const Ban = (await import("./Ban")).Ban;
+        return await Ban.find({
+            where: { userId: this.id },
+            relations: ["admin", "unbannedBy"],
+            order: { banDate: "DESC" }
+        });
     }
 }
