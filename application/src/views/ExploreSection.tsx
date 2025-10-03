@@ -91,16 +91,16 @@ export const ExploreSection = () => {
 
     const { session } = useAuthentication()
 
-    const { hasCompletedTour, startTour } = useTour('explore', defaultTourSteps)
+    // const { hasCompletedTour, startTour } = useTour('explore', defaultTourSteps)
 
     // Check if user has completed onboarding (not first run)
     const hasCompletedOnboarding = onboardingStatus?.first_run_at !== null
 
-    useEffect(() => {
-        if (hasCompletedOnboarding && !hasCompletedTour && !loading && modpackCategories.length > 0) {
-            startTour()
-        }
-    }, [hasCompletedOnboarding, hasCompletedTour, startTour, loading, modpackCategories.length])
+    /*  useEffect(() => {
+         if (hasCompletedOnboarding && !hasCompletedTour && !loading && modpackCategories.length > 0) {
+             startTour()
+         }
+     }, [hasCompletedOnboarding, hasCompletedTour, startTour, loading, modpackCategories.length]) */
 
     useEffect(() => {
         setTitleBarState({
