@@ -113,6 +113,9 @@ export class AuthService {
             throw new APIError(404, 'User not found.', 'USER_NOT_FOUND');
         }
 
+        // Check if user is banned
+        const activeBan = await userWithRelations.getActiveBan();
+
         // Use the public JSON method from the entity
         const publicUserProfile = userWithRelations.toPublicJson();
 
@@ -120,6 +123,14 @@ export class AuthService {
             ...publicUserProfile,
             publisherMemberships: userWithRelations.publisherMemberships || [],
             role: userWithRelations.role || UserRole.USER,
+            isBanned: activeBan !== null,
+            banReason: activeBan?.reason || undefined,
+            activeBan: activeBan ? {
+                id: activeBan.id,
+                reason: activeBan.reason || undefined,
+                banDate: activeBan.banDate,
+                adminId: activeBan.adminId
+            } : undefined
         };
     }
 

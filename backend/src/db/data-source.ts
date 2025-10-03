@@ -22,6 +22,7 @@ import { SystemSettings } from "../entities/SystemSettings";
 import { Friendship } from "../entities/Friendship";
 import { GameInvitation } from "../entities/GameInvitation";
 import { UserActivity } from "../entities/UserActivity";
+import { Ban } from "../entities/Ban";
 
 export const AppDataSource = new DataSource({
     type: "postgres",
@@ -56,5 +57,6 @@ export const AppDataSource = new DataSource({
         Friendship,
         GameInvitation,
         UserActivity,
+        Ban,
     ],
 });
