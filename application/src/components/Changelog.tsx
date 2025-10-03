@@ -3,33 +3,39 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { invoke } from '@tauri-apps/api/core';
 import ReactMarkdown from 'react-markdown';
-import { X } from 'lucide-react';
 
 // Versión actual del changelog
-const CHANGELOG_ID = 3;
+const CHANGELOG_ID = 5;
 
-const CHANGELOG_CONTENT = `## 🎨 Rediseño de la Interfaz
-Nueva barra lateral: Navegación más clara y rápida, inspirada en interfaces familiares como Discord.
+// DIA MES AÑO (DD/MM/YYYY)
+const PATCH_NOTES_RELEASE_DATE = '03/10/2025';
 
-Diseño gaming-friendly: Estilo moderno y optimizado para largas sesiones.
+const PATCH_NOTES_DATE_STRING = (() => {
+  const [day, month, year] = PATCH_NOTES_RELEASE_DATE.split('/').map(Number);
+  const date = new Date(year, month - 1, day);
 
-Mejor organización: Acceso más intuitivo a modpacks, instancias y configuraciones.
+  return new Intl.DateTimeFormat('es-ES', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(date);
+})();
+
+const CHANGELOG_CONTENT = `## 🐛 Se corrigieron errores y se mejoró el rendimiento  
+Gracias por tu tiempo.  
+
+…nah, solo bromeamos 😏. También metimos un par de cosas bastante cool que seguro vas a querer probar
+
+
+## 🎨 Novedades  
+- 📌 Ahora puedes **pinear tus modpacks favoritos** en la barra lateral. Se acabó perder tiempo buscándolos como si fueran diamantes en la capa 12.  
+- 🎮 **Rich Presence de Discord** integrado: porque claro que necesitas que tus amigos sepan qué modpack estás viciando.
+- ⚡ **Actualizaciones de modpacks más rápidas**: menos barra de carga, más tiempo minando, construyendo o haciendo lo que sea que hagas en tu mundo.  
 
 ---
 
-## 🚀 Mejoras Generales
-- Corrección de bugs menores para mejorar la estabilidad
-- Rendimiento optimizado al cargar la biblioteca de modpacks
-- Animaciones fluidas al cambiar entre secciones
-
----
-
-## 🌟 Próximamente
-- Personalización de la barra lateral (colores y secciones)
-- Atajos de teclado para navegación más rápida
-- Widgets para estadísticas de juego y actividad
-
-🙌 ¡Gracias por acompañarnos en la evolución de Modpack Store!`;
+🙌 Gracias por seguir usando Modpack Store. Y sí… se vienen cositas.  
+`;
 
 export const Changelog: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -70,23 +76,24 @@ export const Changelog: React.FC = () => {
       <DialogContent className="sm:max-w-xl max-w-[90vw] max-h-[85vh] flex flex-col p-0 rounded-2xl overflow-hidden">
 
         {/* Imagen arriba */}
-        <div className="w-full h-48 bg-gradient-to-r from-fuchsia-500 to-indigo-600 flex items-center justify-center">
+        <div className="w-full h-48  flex items-center justify-center">
           <img
-            src="https://external-preview.redd.it/78RY0XJPZBdEIGhoEeNNt0wLdHJFP1MoYsUcpCBQlF0.jpg?width=1080&crop=smart&auto=webp&s=7927bb5afa8e4f9c02c389ed30427611e40ce848"
+            /* Para prevenir caché, ya que siempre usaremos el mismo nombre de imagen */
+            src={`/images/patch-notes.webp?${Date.now()}`}
             alt="Novedades"
-            className="h-40 w-full object-cover"
+            className="h-48 w-full object-cover object-top"
           />
         </div>
 
 
         {/* Contenido */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="flex-1 overflow-y-auto px-6 space-y-3">
           <div>
             <h2 className="text-lg font-bold">Novedades</h2>
-            <p className="text-xs text-gray-400">29 de septiembre de 2025</p>
+            <p className="text-xs text-gray-400">{PATCH_NOTES_DATE_STRING}</p>
           </div>
 
-          <div className="prose prose-sm dark:prose-invert max-w-none space-y-3
+          <div className="prose prose-sm dark:prose-invert max-w-none space-y-1
             prose-h2:text-sm prose-h2:uppercase prose-h2:font-bold prose-h2:text-indigo-400
             prose-hr:border-gray-700
             prose-p:text-gray-200 prose-li:text-gray-200">
