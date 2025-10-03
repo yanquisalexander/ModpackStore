@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { jwt } from 'hono/jwt';
 import { logger } from 'hono/logger';
 import { User } from '@/entities/User';
+import { BanService } from './ban.service';
 
 
 
@@ -88,7 +89,7 @@ export class WebSocketManager {
                 }
 
                 // Check if user is banned
-                const isBanned = await user.isBanned();
+                const isBanned = await BanService.isBanned(user.id);
                 if (isBanned) {
                     console.log(`WebSocket connection rejected: User ${user.username} is banned`);
                     return {
@@ -393,8 +394,8 @@ export class WebSocketManager {
                 if (connection.ws.readyState === 1) { // OPEN state
                     this.sendToConnection(connection, 'disconnect', {
                         reason,
-                        message: reason === 'USER_BANNED' 
-                            ? 'Your account has been banned.' 
+                        message: reason === 'USER_BANNED'
+                            ? 'Your account has been banned.'
                             : 'You have been disconnected.',
                         timestamp: new Date().toISOString()
                     });
@@ -409,7 +410,7 @@ export class WebSocketManager {
         this.connections.delete(userId);
         console.log(`User ${userId} disconnected. Reason: ${reason}`);
     }
-    }
+
 
     /**
      * Get user connections count

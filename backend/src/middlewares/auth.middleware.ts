@@ -2,6 +2,7 @@ import { Context, Next } from 'hono';
 import { verify, JsonWebTokenError, TokenExpiredError } from 'jsonwebtoken';
 import { APIError } from '../lib/APIError';
 import { User } from "@/entities/User";
+import { BanService } from "../services/ban.service";
 
 // --- Startup Configuration ---
 // This check runs ONCE when the server starts, not on every request.
@@ -17,6 +18,7 @@ export type AuthVariables = {
     jwt_payload: { sub: string; sessionId: number; iat: number; exp: number };
     user: User;
     userId: string;
+    isBanned?: boolean;
 };
 
 // Use constants for keys and headers to avoid typos.
@@ -30,8 +32,9 @@ const AUTH_SCHEME = 'Bearer ';
 /**
  * Verifies the JWT from the Authorization header and attaches the corresponding
  * user object to the context.
+ * @param allowBanned If true, allows banned users but marks them in the context
  */
-export async function requireAuth(c: Context<{ Variables: AuthVariables }>, next: Next) {
+export async function requireAuth(c: Context<{ Variables: AuthVariables }>, next: Next, allowBanned: boolean = false) {
     const authHeader = c.req.header(AUTH_HEADER);
 
     if (!authHeader || !authHeader.startsWith(AUTH_SCHEME)) {
@@ -52,9 +55,9 @@ export async function requireAuth(c: Context<{ Variables: AuthVariables }>, next
         }
 
         // Check if user is banned
-        const isBanned = await user.isBanned();
-        if (isBanned) {
-            const activeBan = await user.getActiveBan();
+        const isBanned = await BanService.isBanned(user.id);
+        if (isBanned && !allowBanned) {
+            const activeBan = await BanService.getActiveBanWithDetails(user.id);
             throw new APIError(403, 'User is banned', 'USER_BANNED', {
                 banReason: activeBan?.reason || 'No reason provided',
                 banDate: activeBan?.banDate
@@ -64,6 +67,7 @@ export async function requireAuth(c: Context<{ Variables: AuthVariables }>, next
         c.set(USER_CONTEXT_KEY, user);
         c.set(JWT_CONTEXT_KEY, payload);
         c.set('userId', user.id);
+        c.set('isBanned', isBanned); // Mark if user is banned
 
         await next();
     } catch (err) {
@@ -140,4 +144,12 @@ export async function isOrganizationMember(c: Context<{ Variables: AuthVariables
     }
 
     await next();
+}
+
+/**
+ * Middleware that allows banned users for specific endpoints like /v1/auth/me
+ * Banned users can still access their profile but will be marked as banned
+ */
+export async function requireAuthAllowBanned(c: Context<{ Variables: AuthVariables }>, next: Next) {
+    return requireAuth(c, next, true);
 }

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { AccountsController } from '../../controllers/Accounts.controller';
-import { requireAuth } from "@/middlewares/auth.middleware";
+import { requireAuth, requireAuthAllowBanned } from "@/middlewares/auth.middleware";
 
 const authRoutes = new Hono();
 
@@ -134,7 +134,7 @@ authRoutes.post('/refresh', AccountsController.refreshTokens);
  */
 // TODO: MIGRATE_MIDDLEWARE - requireAuth middleware needs to be migrated and re-enabled.
 // authRoutes.get('/me', requireAuth, AccountsController.getCurrentUser);
-authRoutes.get('/me', requireAuth, AccountsController.getCurrentUser);
+authRoutes.get('/me', requireAuthAllowBanned, AccountsController.getCurrentUser);
 
 // Twitch OAuth routes
 authRoutes.get('/twitch/callback', requireAuth, AccountsController.callbackTwitch);

@@ -102,8 +102,9 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
     const isPublisher = session?.publisherMemberships && session.publisherMemberships.length > 0;
 
+    const isBanned = session?.isBanned;
 
-    if (!session) return null;
+    if (!session || isBanned) return null;
 
     return (
         <div className="relative" ref={containerRef}>

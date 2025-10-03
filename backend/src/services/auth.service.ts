@@ -8,6 +8,7 @@ import { exchangeCodeForToken, getDiscordUser } from '@/services/discord';
 import { DISCORD_GUILD_ID, IS_BETA_PROGRAM } from "@/consts";
 import { APIError } from "@/lib/APIError";
 import { UserRole } from "@/types/enums";
+import { BanService } from "./ban.service";
 
 // Asumimos que JWT_SECRET se valida al iniciar la app
 const JWT_SECRET = process.env.JWT_SECRET!;
@@ -25,6 +26,14 @@ interface UserPublicProfile {
     avatarUrl?: string | null;
     role: UserRole;
     publisherMemberships: any[]; // Debería ser un tipo más específico
+    isBanned: boolean;
+    banReason?: string;
+    activeBan?: {
+        id: string;
+        reason?: string;
+        banDate: Date;
+        adminId: string;
+    };
 }
 
 export interface AuthTokens {
@@ -49,13 +58,13 @@ export class AuthService {
         // 2. Simplifica la lógica de creación/actualización del usuario.
         const user = await this.findOrCreateUser(discordApiUser, discordToken);
 
-        const session = Session.create({ 
-            userId: user.id, 
-            deviceInfo: {}, 
-            locationInfo: {} 
+        const session = Session.create({
+            userId: user.id,
+            deviceInfo: {},
+            locationInfo: {}
         });
         await session.save();
-        
+
         const jwtTokens = await user.generateTokens(session);
 
         return {
@@ -114,7 +123,7 @@ export class AuthService {
         }
 
         // Check if user is banned
-        const activeBan = await userWithRelations.getActiveBan();
+        const activeBan = await BanService.getActiveBanWithDetails(userId);
 
         // Use the public JSON method from the entity
         const publicUserProfile = userWithRelations.toPublicJson();
@@ -193,12 +202,12 @@ export class AuthService {
 
         } catch (error) {
             console.error('[AuthService] Error in findOrCreateUser:', error);
-            
+
             // Re-throw APIErrors as is
             if (error instanceof APIError) {
                 throw error;
             }
-            
+
             // Wrap other errors
             throw new APIError(500, 'Failed to create or update user.', 'USER_UPSERT_FAILED');
         }
