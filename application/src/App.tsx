@@ -35,6 +35,7 @@ import { useNotifications } from "./hooks/useNotifications";
 import { AppSidebar } from "./components/AppSidebar";
 import { useLayout } from "./providers/LayoutProvider";
 import { Changelog } from "./components/Changelog";
+import { BannedScreen } from "./components/BannedScreen";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
@@ -127,12 +128,20 @@ function App() {
 
   // Cambiar la clase del layout div dinámicamente
   useEffect(() => {
-    const hasSidebar = (isAuthenticated || !isConnected) && !isFirstRun;
+    const hasSidebar = (isAuthenticated || !isConnected) && !isFirstRun && !session?.isBanned;
     setHasSidebar(hasSidebar);
-  }, [isAuthenticated, isConnected, isFirstRun, setHasSidebar]);
+  }, [isAuthenticated, isConnected, isFirstRun, session?.isBanned, setHasSidebar]);
+
+  // Check if user is banned
+  const isBanned = isAuthenticated && session?.isBanned;
 
   if (shouldShowLoading) {
     return <LoadingScreen />;
+  }
+
+  // Show banned screen if user is banned
+  if (isBanned) {
+    return <BannedScreen />;
   }
 
   // CAMBIO 1: Lógica de renderizado unificada
@@ -195,7 +204,7 @@ function App() {
 
   return (
     <>
-      {(isAuthenticated || !isConnected) && !isFirstRun && <AppSidebar />}
+      {(isAuthenticated || !isConnected) && !isFirstRun && !isBanned && <AppSidebar />}
       <main className={`overflow-y-auto h-full border-t ${isShowingLogin ? "border-transparent" : "relative"} ${hasSidebar ? 'rounded-tl-md border-l' : 'border-l-transparent'}`} style={{ gridArea: 'main' }}>
         <div className="">
           {isFirstRun ? (

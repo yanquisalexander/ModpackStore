@@ -19,6 +19,14 @@ interface UserSession {
   patreonId: string;
   role: 'user' | 'admin' | 'superadmin' | 'support';
   tosAcceptedAt?: string | null;
+  isBanned?: boolean;
+  banReason?: string;
+  activeBan?: {
+    id: string;
+    reason?: string;
+    banDate: string;
+    adminId: string;
+  };
   publisherMemberships: null | {
     createdAt: string;
     id: number;

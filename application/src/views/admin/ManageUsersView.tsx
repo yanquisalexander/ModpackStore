@@ -14,10 +14,14 @@ import {
     LucideEdit,
     LucideUserPlus,
     LucideSearch,
-    LucideRefreshCw
+    LucideRefreshCw,
+    LucideBan,
+    LucideShieldCheck,
+    LucideHistory
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { API_ENDPOINT } from "@/consts";
 
 // Types
@@ -29,6 +33,32 @@ interface User {
     avatarUrl?: string;
     createdAt: string;
     updatedAt: string;
+    isBanned?: boolean;
+}
+
+interface BanHistoryItem {
+    id: string;
+    userId: string;
+    user: {
+        id: string;
+        username: string;
+        avatarUrl?: string;
+    };
+    adminId: string;
+    admin: {
+        id: string;
+        username: string;
+        avatarUrl?: string;
+    };
+    reason?: string;
+    banDate: string;
+    unbanDate?: string;
+    unbannedBy?: {
+        id: string;
+        username: string;
+        avatarUrl?: string;
+    };
+    isActive: boolean;
 }
 
 interface PaginatedUsers {
@@ -126,6 +156,65 @@ class AdminUsersAPI {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Failed to delete user');
         }
+    }
+
+    static async banUser(userId: string, reason: string, accessToken: string): Promise<void> {
+        const response = await fetch(`${API_ENDPOINT}/admin/bans`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ userId, reason }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to ban user');
+        }
+    }
+
+    static async unbanUser(userId: string, accessToken: string): Promise<void> {
+        const response = await fetch(`${API_ENDPOINT}/admin/bans/${userId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to unban user');
+        }
+    }
+
+    static async getUserBanHistory(userId: string, accessToken: string): Promise<BanHistoryItem[]> {
+        const response = await fetch(`${API_ENDPOINT}/admin/bans/user/${userId}/history`, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to fetch ban history');
+        }
+
+        const data = await response.json();
+        return data.history;
+    }
+
+    static async checkBanStatus(userId: string, accessToken: string): Promise<{ isBanned: boolean; ban?: BanHistoryItem }> {
+        const response = await fetch(`${API_ENDPOINT}/admin/bans/user/${userId}/status`, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to check ban status');
+        }
+
+        return response.json();
     }
 }
 
@@ -250,6 +339,138 @@ const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
     );
 };
 
+// Ban Dialog Component
+const BanDialog: React.FC<{
+    user: User;
+    isOpen: boolean;
+    onClose: () => void;
+    onBan: (reason: string) => void;
+    isLoading: boolean;
+}> = ({ user, isOpen, onClose, onBan, isLoading }) => {
+    const [reason, setReason] = useState('');
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        onBan(reason);
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Banear Usuario</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <p className="text-sm text-muted-foreground mb-4">
+                            ¿Estás seguro de que quieres banear a <strong>{user.username}</strong>?
+                        </p>
+                        <label htmlFor="banReason" className="block text-sm font-medium mb-1">
+                            Razón del ban (opcional)
+                        </label>
+                        <Textarea
+                            id="banReason"
+                            value={reason}
+                            onChange={(e) => setReason(e.target.value)}
+                            placeholder="Describe la razón del ban..."
+                            rows={4}
+                        />
+                    </div>
+
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+                            Cancelar
+                        </Button>
+                        <Button type="submit" variant="destructive" disabled={isLoading}>
+                            {isLoading && <LucideLoader className="mr-2 h-4 w-4 animate-spin" />}
+                            Banear Usuario
+                        </Button>
+                    </DialogFooter>
+                </form>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
+// Ban History Dialog Component
+const BanHistoryDialog: React.FC<{
+    user: User;
+    isOpen: boolean;
+    onClose: () => void;
+    accessToken: string;
+}> = ({ user, isOpen, onClose, accessToken }) => {
+    const [history, setHistory] = useState<BanHistoryItem[]>([]);
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        if (isOpen && user) {
+            loadHistory();
+        }
+    }, [isOpen, user]);
+
+    const loadHistory = async () => {
+        setIsLoading(true);
+        try {
+            const data = await AdminUsersAPI.getUserBanHistory(user.id, accessToken);
+            setHistory(data);
+        } catch (error) {
+            console.error('Error loading ban history:', error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                    <DialogTitle>Historial de Bans - {user.username}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {isLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                            <LucideLoader className="h-6 w-6 animate-spin" />
+                        </div>
+                    ) : history.length === 0 ? (
+                        <p className="text-center text-muted-foreground py-8">
+                            No hay historial de bans para este usuario.
+                        </p>
+                    ) : (
+                        history.map((ban) => (
+                            <div key={ban.id} className="border rounded-lg p-4 space-y-2">
+                                <div className="flex items-center justify-between">
+                                    <Badge variant={ban.isActive ? 'destructive' : 'secondary'}>
+                                        {ban.isActive ? 'ACTIVO' : 'INACTIVO'}
+                                    </Badge>
+                                    <span className="text-sm text-muted-foreground">
+                                        {new Date(ban.banDate).toLocaleString('es-ES')}
+                                    </span>
+                                </div>
+                                {ban.reason && (
+                                    <div>
+                                        <span className="text-sm font-medium">Razón:</span>
+                                        <p className="text-sm text-muted-foreground">{ban.reason}</p>
+                                    </div>
+                                )}
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">
+                                        Baneado por: <strong>{ban.admin.username}</strong>
+                                    </span>
+                                    {ban.unbannedBy && (
+                                        <span className="text-muted-foreground">
+                                            Desbaneado por: <strong>{ban.unbannedBy.username}</strong>
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </DialogContent>
+        </Dialog>
+    );
+};
+
 // Main Component
 export const ManageUsersView: React.FC = () => {
     const [usersData, setUsersData] = useState<PaginatedUsers>({
@@ -267,6 +488,9 @@ export const ManageUsersView: React.FC = () => {
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [deletingUser, setDeletingUser] = useState<User | null>(null);
+    const [banningUser, setBanningUser] = useState<User | null>(null);
+    const [viewingBanHistory, setViewingBanHistory] = useState<User | null>(null);
+    const [banStatuses, setBanStatuses] = useState<Record<string, boolean>>({});
 
     const { toast } = useToast();
     const { session, sessionTokens } = useAuthentication();
@@ -406,6 +630,72 @@ export const ManageUsersView: React.FC = () => {
         }
     };
 
+    // Ban user handler
+    const handleBanUser = async (reason: string) => {
+        if (!banningUser || !sessionTokens?.accessToken) return;
+
+        setIsSubmitting(true);
+        try {
+            await AdminUsersAPI.banUser(banningUser.id, reason, sessionTokens.accessToken);
+            setBanningUser(null);
+            await loadUsers();
+            toast({
+                title: 'Success',
+                description: 'User banned successfully'
+            });
+        } catch (err) {
+            toast({
+                title: 'Error',
+                description: err instanceof Error ? err.message : 'Failed to ban user',
+                variant: 'destructive'
+            });
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    // Unban user handler
+    const handleUnbanUser = async (user: User) => {
+        if (!sessionTokens?.accessToken) return;
+
+        try {
+            await AdminUsersAPI.unbanUser(user.id, sessionTokens.accessToken);
+            await loadUsers();
+            toast({
+                title: 'Success',
+                description: 'User unbanned successfully'
+            });
+        } catch (err) {
+            toast({
+                title: 'Error',
+                description: err instanceof Error ? err.message : 'Failed to unban user',
+                variant: 'destructive'
+            });
+        }
+    };
+
+    // Check ban status for users
+    useEffect(() => {
+        const checkBanStatuses = async () => {
+            if (!sessionTokens?.accessToken || usersData.users.length === 0) return;
+
+            const statuses: Record<string, boolean> = {};
+            await Promise.all(
+                usersData.users.map(async (user) => {
+                    try {
+                        const status = await AdminUsersAPI.checkBanStatus(user.id, sessionTokens.accessToken);
+                        statuses[user.id] = status.isBanned;
+                    } catch {
+                        statuses[user.id] = false;
+                    }
+                })
+            );
+            setBanStatuses(statuses);
+        };
+
+        checkBanStatuses();
+    }, [usersData.users, sessionTokens?.accessToken]);
+
     // Prevent non-admin users from accessing this view
     if (!session?.isAdmin?.()) {
         return (
@@ -494,6 +784,7 @@ export const ManageUsersView: React.FC = () => {
                                     <TableHead>Nombre de Usuario</TableHead>
                                     <TableHead>Correo Electrónico</TableHead>
                                     <TableHead>Rol</TableHead>
+                                    <TableHead>Estado</TableHead>
                                     <TableHead>Creado</TableHead>
                                     <TableHead className="text-right">Acciones</TableHead>
                                 </TableRow>
@@ -501,19 +792,23 @@ export const ManageUsersView: React.FC = () => {
                             <TableBody>
                                 {isLoading ? (
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center py-8">
+                                        <TableCell colSpan={6} className="text-center py-8">
                                             <LucideLoader className="h-6 w-6 animate-spin mx-auto" />
                                             <p className="mt-2 text-muted-foreground">Cargando usuarios...</p>
                                         </TableCell>
                                     </TableRow>
                                 ) : usersData.users.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                                             No se encontraron usuarios
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    usersData.users.map((user) => (
+                                    usersData.users.map((user) => {
+                                        const isBanned = banStatuses[user.id] || false;
+                                        const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+                                        
+                                        return (
                                         <TableRow key={user.id}>
                                             <TableCell className="font-medium">
                                                 <div className="flex items-center gap-2">
@@ -532,6 +827,13 @@ export const ManageUsersView: React.FC = () => {
                                                 <RoleBadge role={user.role} />
                                             </TableCell>
                                             <TableCell>
+                                                {isBanned ? (
+                                                    <Badge variant="destructive">BANEADO</Badge>
+                                                ) : (
+                                                    <Badge variant="secondary">ACTIVO</Badge>
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
                                                 {new Date(user.createdAt).toLocaleDateString()}
                                             </TableCell>
                                             <TableCell className="text-right">
@@ -541,21 +843,56 @@ export const ManageUsersView: React.FC = () => {
                                                         size="sm"
                                                         disabled={user.username === "system"}
                                                         onClick={() => setEditingUser(user)}
+                                                        title="Editar usuario"
                                                     >
                                                         <LucideEdit className="h-3 w-3" />
                                                     </Button>
+                                                    
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => setViewingBanHistory(user)}
+                                                        title="Ver historial de bans"
+                                                    >
+                                                        <LucideHistory className="h-3 w-3" />
+                                                    </Button>
+
+                                                    {isBanned ? (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => handleUnbanUser(user)}
+                                                            disabled={user.username === "system"}
+                                                            title="Desbanear usuario"
+                                                        >
+                                                            <LucideShieldCheck className="h-3 w-3 text-green-500" />
+                                                        </Button>
+                                                    ) : (
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setBanningUser(user)}
+                                                            disabled={isAdmin || user.username === "system"}
+                                                            title={isAdmin ? "No se pueden banear administradores" : "Banear usuario"}
+                                                        >
+                                                            <LucideBan className="h-3 w-3 text-red-500" />
+                                                        </Button>
+                                                    )}
+
                                                     <Button
                                                         variant="destructive"
                                                         size="sm"
                                                         onClick={() => handleDeleteUser(user)}
                                                         disabled={user.id === session?.id || user.username === "system"}
+                                                        title="Eliminar usuario"
                                                     >
                                                         <LucideTrash className="h-3 w-3" />
                                                     </Button>
                                                 </div>
                                             </TableCell>
                                         </TableRow>
-                                    ))
+                                        );
+                                    })
                                 )}
                             </TableBody>
                         </Table>
@@ -622,6 +959,27 @@ export const ManageUsersView: React.FC = () => {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Ban User Dialog */}
+            {banningUser && sessionTokens?.accessToken && (
+                <BanDialog
+                    user={banningUser}
+                    isOpen={!!banningUser}
+                    onClose={() => setBanningUser(null)}
+                    onBan={handleBanUser}
+                    isLoading={isSubmitting}
+                />
+            )}
+
+            {/* Ban History Dialog */}
+            {viewingBanHistory && sessionTokens?.accessToken && (
+                <BanHistoryDialog
+                    user={viewingBanHistory}
+                    isOpen={!!viewingBanHistory}
+                    onClose={() => setViewingBanHistory(null)}
+                    accessToken={sessionTokens.accessToken}
+                />
+            )}
         </div>
     );
 };
