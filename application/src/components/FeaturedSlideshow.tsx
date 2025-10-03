@@ -27,7 +27,20 @@ export const FeaturedSlideshow: React.FC<{ className?: string; heightClass?: str
                 cats.forEach((c) => {
                     if (Array.isArray(c.modpacks)) all.push(...c.modpacks);
                 });
-                const featured = all.filter((m) => m.featured === true);
+
+                // More strict filtering for featured modpacks
+                const featured = all.filter((m) => {
+                    // Check if modpack has required fields and is properly featured
+                    const hasRequiredFields = m.id && m.name && (m.bannerUrl || m.iconUrl);
+                    const isFeatured = m.featured === true; // Strict boolean check
+
+                    return hasRequiredFields && isFeatured;
+                });
+
+                console.log('FeaturedSlideshow: Total modpacks found:', all.length);
+                console.log('FeaturedSlideshow: Featured modpacks found:', featured.length);
+                console.log('FeaturedSlideshow: Featured modpacks:', featured.map(m => ({ id: m.id, name: m.name, featured: m.featured })));
+
                 if (mounted && featured.length > 0) {
                     setSlides(featured);
                 }
