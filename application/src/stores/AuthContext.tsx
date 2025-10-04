@@ -1,9 +1,10 @@
 // AuthContext.tsx
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { invoke } from "@tauri-apps/api/core";
 import { load } from '@tauri-apps/plugin-store';
 import { ApiErrorPayload } from "@/types/ApiResponses";
+import { jwtDecode } from 'jwt-decode';
 
 // --- Type Definitions ---
 
@@ -48,6 +49,7 @@ interface SessionTokens {
   expiresIn: number;
   refreshToken: string;
   tokenType: string;
+  expiresAt?: number; // Timestamp when the token expires
 }
 
 type AuthStep =
@@ -79,9 +81,31 @@ interface AuthContextType {
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   sessionTokens: SessionTokens | null;
+  showSessionExpired: boolean;
+  refreshTokens: () => Promise<void>;
 }
 
 // --- Utility Functions ---
+
+// Decode JWT to extract expiration time
+const decodeToken = (token: string): { exp?: number } | null => {
+  try {
+    return jwtDecode<{ exp?: number }>(token);
+  } catch (error) {
+    console.error('Error decoding token:', error);
+    return null;
+  }
+};
+
+// Calculate token expiration timestamp
+const calculateTokenExpiration = (token: string, expiresIn: number): number | undefined => {
+  const decoded = decodeToken(token);
+  if (decoded?.exp) {
+    return decoded.exp * 1000; // Convert to milliseconds
+  }
+  // Fallback: calculate from current time + expiresIn
+  return Date.now() + (expiresIn * 1000);
+};
 
 const enhanceSession = (session: UserSession | null): UserSession | null => {
   if (!session) return null;
@@ -108,6 +132,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [error, setError] = useState<AuthError | null>(null);
   const [authStep, setAuthStep] = useState<AuthStep>(null);
   const [pendingInstance, setPendingInstance] = useState<string | null>(null);
+  const [showSessionExpired, setShowSessionExpired] = useState<boolean>(false);
+  
+  // Refs for managing token refresh
+  const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isRefreshingRef = useRef<boolean>(false);
 
   const isAuthenticated = useMemo(() => !!session && !!sessionTokens, [session, sessionTokens]);
 
@@ -137,6 +166,74 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setError(null);
   }, []);
 
+  // Clear any existing refresh timer
+  const clearRefreshTimer = useCallback(() => {
+    if (refreshTimerRef.current) {
+      clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current = null;
+    }
+  }, []);
+
+  // Refresh tokens function
+  const refreshTokens = useCallback(async (): Promise<void> => {
+    // Prevent concurrent refresh attempts
+    if (isRefreshingRef.current) {
+      console.log('[AuthContext] Refresh already in progress, skipping...');
+      return;
+    }
+
+    try {
+      isRefreshingRef.current = true;
+      console.log('[AuthContext] Refreshing tokens...');
+      
+      const success = await invoke<boolean>('refresh_tokens');
+      
+      if (success) {
+        console.log('[AuthContext] Tokens refreshed successfully');
+        // Tokens will be updated via the auth-status-changed event
+      } else {
+        console.warn('[AuthContext] Token refresh returned false');
+        // Show session expired dialog
+        setShowSessionExpired(true);
+        setSession(null);
+        setSessionTokens(null);
+      }
+    } catch (err) {
+      console.error('[AuthContext] Error refreshing tokens:', err);
+      // Show session expired dialog
+      setShowSessionExpired(true);
+      setSession(null);
+      setSessionTokens(null);
+    } finally {
+      isRefreshingRef.current = false;
+    }
+  }, []);
+
+  // Schedule token refresh based on expiration time
+  const scheduleTokenRefresh = useCallback((tokens: SessionTokens) => {
+    clearRefreshTimer();
+
+    if (!tokens.expiresAt) {
+      console.warn('[AuthContext] No expiration time available for token');
+      return;
+    }
+
+    const now = Date.now();
+    const expiresAt = tokens.expiresAt;
+    const timeUntilExpiry = expiresAt - now;
+
+    // Refresh 5 minutes before expiration (or immediately if less than 5 min remaining)
+    const REFRESH_BUFFER_MS = 5 * 60 * 1000; // 5 minutes
+    const refreshIn = Math.max(0, timeUntilExpiry - REFRESH_BUFFER_MS);
+
+    console.log(`[AuthContext] Scheduling token refresh in ${Math.floor(refreshIn / 1000 / 60)} minutes`);
+
+    refreshTimerRef.current = setTimeout(() => {
+      console.log('[AuthContext] Token refresh timer triggered');
+      refreshTokens();
+    }, refreshIn);
+  }, [clearRefreshTimer, refreshTokens]);
+
   // --- Effects ---
 
   useEffect(() => {
@@ -157,14 +254,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           const store = await load(import.meta.env.PROD ? 'auth_store.json' : 'auth_store.dev.json');
           const tokens = await store.get<any>('auth_tokens');
           if (tokens) {
-            setSessionTokens({
+            const expiresAt = calculateTokenExpiration(tokens.access_token, tokens.expires_in);
+            const tokensWithExpiry: SessionTokens = {
               accessToken: tokens.access_token,
               expiresIn: tokens.expires_in,
               refreshToken: tokens.refresh_token,
               tokenType: tokens.token_type,
-            });
+              expiresAt,
+            };
+            setSessionTokens(tokensWithExpiry);
+            
+            // Schedule automatic token refresh
+            scheduleTokenRefresh(tokensWithExpiry);
           } else {
             setSessionTokens(null);
+            clearRefreshTimer();
           }
           setSession(enhanceSession(event.payload));
           resetAuthState();
@@ -222,8 +326,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     return () => {
       isMounted = false; // Cleanup flag
       unlistenFunctions.forEach(unlisten => unlisten());
+      clearRefreshTimer(); // Clear refresh timer on unmount
     };
-  }, [resetAuthState]);
+  }, [resetAuthState, scheduleTokenRefresh, clearRefreshTimer]);
 
   useEffect(() => {
     let unlisten: UnlistenFn | null = null;
@@ -271,12 +376,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       await invoke('logout');
       setSession(null);
       setSessionTokens(null);
+      clearRefreshTimer();
       resetAuthState();
     } catch (err) {
       setError(parseError(err));
       throw err; // Re-throw for component-level handling if needed
     }
-  }, [resetAuthState]);
+  }, [resetAuthState, clearRefreshTimer]);
 
   // --- Context Value ---
 
@@ -289,7 +395,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     logout,
     isAuthenticated,
     sessionTokens,
-  }), [session, loading, error, authStep, startDiscordAuth, logout, isAuthenticated, sessionTokens]);
+    showSessionExpired,
+    refreshTokens,
+  }), [session, loading, error, authStep, startDiscordAuth, logout, isAuthenticated, sessionTokens, showSessionExpired, refreshTokens]);
 
   return (
     <AuthContext.Provider value={value}>
