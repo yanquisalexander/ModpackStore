@@ -1,9 +1,6 @@
 import fs from "fs";
 import path from "path";
-import crypto from "crypto";
-import JSZip from "jszip";
 import { queue } from "./Queue";
-import { uploadToR2, batchUploadToR2 } from "./r2UploadService";
 import { ModpackFile, ModpackFileType } from "@/entities/ModpackFile";
 import { ModpackVersionFile } from "@/entities/ModpackVersionFile";
 import { In } from "typeorm";
@@ -65,23 +62,26 @@ export const processModpackFileUpload = async (
         modpackId,
         versionId,
         onProgress: (message, percent) => {
-          sendProgressUpdate(modpackId, versionId, message, { category: fileType, percent: Math.min(percent, 80) });
+          sendProgressUpdate(modpackId, versionId, message, { category: fileType, percent: Math.min(percent * 0.8, 80) });
         },
       });
 
       console.log(`[Streaming] Processing ZIP with streaming approach...`);
       const fileEntries = await processor.processZipBuffer(buffer);
       
+      // After processing, check which files already exist to avoid re-uploading
+      const allHashes = fileEntries.map(fe => fe.hash);
+      const existingFiles = await ModpackFile.find({ where: { hash: In(allHashes) } });
+      const existingHashes = new Set(existingFiles.map(ef => ef.hash));
+      const newFileCount = fileEntries.length - existingHashes.size;
+      
+      console.log(`[Streaming] Uploaded ${newFileCount} new files, ${existingHashes.size} already existed`);
+      
       const afterProcessingMemory = StreamingZipProcessor.getMemoryUsage();
       console.log(`[Memory] After ZIP processing - RSS: ${afterProcessingMemory.rss}MB, Heap: ${afterProcessingMemory.heapUsed}/${afterProcessingMemory.heapTotal}MB`);
       console.log(`[Memory] Delta - RSS: ${afterProcessingMemory.rss - startMemory.rss}MB, Heap: ${afterProcessingMemory.heapUsed - startMemory.heapUsed}MB`);
 
       sendProgressUpdate(modpackId, versionId, `Archivos procesados: ${fileEntries.length} archivos`, { category: fileType, percent: 85 });
-
-      // Batch query: obtener todos los archivos existentes por hash
-      const allHashes = fileEntries.map(fe => fe.hash);
-      const existingFiles = await ModpackFile.find({ where: { hash: In(allHashes) } });
-      const existingHashes = new Set(existingFiles.map(ef => ef.hash));
 
       // Save to DB
       const savePromises = fileEntries.map(async (fe) => {

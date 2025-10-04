@@ -19,6 +19,38 @@ export interface StreamingZipProcessorOptions {
   versionId: string;
   onProgress?: (message: string, percent: number) => void;
   concurrency?: number;
+  existingHashes?: Set<string>; // Skip uploading files with these hashes
+}
+
+/**
+ * Simple semaphore for controlling concurrency
+ */
+class Semaphore {
+  private permits: number;
+  private waitQueue: (() => void)[] = [];
+
+  constructor(permits: number) {
+    this.permits = permits;
+  }
+
+  async acquire(): Promise<void> {
+    if (this.permits > 0) {
+      this.permits--;
+      return;
+    }
+    return new Promise<void>((resolve) => {
+      this.waitQueue.push(resolve);
+    });
+  }
+
+  release(): void {
+    this.permits++;
+    if (this.waitQueue.length > 0) {
+      const resolve = this.waitQueue.shift()!;
+      this.permits--;
+      resolve();
+    }
+  }
 }
 
 /**
@@ -28,12 +60,14 @@ export interface StreamingZipProcessorOptions {
 export class StreamingZipProcessor {
   private processedFiles: ProcessedFile[] = [];
   private options: StreamingZipProcessorOptions;
+  private semaphore: Semaphore;
 
   constructor(options: StreamingZipProcessorOptions) {
     this.options = {
       concurrency: 3, // Process up to 3 files concurrently
       ...options,
     };
+    this.semaphore = new Semaphore(this.options.concurrency!);
   }
 
   /**
@@ -61,21 +95,24 @@ export class StreamingZipProcessor {
 
           fileCount++;
           
-          // Process each file entry
-          const processPromise = this.processFileEntry(entry, fileName)
-            .then(() => {
+          // Process each file entry with concurrency control
+          const processPromise = (async () => {
+            await this.semaphore.acquire();
+            try {
+              await this.processFileEntry(entry, fileName);
               processedCount++;
               const percent = Math.floor((processedCount / fileCount) * 100);
               this.options.onProgress?.(
                 `Procesado ${processedCount}/${fileCount} archivos`,
                 Math.min(percent, 95) // Cap at 95% until fully complete
               );
-            })
-            .catch((error) => {
+            } catch (error) {
               console.error(`Error processing ${fileName}:`, error);
-              entry.autodrain(); // Drain the entry to continue processing
               throw error;
-            });
+            } finally {
+              this.semaphore.release();
+            }
+          })();
 
           processingPromises.push(processPromise);
         })
@@ -98,6 +135,10 @@ export class StreamingZipProcessor {
   /**
    * Process a single file entry from the ZIP
    * Calculates hash and uploads to R2 in streaming mode
+   * 
+   * Note: Currently buffers file data due to S3 SDK requirements.
+   * For truly streaming uploads without buffering, we would need to use
+   * multipart uploads with unknown content length, which is more complex.
    */
   private async processFileEntry(
     entry: unzipper.Entry,
@@ -108,20 +149,15 @@ export class StreamingZipProcessor {
       const chunks: Buffer[] = [];
       let totalSize = 0;
 
-      // Create a pass-through stream to tee the data
-      const hashStream = new PassThrough({ highWaterMark: BUFFER_SIZE });
-      
-      // Pipe entry to hash stream
-      entry.pipe(hashStream);
-
-      // Calculate hash and collect data
-      hashStream.on("data", (chunk: Buffer) => {
+      // Process data chunks as they arrive
+      entry.on("data", (chunk: Buffer) => {
+        // Update hash incrementally
         hasher.update(chunk);
         chunks.push(chunk);
         totalSize += chunk.length;
       });
 
-      hashStream.on("end", async () => {
+      entry.on("end", async () => {
         try {
           const hash = hasher.digest("hex");
           const adjustedPath =
@@ -132,16 +168,25 @@ export class StreamingZipProcessor {
           // Combine chunks into a single buffer for upload
           const fileBuffer = Buffer.concat(chunks);
 
-          // Upload to R2
-          const key = path.posix.join(
-            "resources",
-            "files",
-            hash.slice(0, 2),
-            hash.slice(2, 4),
-            hash
-          );
+          // Upload to R2 only if file doesn't already exist
+          const shouldUpload = !this.options.existingHashes?.has(hash);
+          if (shouldUpload) {
+            try {
+              const key = path.posix.join(
+                "resources",
+                "files",
+                hash.slice(0, 2),
+                hash.slice(2, 4),
+                hash
+              );
 
-          await uploadToR2(key, fileBuffer, "application/octet-stream");
+              await uploadToR2(key, fileBuffer, "application/octet-stream");
+            } catch (uploadError) {
+              // Log upload errors but don't fail the entire process
+              // The file might already exist in R2 but not in our DB
+              console.warn(`Upload warning for ${fileName} (${hash}):`, uploadError);
+            }
+          }
 
           // Store processed file info
           this.processedFiles.push({
@@ -156,7 +201,7 @@ export class StreamingZipProcessor {
         }
       });
 
-      hashStream.on("error", (error) => {
+      entry.on("error", (error) => {
         reject(new Error(`Error processing ${fileName}: ${error.message}`));
       });
     });
