@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select"
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
+import { fetchMinecraftManifestWithFailover } from '@/utils/minecraftManifestFailover';
 
 // --- Tipos ---
 interface Props {
@@ -42,7 +43,6 @@ interface MinecraftVersion {
     releaseTime?: string;
 }
 
-const LAUNCHER_VERSIONS_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
 const FORGE_VERSIONS_URL = "https://mc-versions-api.net/api/forge";
 
 // --- Componente principal ---
@@ -180,8 +180,8 @@ const ModpackVersionsDialog: React.FC<Props> = ({ isOpen, onClose, modpackId, mo
     const fetchMinecraftVersions = async (): Promise<void> => {
         setLoadingVersions(true);
         try {
-            const response = await fetch(LAUNCHER_VERSIONS_URL);
-            const data = await response.json();
+            // Fetch Minecraft versions with automatic failover to alternative servers
+            const data = await fetchMinecraftManifestWithFailover();
 
             // Filter versions: only releases for modpacks
             const releaseVersions = data.versions.filter((version: MinecraftVersion) =>

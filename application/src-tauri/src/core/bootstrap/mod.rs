@@ -4,6 +4,7 @@
 pub mod download;
 pub mod filesystem;
 pub mod manifest;
+pub mod manifest_servers;
 pub mod tasks;
 pub mod validate;
 
@@ -11,5 +12,6 @@ pub mod validate;
 pub use download::*;
 pub use filesystem::*;
 pub use manifest::*;
+pub use manifest_servers::*;
 pub use tasks::*;
 pub use validate::*;

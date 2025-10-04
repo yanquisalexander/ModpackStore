@@ -2,6 +2,7 @@ import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { LucidePlus, Loader2, LucideAnvil, LucideTestTubeDiagonal } from "lucide-react"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
+import { fetchMinecraftManifestWithFailover } from "@/utils/minecraftManifestFailover"
 
 import {
     Dialog,
@@ -46,7 +47,6 @@ interface CreateInstanceDialogProps {
     instanceNames: string[];
 }
 
-const LAUNCHER_VERSIONS_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
 const FORGE_VERSIONS_URL = "https://mc-versions-api.net/api/forge";
 
 export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: CreateInstanceDialogProps) => {
@@ -98,9 +98,8 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
     const fetchMinecraftVersions = async (): Promise<void> => {
         setLoadingVersions(true);
         try {
-            // Fetch Minecraft versions
-            const response = await fetch(LAUNCHER_VERSIONS_URL);
-            const data = await response.json();
+            // Fetch Minecraft versions with automatic failover to alternative servers
+            const data = await fetchMinecraftManifestWithFailover();
 
             // Filter versions: include snapshots if showSnapshots is true, otherwise only releases
             const releaseVersions = data.versions.filter((version: MinecraftVersion) =>
