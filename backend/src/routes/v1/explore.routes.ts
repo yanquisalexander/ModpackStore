@@ -175,9 +175,9 @@ app.get('/search', ExploreModpacksController.search);
  */
 app.get('/modpacks/:modpackId', ExploreModpacksController.getModpack);
 app.get('/modpacks/:modpackId/prelaunch-appearance', ExploreModpacksController.getPrelaunchAppearance);
-app.get('/modpacks/:modpackId/versions', ExploreModpacksController.getModpackVersions);
-app.get('/modpacks/:modpackId/versions/:versionId', ExploreModpacksController.getModpackVersionManifest);
-app.get('/modpacks/:modpackId/latest', ExploreModpacksController.getLatestVersion);
+app.get('/modpacks/:modpackId/versions', requireAuth, ExploreModpacksController.getModpackVersions);
+app.get('/modpacks/:modpackId/versions/:versionId', requireAuth, ExploreModpacksController.getModpackVersionManifest);
+app.get('/modpacks/:modpackId/latest', requireAuth, ExploreModpacksController.getLatestVersion);
 
 /**
  * @openapi

@@ -1,6 +1,7 @@
 // src-tauri/src/core/instance_manager.rs
 
 use crate::config::get_config_manager;
+use crate::core::auth::storage;
 use crate::core::bootstrap_error::BootstrapError;
 use crate::core::instance_bootstrap::InstanceBootstrap;
 use crate::core::minecraft_instance::{self, MinecraftInstance};
@@ -1239,8 +1240,14 @@ async fn fetch_latest_version(modpack_id: &str) -> Result<String, String> {
     let client = reqwest::Client::new();
     let url = format!("{}/explore/modpacks/{}/latest", *API_ENDPOINT, modpack_id);
 
-    let response = client
-        .get(&url)
+    let mut request = client.get(&url);
+    
+    // Agregar token de autenticación si está disponible
+    if let Ok(Some(token)) = get_access_token().await {
+        request = request.bearer_auth(token);
+    }
+
+    let response = request
         .send()
         .await
         .map_err(|e| format!("Failed to fetch latest version: {}", e))?;
@@ -1264,8 +1271,14 @@ async fn fetch_modpack_info(modpack_id: &str) -> Result<serde_json::Value, Strin
     let client = reqwest::Client::new();
     let url = format!("{}/explore/modpacks/{}", *API_ENDPOINT, modpack_id);
 
-    let response = client
-        .get(&url)
+    let mut request = client.get(&url);
+    
+    // Agregar token de autenticación si está disponible
+    if let Ok(Some(token)) = get_access_token().await {
+        request = request.bearer_auth(token);
+    }
+
+    let response = request
         .send()
         .await
         .map_err(|e| format!("Failed to fetch modpack info: {}", e))?;
@@ -1290,8 +1303,14 @@ pub async fn fetch_modpack_manifest(
         *API_ENDPOINT, modpack_id, version_id
     );
 
-    let response = client
-        .get(&url)
+    let mut request = client.get(&url);
+    
+    // Agregar token de autenticación si está disponible
+    if let Ok(Some(token)) = get_access_token().await {
+        request = request.bearer_auth(token);
+    }
+
+    let response = request
         .send()
         .await
         .map_err(|e| format!("Failed to fetch manifest: {}", e))?;
@@ -1361,11 +1380,18 @@ pub async fn validate_modpack_password(
         modpack_id
     );
 
-    let response = client
+    let mut request = client
         .post(&url)
         .json(&serde_json::json!({
             "password": password
-        }))
+        }));
+    
+    // Agregar token de autenticación si está disponible
+    if let Ok(Some(token)) = get_access_token().await {
+        request = request.bearer_auth(token);
+    }
+
+    let response = request
         .send()
         .await
         .map_err(|e| format!("Failed to validate password: {}", e))?;
@@ -1446,4 +1472,21 @@ pub fn get_favorite_instances() -> Result<Vec<MinecraftInstance>, String> {
     });
 
     Ok(favorites)
+}
+
+/// Función helper para obtener el token de acceso
+async fn get_access_token() -> Result<Option<String>, String> {
+    let app_handle = {
+        let guard = crate::GLOBAL_APP_HANDLE.lock()
+            .map_err(|_| "Failed to lock app handle")?;
+        guard.as_ref()
+            .ok_or("App handle not initialized")?
+            .clone()
+    };
+    
+    match storage::load_tokens(&app_handle).await {
+        Ok(Some(tokens)) => Ok(Some(tokens.access_token)),
+        Ok(None) => Ok(None),
+        Err(e) => Err(format!("Error loading tokens: {}", e)),
+    }
 }

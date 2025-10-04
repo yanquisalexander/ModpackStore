@@ -133,7 +133,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [authStep, setAuthStep] = useState<AuthStep>(null);
   const [pendingInstance, setPendingInstance] = useState<string | null>(null);
   const [showSessionExpired, setShowSessionExpired] = useState<boolean>(false);
-  
+
   // Refs for managing token refresh
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isRefreshingRef = useRef<boolean>(false);
@@ -162,6 +162,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   const resetAuthState = useCallback(() => {
+    setShowSessionExpired(false);
     setAuthStep(null);
     setError(null);
   }, []);
@@ -185,9 +186,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       isRefreshingRef.current = true;
       console.log('[AuthContext] Refreshing tokens...');
-      
+
       const success = await invoke<boolean>('refresh_tokens');
-      
+
       if (success) {
         console.log('[AuthContext] Tokens refreshed successfully');
         // Tokens will be updated via the auth-status-changed event
@@ -263,7 +264,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               expiresAt,
             };
             setSessionTokens(tokensWithExpiry);
-            
+
             // Schedule automatic token refresh
             scheduleTokenRefresh(tokensWithExpiry);
           } else {

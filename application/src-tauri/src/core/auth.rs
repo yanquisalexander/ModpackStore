@@ -103,7 +103,7 @@ impl AuthState {
 }
 
 // --- Storage helpers optimizados ---
-mod storage {
+pub mod storage {
     use super::*;
 
     pub async fn save_tokens(
@@ -839,6 +839,15 @@ pub async fn refresh_tokens(
             events::emit_auth_status_changed(None);
             Err(e)
         }
+    }
+}
+
+#[tauri::command]
+pub async fn get_access_token(app_handle: tauri::AppHandle) -> Result<Option<String>, String> {
+    match storage::load_tokens(&app_handle).await {
+        Ok(Some(tokens)) => Ok(Some(tokens.access_token)),
+        Ok(None) => Ok(None),
+        Err(e) => Err(format!("Error loading tokens: {}", e)),
     }
 }
 
