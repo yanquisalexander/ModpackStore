@@ -36,6 +36,7 @@ import { AppSidebar } from "./components/AppSidebar";
 import { useLayout } from "./providers/LayoutProvider";
 import { Changelog } from "./components/Changelog";
 import { BannedScreen } from "./components/BannedScreen";
+import { SessionExpiredDialog } from "./components/SessionExpiredDialog";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
@@ -56,7 +57,7 @@ const ModpackOverviewPage = () => {
 
 // --- Componente Principal ---
 function App() {
-  const { loading: authLoading, isAuthenticated, session } = useAuthentication();
+  const { loading: authLoading, isAuthenticated, session, showSessionExpired, startDiscordAuth } = useAuthentication();
   const { isConnected, isLoading: connectionLoading, hasInternetAccess } = useConnection();
   const { isConfigOpen, closeConfigDialog } = useConfigDialog();
   const { onboardingStatus, loading: onboardingLoading, isFirstRun, refreshStatus } = useOnboarding();
@@ -225,6 +226,10 @@ function App() {
           onReject={rejectTerms}
         />
         <Changelog />
+        <SessionExpiredDialog 
+          isOpen={showSessionExpired} 
+          onLogin={startDiscordAuth}
+        />
         <KonamiCode />
       </main>
     </>
