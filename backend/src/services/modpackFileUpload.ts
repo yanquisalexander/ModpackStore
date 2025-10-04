@@ -1,13 +1,11 @@
 import fs from "fs";
 import path from "path";
-import crypto from "crypto";
-import JSZip from "jszip";
 import { queue } from "./Queue";
-import { uploadToR2, batchUploadToR2 } from "./r2UploadService";
 import { ModpackFile, ModpackFileType } from "@/entities/ModpackFile";
 import { ModpackVersionFile } from "@/entities/ModpackVersionFile";
 import { In } from "typeorm";
 import { sendProgressUpdate, sendCompletionUpdate, sendErrorUpdate } from "./realtime.service";
+import { StreamingZipProcessor } from "./streamingZipProcessor";
 
 export const ALLOWED_FILE_TYPES = ['mods', 'resourcepacks', 'config', 'shaderpacks', 'datapacks', 'extras'];
 
@@ -42,6 +40,9 @@ export const processModpackFileUpload = async (
 
   // Función que se delega a la queue
   const task = async () => {
+    const startMemory = StreamingZipProcessor.getMemoryUsage();
+    console.log(`[Memory] Start - RSS: ${startMemory.rss}MB, Heap: ${startMemory.heapUsed}/${startMemory.heapTotal}MB`);
+    
     try {
       console.log(`Procesando ${fileType} para modpack ${modpackId}...`);
       sendProgressUpdate(modpackId, versionId, `Iniciando procesamiento de ${fileType}`, { category: fileType, percent: 0 });
@@ -55,51 +56,34 @@ export const processModpackFileUpload = async (
         )`, { versionId, fileType })
         .execute();
 
-      const fileEntries: { path: string; hash: string; content: Buffer }[] = [];
+      // Use streaming ZIP processor
+      const processor = new StreamingZipProcessor({
+        fileType,
+        modpackId,
+        versionId,
+        onProgress: (message, percent) => {
+          sendProgressUpdate(modpackId, versionId, message, { category: fileType, percent: Math.min(percent * 0.8, 80) });
+        },
+      });
 
-      const zip = await JSZip.loadAsync(buffer);
-      const extractDir = path.join(TEMP_UPLOAD_DIR, `${modpackId}-${fileType}-${Date.now()}`);
-      fs.mkdirSync(extractDir, { recursive: true });
-
-      for (const entryName of Object.keys(zip.files)) {
-        const zipFile = zip.files[entryName];
-        if (!zipFile.dir) {
-          const content = await zipFile.async("nodebuffer");
-          const hash = crypto.createHash("sha1").update(content).digest("hex");
-          // Adjust path based on fileType
-          const adjustedPath = fileType === 'extras' ? entryName : `${fileType}/${entryName}`;
-          fileEntries.push({ path: adjustedPath, hash, content });
-
-          // Guardar temporalmente para compatibilidad
-          const filePath = path.join(extractDir, entryName);
-          fs.mkdirSync(path.dirname(filePath), { recursive: true });
-          fs.writeFileSync(filePath, content);
-        }
-      }
-
-      sendProgressUpdate(modpackId, versionId, `Archivos extraídos: ${fileEntries.length} archivos encontrados`, { category: fileType, percent: 20 });
-
-      // Batch query: obtener todos los archivos existentes por hash
+      console.log(`[Streaming] Processing ZIP with streaming approach...`);
+      const fileEntries = await processor.processZipBuffer(buffer);
+      
+      // After processing, check which files already exist to avoid re-uploading
       const allHashes = fileEntries.map(fe => fe.hash);
       const existingFiles = await ModpackFile.find({ where: { hash: In(allHashes) } });
       const existingHashes = new Set(existingFiles.map(ef => ef.hash));
+      const newFileCount = fileEntries.length - existingHashes.size;
+      
+      console.log(`[Streaming] Uploaded ${newFileCount} new files, ${existingHashes.size} already existed`);
+      
+      const afterProcessingMemory = StreamingZipProcessor.getMemoryUsage();
+      console.log(`[Memory] After ZIP processing - RSS: ${afterProcessingMemory.rss}MB, Heap: ${afterProcessingMemory.heapUsed}/${afterProcessingMemory.heapTotal}MB`);
+      console.log(`[Memory] Delta - RSS: ${afterProcessingMemory.rss - startMemory.rss}MB, Heap: ${afterProcessingMemory.heapUsed - startMemory.heapUsed}MB`);
 
-      // Procesar solo los que no existen
-      const newFiles = fileEntries.filter(fe => !existingHashes.has(fe.hash));
-      const getHashKey = (hash: string) => path.posix.join("resources", "files", hash.slice(0, 2), hash.slice(2, 4), hash);
-      const uploads = newFiles.map(fe => ({
-        key: getHashKey(fe.hash),
-        body: fe.content,
-        contentType: "application/octet-stream"
-      }));
+      sendProgressUpdate(modpackId, versionId, `Archivos procesados: ${fileEntries.length} archivos`, { category: fileType, percent: 85 });
 
-      // Batch upload to R2 with concurrency control
-      const uploadResults = await batchUploadToR2(uploads, 5); // concurrency 5
-
-      console.log(`Subidos ${uploadResults.length} archivos nuevos a R2 para ${fileType}`);
-      sendProgressUpdate(modpackId, versionId, `Subidos ${uploadResults.length} archivos nuevos a R2`, { category: fileType, percent: 60 });
-
-      // Save to DB after uploads
+      // Save to DB
       const savePromises = fileEntries.map(async (fe) => {
         try {
           // Find or create ModpackFile
@@ -107,7 +91,7 @@ export const processModpackFileUpload = async (
           if (!modpackFile) {
             modpackFile = new ModpackFile();
             modpackFile.hash = fe.hash;
-            modpackFile.size = fe.content.length;
+            modpackFile.size = fe.size;
             modpackFile.type = fileType as ModpackFileType;
             await modpackFile.save();
           }
@@ -128,20 +112,31 @@ export const processModpackFileUpload = async (
       });
 
       await Promise.all(savePromises);
-      sendProgressUpdate(modpackId, versionId, `Guardados ${fileEntries.length} archivos en base de datos`, { category: fileType, percent: 80 });
+      sendProgressUpdate(modpackId, versionId, `Guardados ${fileEntries.length} archivos en base de datos`, { category: fileType, percent: 95 });
 
-      // Mostrar tabla con path y hash (todos, incluyendo existentes)
+      // Mostrar tabla con path y hash
       console.log(`Hashes generados para ${fileType}:`);
       console.table(fileEntries.map(fe => ({ path: fe.path, hash: fe.hash })));
 
+      const endMemory = StreamingZipProcessor.getMemoryUsage();
+      console.log(`[Memory] End - RSS: ${endMemory.rss}MB, Heap: ${endMemory.heapUsed}/${endMemory.heapTotal}MB`);
+      console.log(`[Memory] Total Delta - RSS: ${endMemory.rss - startMemory.rss}MB, Heap: ${endMemory.heapUsed - startMemory.heapUsed}MB`);
+
       console.log(`Procesamiento completo para ${fileType}`);
       sendCompletionUpdate(modpackId, versionId, `Procesamiento completo para ${fileType}`);
-
-      // Limpiar directorio temporal
-      fs.rmSync(extractDir, { recursive: true, force: true });
     } catch (error) {
       console.error(`Error procesando ${fileType} para modpack ${modpackId}:`, error);
       sendErrorUpdate(modpackId, versionId, `Error procesando ${fileType}: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      // Clean up temp file
+      try {
+        if (fs.existsSync(tempPath)) {
+          fs.unlinkSync(tempPath);
+          console.log(`Archivo temporal eliminado: ${tempPath}`);
+        }
+      } catch (cleanupError) {
+        console.error(`Error eliminando archivo temporal: ${cleanupError}`);
+      }
     }
   };
 
