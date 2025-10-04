@@ -9,6 +9,7 @@ use std::time::Duration;
 /// These servers mirror the official Mojang launcher meta API
 pub const MANIFEST_SERVERS: &[&str] = &[
     "https://launchermeta.mojang.com/mc/game/version_manifest.json",           // Official Mojang
+    "https://launchermeta.fastmcmirror.org/mc/game/version_manifest.json", // FastMC Mirror
     "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json",           // BMCLAPI (China mirror)
     "https://download.mcbbs.net/mc/game/version_manifest.json",                 // MCBBS (China mirror)
 ];

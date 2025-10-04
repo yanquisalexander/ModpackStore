@@ -90,7 +90,7 @@ impl InstanceBootstrap {
     }
 
     // Implementaciones auxiliares
-    fn get_version_manifest(&mut self) -> Result<Value, reqwest::Error> {
+    fn get_version_manifest(&mut self) -> Result<Value, String> {
         get_version_manifest(&self.client, &mut self.version_manifest_cache)
     }
 
@@ -216,8 +216,7 @@ impl InstanceBootstrap {
         let version_json_path = version_dir.join(format!("{}.json", instance.minecraftVersion));
         if !version_json_path.exists() {
             let version_manifest = self
-                .get_version_manifest()
-                .map_err(|e| format!("Error fetching version manifest: {}", e))?;
+                .get_version_manifest()?;
 
             let versions = version_manifest["versions"]
                 .as_array()

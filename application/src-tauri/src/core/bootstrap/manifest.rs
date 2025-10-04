@@ -14,7 +14,7 @@ pub const CACHE_EXPIRY_MS: u64 = 3600000; // 1 hour
 pub fn get_version_manifest(
     client: &reqwest::blocking::Client,
     cache: &mut Option<(Value, u64)>,
-) -> Result<Value, reqwest::Error> {
+) -> Result<Value, String> {
     let current_time = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap()
@@ -34,10 +34,7 @@ pub fn get_version_manifest(
     let manifest = fetch_manifest_with_failover(client, &config)
         .map_err(|e| {
             log::error!("[get_version_manifest] Failed to fetch manifest: {}", e);
-            reqwest::Error::from(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                e
-            ))
+            e
         })?;
 
     // Update cache
@@ -53,8 +50,7 @@ pub fn get_version_details(
     version: &str,
 ) -> Result<Value, String> {
     // Get the version manifest
-    let version_manifest = get_version_manifest(client, cache)
-        .map_err(|e| format!("Error fetching version manifest: {}", e))?;
+    let version_manifest = get_version_manifest(client, cache)?;
 
     let versions_node = version_manifest["versions"]
         .as_array()
