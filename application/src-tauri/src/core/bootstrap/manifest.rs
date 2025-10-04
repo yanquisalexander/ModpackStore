@@ -10,7 +10,7 @@ pub const MOJANG_VERSION_MANIFEST_URL: &str =
 pub const FORGE_API_BASE_URL: &str = "https://mc-versions-api.net/api/forge";
 pub const CACHE_EXPIRY_MS: u64 = 3600000; // 1 hour
 
-/// Fetches and caches the Mojang version manifest
+/// Fetches and caches the Mojang version manifest with failover support
 pub fn get_version_manifest(
     client: &reqwest::blocking::Client,
     cache: &mut Option<(Value, u64)>,
@@ -27,11 +27,18 @@ pub fn get_version_manifest(
         }
     }
 
-    // Fetch new manifest
-    let manifest = client
-        .get(MOJANG_VERSION_MANIFEST_URL)
-        .send()?
-        .json::<Value>()?;
+    // Fetch new manifest with failover support
+    use super::manifest_servers::{fetch_manifest_with_failover, FailoverConfig};
+    
+    let config = FailoverConfig::default();
+    let manifest = fetch_manifest_with_failover(client, &config)
+        .map_err(|e| {
+            log::error!("[get_version_manifest] Failed to fetch manifest: {}", e);
+            reqwest::Error::from(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                e
+            ))
+        })?;
 
     // Update cache
     *cache = Some((manifest.clone(), current_time));
@@ -39,7 +46,7 @@ pub fn get_version_manifest(
     Ok(manifest)
 }
 
-/// Gets detailed information for a specific Minecraft version
+/// Gets detailed information for a specific Minecraft version with failover support
 pub fn get_version_details(
     client: &reqwest::blocking::Client,
     cache: &mut Option<(Value, u64)>,
@@ -63,13 +70,11 @@ pub fn get_version_details(
         .as_str()
         .ok_or_else(|| "Invalid version info format".to_string())?;
 
-    // Download version details
-    client
-        .get(version_url)
-        .send()
-        .map_err(|e| format!("Error fetching version details: {}", e))?
-        .json::<Value>()
-        .map_err(|e| format!("Error parsing version details: {}", e))
+    // Download version details with failover support
+    use super::manifest_servers::{fetch_version_json_with_failover, FailoverConfig};
+    
+    let config = FailoverConfig::default();
+    fetch_version_json_with_failover(client, version_url, &config)
 }
 
 /// Extracts Java version requirements from version details

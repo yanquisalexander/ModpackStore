@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { API_ENDPOINT } from '@/consts';
 import { useAuthentication } from '@/stores/AuthContext';
 import { handleApiError } from '@/lib/utils';
+import { fetchMinecraftManifestWithFailover } from '@/utils/minecraftManifestFailover';
 
 interface Props {
     isOpen: boolean;
@@ -55,7 +56,6 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
         releaseTime?: string;
     }
 
-    const LAUNCHER_VERSIONS_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json";
     const FORGE_VERSIONS_URL = "https://mc-versions-api.net/api/forge";
 
     const [minecraftVersions, setMinecraftVersions] = useState<MinecraftVersion[]>([]);
@@ -153,8 +153,8 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
     const fetchMinecraftVersions = async (): Promise<void> => {
         setLoadingVersions(true);
         try {
-            const response = await fetch(LAUNCHER_VERSIONS_URL);
-            const data = await response.json();
+            // Fetch Minecraft versions with automatic failover to alternative servers
+            const data = await fetchMinecraftManifestWithFailover();
 
             // Filter to releases (sensible default for modpack versions)
             const releaseVersions = data.versions.filter((version: MinecraftVersion) => version.type === 'release');
