@@ -19,6 +19,7 @@ import { serializeError } from './utils/jsonapi';
 import { APIError } from "./lib/APIError";
 import { AppDataSource } from "./db/data-source";
 import { generateSystemUser } from "./utils/system";
+import { initRedis, closeRedis } from "./lib/redis";
 
 const app = new Hono();
 
@@ -49,6 +50,11 @@ const initializeServices = async (): Promise<void> => {
   // Initialize Passport strategies
   await Passport.setup();
   console.log('Passport setup initialized.');
+  
+  // Initialize Redis (optional - system works without it)
+  initRedis();
+  console.log('Redis initialization attempted.');
+  
   // Add any other service initializations here
 };
 
@@ -163,4 +169,17 @@ wsManager.initialize(app, upgradeWebSocket);
 
 // Basic health check or root route (optional)
 app.get('/', (c) => c.text('Modpack Store API is running!'));
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, closing Redis connection...');
+  await closeRedis();
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, closing Redis connection...');
+  await closeRedis();
+  process.exit(0);
+});
 

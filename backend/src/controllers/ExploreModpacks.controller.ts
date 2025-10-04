@@ -12,6 +12,8 @@ import { AcquisitionService } from "@/services/acquisition.service";
 import { PaymentService } from "@/services/payment.service";
 import { AuthVariables } from "@/middlewares/auth.middleware";
 import { User } from "@/entities/User";
+import { ManifestCacheService } from "@/lib/redis";
+import { generateETag, etagMatches } from "@/utils/etag";
 
 export class ExploreModpacksController {
     static async getHomepage(c: Context): Promise<Response> {
@@ -164,15 +166,84 @@ export class ExploreModpacksController {
 
         const IS_LATEST_REQUESTED = versionId.toLowerCase() === 'latest';
 
-
         try {
+            // For /latest endpoint, always query DB to get the latest version ID
+            // Then use cached manifest if available
+            let resolvedVersionId = versionId;
+            
+            if (IS_LATEST_REQUESTED) {
+                const latestVersion = await ModpackVersion.findOne({
+                    where: { modpackId, status: ModpackVersionStatus.PUBLISHED },
+                    select: ['id'],
+                    order: { releaseDate: 'DESC' }
+                });
+
+                if (!latestVersion) {
+                    return c.json(serializeError({
+                        status: '404',
+                        title: 'Not Found',
+                        detail: "No published version found for this modpack.",
+                    }), 404);
+                }
+
+                resolvedVersionId = latestVersion.id;
+            }
+
+            // Check cache first (only for resolved version IDs, not for "latest")
+            const cachedManifest = await ManifestCacheService.get(modpackId, resolvedVersionId);
+            
+            if (cachedManifest) {
+                // Generate ETag for cached manifest
+                const etag = generateETag(cachedManifest);
+                
+                // Check If-None-Match header
+                const ifNoneMatch = c.req.header('If-None-Match');
+                if (etagMatches(ifNoneMatch, etag)) {
+                    // Return 304 Not Modified
+                    return new Response(null, {
+                        status: 304,
+                        headers: {
+                            'ETag': etag,
+                            'Cache-Control': 'public, max-age=31536000, immutable',
+                        }
+                    });
+                }
+
+                // Validate access before serving cached manifest
+                const user = c.get('user') || null;
+                const modpack = await Modpack.findOne({ where: { id: modpackId } });
+                
+                if (modpack) {
+                    try {
+                        await ModpackAccessService.validateModpackAccess(user, modpack);
+                    } catch (error) {
+                        // Access denied - return error instead of cached data
+                        if (error instanceof Error) {
+                            return c.json(serializeError({
+                                status: '403',
+                                title: 'Access Denied',
+                                detail: error.message,
+                            }), 403);
+                        }
+                        throw error;
+                    }
+                }
+
+                // Return cached manifest with proper headers
+                return c.json({ manifest: cachedManifest }, 200, {
+                    'ETag': etag,
+                    'Cache-Control': 'public, max-age=31536000, immutable',
+                });
+            }
+
+            // Cache miss - fetch from database
             const whereCondition = IS_LATEST_REQUESTED
                 ? { modpackId, status: ModpackVersionStatus.PUBLISHED }
-                : { id: versionId, modpackId };
+                : { id: resolvedVersionId, modpackId };
 
             const mpVersion = await ModpackVersion.findOne({
                 where: whereCondition,
-                relations: ['files', 'files.file'],
+                relations: ['files', 'files.file', 'modpack'],
                 select: {
                     id: true,
                     changelog: true,
@@ -188,10 +259,14 @@ export class ExploreModpacksController {
                             type: true,
                             size: true,
                         }
+                    },
+                    modpack: {
+                        id: true,
                     }
                 },
                 order: IS_LATEST_REQUESTED ? { releaseDate: 'DESC' } : undefined,
             });
+            
             if (!mpVersion) {
                 return c.json(serializeError({
                     status: '404',
@@ -200,17 +275,52 @@ export class ExploreModpacksController {
                 }), 404);
             }
 
-            // Generar manifiesto con URLs de descarga
+            // Validate access before generating manifest
+            const user = c.get('user') || null;
+            if (mpVersion.modpack) {
+                try {
+                    await ModpackAccessService.validateModpackAccess(user, mpVersion.modpack);
+                } catch (error) {
+                    if (error instanceof Error) {
+                        return c.json(serializeError({
+                            status: '403',
+                            title: 'Access Denied',
+                            detail: error.message,
+                        }), 403);
+                    }
+                    throw error;
+                }
+            }
+
+            // Generate manifest with URLs
             const getDownloadUrl = (hash: string) => new URL(`${hash.slice(0, 2)}/${hash.slice(2, 4)}/${hash}`, DOWNLOAD_PREFIX_URL).toString();
             const manifest = {
-                ...mpVersion,
+                id: mpVersion.id,
+                changelog: mpVersion.changelog,
+                mcVersion: mpVersion.mcVersion,
+                forgeVersion: mpVersion.forgeVersion,
+                releaseDate: mpVersion.releaseDate,
+                status: mpVersion.status,
+                version: mpVersion.version,
                 files: mpVersion.files.map(file => ({
-                    ...file,
-                    downloadUrl: getDownloadUrl(file.fileHash)
+                    path: file.path,
+                    fileHash: file.fileHash,
+                    downloadUrl: getDownloadUrl(file.fileHash),
+                    file: file.file
                 }))
             };
 
-            return c.json({ manifest }, 200);
+            // Cache the manifest (indefinite TTL)
+            await ManifestCacheService.set(modpackId, mpVersion.id, manifest);
+
+            // Generate ETag
+            const etag = generateETag(manifest);
+
+            // Return manifest with cache headers
+            return c.json({ manifest }, 200, {
+                'ETag': etag,
+                'Cache-Control': 'public, max-age=31536000, immutable',
+            });
         } catch (error: any) {
             console.error(`[CONTROLLER_EXPLORE] Error in getModpackVersionManifest for ID ${modpackId} and Version ${versionId}:`, error);
             const statusCode = error.statusCode || 500;

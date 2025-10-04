@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { SystemSettings } from '@/entities/SystemSettings';
+import { isRedisConnected, ManifestCacheService } from '@/lib/redis';
 
 const publicRoutes = new Hono();
 
@@ -39,6 +40,63 @@ publicRoutes.get('/tos', async (c) => {
             content: content || '',
             enabled
         }
+    });
+});
+
+/**
+ * @openapi
+ * /public/health:
+ *   get:
+ *     summary: System health check
+ *     tags: [Public]
+ *     description: Returns the health status of the system including database and cache.
+ *     responses:
+ *       200:
+ *         description: System health status.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   enum: [healthy, degraded]
+ *                 database:
+ *                   type: object
+ *                   properties:
+ *                     connected:
+ *                       type: boolean
+ *                 cache:
+ *                   type: object
+ *                   properties:
+ *                     enabled:
+ *                       type: boolean
+ *                     connected:
+ *                       type: boolean
+ *                     stats:
+ *                       type: object
+ *                       nullable: true
+ *                       properties:
+ *                         hits:
+ *                           type: number
+ *                         misses:
+ *                           type: number
+ */
+publicRoutes.get('/health', async (c) => {
+    const redisConnected = isRedisConnected();
+    const cacheStats = redisConnected ? await ManifestCacheService.getStats() : null;
+
+    return c.json({
+        status: redisConnected ? 'healthy' : 'degraded',
+        database: {
+            connected: true // If we're responding, DB is connected
+        },
+        cache: {
+            enabled: redisConnected,
+            connected: redisConnected,
+            stats: cacheStats
+        },
+        timestamp: new Date().toISOString()
     });
 });
 
