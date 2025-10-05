@@ -239,23 +239,3 @@ time:
   weeks: "weeks"
   months: "months"
   years: "years"
-
-# I18n Example Component
-i18n:
-  example:
-    title: "Internationalization Example - {{language}}"
-    description: "This component demonstrates the i18n system with automatic language detection."
-    current_language: "Current Language"
-    current_language_desc: "The application is currently using: {{language}}"
-    system_detected: "System Detected Language"
-    system_detected_desc: "Your system language was detected as: {{detected}}"
-    reset_to_system: "Reset to System Language"
-    switch_language: "Switch Language"
-    select_language: "Select a language"
-    sample_translations: "Sample Translations"
-    parameterized: "Parameterized Translations"
-    welcome_user: "Welcome {{name}} to {{app}}!"
-    items_count: "Showing {{count}} of {{total}} items"
-  languages:
-    en: "English"
-    es-419: "Spanish (Latin America)"
