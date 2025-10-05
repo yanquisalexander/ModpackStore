@@ -39,7 +39,8 @@ impl ConfigManager {
         }
 
         // Cargar o crear la configuración
-        let values = if config_path.exists() {
+        let config_file_existed = config_path.exists();
+        let mut values = if config_file_existed {
             let content = read_to_string(&config_path)
                 .map_err(|e| format!("Error al leer configuración: {}", e))?;
             serde_json::from_str(&content).unwrap_or_else(|_| json!({}))
@@ -57,6 +58,33 @@ impl ConfigManager {
 
             json_values
         };
+
+        // Normalizar rutas existentes en la configuración cargada
+        let mut paths_normalized = false;
+        if let Value::Object(ref mut map) = values {
+            for (key, value) in map.iter_mut() {
+                if let Some(config_def) = schema.get_config_definition(key) {
+                    if config_def.type_ == ConfigValueType::Path {
+                        if let Some(path_str) = value.as_str() {
+                            let normalized_path = normalize_path_separators(PathBuf::from(path_str));
+                            let normalized_str = normalized_path.to_string_lossy().to_string();
+                            if path_str != normalized_str {
+                                *value = json!(normalized_str);
+                                paths_normalized = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Si se normalizaron rutas y el archivo ya existía, guardar los cambios
+        if paths_normalized && config_file_existed {
+            let json_content = serde_json::to_string_pretty(&values)
+                .map_err(|e| format!("Error al serializar configuración normalizada: {}", e))?;
+            write(&config_path, json_content)
+                .map_err(|e| format!("Error al guardar configuración normalizada: {}", e))?;
+        }
 
         Ok(Self {
             config_path,
@@ -80,10 +108,18 @@ impl ConfigManager {
     /// Establece un valor de configuración, validándolo contra el esquema
     pub fn set<T: serde::Serialize>(&mut self, key: &str, value: T) -> Result<(), ValidationError> {
         // Convertir el valor a serde_json::Value para procesarlo
-        let value_json = json!(value);
+        let mut value_json = json!(value);
 
         // Validar el valor contra el esquema
         if let Some(config_def) = self.schema.get_config_definition(key) {
+            // Normalizar rutas antes de validar
+            if config_def.type_ == ConfigValueType::Path {
+                if let Some(path_str) = value_json.as_str() {
+                    let normalized_path = normalize_path_separators(PathBuf::from(path_str));
+                    value_json = json!(normalized_path.to_string_lossy());
+                }
+            }
+
             validate_config_value(key, &value_json, config_def)?;
 
             // Si la validación pasa, actualizar el valor
@@ -204,7 +240,23 @@ fn expand_path(path: &str) -> PathBuf {
         }
     }
 
-    PathBuf::from(result)
+    // Crear PathBuf y normalizar las barras diagonales según el OS
+    let path_buf = PathBuf::from(result);
+    normalize_path_separators(path_buf)
+}
+
+// Normaliza las barras diagonales de una ruta según el sistema operativo
+fn normalize_path_separators(path: PathBuf) -> PathBuf {
+    #[cfg(target_os = "windows")]
+    {
+        // En Windows, convertir todas las barras a backslashes
+        PathBuf::from(path.to_string_lossy().replace("/", "\\"))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        // En sistemas Unix-like, convertir todas las barras a forward slashes
+        PathBuf::from(path.to_string_lossy().replace("\\", "/"))
+    }
 }
 
 // Singleton para acceder globalmente al ConfigManager

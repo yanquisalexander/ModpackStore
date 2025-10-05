@@ -28,7 +28,15 @@ const TASK_CLEANUP_DELAY: u64 = 60;
 
 // Función auxiliar para normalizar rutas
 fn normalize_path(path: &Path) -> String {
-    path.to_string_lossy().to_string()
+    // Normalizar las barras diagonales según el OS antes de convertir a string
+    #[cfg(target_os = "windows")]
+    {
+        path.to_string_lossy().replace("/", "\\")
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        path.to_string_lossy().replace("\\", "/")
+    }
 }
 
 // Función auxiliar para obtener el directorio de instancias
