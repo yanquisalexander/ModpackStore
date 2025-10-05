@@ -506,6 +506,65 @@ pub fn add_task_with_auto_start(label: &str, data: Option<serde_json::Value>) ->
     task_id
 }
 
+/// Wait for a task to complete (either successfully or with failure)
+/// Returns Ok(()) if the task completed successfully, Err with error message if it failed
+/// Times out after the specified duration
+pub async fn wait_for_task_completion(
+    task_id: &str,
+    timeout_seconds: u64,
+) -> Result<(), String> {
+    let start_time = std::time::Instant::now();
+    let timeout_duration = std::time::Duration::from_secs(timeout_seconds);
+    let mut last_known_status: Option<TaskStatus> = None;
+
+    loop {
+        // Check if we've exceeded the timeout
+        if start_time.elapsed() > timeout_duration {
+            return Err(format!(
+                "Tarea {} excedió el tiempo de espera de {} segundos",
+                task_id, timeout_seconds
+            ));
+        }
+
+        // Check task status
+        match get_task(task_id) {
+            Some(task) => {
+                last_known_status = Some(task.status.clone());
+                match task.status {
+                    TaskStatus::Completed => {
+                        info!("Task {} completed successfully", task_id);
+                        return Ok(());
+                    }
+                    TaskStatus::Failed => {
+                        return Err(format!("Tarea falló: {}", task.message));
+                    }
+                    TaskStatus::Cancelled => {
+                        return Err("Tarea cancelada".to_string());
+                    }
+                    TaskStatus::Running | TaskStatus::Pending => {
+                        // Task still in progress, continue waiting
+                        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    }
+                }
+            }
+            None => {
+                // Task doesn't exist - it may have been cleaned up after completion
+                // If we previously saw it as Completed, treat this as success
+                // (the task was removed after successful completion)
+                if let Some(TaskStatus::Completed) = last_known_status {
+                    info!(
+                        "Task {} was completed and has been cleaned up",
+                        task_id
+                    );
+                    return Ok(());
+                }
+                // Otherwise, this is an error - task never existed or failed
+                return Err(format!("Tarea {} no encontrada", task_id));
+            }
+        }
+    }
+}
+
 /// Start a background task to periodically check for and cleanup stuck tasks
 /// This should be called once when the application starts
 pub fn start_periodic_task_cleanup() {
