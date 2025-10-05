@@ -29,6 +29,9 @@ export const getDefaultAppeareance = ({ title, description, logoUrl }: { title?:
         background: {
             videoUrl: "/assets/videos/prelaunch-default-1.mp4",
         },
+
+        customBlocks: [],
+
         news: {
             position: {
                 top: "3rem",

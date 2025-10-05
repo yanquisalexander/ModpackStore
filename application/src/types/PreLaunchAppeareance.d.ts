@@ -8,6 +8,26 @@ export interface PreLaunchAppearance {
     news?: News;
     footerStyle?: FooterStyle;
     footerText?: string;
+    customBlocks?: CustomBlock[];
+}
+
+export interface CustomBlock {
+    id?: string;
+    className?: string;
+    tagName?: string;
+    style?: string;
+    content?: string;
+    renderType?: 'auto' | 'text' | 'markdown';
+    position?: CustomBlockPosition;
+}
+
+export interface CustomBlockPosition {
+    top?: string;
+    left?: string;
+    right?: string;
+    bottom?: string;
+    transform?: string;
+    zIndex?: number;
 }
 
 export interface Audio {

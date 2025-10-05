@@ -130,7 +130,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             // Resetear los archivos al cambiar de modpack
             setIconFile(null);
             setBannerFile(null);
-            
+
             // Inicializar categorías
             if (modpack.categories) {
                 const categoryIds = modpack.categories.map(mc => mc.categoryId);
@@ -144,19 +144,19 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
 
             // Inicializar status
             setModpackStatus(modpack.status as any || 'draft');
-            
+
             // Inicializar pricing
             const price = modpack.price ? parseFloat(modpack.price).toFixed(2) : '0.00';
             setCurrentPrice(price);
             setNewPrice(price);
-            
+
             // Inicializar Twitch channels
             if (modpack.twitchChannels && Array.isArray(modpack.twitchChannels)) {
                 setTwitchChannels(modpack.twitchChannels);
             } else {
                 setTwitchChannels([]);
             }
-            
+
             // Inicializar el JSON del prelaunchAppearance
             try {
                 const prelaunchData = modpack.prelaunchAppearance;
@@ -178,15 +178,11 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
         }
     }, [modpack]);
 
-    // Efecto para formatear automáticamente el JSON cuando cambia
+    // Efecto para validar el JSON cuando cambia (sin formatear automáticamente)
     useEffect(() => {
         if (prelaunchAppearanceJson.trim()) {
             try {
-                const parsed = JSON.parse(prelaunchAppearanceJson);
-                const formatted = JSON.stringify(parsed, null, 2);
-                if (formatted !== prelaunchAppearanceJson) {
-                    setPrelaunchAppearanceJson(formatted);
-                }
+                JSON.parse(prelaunchAppearanceJson);
                 setIsJsonValid(true);
             } catch (error) {
                 setIsJsonValid(false);
@@ -196,15 +192,32 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
         }
     }, [prelaunchAppearanceJson]);
 
+    // Función para formatear el JSON manualmente
+    const formatJson = () => {
+        if (!prelaunchAppearanceJson.trim()) {
+            setPrelaunchAppearanceJson('{}');
+            return;
+        }
+
+        try {
+            const parsed = JSON.parse(prelaunchAppearanceJson);
+            const formatted = JSON.stringify(parsed, null, 2);
+            setPrelaunchAppearanceJson(formatted);
+            setIsJsonValid(true);
+        } catch (error) {
+            toast.error('No se puede formatear: JSON inválido');
+        }
+    };
+
     // Funciones para manejo de Twitch channels
     const searchTwitchChannel = async (query: string) => {
         if (!query || query.length < 2) return;
-        
+
         setIsSearchingChannels(true);
         try {
             const response = await fetch(`${API_ENDPOINT}/explore/twitch-channels/search?query=${encodeURIComponent(query)}`);
             const data = await response.json();
-            
+
             if (data.channels && data.channels.length > 0) {
                 const channel = data.channels[0];
                 // Verificar que no esté ya añadido
@@ -285,26 +298,26 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             if (newPrice !== currentPrice) {
                 const newPriceNum = parseFloat(newPrice);
                 const currentPriceNum = parseFloat(currentPrice);
-                
+
                 // Validar restricciones de precio
                 if (currentPriceNum === 0 && newPriceNum > 0) {
                     toast.error('No se puede convertir un modpack gratuito a de pago.');
                     setLoading(false);
                     return;
                 }
-                
+
                 if (newPriceNum > currentPriceNum) {
                     toast.error(`No se puede aumentar el precio. El precio actual es $${currentPriceNum.toFixed(2)} USD.`);
                     setLoading(false);
                     return;
                 }
-                
+
                 if (newPriceNum < 0) {
                     toast.error('El precio no puede ser negativo.');
                     setLoading(false);
                     return;
                 }
-                
+
                 formData.append('price', newPriceNum.toFixed(2));
             }
 
@@ -390,7 +403,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                 <h3 className="text-sm font-medium text-zinc-300">Gestión de Precios</h3>
                                 <div className="text-xs text-blue-400 bg-blue-900/20 px-2 py-1 rounded">USD</div>
                             </div>
-                            
+
                             <div className="space-y-2">
                                 <div className="text-sm text-zinc-400">
                                     <span className="font-medium">Método actual:</span> {' '}
@@ -402,7 +415,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                         <span className="text-blue-400">Gratuito</span>
                                     )}
                                 </div>
-                                
+
                                 {modpack.isPaid && (
                                     <div>
                                         <label className="text-sm text-zinc-300 block mb-1">
@@ -425,13 +438,13 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                         </p>
                                     </div>
                                 )}
-                                
+
                                 {!modpack.isPaid && !modpack.password && (
                                     <p className="text-xs text-green-400">
                                         ✅ Modpack gratuito - Los usuarios pueden descargarlo sin costo.
                                     </p>
                                 )}
-                                
+
                                 {modpack.password && (
                                     <p className="text-xs text-yellow-400">
                                         🔒 Modpack protegido con contraseña - Los precios no se pueden cambiar para modpacks con contraseña.
@@ -447,12 +460,12 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                             <h3 className="text-sm font-medium text-zinc-300">Acceso con Suscripción de Twitch</h3>
                             <div className="text-xs text-purple-400 bg-purple-900/20 px-2 py-1 rounded">Opcional</div>
                         </div>
-                        
+
                         <div className="space-y-2">
                             <p className="text-xs text-zinc-400">
                                 Los usuarios necesitarán estar suscritos a al menos uno de estos canales para acceder al modpack.
                             </p>
-                            
+
                             {/* Canal Search */}
                             <div className="flex gap-2">
                                 <Input
@@ -477,7 +490,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                     {isSearchingChannels ? '...' : 'Añadir'}
                                 </Button>
                             </div>
-                            
+
                             {/* Canales añadidos */}
                             {twitchChannels.length > 0 && (
                                 <div className="space-y-2">
@@ -502,7 +515,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                     </div>
                                 </div>
                             )}
-                            
+
                             {twitchChannels.length === 0 && (
                                 <p className="text-xs text-zinc-500">
                                     Sin canales añadidos - El modpack tendrá acceso libre o por pago
@@ -547,7 +560,27 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                     />
 
                     <div>
-                        <label className="text-sm text-zinc-300 block mb-2">Configuración Pre-Launch (JSON)</label>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="text-sm text-zinc-300">Configuración Pre-Launch (JSON)</label>
+                            <div className="flex items-center gap-2">
+                                {isJsonValid && (
+                                    <span className="text-xs text-green-400 flex items-center gap-1">
+                                        <span className="w-2 h-2 bg-green-400 rounded-full"></span>
+                                        JSON válido
+                                    </span>
+                                )}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={formatJson}
+                                    className="text-xs h-7 px-2"
+                                    disabled={!prelaunchAppearanceJson.trim()}
+                                >
+                                    Formatear JSON
+                                </Button>
+                            </div>
+                        </div>
                         <div className={`border rounded-md overflow-hidden ${!isJsonValid ? 'border-red-500' : 'border-zinc-700'}`}>
                             <CodeMirror
                                 value={prelaunchAppearanceJson}

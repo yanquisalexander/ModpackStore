@@ -15,6 +15,7 @@ import {
 import type { MinecraftInstance } from "@/types/TauriCommandReturns";
 import { useConnection } from "@/utils/ConnectionContext";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import GridIcon from "@/icons/GridIcon";
 
 
 export const AppSidebar: React.FC = memo(() => {
@@ -100,7 +101,7 @@ export const AppSidebar: React.FC = memo(() => {
         const baseItems = [
             {
                 name: "Explorar",
-                icon: LucideLayoutGrid,
+                icon: GridIcon,
                 path: "/",
                 requiresConnection: true
             },
@@ -142,7 +143,7 @@ export const AppSidebar: React.FC = memo(() => {
                                 <Link
                                     draggable={false}
                                     to={item.path}
-                                    className={`group relative flex size-12 items-center justify-center p-2.5 rounded-md transition-all duration-200 ease-in-out cursor-pointer ${isActive ? "bg-neutral-800 text-white before:content-[''] before:absolute before:left-[-8px] before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-white before:rounded-full" : "text-ms-text hover:bg-neutral-700 hover:text-white"
+                                    className={`group relative flex size-12 items-center justify-center p-2.5 rounded-md transition-all duration-200 ease-in-out cursor-pointer ${isActive ? "bg-neutral-800 text-white before:content-[''] before:absolute before:left-[-8px] before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-white before:rounded-full" : "text-ms-text hover:bg-neutral-700 text-neutral-300 hover:text-white"
                                         }`} >
                                     <item.icon className="size-5 transition-transform duration-200 group-hover:scale-110" />
                                 </Link>

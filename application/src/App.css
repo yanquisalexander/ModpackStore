@@ -4,6 +4,8 @@
 @import "tw-animate-css";
 @import "driver.js/dist/driver.css";
 
+@import "./styles/fonts.css";
+
 @custom-variant dark (&:is(.dark *));
 @plugin "@midudev/tailwind-animations";
 @plugin "@tailwindcss/typography";
@@ -35,12 +37,14 @@
 }
 
 @theme {
-  --color-ms-primary: #181818FF;
   --font-jost: "Jost Variable", sans-serif;
+  --font-lexend: "Lexend Variable", sans-serif;
+  --font-albert-sans: "Albert Sans Variable", sans-serif;
   --font-monocraft: "Monocraft", sans-serif;
   --font-minecraft-ten: "Minecraft Ten", sans-serif;
   --font-minecraft-five: "Minecraft Five", sans-serif;
   --default-font-family: var(--font-jost);
+  --color-ms-primary: #181818FF;
   --color-twitch-purple: #9146FF;
   --color-box: #0b1422;
   --animate-spin: spin 1s linear infinite;

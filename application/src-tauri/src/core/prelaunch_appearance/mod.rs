@@ -212,6 +212,52 @@ pub struct FooterStyle {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CustomBlockPosition {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub right: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bottom: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transform: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<f64>,
+
+    // Captura campos desconocidos
+    #[serde(flatten)]
+    #[serde(skip_serializing)]
+    pub unknown_fields: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CustomBlock {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub class_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub render_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<CustomBlockPosition>,
+
+    // Captura campos desconocidos
+    #[serde(flatten)]
+    #[serde(skip_serializing)]
+    pub unknown_fields: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct PreLaunchAppearance {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -231,6 +277,8 @@ pub struct PreLaunchAppearance {
     pub footer_style: Option<FooterStyle>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub footer_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_blocks: Option<Vec<CustomBlock>>,
 
     // Captura campos desconocidos
     #[serde(flatten)]
@@ -319,6 +367,15 @@ pub async fn get_prelaunch_appearance(instance_id: String) -> Option<PreLaunchAp
 
             if let Some(footer_style) = &data.footer_style {
                 log_unknown_fields("footer_style", &footer_style.unknown_fields);
+            }
+
+            if let Some(custom_blocks) = &data.custom_blocks {
+                for (i, custom_block) in custom_blocks.iter().enumerate() {
+                    log_unknown_fields(&format!("custom_blocks[{}]", i), &custom_block.unknown_fields);
+                    if let Some(position) = &custom_block.position {
+                        log_unknown_fields(&format!("custom_blocks[{}].position", i), &position.unknown_fields);
+                    }
+                }
             }
 
             Some(data)

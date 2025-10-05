@@ -8,6 +8,8 @@ import PreLaunchQuickActions from "@/components/PreLaunchQuickActions";
 import { InstanceCrashDialog } from "@/components/InstanceCrashDialog";
 import { AccountSelectionDialog } from "@/components/AccountSelectionDialog";
 import { useParams } from "react-router-dom";
+import { MinecraftPlayButton } from "@/components/MinecraftPlayButton";
+import CustomBlocksRenderer from "@/components/CustomBlocksRenderer";
 
 
 // Memoized Background Component
@@ -100,7 +102,16 @@ const Footer = memo(({ appearance, isLoading, isPlaying, isInstanceBootstraping,
     return (
         <footer className="absolute bottom-0 left-0 right-0 z-10 bg-black/50 p-4 text-white flex items-center justify-center">
             <div className="flex flex-col items-center justify-center space-y-4">
-                <button
+                <MinecraftPlayButton
+                    id="play-button"
+                    text={appearance?.playButton?.text ?? "Jugar ahora"}
+                    loading={isInstanceBootstraping}
+                    playing={isPlaying}
+                    loadingText="Instalando..."
+                    playingText="Ya estás jugando"
+                    disabled={isLoading || isPlaying || isInstanceBootstraping}
+                    onClick={onPlay}
+                    hasCustomPosition={hasCustomPosition}
                     style={{
                         "--bg-color": appearance?.playButton?.backgroundColor,
                         "--hover-color": appearance?.playButton?.hoverColor,
@@ -112,46 +123,8 @@ const Footer = memo(({ appearance, isLoading, isPlaying, isInstanceBootstraping,
                         bottom: appearance?.playButton?.position?.bottom,
                         transform: appearance?.playButton?.position?.transform,
                     } as React.CSSProperties}
-                    id="play-button"
-                    onClick={onPlay}
-                    disabled={isLoading || isPlaying || isInstanceBootstraping}
-                    aria-busy={isLoading || isInstanceBootstraping}
-                    aria-live="polite"
-                    aria-label={isInstanceBootstraping ? "Instalando..." : isPlaying ? "Ya estás jugando" : appearance?.playButton?.text ?? "Jugar ahora"}
-                    tabIndex={0}
-                    className={`
-                    ${hasCustomPosition ? "fixed" : ""}
-                    cursor-pointer
-                    active:scale-95 transition
-                    px-4 py-2
-                    font-minecraft-ten
-                    not-disabled:mc-play-btn
-                    disabled:border-3
-                    tracking-wide
-                    text-shadow-[0_3px_0_rgba(0,0,0,0.25)]
-                    items-center flex gap-x-2
-                    disabled:bg-neutral-800 disabled:cursor-not-allowed
-                    bg-[var(--bg-color)]
-                    hover:bg-[var(--hover-color)]
-                    active:bg-[var(--hover-color)]
-                    text-[var(--text-color)]
-                    border-[var(--border-color)]
-                    `}
-                >
-                    {isInstanceBootstraping ? (
-                        <>
-                            <LucideLoaderCircle className="size-6 animate-spin-clockwise animate-iteration-count-infinite animate-duration-[1500ms]" />
-                            <span className="text-sm">Instalando...</span>
-                        </>
-                    ) : (
-                        <>
-                            <LucideGamepad2 className="size-6" />
-                            <span className="text-sm">
-                                {isPlaying ? "Ya estás jugando" : appearance?.playButton?.text ?? "Jugar ahora"}
-                            </span>
-                        </>
-                    )}
-                </button>
+                    ariaLabel={isInstanceBootstraping ? "Instalando..." : isPlaying ? "Ya estás jugando" : appearance?.playButton?.text ?? "Jugar ahora"}
+                />
 
                 {/* Footer content */}
                 <div className="flex items-center justify-center space-x-2">
@@ -214,6 +187,8 @@ export const PreLaunchInstance = () => {
         );
     }
 
+    console.log("Appearance:", appearance);
+
     if (prelaunchState.error) {
         toast.error(prelaunchState.error, {
             id: "instance-load-error",
@@ -240,6 +215,9 @@ export const PreLaunchInstance = () => {
                 <Logo
                     logo={appearance?.logo}
                     onLoadError={handleResourceError} // Pasar la función de notificación
+                />
+                <CustomBlocksRenderer
+                    blocks={appearance?.customBlocks}
                 />
                 <Footer
                     appearance={appearance}
