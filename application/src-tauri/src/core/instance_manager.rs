@@ -274,13 +274,21 @@ async fn handle_latest_version_update(
             }
         }
 
-        // Update to the latest version
-        update_modpack_instance(
+        // Update to the latest version and get the task ID
+        let task_id = update_modpack_instance(
             instance.instanceId.clone(),
             Some(latest_version_id.clone()),
             None,
         )
         .await?;
+
+        // Wait for the update task to complete before proceeding with launch
+        // Use a timeout of 30 minutes (1800 seconds) for the update to complete
+        eprintln!("Esperando a que se complete la actualización (tarea: {})...", task_id);
+        crate::core::tasks_manager::wait_for_task_completion(&task_id, 1800)
+            .await
+            .map_err(|e| format!("Error esperando la actualización: {}", e))?;
+        eprintln!("Actualización completada exitosamente");
 
         // Store the latest version as last known version
         set_instance_last_known_version(instance, &latest_version_id);
