@@ -1,5 +1,5 @@
 import { type Context } from 'hono';
-import { getExploreModpacks, getModpackById, searchModpacks } from "@/services/modpacks";
+import { getExploreModpacks, getModpackById, searchModpacks, getFeaturedModpacks } from "@/services/modpacks";
 import { serializeCollection, serializeResource, serializeError } from "../utils/jsonapi";
 import { ModpackVersion } from "@/entities/ModpackVersion";
 import { ModpackVersionStatus, AcquisitionMethod } from "@/types/enums";
@@ -18,8 +18,27 @@ import { generateETag, etagMatches } from "@/utils/etag";
 export class ExploreModpacksController {
     static async getHomepage(c: Context): Promise<Response> {
         try {
-            const modpacks = await getExploreModpacks(); // Assuming this returns an array of modpacks
-            return c.json(serializeCollection('modpack', modpacks), 200);
+            const categories = await getExploreModpacks();
+            const allFeatured = await getFeaturedModpacks();
+
+            // Collect all modpack IDs from categories to avoid duplicates
+            const categoryModpackIds = new Set<string>();
+            categories.forEach(category => {
+                category.modpacks.forEach(modpack => {
+                    categoryModpackIds.add(modpack.id);
+                });
+            });
+
+            // Filter featured modpacks to exclude those already in categories
+            // const featured = allFeatured.filter(modpack => !categoryModpackIds.has(modpack.id));
+            const featured = allFeatured;
+
+            return c.json({
+                data: {
+                    categories: serializeCollection('category', categories),
+                    featured: serializeCollection('modpack', featured)
+                }
+            }, 200);
         } catch (error: any) {
             console.error("[CONTROLLER_EXPLORE] Error in getHomepage:", error);
             const statusCode = error.statusCode || 500;
@@ -170,7 +189,7 @@ export class ExploreModpacksController {
             // For /latest endpoint, always query DB to get the latest version ID
             // Then use cached manifest if available
             let resolvedVersionId = versionId;
-            
+
             if (IS_LATEST_REQUESTED) {
                 const latestVersion = await ModpackVersion.findOne({
                     where: { modpackId, status: ModpackVersionStatus.PUBLISHED },
@@ -191,11 +210,11 @@ export class ExploreModpacksController {
 
             // Check cache first (only for resolved version IDs, not for "latest")
             const cachedManifest = await ManifestCacheService.get(modpackId, resolvedVersionId);
-            
+
             if (cachedManifest) {
                 // Generate ETag for cached manifest
                 const etag = generateETag(cachedManifest);
-                
+
                 // Check If-None-Match header
                 const ifNoneMatch = c.req.header('If-None-Match');
                 if (etagMatches(ifNoneMatch, etag)) {
@@ -212,7 +231,7 @@ export class ExploreModpacksController {
                 // Validate access before serving cached manifest
                 const user = c.get('user') || null;
                 const modpack = await Modpack.findOne({ where: { id: modpackId } });
-                
+
                 if (modpack) {
                     try {
                         await ModpackAccessService.validateModpackAccess(user, modpack);
@@ -266,7 +285,7 @@ export class ExploreModpacksController {
                 },
                 order: IS_LATEST_REQUESTED ? { releaseDate: 'DESC' } : undefined,
             });
-            
+
             if (!mpVersion) {
                 return c.json(serializeError({
                     status: '404',

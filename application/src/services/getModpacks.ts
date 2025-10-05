@@ -1,7 +1,7 @@
 import { API_ENDPOINT } from "@/consts"
 import { Modpack } from "@/types/modpacks";
 
-export const getModpacks = async (): Promise<Modpack[]> => {
+export const getModpacks = async (): Promise<{ categories: any[], featured: any[] }> => {
     const response = await fetch(`${API_ENDPOINT}/explore`, {
         method: "GET",
         headers: {
@@ -15,7 +15,10 @@ export const getModpacks = async (): Promise<Modpack[]> => {
     }
 
     const json = await response.json()
-    return json.data.map((item: any) => item.attributes)
+    return {
+        categories: json.data?.categories?.data?.map((item: any) => item.attributes) || [],
+        featured: json.data?.featured?.data?.map((item: any) => item.attributes) || []
+    }
 }
 
 export const searchModpacks = async (query: string): Promise<Modpack[]> => {

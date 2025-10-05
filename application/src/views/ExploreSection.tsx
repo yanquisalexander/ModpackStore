@@ -83,6 +83,7 @@ const Greeting = ({ username }: { username: string | null }) => {
 export const ExploreSection = () => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
     const [modpackCategories, setModpackCategories] = useState<any[]>([])
+    const [featuredSlides, setFeaturedSlides] = useState<any[]>([])
     const [searchResults, setSearchResults] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState("")
@@ -136,7 +137,10 @@ export const ExploreSection = () => {
                 .finally(() => setLoading(false))
         } else {
             getModpacks()
-                .then(setModpackCategories)
+                .then(({ categories, featured }) => {
+                    setModpackCategories(categories)
+                    setFeaturedSlides(featured)
+                })
                 .catch(console.error)
                 .finally(() => setLoading(false))
         }
@@ -197,7 +201,7 @@ export const ExploreSection = () => {
     return (
         <>
             {/* Featured slideshow - Full width, outside the container */}
-            <FeaturedSlideshow />
+            <FeaturedSlideshow slides={featuredSlides} />
 
             <motion.div
                 initial="hidden"

@@ -268,3 +268,50 @@ export const getModpackById = async (modpackId: string): Promise<ModpackDetails 
         throw new Error(`Failed to fetch modpack (ID: ${modpackId}): ${error.message}`);
     }
 };
+
+export const getFeaturedModpacks = async (): Promise<ModpackForExplore[]> => {
+    console.log("[SERVICE_MODPACKS] Fetching featured modpacks.");
+    try {
+        const featuredModpacks = await Modpack.find({
+            where: {
+                visibility: ModpackVisibility.PUBLIC,
+                status: ModpackStatus.PUBLISHED,
+                featured: true
+            },
+            relations: ["creatorUser", "publisher"],
+            take: 20, // Limit to 20 featured modpacks
+            order: { updatedAt: "DESC" }, // Most recently updated first
+        });
+
+        return featuredModpacks.map(modpack => ({
+            id: modpack.id,
+            name: modpack.name,
+            shortDescription: modpack.shortDescription,
+            description: modpack.description,
+            slug: modpack.slug,
+            iconUrl: modpack.iconUrl,
+            bannerUrl: modpack.bannerUrl,
+            trailerUrl: modpack.trailerUrl,
+            visibility: modpack.visibility,
+            status: modpack.status,
+            createdAt: modpack.createdAt,
+            updatedAt: modpack.updatedAt,
+            showUserAsPublisher: modpack.showUserAsPublisher,
+            featured: modpack.featured,
+            creatorUser: modpack.creatorUser ? {
+                username: modpack.creatorUser.username,
+                avatarUrl: modpack.creatorUser.avatarUrl ?? null
+            } : null,
+            publisher: modpack.publisher ? {
+                id: modpack.publisher.id,
+                publisherName: modpack.publisher.publisherName,
+                verified: modpack.publisher.verified,
+                partnered: modpack.publisher.partnered,
+                isHostingPartner: modpack.publisher.isHostingPartner
+            } : null,
+        }));
+    } catch (error: any) {
+        console.error("[SERVICE_MODPACKS] Error in getFeaturedModpacks:", error);
+        throw new Error(`Failed to fetch featured modpacks: ${error.message}`);
+    }
+};
