@@ -515,6 +515,7 @@ pub async fn wait_for_task_completion(
 ) -> Result<(), String> {
     let start_time = std::time::Instant::now();
     let timeout_duration = std::time::Duration::from_secs(timeout_seconds);
+    let mut last_known_status: Option<TaskStatus> = None;
 
     loop {
         // Check if we've exceeded the timeout
@@ -527,26 +528,37 @@ pub async fn wait_for_task_completion(
 
         // Check task status
         match get_task(task_id) {
-            Some(task) => match task.status {
-                TaskStatus::Completed => {
-                    info!("Task {} completed successfully", task_id);
-                    return Ok(());
+            Some(task) => {
+                last_known_status = Some(task.status.clone());
+                match task.status {
+                    TaskStatus::Completed => {
+                        info!("Task {} completed successfully", task_id);
+                        return Ok(());
+                    }
+                    TaskStatus::Failed => {
+                        return Err(format!("Tarea falló: {}", task.message));
+                    }
+                    TaskStatus::Cancelled => {
+                        return Err("Tarea cancelada".to_string());
+                    }
+                    TaskStatus::Running | TaskStatus::Pending => {
+                        // Task still in progress, continue waiting
+                        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+                    }
                 }
-                TaskStatus::Failed => {
-                    return Err(format!("Tarea falló: {}", task.message));
-                }
-                TaskStatus::Cancelled => {
-                    return Err("Tarea cancelada".to_string());
-                }
-                TaskStatus::Running | TaskStatus::Pending => {
-                    // Task still in progress, continue waiting
-                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                }
-            },
+            }
             None => {
                 // Task doesn't exist - it may have been cleaned up after completion
-                // Check if it was removed recently by looking at the task history
-                // For now, we'll treat this as an error
+                // If we previously saw it as Completed, treat this as success
+                // (the task was removed after successful completion)
+                if let Some(TaskStatus::Completed) = last_known_status {
+                    info!(
+                        "Task {} was completed and has been cleaned up",
+                        task_id
+                    );
+                    return Ok(());
+                }
+                // Otherwise, this is an error - task never existed or failed
                 return Err(format!("Tarea {} no encontrada", task_id));
             }
         }
