@@ -109,15 +109,6 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
                             case 'Finished':
                                 setUpdateState("ready-to-install");
                                 stopped = true;
-                                notifyCustom({
-                                    title: "Listo para actualizar",
-                                    body: `La versión ${hasUpdate.version} está lista para instalar. Reinicia para aplicar la actualización.`,
-                                    icon: '⬆️',
-                                    sound: true,
-                                    soundVolume: 0.7,
-                                    persistent: true,
-                                    customSound: '/sounds/instance-created.mp3',
-                                })
                                 clearInterval(interval);
                                 break;
                         }
@@ -129,6 +120,20 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }, 5 * 60 * 1000); // 5 minutos
         return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        if (updateState === "ready-to-install") {
+            notifyCustom({
+                title: "Actualización lista",
+                body: `La versión ${updateVersion} está lista para instalar. Reinicia la aplicación para aplicar la actualización.`,
+                icon: '⬆️',
+                sound: true,
+                soundVolume: 0.5,
+                persistent: true,
+                customSound: '/sounds/instance-created.mp3',
+            });
+        }
+    }, [updateState]);
 
     return (
         <GlobalContext.Provider
