@@ -102,7 +102,7 @@ impl InstanceBootstrap {
         &mut self,
         instance: &MinecraftInstance,
         task_id: Option<String>,
-    ) -> Result<(), String> {
+    ) -> Result<Option<PathBuf>, String> {
         // Emit start event using modular function
         emit_bootstrap_start(instance, "Vanilla");
 
@@ -381,11 +381,11 @@ impl InstanceBootstrap {
         let java_manager =
             JavaManager::new().map_err(|e| format!("Failed to create JavaManager: {}", e))?; // Convert error to String
 
-        let is_version_installed = java_manager.is_version_installed(&java_major_version);
-
-        if !is_version_installed {
-            // Update task status - 40%
-            if let Some(task_id) = &task_id {
+        // Always get the Java path, downloading if necessary
+        // Update task status - 40%
+        if let Some(task_id) = &task_id {
+            let is_version_installed = java_manager.is_version_installed(&java_major_version);
+            if !is_version_installed {
                 update_task(
                     task_id,
                     TaskStatus::Running,
@@ -401,24 +401,7 @@ impl InstanceBootstrap {
                         "reason": "required_by_minecraft"
                     })),
                 );
-            }
-
-            // Create Tokio runtime for async task execution
-            let java_path = tokio::runtime::Runtime::new()
-                .expect("Failed to create Tokio runtime")
-                .block_on(java_manager.get_java_path(&java_major_version))
-                .map_err(|e| {
-                    format!(
-                        "Error obtaining Java path for version {}: {}",
-                        java_major_version, e
-                    )
-                })?;
-
-            let mut instance_to_modify = instance.clone();
-            instance_to_modify.set_java_path(java_path);
-        } else {
-            // Update task status if Java is already installed
-            if let Some(task_id) = &task_id {
+            } else {
                 update_task(
                     task_id,
                     TaskStatus::Running,
@@ -433,6 +416,17 @@ impl InstanceBootstrap {
                 );
             }
         }
+
+        // Create Tokio runtime for async task execution and get Java path
+        let java_path = tokio::runtime::Runtime::new()
+            .expect("Failed to create Tokio runtime")
+            .block_on(java_manager.get_java_path(&java_major_version))
+            .map_err(|e| {
+                format!(
+                    "Error obtaining Java path for version {}: {}",
+                    java_major_version, e
+                )
+            })?;
 
         // Download and validate libraries
         emit_status(
@@ -519,7 +513,8 @@ impl InstanceBootstrap {
 
         emit_bootstrap_complete(instance, "Vanilla");
 
-        Ok(())
+        // Return the Java path so the caller can update the instance
+        Ok(Some(java_path))
     }
 
     fn run_forge_installer(
@@ -788,7 +783,7 @@ impl InstanceBootstrap {
         &mut self,
         instance: &MinecraftInstance,
         task_id: Option<String>,
-    ) -> Result<(), String> {
+    ) -> Result<Option<PathBuf>, String> {
         // Verificar que tengamos información de Forge
         if instance.forgeVersion.is_none() || instance.forgeVersion.as_ref().unwrap().is_empty() {
             return Err("No se especificó versión de Forge".to_string());
@@ -811,8 +806,8 @@ impl InstanceBootstrap {
             );
         }
 
-        // First, bootstrap the vanilla base
-        self.bootstrap_vanilla_instance(instance, task_id.clone())
+        // First, bootstrap the vanilla base (this will download/detect Java)
+        let java_path_option = self.bootstrap_vanilla_instance(instance, task_id.clone())
             .map_err(|e| format!("Error configurando base Vanilla: {}", e))?;
 
         // Update task status - 70%
@@ -948,6 +943,7 @@ impl InstanceBootstrap {
 
         emit_bootstrap_complete(instance, "Forge");
 
-        Ok(())
+        // Return the Java path so the caller can update the instance
+        Ok(java_path_option)
     }
 }

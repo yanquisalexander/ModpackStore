@@ -891,7 +891,18 @@ fn spawn_instance_creation_task(instance: MinecraftInstance, task_id: String) {
         };
 
         match result {
-            Ok(_) => {
+            Ok(java_path_option) => {
+                // Update instance with Java path if it was set
+                if let Some(java_path) = java_path_option {
+                    let mut instance_to_update = instance.clone();
+                    instance_to_update.set_java_path(java_path);
+                    log::info!(
+                        "Java path set for instance {}: {:?}",
+                        instance_to_update.instanceName,
+                        instance_to_update.javaPath
+                    );
+                }
+
                 update_task(
                     &task_id,
                     TaskStatus::Completed,
@@ -947,21 +958,36 @@ fn spawn_modpack_creation_task(
             bootstrap.bootstrap_vanilla_instance(&instance, Some(task_id.clone()))
         };
 
-        if let Err(e) = bootstrap_result {
-            // Check if this is a bootstrap error
-            if let Ok(bootstrap_error) = serde_json::from_str::<BootstrapError>(&e) {
-                update_task_with_bootstrap_error(&task_id, &bootstrap_error);
-            } else {
-                // Fallback to generic error handling
-                update_task(
-                    &task_id,
-                    TaskStatus::Failed,
-                    0.0,
-                    &format!("Error en bootstrap: {}", e),
-                    None,
-                );
+        // Handle bootstrap result and update Java path if needed
+        let java_path_option = match bootstrap_result {
+            Ok(java_path) => java_path,
+            Err(e) => {
+                // Check if this is a bootstrap error
+                if let Ok(bootstrap_error) = serde_json::from_str::<BootstrapError>(&e) {
+                    update_task_with_bootstrap_error(&task_id, &bootstrap_error);
+                } else {
+                    // Fallback to generic error handling
+                    update_task(
+                        &task_id,
+                        TaskStatus::Failed,
+                        0.0,
+                        &format!("Error en bootstrap: {}", e),
+                        None,
+                    );
+                }
+                return;
             }
-            return;
+        };
+
+        // Update instance with Java path if it was set
+        if let Some(java_path) = java_path_option {
+            let mut instance_to_update = instance.clone();
+            instance_to_update.set_java_path(java_path);
+            log::info!(
+                "Java path set for modpack instance {}: {:?}",
+                instance_to_update.instanceName,
+                instance_to_update.javaPath
+            );
         }
 
         update_task(
