@@ -137,6 +137,9 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
     {
         let modpack_id = modpack_id.clone(); // Extract modpack_id to avoid immutable borrow conflict
 
+        // Track whether an update was performed
+        let mut update_was_performed = false;
+
         // Optimized flow: Check if modpack is already up to date
         if version_id == "latest" {
             // Check if instance is already up to date
@@ -153,6 +156,8 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
                 match handle_latest_version_update(&mut instance, &modpack_id).await {
                     Ok(updated) => {
                         if updated {
+                            // Mark that update was performed
+                            update_was_performed = true;
                             // Save the updated instance
                             instance
                                 .save()
@@ -180,13 +185,16 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
             }
         }
 
-        // Validate modpack assets before launch (this is always necessary)
-        match validate_modpack_assets_for_launch(&instance).await {
-            Ok(_) => {
-                // Assets are valid, proceed with launch
-            }
-            Err(e) => {
-                return Err(format!("Failed to validate modpack assets: {}", e));
+        // Only validate modpack assets if an update was NOT just performed
+        // (the update process already validates and downloads assets)
+        if !update_was_performed {
+            match validate_modpack_assets_for_launch(&instance).await {
+                Ok(_) => {
+                    // Assets are valid, proceed with launch
+                }
+                Err(e) => {
+                    return Err(format!("Failed to validate modpack assets: {}", e));
+                }
             }
         }
     }
