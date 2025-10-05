@@ -281,7 +281,14 @@ pub fn get_config() -> Result<Value, String> {
 }
 
 #[tauri::command]
-pub fn set_config(key: String, value: Value) -> Result<(), String> {
+pub async fn set_config(key: String, value: Value) -> Result<(), String> {
+    // Extraer el valor del idioma si es necesario para actualizar i18n después
+    let language_update = if key == "language" {
+        value.as_str().map(|s| s.to_string())
+    } else {
+        None
+    };
+
     match get_config_manager().lock() {
         Ok(mut config_result) => match &mut *config_result {
             Ok(config) => match config.set(&key, value) {
@@ -296,7 +303,16 @@ pub fn set_config(key: String, value: Value) -> Result<(), String> {
             Err(e) => Err(e.clone()),
         },
         Err(_) => Err("Error al obtener el bloqueo del gestor de configuración".to_string()),
+    }?;
+
+    // Después de liberar el mutex, actualizar el sistema de i18n si cambió el idioma
+    if let Some(lang_str) = language_update {
+        if let Err(e) = crate::core::i18n::get_i18n_manager().set_language(&lang_str).await {
+            log::error!("Failed to update language: {}", e);
+        }
     }
+
+    Ok(())
 }
 
 #[tauri::command]

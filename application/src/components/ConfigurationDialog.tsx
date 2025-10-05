@@ -5,6 +5,7 @@ import { useAuthentication } from '@/stores/AuthContext';
 import { invoke } from '@tauri-apps/api/core';
 import { trackSectionView } from "@/lib/analytics";
 import { open } from "@tauri-apps/plugin-dialog";
+import { useI18n } from '@/hooks/useI18n';
 
 // Lucide Icons
 import {
@@ -35,9 +36,11 @@ import type {
     ConfigState,
     ConfigurationDialogProps
 } from '@/types/configuration';
+import { TranslatedText } from "@/providers/I18nProvider";
 
 export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProps) => {
     const { isAuthenticated } = useAuthentication();
+    const { availableLanguages, detectedSystemLanguage, resetToSystemLanguage } = useI18n();
 
     // Estado consolidado
     const [config, setConfig] = useState<ConfigState>({
@@ -288,6 +291,41 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                             ))}
                         </SelectContent>
                     </Select>
+                );
+
+            case "language_enum":
+                return (
+                    <div className="space-y-2">
+                        <Select
+                            value={value || def.default}
+                            onValueChange={(val) => handleConfigChange(key, val)}
+                        >
+                            <SelectTrigger className="bg-background border-input">
+                                <SelectValue placeholder="Seleccionar idioma" />
+                            </SelectTrigger>
+                            <SelectContent className="z-[9999]">
+                                {availableLanguages.map((lang) => (
+                                    <SelectItem key={lang} value={lang}>
+                                        <TranslatedText id={`languages.${lang}`} />
+                                        {lang === detectedSystemLanguage && " (Detectado)"}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {detectedSystemLanguage && detectedSystemLanguage !== value && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                    resetToSystemLanguage();
+                                    handleConfigChange(key, detectedSystemLanguage);
+                                }}
+                                className="w-full"
+                            >
+                                Usar idioma del sistema (<TranslatedText id={`languages.${detectedSystemLanguage}`} />)
+                            </Button>
+                        )}
+                    </div>
                 );
 
             default:

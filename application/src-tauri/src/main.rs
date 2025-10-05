@@ -132,6 +132,46 @@ pub fn main() {
             // Store the AppHandle in the static variable
             let mut app_handle = GLOBAL_APP_HANDLE.lock().unwrap();
             *app_handle = Some(app.handle().clone());
+
+            // Initialize i18n system
+            let app_handle_clone = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // Preload common languages
+                if let Err(e) = crate::core::i18n::get_i18n_manager().preload_common_languages().await {
+                    log::warn!("Failed to preload languages: {}", e);
+                }
+
+                // Load current language from config or detect system language
+                let current_lang = {
+                    match crate::config::get_config_manager().lock() {
+                        Ok(config_result) => match &*config_result {
+                            Ok(config) => config.get("language")
+                                .and_then(|v| v.as_str())
+                                .map(|s| s.to_string())
+                                .unwrap_or_else(|| {
+                                    // No language in config, use system detection
+                                    crate::core::i18n::get_i18n_manager().detect_system_language()
+                                }),
+                            Err(_) => {
+                                // Config error, use system detection
+                                crate::core::i18n::get_i18n_manager().detect_system_language()
+                            },
+                        },
+                        Err(_) => {
+                            // Lock error, use system detection
+                            crate::core::i18n::get_i18n_manager().detect_system_language()
+                        },
+                    }
+                };
+
+                // Set initial language
+                if let Err(e) = crate::core::i18n::get_i18n_manager().set_language(&current_lang).await {
+                    log::error!("Failed to set initial language {}: {}", current_lang, e);
+                } else {
+                    log::info!("Initialized i18n system with language: {}", current_lang);
+                }
+            });
+
             // Emit an event to the main window
 
             let args: Vec<String> = std::env::args().collect();
@@ -194,6 +234,14 @@ pub fn main() {
             core::prelaunch_appearance::update_prelaunch_appearance,
             core::tasks_manager::get_all_tasks_command,
             core::tasks_manager::resync_tasks_command,
+            core::i18n::get_current_language,
+            core::i18n::set_language,
+            core::i18n::get_available_languages,
+            core::i18n::get_translations,
+            core::i18n::get_message,
+            core::i18n::get_message_with_params,
+            core::i18n::get_detected_system_language,
+            core::i18n::reset_to_system_language,
             utils::desktop_integration::create_shortcut,
             get_git_hash,
             splash_done,

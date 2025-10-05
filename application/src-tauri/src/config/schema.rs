@@ -15,6 +15,7 @@ pub enum ConfigValueType {
     Enum,
     List,
     Slider,
+    Language_Enum,
 }
 
 /// Define una entrada de configuración

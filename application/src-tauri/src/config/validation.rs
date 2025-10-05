@@ -118,6 +118,33 @@ pub fn validate_config_value(
         }
     }
 
+    // Validar idiomas disponibles para language_enum
+    if def.type_ == ConfigValueType::Language_Enum {
+        if let Some(lang_str) = value.as_str() {
+            // Para validación, usamos una lista básica de idiomas soportados
+            // El i18n manager podría no estar inicializado durante la validación
+            let basic_supported_languages = vec!["en", "es-419"];
+            
+            // Intentar obtener idiomas del sistema i18n si está disponible
+            let available_languages = if let Ok(langs) = crate::core::i18n::get_i18n_manager().get_available_languages() {
+                if langs.is_empty() {
+                    basic_supported_languages.into_iter().map(|s| s.to_string()).collect()
+                } else {
+                    langs
+                }
+            } else {
+                basic_supported_languages.into_iter().map(|s| s.to_string()).collect()
+            };
+            
+            if !available_languages.contains(&lang_str.to_string()) {
+                return Err(ValidationError::InvalidChoice {
+                    value: value.clone(),
+                    choices: available_languages.into_iter().map(Value::String).collect(),
+                });
+            }
+        }
+    }
+
     // Ejecutar validador personalizado si existe
     if let Some(validator) = &def.validator {
         match validator.as_str() {
@@ -142,6 +169,7 @@ fn validate_type(value: &Value, expected_type: &ConfigValueType) -> Result<(), V
         ConfigValueType::List => value.is_array(),
         // Slider suele ser un valor numérico (enteros o flotantes)
         ConfigValueType::Slider => value.is_number(),
+        ConfigValueType::Language_Enum => value.is_string(),
     };
 
     if !valid {

@@ -1,7 +1,7 @@
 // Configuration types for the Configuration dialog and sections
 
 export interface ConfigDefinition {
-    type: 'string' | 'integer' | 'float' | 'boolean' | 'path' | 'enum' | 'slider';
+    type: 'string' | 'integer' | 'float' | 'boolean' | 'path' | 'enum' | 'slider' | 'language_enum';
     default: any;
     description: string;
     ui_section: string;

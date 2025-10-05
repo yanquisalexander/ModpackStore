@@ -16,10 +16,7 @@ javaDir:
   validator: directory_exists
 
 language:
-  type: enum
-  choices: 
-    - en
-    - es
+  type: language_enum
   default: "es"
   description: "Idioma de la interfaz"
   ui_section: general
