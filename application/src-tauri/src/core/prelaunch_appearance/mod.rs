@@ -249,6 +249,10 @@ pub struct CustomBlock {
     pub render_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub position: Option<CustomBlockPosition>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub children: Option<Vec<CustomBlock>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<f64>,
 
     // Captura campos desconocidos
     #[serde(flatten)]
@@ -371,9 +375,29 @@ pub async fn get_prelaunch_appearance(instance_id: String) -> Option<PreLaunchAp
 
             if let Some(custom_blocks) = &data.custom_blocks {
                 for (i, custom_block) in custom_blocks.iter().enumerate() {
-                    log_unknown_fields(&format!("custom_blocks[{}]", i), &custom_block.unknown_fields);
+                    log_unknown_fields(
+                        &format!("custom_blocks[{}]", i),
+                        &custom_block.unknown_fields,
+                    );
                     if let Some(position) = &custom_block.position {
-                        log_unknown_fields(&format!("custom_blocks[{}].position", i), &position.unknown_fields);
+                        log_unknown_fields(
+                            &format!("custom_blocks[{}].position", i),
+                            &position.unknown_fields,
+                        );
+                    }
+                    if let Some(children) = &custom_block.children {
+                        for (j, child) in children.iter().enumerate() {
+                            log_unknown_fields(
+                                &format!("custom_blocks[{}].children[{}]", i, j),
+                                &child.unknown_fields,
+                            );
+                            if let Some(child_position) = &child.position {
+                                log_unknown_fields(
+                                    &format!("custom_blocks[{}].children[{}].position", i, j),
+                                    &child_position.unknown_fields,
+                                );
+                            }
+                        }
                     }
                 }
             }

@@ -79,6 +79,38 @@ export const customBlocksExample = {
                 "transform": "translateX(-50%)",
                 "zIndex": 5
             }
+        },
+        {
+            "id": "nueva-era",
+            "className": "text-center animate-fade-in font-monocraft text-white text-2xl font-bold drop-shadow-lg",
+            "tagName": "h1",
+            "style": "{\"position\": \"absolute\", \"top\": \"calc(50% + 100px)\", \"left\": \"50%\", \"transform\": \"translateX(-50%)\", \"textShadow\": \"2px 2px 4px rgba(0,0,0,0.7)\", \"animationDelay\": \"500ms\"}",
+            "content": "¡Hoy comienza la <span style='color:#55FF55'>ERA DE LOS METALES</span>!",
+            "renderType": "html",
+            "position": {
+                "zIndex": 24
+            }
+        },
+        {
+            "id": "container-with-children",
+            "className": "absolute top-10 left-10 bg-black/80 p-4 rounded-lg",
+            "tagName": "div",
+            "children": [
+                {
+                    "id": "title",
+                    "className": "font-minecraft-ten text-xl text-white mb-2",
+                    "tagName": "h2",
+                    "content": "Información del Servidor",
+                    "renderType": "text"
+                },
+                {
+                    "id": "subtitle",
+                    "className": "text-gray-300 text-sm",
+                    "tagName": "p",
+                    "content": "Conectate y disfruta de la experiencia",
+                    "renderType": "text"
+                }
+            ]
         }
     ]
 };
@@ -95,10 +127,12 @@ CustomBlock Configuration Guide:
    - "text": Plain text (HTML characters escaped)
    - "markdown": Markdown content (converted to HTML)
    - "auto": Auto-detect based on content (default)
+   - "html": Raw HTML content (use with caution)
 7. position: Absolute positioning (optional)
    - top, left, right, bottom: CSS position values
    - transform: CSS transform
    - zIndex: Stacking order
+8. children: Nested custom blocks (for complex layouts)
 
 Security Notes:
 - All content is sanitized using DOMPurify

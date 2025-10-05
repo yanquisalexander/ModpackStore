@@ -17,8 +17,10 @@ export interface CustomBlock {
     tagName?: string;
     style?: string;
     content?: string;
-    renderType?: 'auto' | 'text' | 'markdown';
+    renderType?: 'auto' | 'text' | 'markdown' | 'html';
     position?: CustomBlockPosition;
+    children?: CustomBlock[];
+    zIndex?: number;
 }
 
 export interface CustomBlockPosition {

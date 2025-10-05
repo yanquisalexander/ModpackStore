@@ -45,6 +45,15 @@ Contenido de texto plano. Los caracteres HTML se escapan automáticamente.
 }
 ```
 
+### `html`
+Contenido HTML que se sanitiza pero permite etiquetas.
+```json
+{
+    "content": "Texto con <span style='color:red'>colores</span>",
+    "renderType": "html"
+}
+```
+
 ### `markdown`
 Contenido Markdown que se convierte a HTML.
 ```json
@@ -60,6 +69,34 @@ Detecta automáticamente si usar Markdown basado en la sintaxis.
 {
     "content": "Texto normal sin sintaxis markdown",
     "renderType": "auto"
+}
+```
+
+## Estructura Jerárquica (Children)
+
+Los custom blocks pueden contener otros custom blocks como children:
+
+```json
+{
+    "id": "container",
+    "className": "bg-black/80 p-4 rounded",
+    "tagName": "div",
+    "children": [
+        {
+            "id": "title",
+            "className": "text-xl font-bold",
+            "tagName": "h2",
+            "content": "Título",
+            "renderType": "text"
+        },
+        {
+            "id": "description",
+            "className": "text-sm text-gray-300",
+            "tagName": "p",
+            "content": "Descripción del contenido",
+            "renderType": "text"
+        }
+    ]
 }
 ```
 
@@ -93,6 +130,16 @@ Los elementos se pueden posicionar absolutamente en la pantalla:
     "style": "{\"color\": \"#ffffff\", \"fontSize\": \"1.25rem\", \"textShadow\": \"2px 2px 4px rgba(0,0,0,0.5)\"}"
 }
 ```
+
+## Fuentes Personalizadas
+
+Se soportan clases de fuente personalizadas:
+- `font-monocraft`
+- `font-minecraft-ten`
+- `font-minecraft-five`
+- `font-jost`
+- `font-lexend`
+- `font-albert-sans`
 
 ## Ejemplos Completos
 
