@@ -138,9 +138,6 @@ export const InstallButton = ({
         }
     };
 
-    const requiresAcquisition = acquisitionMethodState !== 'free';
-
-    console.log('Access state:', { hasAccess, requiresAcquisition, acquisitionMethodState });
 
     const handleInstallClick = () => {
         // If user doesn't have access, open acquisition dialog
