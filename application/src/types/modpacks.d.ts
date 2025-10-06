@@ -15,7 +15,15 @@ export interface Modpack {
   createdAt: string; // Or Date
   organizationId?: string; // ID de la organización a la que pertenece el modpack (opcional para UI contextual)
   categories?: ModpackCategory[]; // Added for category support
-  // trailerUrl, password, showUserAsPublisher can be added if needed
+  // Access control fields
+  isPaid?: boolean;
+  price?: string;
+  acquisitionMethod?: 'free' | 'paid' | 'password';
+  password?: string;
+  requiresTwitchSubscription?: boolean;
+  twitchChannels?: TwitchChannel[];
+  twitchCreatorIds?: string[];
+  // trailerUrl, showUserAsPublisher can be added if needed
 }
 
 export interface ModpackCategory {
@@ -79,4 +87,10 @@ export interface NewModpackVersionData {
   forgeVersion?: string | null;
   changelog: string;
   // modpackId and createdBy will be handled by the service/route
+}
+
+export interface TwitchChannel {
+  id: string;
+  username: string;
+  displayName: string;
 }

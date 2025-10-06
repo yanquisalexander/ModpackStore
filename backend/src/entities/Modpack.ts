@@ -38,7 +38,7 @@ export class Modpack extends BaseEntity {
     trailerUrl?: string;
 
     @Column({ name: "password", type: "text", nullable: true })
-    password?: string;
+    password?: string | null;
 
     @Column({
         name: "visibility",
@@ -283,7 +283,7 @@ export class Modpack extends BaseEntity {
         this.twitchChannels = channels;
         this.twitchCreatorIds = channels.map(ch => ch.id);
         this.requiresTwitchSubscription = channels.length > 0;
-        
+
         // Update acquisition method based on Twitch channels
         if (channels.length > 0) {
             this.acquisitionMethod = AcquisitionMethod.TWITCH_SUB;

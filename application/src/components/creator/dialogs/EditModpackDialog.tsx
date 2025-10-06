@@ -289,6 +289,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             formData.append('description', description);
             formData.append('visibility', visibility);
             formData.append('status', modpackStatus);
+            formData.append('acquisitionMethod', accessMode);
 
             // Añadir prelaunchAppearance si es válido
             if (!isJsonValid) {
@@ -396,7 +397,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
 
             if (!res.ok) {
                 const err = await res.json().catch(() => null);
-                const message = err?.errors?.[0]?.detail || err?.detail || `Error ${res.status}: ${res.statusText}`;
+                const message = err?.error || err?.detail || err?.errors?.[0]?.detail || `Error ${res.status}: ${res.statusText}`;
                 toast.error(`Error al actualizar modpack`, { description: String(message) });
                 return; // No continuar si hay error
             }

@@ -166,20 +166,16 @@ ModpackCreatorsRoute.patch(
             // Business rules for access mode changes
             const currentMethod = modpack.acquisitionMethod || 'free';
 
-            // Cannot change from free to paid
+            // Cannot change from free to paid (only restriction)
             if (currentMethod === 'free' && newAcquisitionMethod === 'paid') {
                 return c.json({
                     error: "No se puede cambiar un modpack gratuito a de pago. Solo se puede establecer como pago al momento de creación."
                 }, 400);
             }
 
-            // Cannot change from paid to free
-            if (currentMethod === 'paid' && newAcquisitionMethod === 'free') {
-                return c.json({
-                    error: "No se puede cambiar un modpack de pago a gratuito."
-                }, 400);
-            }
-
+            // Paid modpacks can change to any other method (free, password)
+            // Password modpacks can change to any other method (free, paid)
+            // This allows flexibility for creators to adjust their monetization strategy
             modpack.acquisitionMethod = newAcquisitionMethod as any;
 
             // Update isPaid based on acquisition method
@@ -193,9 +189,26 @@ ModpackCreatorsRoute.patch(
                 modpack.isPaid = false;
                 modpack.price = '0.00';
             }
+
+            // Clear password when changing away from password protection
+            if (newAcquisitionMethod !== 'password') {
+                modpack.password = null;
+            }
+
+            // Clear Twitch requirements when not free
+            if (newAcquisitionMethod !== 'free') {
+                modpack.requiresTwitchSubscription = false;
+                modpack.setTwitchChannels([]);
+            } else {
+                // For free modpacks, ensure Twitch subscription is false by default if not set
+                if (modpack.requiresTwitchSubscription === undefined) {
+                    modpack.requiresTwitchSubscription = false;
+                }
+            }
         }
 
         // --- Handle password for password-protected modpacks ---
+        // Only process if password field is explicitly provided in the request
         if (body.password !== undefined) {
             const acquisitionMethod = (body.acquisitionMethod as string) || modpack.acquisitionMethod || 'free';
 
@@ -208,7 +221,7 @@ ModpackCreatorsRoute.patch(
                 }
             } else {
                 // Clear password if not using password protection
-                modpack.password = undefined;
+                modpack.password = null;
             }
         }
 
