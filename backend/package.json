@@ -11,6 +11,11 @@
         "db:migrate": "tsx ./src/db/migrator.ts",
         "db:migrate-acquisition-methods": "tsx ./src/db/migrate-acquisition-methods.ts"
     },
+    "pnpm": {
+        "ignoredBuiltDependencies": [
+            "sharp"
+        ]
+    },
     "keywords": [],
     "author": "",
     "license": "ISC",
