@@ -55,6 +55,7 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks", isOrganizationMemb
             isPaid: true,
             price: true,
             acquisitionMethod: true,
+            password: true,
             requiresTwitchSubscription: true,
             twitchCreatorIds: true,
             twitchChannels: true,
@@ -148,29 +149,85 @@ ModpackCreatorsRoute.patch(
             }
         }
 
-        // --- Pricing validation for edits ---
-        if (body.price !== undefined) {
-            const currentPrice = parseFloat(modpack.price);
-            const newPrice = parseFloat(body.price);
-            
-            // Restriction: Cannot convert free modpack to paid
-            if (!modpack.isPaid && newPrice > 0) {
+        // --- Handle access mode changes ---
+        if (body.acquisitionMethod !== undefined) {
+            const newAcquisitionMethod = body.acquisitionMethod;
+
+            // Ensure it's a string
+            if (typeof newAcquisitionMethod !== 'string') {
+                return c.json({ error: "Método de adquisición debe ser una cadena de texto." }, 400);
+            }
+
+            // Validate acquisition method
+            if (!['free', 'paid', 'password'].includes(newAcquisitionMethod)) {
+                return c.json({ error: "Método de adquisición inválido. Debe ser 'free', 'paid' o 'password'." }, 400);
+            }
+
+            // Business rules for access mode changes
+            const currentMethod = modpack.acquisitionMethod || 'free';
+
+            // Cannot change from free to paid
+            if (currentMethod === 'free' && newAcquisitionMethod === 'paid') {
                 return c.json({
-                    error: "No se puede convertir un modpack gratuito a de pago. Solo se puede establecer precio al momento de creación."
+                    error: "No se puede cambiar un modpack gratuito a de pago. Solo se puede establecer como pago al momento de creación."
                 }, 400);
             }
-            
-            // Restriction: Cannot increase price, only same or lower
-            if (modpack.isPaid && newPrice > currentPrice) {
+
+            // Cannot change from paid to free
+            if (currentMethod === 'paid' && newAcquisitionMethod === 'free') {
                 return c.json({
-                    error: `No se puede aumentar el precio. El precio actual es $${currentPrice.toFixed(2)} USD. Solo se puede mantener igual o reducir.`
+                    error: "No se puede cambiar un modpack de pago a gratuito."
                 }, 400);
             }
-            
-            // Apply price change
-            if (newPrice >= 0) {
-                modpack.price = newPrice.toFixed(2);
-                modpack.isPaid = newPrice > 0;
+
+            modpack.acquisitionMethod = newAcquisitionMethod as any;
+
+            // Update isPaid based on acquisition method
+            if (newAcquisitionMethod === 'paid') {
+                modpack.isPaid = true;
+                // Keep existing price or set default if not set
+                if (!modpack.price || modpack.price === '0.00') {
+                    modpack.price = '0.00'; // Will be validated below if price is provided
+                }
+            } else {
+                modpack.isPaid = false;
+                modpack.price = '0.00';
+            }
+        }
+
+        // --- Handle password for password-protected modpacks ---
+        if (body.password !== undefined) {
+            const acquisitionMethod = (body.acquisitionMethod as string) || modpack.acquisitionMethod || 'free';
+
+            if (acquisitionMethod === 'password') {
+                if (body.password && typeof body.password === 'string' && body.password.trim().length > 0) {
+                    // Hash the password (you might want to use bcrypt here)
+                    modpack.password = body.password.trim();
+                } else {
+                    return c.json({ error: "Se requiere una contraseña para modpacks protegidos por contraseña." }, 400);
+                }
+            } else {
+                // Clear password if not using password protection
+                modpack.password = undefined;
+            }
+        }
+
+        // --- Handle Twitch subscription requirements ---
+        if (body.requiresTwitchSubscription !== undefined) {
+            const acquisitionMethod = (body.acquisitionMethod as string) || modpack.acquisitionMethod || 'free';
+
+            if (acquisitionMethod === 'free') {
+                const requiresTwitch = body.requiresTwitchSubscription;
+                if (typeof requiresTwitch === 'string') {
+                    modpack.requiresTwitchSubscription = requiresTwitch === 'true';
+                } else if (typeof requiresTwitch === 'boolean') {
+                    modpack.requiresTwitchSubscription = requiresTwitch;
+                } else {
+                    modpack.requiresTwitchSubscription = false;
+                }
+            } else {
+                // Only free modpacks can require Twitch subscription
+                modpack.requiresTwitchSubscription = false;
             }
         }
 
@@ -187,6 +244,9 @@ ModpackCreatorsRoute.patch(
             "versions",
             "creatorUserId",
             "prelaunchAppearance",
+            "password",
+            "requiresTwitchSubscription",
+            "twitchChannels",
         ];
 
         for (const field of allowedFields) {
@@ -198,8 +258,8 @@ ModpackCreatorsRoute.patch(
         // --- Handle Twitch channels if provided ---
         if (body.twitchChannels !== undefined) {
             try {
-                const twitchChannels = typeof body.twitchChannels === 'string' 
-                    ? JSON.parse(body.twitchChannels) 
+                const twitchChannels = typeof body.twitchChannels === 'string'
+                    ? JSON.parse(body.twitchChannels)
                     : body.twitchChannels;
 
                 if (Array.isArray(twitchChannels)) {
@@ -309,6 +369,9 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMem
         "acquisitionMethod",
         "isPaid",
         "price",
+        "password",
+        "requiresTwitchSubscription",
+        "twitchChannels",
     ];
 
     const newModpack = new Modpack()
@@ -317,11 +380,15 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMem
 
     // Handle pricing fields with validation
     if (body.acquisitionMethod) {
-        newModpack.acquisitionMethod = body.acquisitionMethod;
-        
+        if (typeof body.acquisitionMethod !== 'string') {
+            return c.json({ error: "Método de adquisición debe ser una cadena de texto." }, 400);
+        }
+
+        newModpack.acquisitionMethod = body.acquisitionMethod as any;
+
         // If setting as paid, validate price
         if (body.acquisitionMethod === 'paid') {
-            if (body.price && parseFloat(body.price) > 0) {
+            if (body.price && typeof body.price === 'string' && parseFloat(body.price) > 0) {
                 newModpack.isPaid = true;
                 newModpack.price = parseFloat(body.price).toFixed(2);
             } else {
@@ -335,6 +402,34 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMem
         }
     }
 
+    // Handle password for password-protected modpacks
+    if (body.password !== undefined) {
+        const acquisitionMethod = body.acquisitionMethod as string || 'free';
+
+        if (acquisitionMethod === 'password') {
+            if (body.password && typeof body.password === 'string' && body.password.trim().length > 0) {
+                newModpack.password = body.password.trim();
+            } else {
+                return c.json({ error: "Se requiere una contraseña para modpacks protegidos por contraseña." }, 400);
+            }
+        }
+    }
+
+    // Handle Twitch subscription requirements
+    if (body.requiresTwitchSubscription !== undefined) {
+        const acquisitionMethod = body.acquisitionMethod as string || 'free';
+
+        if (acquisitionMethod === 'free') {
+            const requiresTwitch = body.requiresTwitchSubscription;
+            if (typeof requiresTwitch === 'string') {
+                newModpack.requiresTwitchSubscription = requiresTwitch === 'true';
+            } else if (typeof requiresTwitch === 'boolean') {
+                newModpack.requiresTwitchSubscription = requiresTwitch;
+            }
+        }
+        // For non-free modpacks, requiresTwitchSubscription is automatically false
+    }
+
     for (const field of allowedFields) {
         if (body[field] !== undefined && !['acquisitionMethod', 'isPaid', 'price'].includes(field)) {
             (newModpack as any)[field] = body[field];
@@ -346,8 +441,8 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks", isOrganizationMem
     // Handle Twitch channels if provided
     if (body.twitchChannels !== undefined) {
         try {
-            const twitchChannels = typeof body.twitchChannels === 'string' 
-                ? JSON.parse(body.twitchChannels) 
+            const twitchChannels = typeof body.twitchChannels === 'string'
+                ? JSON.parse(body.twitchChannels)
                 : body.twitchChannels;
 
             if (Array.isArray(twitchChannels)) {
@@ -455,7 +550,48 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId", isOrgan
 
     const modpack = await Modpack.findOne({
         where: { id: modpackId, publisherId },
-        relations: ["versions", "categories", "categories.category"]
+        relations: ["versions", "categories", "categories.category"],
+        select: {
+            id: true,
+            name: true,
+            slug: true,
+            iconUrl: true,
+            bannerUrl: true,
+            visibility: true,
+            showUserAsPublisher: true,
+            publisherId: true,
+            shortDescription: true,
+            status: true,
+            description: true,
+            prelaunchAppearance: true,
+            updatedAt: true,
+            createdAt: true,
+            versions: true,
+            isPaid: true,
+            price: true,
+            acquisitionMethod: true,
+            password: true,
+            requiresTwitchSubscription: true,
+            twitchCreatorIds: true,
+            twitchChannels: true,
+            creatorUser: {
+                id: true,
+                username: true,
+                email: true,
+                avatarUrl: true,
+            },
+            categories: {
+                id: true,
+                categoryId: true,
+                isPrimary: true,
+                category: {
+                    id: true,
+                    name: true,
+                    iconUrl: true,
+                    shortDescription: true,
+                }
+            }
+        }
     });
     if (!modpack) return c.notFound();
 
