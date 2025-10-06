@@ -12,7 +12,9 @@
         "db:migrate-acquisition-methods": "tsx ./src/db/migrate-acquisition-methods.ts"
     },
     "pnpm": {
-        "onlyBuiltDependencies": []
+        "onlyBuiltDependencies": [
+            "sharp"
+        ]
     },
     "keywords": [],
     "author": "",

@@ -37,6 +37,7 @@ import { useLayout } from "./providers/LayoutProvider";
 import { Changelog } from "./components/Changelog";
 import { BannedScreen } from "./components/BannedScreen";
 import { SessionExpiredDialog } from "./components/SessionExpiredDialog";
+import { ReminderModal } from "./components/ReminderModal";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
@@ -216,8 +217,8 @@ function App() {
         </div>
 
         {/* Componentes globales que siempre están presentes */}
-        <NoticeTestBuild />
         <CommandPalette />
+        <ReminderModal />
         <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />
         <TermsAndConditionsDialog
           open={shouldShowToSDialog}
@@ -226,8 +227,8 @@ function App() {
           onReject={rejectTerms}
         />
         <Changelog />
-        <SessionExpiredDialog 
-          isOpen={showSessionExpired} 
+        <SessionExpiredDialog
+          isOpen={showSessionExpired}
           onLogin={startDiscordAuth}
         />
         <KonamiCode />

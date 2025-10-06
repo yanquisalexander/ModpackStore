@@ -80,3 +80,9 @@ downloadConcurrency:
   max: 16
   description: "Número de descargas simultáneas para archivos de modpack"
   ui_section: internal
+
+lastReminderTimestamp:
+  type: integer
+  default: 0
+  description: "Timestamp del último recordatorio mostrado"
+  ui_section: internal
