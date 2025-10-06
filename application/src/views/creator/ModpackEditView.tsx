@@ -6,12 +6,14 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileUploadComponent } from '@/components/ui/file-upload';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, FileText, LucideEye } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthentication } from '@/stores/AuthContext';
 import { useGlobalContext } from '@/stores/GlobalContext';
 import { API_ENDPOINT } from '@/consts';
 import { Modpack } from '@/types/modpacks';
+import { MarkdownRenderer } from '@/components/ui/markdown-renderer';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface ModpackEditViewProps {
     teams: any[];
@@ -31,6 +33,7 @@ export const ModpackEditView: React.FC<ModpackEditViewProps> = ({ teams }) => {
     const [visibility, setVisibility] = useState<'public' | 'private' | 'patreon'>('public');
     const [loading, setLoading] = useState(false);
     const [fetchLoading, setFetchLoading] = useState(true);
+    const [showDescriptionPreview, setShowDescriptionPreview] = useState(false);
 
     // File upload state
     const [iconFile, setIconFile] = useState<File | null>(null);
@@ -216,13 +219,41 @@ export const ModpackEditView: React.FC<ModpackEditViewProps> = ({ teams }) => {
                         </div>
 
                         <div>
-                            <label className="text-sm font-medium block mb-1">Descripción</label>
-                            <Textarea
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
-                                rows={4}
-                                placeholder="Descripción detallada del modpack"
-                            />
+                            <div className="flex items-center justify-between mb-2">
+                                <label className="text-sm font-medium">Descripción (Markdown)</label>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowDescriptionPreview(!showDescriptionPreview)}
+                                >
+                                    <LucideEye className="h-4 w-4 mr-2" />
+                                    {showDescriptionPreview ? 'Editar' : 'Vista Previa'}
+                                </Button>
+                            </div>
+                            {showDescriptionPreview ? (
+                                <ScrollArea className="h-48 border rounded-md p-4 bg-muted/50">
+                                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                                        <MarkdownRenderer 
+                                            content={description || ""}
+                                            className="text-sm"
+                                        />
+                                    </div>
+                                </ScrollArea>
+                            ) : (
+                                <Textarea
+                                    value={description}
+                                    onChange={(e) => setDescription(e.target.value)}
+                                    rows={6}
+                                    placeholder="Descripción detallada del modpack en formato Markdown&#10;&#10;Ejemplo:&#10;# Mi Modpack Épico&#10;Este es un modpack **increíble** con muchas aventuras.&#10;&#10;[youtube: https://youtube.com/watch?v=dQw4w9WgXcQ]&#10;&#10;## Características:&#10;- Mods de aventura&#10;- Nuevas dimensiones&#10;- ¡Y mucho más!"
+                                    className="font-mono text-sm"
+                                />
+                            )}
+                            {!showDescriptionPreview && (
+                                <p className="text-xs text-muted-foreground mt-2">
+                                    💡 Soporta Markdown y componentes personalizados como <code>[youtube: URL]</code>
+                                </p>
+                            )}
                         </div>
 
                         <div>
