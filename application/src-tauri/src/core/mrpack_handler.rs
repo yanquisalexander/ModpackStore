@@ -172,6 +172,9 @@ pub fn extract_mrpack_overrides(mrpack_path: &Path, instance_dir: &Path) -> Resu
     let mut archive =
         ZipArchive::new(file).map_err(|e| format!("Invalid .mrpack file: {}", e))?;
 
+    // Extract to minecraft/ subdirectory to match standard instance structure
+    let minecraft_dir = instance_dir.join("minecraft");
+    
     // Extract all files from "overrides/" directory
     for i in 0..archive.len() {
         let mut file = archive
@@ -189,7 +192,7 @@ pub fn extract_mrpack_overrides(mrpack_path: &Path, instance_dir: &Path) -> Resu
                 continue;
             }
 
-            let output_path = instance_dir.join(relative_path);
+            let output_path = minecraft_dir.join(relative_path);
 
             // Create parent directories if needed
             if let Some(parent) = output_path.parent() {
@@ -302,7 +305,8 @@ pub async fn download_mrpack_mods(
     manifest: &MrpackManifest,
     instance_dir: &Path,
 ) -> Result<(), String> {
-    let mods_dir = instance_dir.join("mods");
+    // Download to minecraft/mods/ subdirectory to match standard instance structure
+    let mods_dir = instance_dir.join("minecraft").join("mods");
 
     // Filter client-side mods
     let client_mods: Vec<&MrpackFile> = manifest

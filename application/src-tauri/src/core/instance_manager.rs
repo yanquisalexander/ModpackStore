@@ -1047,6 +1047,73 @@ fn spawn_modpack_creation_task(
     });
 }
 
+/// Spawn background task to bootstrap a .mrpack instance
+/// This ensures the instance goes through the same validation and setup as other instances
+fn spawn_mrpack_bootstrap_task(instance: MinecraftInstance, task_id: String) {
+    std::thread::spawn(move || {
+        let mut bootstrap = InstanceBootstrap::new();
+
+        update_task(
+            &task_id,
+            TaskStatus::Running,
+            40.0,
+            "Configurando base de Minecraft...",
+            None,
+        );
+
+        let bootstrap_result = if instance.forgeVersion.is_some() {
+            bootstrap.bootstrap_forge_instance(&instance, Some(task_id.clone()))
+        } else {
+            bootstrap.bootstrap_vanilla_instance(&instance, Some(task_id.clone()))
+        };
+
+        // Handle bootstrap result and update Java path if needed
+        match bootstrap_result {
+            Ok(java_path_option) => {
+                // Update instance with Java path if it was set
+                if let Some(java_path) = java_path_option {
+                    let mut instance_to_update = instance.clone();
+                    instance_to_update.set_java_path(java_path);
+                    log::info!(
+                        "Java path set for .mrpack instance {}: {:?}",
+                        instance_to_update.instanceName,
+                        instance_to_update.javaPath
+                    );
+                }
+
+                update_task(
+                    &task_id,
+                    TaskStatus::Completed,
+                    100.0,
+                    &format!("Instancia {} importada exitosamente", instance.instanceName),
+                    Some(serde_json::json!({
+                        "instanceName": instance.instanceName,
+                        "instanceId": instance.instanceId
+                    })),
+                );
+            }
+            Err(e) => {
+                // Check if this is a bootstrap error
+                if let Ok(bootstrap_error) = serde_json::from_str::<BootstrapError>(&e) {
+                    update_task_with_bootstrap_error(&task_id, &bootstrap_error);
+                } else {
+                    // Fallback to generic error handling
+                    update_task(
+                        &task_id,
+                        TaskStatus::Failed,
+                        0.0,
+                        &format!("Error en bootstrap: {}", e),
+                        None,
+                    );
+                }
+            }
+        }
+
+        std::thread::sleep(std::time::Duration::from_secs(TASK_CLEANUP_DELAY));
+        remove_task(&task_id);
+    });
+}
+
 /// Spawns a background task to update a modpack instance using incremental validation
 ///
 /// This function implements the enhanced modpack update approach that reuses the proven
@@ -1547,9 +1614,7 @@ pub async fn create_instance_from_mrpack(
     mrpack_path: String,
     instance_name: String,
 ) -> Result<String, String> {
-    use crate::core::mrpack_handler::{
-        read_mrpack_manifest, extract_mrpack_overrides, download_mrpack_mods,
-    };
+    use crate::core::mrpack_handler::{read_mrpack_manifest, extract_mrpack_overrides, download_mrpack_mods};
 
     let path = Path::new(&mrpack_path);
     let manifest = read_mrpack_manifest(path)?;
@@ -1570,13 +1635,64 @@ pub async fn create_instance_from_mrpack(
     fs::create_dir_all(&instance_dir)
         .map_err(|e| format!("Failed to create instance directory: {}", e))?;
 
+    // Create a task for tracking progress
+    let task_id = add_task_with_auto_start(
+        &format!("Importando {}", instance_name),
+        Some(serde_json::json!({
+            "type": "mrpack_import",
+            "instanceName": instance_name,
+        })),
+    );
+
+    update_task(
+        &task_id,
+        TaskStatus::Running,
+        10.0,
+        "Extrayendo archivos del modpack...",
+        None,
+    );
+
     log::info!("Extracting overrides from .mrpack...");
-    // Extract overrides
-    extract_mrpack_overrides(path, &instance_dir)?;
+    // Extract overrides to minecraft/ subdirectory
+    if let Err(e) = extract_mrpack_overrides(path, &instance_dir) {
+        update_task(
+            &task_id,
+            TaskStatus::Failed,
+            0.0,
+            &format!("Error extrayendo archivos: {}", e),
+            None,
+        );
+        return Err(e);
+    }
+
+    update_task(
+        &task_id,
+        TaskStatus::Running,
+        20.0,
+        "Descargando mods desde Modrinth...",
+        None,
+    );
 
     log::info!("Downloading mods from Modrinth...");
-    // Download mods from manifest
-    download_mrpack_mods(&manifest, &instance_dir).await?;
+    // Download mods to minecraft/mods/ subdirectory
+    if let Err(e) = download_mrpack_mods(&manifest, &instance_dir).await {
+        update_task(
+            &task_id,
+            TaskStatus::Failed,
+            0.0,
+            &format!("Error descargando mods: {}", e),
+            None,
+        );
+        return Err(e);
+    }
+
+    update_task(
+        &task_id,
+        TaskStatus::Running,
+        30.0,
+        "Creando configuración de instancia...",
+        None,
+    );
 
     // Determine icon URL based on loader
     let icon_url = if manifest.dependencies.forge.is_some() {
@@ -1585,7 +1701,8 @@ pub async fn create_instance_from_mrpack(
         Some(DEFAULT_VANILLA_ICON.to_string())
     };
 
-    // Create instance configuration
+    // Create instance configuration with proper minecraftPath
+    let minecraft_path = instance_dir.join("minecraft");
     let instance = MinecraftInstance {
         instanceId: instance_id.clone(),
         usesDefaultIcon: true,
@@ -1593,7 +1710,7 @@ pub async fn create_instance_from_mrpack(
         bannerUrl: None,
         instanceName: instance_name,
         accountUuid: None,
-        minecraftPath: String::new(),
+        minecraftPath: normalize_path(&minecraft_path),
         modpackId: None,
         modpackVersionId: None,
         minecraftVersion: manifest.dependencies.minecraft.clone(),
@@ -1606,9 +1723,21 @@ pub async fn create_instance_from_mrpack(
 
     instance
         .save()
-        .map_err(|e| format!("Failed to save instance: {}", e))?;
+        .map_err(|e| {
+            update_task(
+                &task_id,
+                TaskStatus::Failed,
+                0.0,
+                &format!("Error guardando configuración: {}", e),
+                None,
+            );
+            format!("Failed to save instance: {}", e)
+        })?;
 
-    log::info!("Instance created successfully: {}", instance_id);
+    log::info!("Instance metadata created, starting bootstrap process...");
+
+    // Spawn bootstrap task in background (similar to modpack creation)
+    spawn_mrpack_bootstrap_task(instance, task_id.clone());
 
     Ok(instance_id)
 }
