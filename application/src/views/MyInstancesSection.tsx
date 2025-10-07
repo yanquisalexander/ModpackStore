@@ -1,5 +1,6 @@
 import { ArmadilloLoading } from "@/components/ArmadilloLoading";
 import { CreateInstanceDialog } from "@/components/CreateInstanceDialog";
+import { ImportMrpackDialog } from "@/components/ImportMrpackDialog";
 import { InstanceCard } from "@/components/InstanceCard";
 import { trackSectionView } from "@/lib/analytics";
 import { sleep } from "@/lib/utils";
@@ -11,6 +12,8 @@ import { useConnection } from "@/utils/ConnectionContext";
 import { invoke } from "@tauri-apps/api/core";
 import { LucidePackageOpen } from "lucide-react";
 import { useCallback, useEffect, useState } from "react"
+import { toast } from "sonner";
+import type { MrpackManifest, MrpackCompatibility } from "@/types/mrpack";
 
 
 export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) => {
@@ -21,6 +24,8 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
 
     const [instances, setInstances] = useState<TauriCommandReturns['get_instance_by_id'][]>([])
     const [isLoading, setIsLoading] = useState(true)
+    const [isDragging, setIsDragging] = useState(false)
+
     const fetchInstances = useCallback(async () => {
         setIsLoading(true)
         try {
@@ -69,9 +74,94 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
         )
     }, [])
 
+    // Drag and drop handlers for .mrpack files
+    const handleDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsDragging(true)
+    }, [])
+
+    const handleDragLeave = useCallback((e: React.DragEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsDragging(false)
+    }, [])
+
+    const handleDrop = useCallback(async (e: React.DragEvent) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setIsDragging(false)
+
+        const files = Array.from(e.dataTransfer.files)
+        const mrpackFiles = files.filter(file => file.name.toLowerCase().endsWith('.mrpack'))
+
+        if (mrpackFiles.length === 0) {
+            toast.error('Por favor, arrastra un archivo .mrpack válido')
+            return
+        }
+
+        if (mrpackFiles.length > 1) {
+            toast.error('Solo puedes importar un archivo .mrpack a la vez')
+            return
+        }
+
+        const mrpackFile = mrpackFiles[0]
+        const filePath = (mrpackFile as any).path || ''
+
+        if (!filePath) {
+            toast.error('No se pudo obtener la ruta del archivo')
+            return
+        }
+
+        try {
+            // Validate and read manifest
+            const manifestData = await invoke<MrpackManifest>('validate_mrpack_file', {
+                mrpackPath: filePath,
+            })
+
+            // Check compatibility
+            const compatibilityData = await invoke<MrpackCompatibility>(
+                'check_mrpack_compatibility',
+                { manifest: manifestData }
+            )
+
+            if (!compatibilityData.is_compatible) {
+                toast.error('Modpack no compatible', {
+                    description: compatibilityData.errors.join('\n'),
+                })
+                return
+            }
+
+            toast.success(`Archivo .mrpack detectado: ${manifestData.name}`, {
+                description: 'Funcionalidad de importación completa en desarrollo',
+            })
+        } catch (error) {
+            console.error('Error al procesar archivo .mrpack:', error)
+            toast.error('Error al leer el archivo .mrpack', {
+                description: String(error),
+            })
+        }
+    }, [])
+
 
     return (
-        <div className="mx-auto max-w-7xl px-8 py-10 overflow-y-auto h-full">
+        <div 
+            className="mx-auto max-w-7xl px-8 py-10 overflow-y-auto h-full"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+        >
+            {isDragging && (
+                <div className="fixed inset-0 bg-purple-500/20 backdrop-blur-sm z-50 flex items-center justify-center pointer-events-none">
+                    <div className="bg-gray-900/90 border-2 border-dashed border-purple-400 rounded-xl p-8 text-center">
+                        <LucidePackageOpen className="h-16 w-16 text-purple-400 mx-auto mb-4" />
+                        <p className="text-xl font-semibold text-purple-300">
+                            Suelta el archivo .mrpack aquí
+                        </p>
+                    </div>
+                </div>
+            )}
+
             <header className="flex flex-col mb-16">
                 <h1 className="tracking-tight inline font-semibold text-2xl bg-gradient-to-b from-teal-200 to-teal-500 bg-clip-text text-transparent">
                     Mis instancias
@@ -100,9 +190,12 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                     ))}
                     {
                         (!offlineMode || hasInternetAccess) && (
-                            <CreateInstanceDialog
-                                instanceNames={instances.map((i) => i.instanceName)}
-                                onInstanceCreated={fetchInstances} />
+                            <>
+                                <CreateInstanceDialog
+                                    instanceNames={instances.map((i) => i.instanceName)}
+                                    onInstanceCreated={fetchInstances} />
+                                <ImportMrpackDialog onInstanceCreated={fetchInstances} />
+                            </>
                         )
                     }
                 </div>
