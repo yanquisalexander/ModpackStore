@@ -5,10 +5,10 @@ import { invoke } from '@tauri-apps/api/core';
 import ReactMarkdown from 'react-markdown';
 
 // Versión actual del changelog
-const CHANGELOG_ID = 5;
+const CHANGELOG_ID = 6;
 
 // DIA MES AÑO (DD/MM/YYYY)
-const PATCH_NOTES_RELEASE_DATE = '03/10/2025';
+const PATCH_NOTES_RELEASE_DATE = '07/10/2025';
 
 const PATCH_NOTES_DATE_STRING = (() => {
   const [day, month, year] = PATCH_NOTES_RELEASE_DATE.split('/').map(Number);
@@ -21,18 +21,18 @@ const PATCH_NOTES_DATE_STRING = (() => {
   }).format(date);
 })();
 
-const CHANGELOG_CONTENT = `## 🐛 Se corrigieron errores y se mejoró el rendimiento  
-Gracias por tu tiempo.  
+const CHANGELOG_CONTENT = `## 🧩 Pequeños cambios, grandes mejoras  
+Gracias por seguir acompañándonos.  
 
-…nah, solo bromeamos 😏. También metimos un par de cosas bastante cool que seguro vas a querer probar
-
+Bueno, no tan pequeños 😏. Hay varias cosas nuevas que seguro te van a encantar.  
 
 ## 🎨 Novedades  
-- 📌 Ahora puedes **pinear tus modpacks favoritos** en la barra lateral. Se acabó perder tiempo buscándolos como si fueran diamantes en la capa 12.  
-- 🎮 **Rich Presence de Discord** integrado: porque claro que necesitas que tus amigos sepan qué modpack estás viciando.
-- ⚡ **Actualizaciones de modpacks más rápidas**: menos barra de carga, más tiempo minando, construyendo o haciendo lo que sea que hagas en tu mundo.  
+- 📦 **Soporte experimental para archivos \`.mrpack\`** de Modrinth. Sí, ahora podés importar modpacks sin pasar por rituales extraños.  
+- 🚀 **Migramos el servidor backend principal** para lograr un rendimiento mucho más fluido. Todo carga más rápido, incluso tu hype.  
+- 🧭 **Servidores alternativos de launcher**: cuando Mojang decide tomarse un descanso, vos no.  
+- 🌍 **Hola, Bonjour, Hello!** Empezamos a trabajar en **el soporte multilenguaje** para que todos puedan disfrutar la app en su idioma.  
 
----
+---  
 
 🙌 Gracias por seguir usando Modpack Store. Y sí… se vienen cositas.  
 `;

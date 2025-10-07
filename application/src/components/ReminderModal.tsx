@@ -33,9 +33,9 @@ export function ReminderModal() {
                     key: 'lastReminderTimestamp'
                 });
                 const now = Date.now();
-                const sevenDays = 1000 * 60 * 60 * 24 * 7;
+                const everyDays = 1000 * 60 * 60 * 24 * 5;
 
-                const shouldShow = !lastShown || now - lastShown > sevenDays;
+                const shouldShow = !lastShown || now - lastShown > everyDays;
                 const randomChance = Math.random() < 0.2; // 20% de probabilidad
 
                 if (shouldShow && randomChance) {
