@@ -1540,3 +1540,75 @@ async fn get_access_token() -> Result<Option<String>, String> {
         Err(e) => Err(format!("Error loading tokens: {}", e)),
     }
 }
+
+/// Create a new instance from a .mrpack file
+#[tauri::command]
+pub async fn create_instance_from_mrpack(
+    mrpack_path: String,
+    instance_name: String,
+) -> Result<String, String> {
+    use crate::core::mrpack_handler::{
+        read_mrpack_manifest, extract_mrpack_overrides, download_mrpack_mods,
+    };
+
+    let path = Path::new(&mrpack_path);
+    let manifest = read_mrpack_manifest(path)?;
+
+    // Validate that it's compatible (Forge or Vanilla only)
+    if manifest.dependencies.fabric_loader.is_some()
+        || manifest.dependencies.quilt_loader.is_some()
+        || manifest.dependencies.neoforge.is_some()
+    {
+        return Err("Solo se admite Forge y Vanilla actualmente".to_string());
+    }
+
+    // Create instance directory
+    let instances_dir = get_instances_dir()?;
+    let instance_id = uuid::Uuid::new_v4().to_string();
+    let instance_dir = instances_dir.join(&instance_id);
+
+    fs::create_dir_all(&instance_dir)
+        .map_err(|e| format!("Failed to create instance directory: {}", e))?;
+
+    log::info!("Extracting overrides from .mrpack...");
+    // Extract overrides
+    extract_mrpack_overrides(path, &instance_dir)?;
+
+    log::info!("Downloading mods from Modrinth...");
+    // Download mods from manifest
+    download_mrpack_mods(&manifest, &instance_dir).await?;
+
+    // Determine icon URL based on loader
+    let icon_url = if manifest.dependencies.forge.is_some() {
+        Some(DEFAULT_FORGE_ICON.to_string())
+    } else {
+        Some(DEFAULT_VANILLA_ICON.to_string())
+    };
+
+    // Create instance configuration
+    let instance = MinecraftInstance {
+        instanceId: instance_id.clone(),
+        usesDefaultIcon: true,
+        iconUrl: icon_url,
+        bannerUrl: None,
+        instanceName: instance_name,
+        accountUuid: None,
+        minecraftPath: String::new(),
+        modpackId: None,
+        modpackVersionId: None,
+        minecraftVersion: manifest.dependencies.minecraft.clone(),
+        instanceDirectory: Some(instance_dir.to_string_lossy().to_string()),
+        forgeVersion: manifest.dependencies.forge.clone(),
+        javaPath: None,
+        favorite: false,
+        favorite_order: None,
+    };
+
+    instance
+        .save()
+        .map_err(|e| format!("Failed to save instance: {}", e))?;
+
+    log::info!("Instance created successfully: {}", instance_id);
+
+    Ok(instance_id)
+}
