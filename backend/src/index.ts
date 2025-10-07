@@ -40,7 +40,23 @@ const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 const port = Number(process.env.PORT) || 3000;
 
 const initializeServices = async (): Promise<void> => {
-  await AppDataSource.initialize();
+  // Initialize database with retry logic for serverless auto-sleeping
+  let dbRetries = 5;
+  while (dbRetries > 0) {
+    try {
+      await AppDataSource.initialize();
+      console.log('Database connection established successfully.');
+      break;
+    } catch (error) {
+      console.error(`Database initialization failed, retries left: ${dbRetries - 1}`, error);
+      dbRetries--;
+      if (dbRetries === 0) {
+        throw new Error('Failed to initialize database after multiple retries. The database may be in auto-sleep mode.');
+      }
+      console.log('Retrying database connection in 2 seconds...');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+  }
 
   /* Initialize the system user */
   await generateSystemUser().catch((error) => {
@@ -50,11 +66,11 @@ const initializeServices = async (): Promise<void> => {
   // Initialize Passport strategies
   await Passport.setup();
   console.log('Passport setup initialized.');
-  
+
   // Initialize Redis (optional - system works without it)
   initRedis();
   console.log('Redis initialization attempted.');
-  
+
   // Add any other service initializations here
 };
 

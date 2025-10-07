@@ -34,6 +34,12 @@ export const AppDataSource = new DataSource({
     ssl: process.env.DB_SSL === "true" ? true : false,
     synchronize: true,
     logging: process.env.NODE_ENV === "development",
+    extra: {
+        max: 20,
+        connectionTimeoutMillis: 2000,
+        acquireTimeoutMillis: 60000,
+        idleTimeoutMillis: 60000,
+    },
     entities: [
         User,
         Session,
