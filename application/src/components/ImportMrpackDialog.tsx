@@ -89,11 +89,14 @@ export const ImportMrpackDialog = ({ onInstanceCreated }: ImportMrpackDialogProp
     setIsImporting(true);
 
     try {
-      // TODO: Implement actual import logic
-      // This would call a Tauri command to create instance from mrpack
-      // For now, we'll show a success message
-      toast.info("Importación en desarrollo", {
-        description: "La funcionalidad de importación completa está en desarrollo. Por ahora, puedes visualizar la información del modpack.",
+      // Call Tauri command to create instance from mrpack
+      const instanceId = await invoke<string>("create_instance_from_mrpack", {
+        mrpackPath: mrpackPath,
+        instanceName: instanceName,
+      });
+
+      toast.success("Modpack importado exitosamente", {
+        description: `Instancia ${instanceName} creada correctamente`,
       });
 
       // Reset form

@@ -244,6 +244,7 @@ pub fn main() {
             core::i18n::reset_to_system_language,
             core::mrpack_handler::validate_mrpack_file,
             core::mrpack_handler::check_mrpack_compatibility,
+            core::instance_manager::create_instance_from_mrpack,
             utils::desktop_integration::create_shortcut,
             get_git_hash,
             splash_done,

@@ -132,9 +132,23 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                 return
             }
 
-            toast.success(`Archivo .mrpack detectado: ${manifestData.name}`, {
-                description: 'Funcionalidad de importación completa en desarrollo',
-            })
+            // Ask user for confirmation
+            const instanceName = manifestData.name
+
+            toast.promise(
+                invoke<string>('create_instance_from_mrpack', {
+                    mrpackPath: filePath,
+                    instanceName: instanceName,
+                }),
+                {
+                    loading: `Importando ${instanceName}...`,
+                    success: () => {
+                        fetchInstances()
+                        return `${instanceName} importado exitosamente`
+                    },
+                    error: (error) => `Error al importar: ${error}`,
+                }
+            )
         } catch (error) {
             console.error('Error al procesar archivo .mrpack:', error)
             toast.error('Error al leer el archivo .mrpack', {
