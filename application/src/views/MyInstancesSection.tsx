@@ -106,6 +106,8 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
         }
 
         const mrpackFile = mrpackFiles[0]
+
+        console.log('Archivo .mrpack detectado:', mrpackFile)
         const filePath = (mrpackFile as any).path || ''
 
         if (!filePath) {
@@ -159,7 +161,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
 
 
     return (
-        <div 
+        <div
             className="mx-auto max-w-7xl px-8 py-10 overflow-y-auto h-full"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}

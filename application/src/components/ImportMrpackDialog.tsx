@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open as tauriOpen } from "@tauri-apps/plugin-dialog";
 import { Import, Loader2, Check, AlertCircle, Package } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -32,7 +32,7 @@ export const ImportMrpackDialog = ({ onInstanceCreated }: ImportMrpackDialogProp
 
   const handleSelectFile = async () => {
     try {
-      const selected = await open({
+      const selected = await tauriOpen({
         filters: [
           {
             name: "Modrinth Modpack",
