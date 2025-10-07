@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { LucidePackageImport, LucideLoader2, LucideCheck, LucideAlertCircle, LucidePackage } from "lucide-react";
+import { Import, Loader2, Check, AlertCircle, Package } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -133,7 +133,7 @@ export const ImportMrpackDialog = ({ onInstanceCreated }: ImportMrpackDialogProp
         >
           <div className="flex flex-col items-center gap-3">
             <div className="p-3 rounded-full bg-gray-800/80 group-hover:bg-purple-900/40 transition">
-              <LucidePackageImport className="h-8 w-8 text-gray-400 group-hover:text-purple-300" />
+              <Import className="h-8 w-8 text-gray-400 group-hover:text-purple-300" />
             </div>
             <span className="text-gray-400 group-hover:text-purple-300 font-medium">
               Importar .mrpack
@@ -213,7 +213,7 @@ export const ImportMrpackDialog = ({ onInstanceCreated }: ImportMrpackDialogProp
                   {/* Compatibility warnings */}
                   {compatibility.warnings.length > 0 && (
                     <Alert className="bg-yellow-900/20 border-yellow-700/50">
-                      <LucideAlertCircle className="h-4 w-4 text-yellow-300" />
+                      <AlertCircle className="h-4 w-4 text-yellow-300" />
                       <AlertTitle className="text-yellow-300">Advertencias</AlertTitle>
                       <AlertDescription className="text-yellow-200">
                         <ul className="list-disc list-inside space-y-1">
@@ -230,7 +230,7 @@ export const ImportMrpackDialog = ({ onInstanceCreated }: ImportMrpackDialogProp
                   {/* Compatibility errors */}
                   {compatibility.errors.length > 0 && (
                     <Alert className="bg-red-900/20 border-red-700/50">
-                      <LucideAlertCircle className="h-4 w-4 text-red-300" />
+                      <AlertCircle className="h-4 w-4 text-red-300" />
                       <AlertTitle className="text-red-300">Errores</AlertTitle>
                       <AlertDescription className="text-red-200">
                         <ul className="list-disc list-inside space-y-1">
@@ -247,7 +247,7 @@ export const ImportMrpackDialog = ({ onInstanceCreated }: ImportMrpackDialogProp
                   {/* Success indicator */}
                   {compatibility.is_compatible && (
                     <Alert className="bg-green-900/20 border-green-700/50">
-                      <LucideCheck className="h-4 w-4 text-green-300" />
+                      <Check className="h-4 w-4 text-green-300" />
                       <AlertTitle className="text-green-300">Compatible</AlertTitle>
                       <AlertDescription className="text-green-200">
                         Este modpack es compatible con ModpackStore
@@ -285,12 +285,12 @@ export const ImportMrpackDialog = ({ onInstanceCreated }: ImportMrpackDialogProp
             >
               {isImporting ? (
                 <>
-                  <LucideLoader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Importando...
                 </>
               ) : (
                 <>
-                  <LucidePackage className="mr-2 h-4 w-4" />
+                  <Package className="mr-2 h-4 w-4" />
                   Instalar
                 </>
               )}
