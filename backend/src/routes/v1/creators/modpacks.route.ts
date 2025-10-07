@@ -7,6 +7,7 @@ import { isOrganizationMember, requireAuth, requireCreatorAccess, USER_CONTEXT_K
 import { ModpackVisibility } from "@/models/Modpack.model";
 import { ALLOWED_FILE_TYPES, processModpackFileUpload } from "@/services/modpackFileUpload";
 import { CurseForgeImportService } from "@/services/curseforgeImportService";
+import { ModrinthImportService } from "@/services/modrinthImportService";
 import { queue } from "@/services/Queue";
 import { uploadToR2 } from "@/services/r2UploadService";
 import { CategoryService } from "@/services/category.service";
@@ -1049,6 +1050,66 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/import/curseforge",
 
     } catch (error) {
         console.error("CurseForge import error:", error);
+
+        if (error instanceof Error) {
+            throw new APIError(400, `Error al importar modpack: ${error.message}`);
+        }
+
+        throw new APIError(500, "Error interno del servidor durante la importación");
+    }
+});
+
+// Modrinth Import Endpoint
+ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/import/modrinth", isOrganizationMember, async (c) => {
+    const user = c.get(USER_CONTEXT_KEY) as User;
+    const { publisherId } = c.req.param();
+
+    const userRole = await user.getRoleInPublisher(publisherId);
+
+    // Only admins, owners, and members can import modpacks
+    if (!userRole) {
+        throw new APIError(403, "No tienes permiso para importar modpacks en esta organización");
+    }
+
+    const body = await c.req.parseBody();
+
+    if (!(body.mrpackFile instanceof File)) {
+        throw new APIError(400, "Se requiere un archivo .mrpack de Modrinth");
+    }
+
+    try {
+        // Convert File to Buffer
+        const zipBuffer = Buffer.from(await body.mrpackFile.arrayBuffer());
+
+        // Import options
+        const options = {
+            slug: body.slug as string | undefined,
+            visibility: body.visibility as string | undefined,
+            parallelDownloads: body.parallelDownloads ? parseInt(body.parallelDownloads as string) : 5
+        };
+
+        // Validate parallel downloads
+        if (options.parallelDownloads && (options.parallelDownloads < 1 || options.parallelDownloads > 10)) {
+            options.parallelDownloads = 5;
+        }
+
+        // Create import service and process
+        const importService = new ModrinthImportService();
+        const result = await importService.importModpack(
+            zipBuffer,
+            publisherId,
+            user.id,
+            options
+        );
+
+        return c.json({
+            success: true,
+            message: "Modpack importado exitosamente desde Modrinth",
+            data: result
+        });
+
+    } catch (error) {
+        console.error("Modrinth import error:", error);
 
         if (error instanceof Error) {
             throw new APIError(400, `Error al importar modpack: ${error.message}`);
