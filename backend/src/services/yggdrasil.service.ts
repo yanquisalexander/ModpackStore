@@ -209,7 +209,7 @@ export class YggdrasilService {
         if (await user.isBanned()) {
             throw new APIError(
                 403,
-                '§c§l⚠ BAN NOTICE ⚠§r\n§6Your §e§lModpack Store§r account has been §c§lBANNED§r from multiplayer!\n§7Please contact support for more information.',
+                '\n§c§l⚠ BAN NOTICE ⚠§r\n§6Your §e§lModpack Store§r account has been §c§lBANNED§r!\n§7Please contact support for more information.',
                 'UserBannedException'
             );
         }
