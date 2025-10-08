@@ -11,6 +11,8 @@ import ticketRoutes from './v1/tickets.routes';
 import publisherPermissionsRoutes from './v1/publisher-permissions.route';
 import webhooksRoutes from './webhooks.routes';
 import { socialRoutes } from './v1/social.routes';
+import authServerRoutes from './v1/authserver.routes';
+import sessionServerRoutes from './v1/sessionserver.routes';
 
 const rootRouter = new Hono();
 
@@ -25,6 +27,10 @@ rootRouter.route('/websocket', websocketRoutes);
 rootRouter.route('/tickets', ticketRoutes);
 rootRouter.route('/publishers', publisherPermissionsRoutes);
 rootRouter.route('/social', socialRoutes); // Mount social routes
+
+// AuthServer routes (Yggdrasil API compatible)
+rootRouter.route('/authserver', authServerRoutes);
+rootRouter.route('/sessionserver', sessionServerRoutes);
 
 // Webhook routes (separate from API versioning)
 rootRouter.route('/webhooks', webhooksRoutes);
