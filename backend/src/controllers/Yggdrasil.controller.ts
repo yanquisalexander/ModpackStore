@@ -214,15 +214,6 @@ export class YggdrasilController {
                 }, 400);
             }
 
-            // Check if user is banned before allowing to join server
-            const user = await User.findOne({ where: { id: selectedProfile } });
-            if (user && await user.isBanned()) {
-                return c.json({
-                    error: 'USER_BANNED',
-                    errorMessage: 'Your account has been banned from Modpack Store.'
-                }, 403);
-            }
-
             // Get IP address from request (take first IP if multiple)
             const xForwardedFor = c.req.header('X-Forwarded-For');
             const xRealIP = c.req.header('X-Real-IP');
