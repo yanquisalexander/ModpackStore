@@ -14,6 +14,7 @@ import { ModpackAcquisition } from "./ModpackAcquisition";
 import { Friendship } from "./Friendship";
 import { GameInvitation } from "./GameInvitation";
 import { UserActivity } from "./UserActivity";
+import { JWT_ACCESS_TOKEN_EXPIRES_IN, JWT_REFRESH_TOKEN_EXPIRES_IN } from "@/services/auth.service";
 
 @Entity({ name: "users" })
 export class User extends BaseEntity {
@@ -240,12 +241,12 @@ export class User extends BaseEntity {
 
         try {
             const accessToken = sign(payload, secret, {
-                expiresIn: '4h',
+                expiresIn: JWT_ACCESS_TOKEN_EXPIRES_IN,
                 issuer: 'ModpackStore',
             });
 
             const refreshToken = sign(payload, secret, {
-                expiresIn: '30d',
+                expiresIn: JWT_REFRESH_TOKEN_EXPIRES_IN,
                 issuer: 'ModpackStore',
             });
 

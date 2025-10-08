@@ -137,7 +137,10 @@ pub fn main() {
             let app_handle_clone = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 // Preload common languages
-                if let Err(e) = crate::core::i18n::get_i18n_manager().preload_common_languages().await {
+                if let Err(e) = crate::core::i18n::get_i18n_manager()
+                    .preload_common_languages()
+                    .await
+                {
                     log::warn!("Failed to preload languages: {}", e);
                 }
 
@@ -145,7 +148,8 @@ pub fn main() {
                 let current_lang = {
                     match crate::config::get_config_manager().lock() {
                         Ok(config_result) => match &*config_result {
-                            Ok(config) => config.get("language")
+                            Ok(config) => config
+                                .get("language")
                                 .and_then(|v| v.as_str())
                                 .map(|s| s.to_string())
                                 .unwrap_or_else(|| {
@@ -155,17 +159,20 @@ pub fn main() {
                             Err(_) => {
                                 // Config error, use system detection
                                 crate::core::i18n::get_i18n_manager().detect_system_language()
-                            },
+                            }
                         },
                         Err(_) => {
                             // Lock error, use system detection
                             crate::core::i18n::get_i18n_manager().detect_system_language()
-                        },
+                        }
                     }
                 };
 
                 // Set initial language
-                if let Err(e) = crate::core::i18n::get_i18n_manager().set_language(&current_lang).await {
+                if let Err(e) = crate::core::i18n::get_i18n_manager()
+                    .set_language(&current_lang)
+                    .await
+                {
                     log::error!("Failed to set initial language {}: {}", current_lang, e);
                 } else {
                     log::info!("Initialized i18n system with language: {}", current_lang);
@@ -227,6 +234,7 @@ pub fn main() {
             core::auth::start_patreon_auth,
             core::auth::get_current_session,
             core::auth::logout,
+            core::auth::refresh_tokens,
             core::auth::init_session,
             core::microsoft_auth::start_microsoft_auth,
             core::prelaunch_appearance::get_prelaunch_appearance,

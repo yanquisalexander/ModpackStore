@@ -830,6 +830,22 @@ pub async fn refresh_tokens(
         Ok(new_tokens) => {
             storage::save_tokens(&app_handle, &new_tokens).await?;
             println!("Tokens renovados exitosamente");
+            // Actualizar sesión de usuario
+            match api_client.get_session(&new_tokens.access_token).await {
+                Ok(user) => {
+                    let mut session_guard = auth_state.session.lock().await;
+                    *session_guard = Some(user.clone());
+                    drop(session_guard);
+                    events::emit_auth_status_changed(Some(user));
+                }
+                Err(e) => {
+                    eprintln!("Error al obtener sesión tras renovar tokens: {}", e);
+                    storage::remove_tokens(&app_handle).await?;
+                    auth_state.clear_all().await;
+                    events::emit_auth_status_changed(None);
+                    return Ok(false);
+                }
+            }
             Ok(true)
         }
         Err(e) => {

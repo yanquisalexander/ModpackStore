@@ -10,6 +10,8 @@ import { APIError } from "@/lib/APIError";
 import { UserRole } from "@/types/enums";
 import { BanService } from "./ban.service";
 
+export const JWT_ACCESS_TOKEN_EXPIRES_IN = 4 * 60 * 60; // 4 hours
+export const JWT_REFRESH_TOKEN_EXPIRES_IN = 15 * 24 * 60 * 60; // 15 days
 // Asumimos que JWT_SECRET se valida al iniciar la app
 const JWT_SECRET = process.env.JWT_SECRET!;
 
@@ -69,7 +71,7 @@ export class AuthService {
 
         return {
             token_type: 'bearer',
-            expires_in: 3600 * 4, // 4 horas
+            expires_in: JWT_ACCESS_TOKEN_EXPIRES_IN,
             access_token: jwtTokens.accessToken,
             refresh_token: jwtTokens.refreshToken,
         };
@@ -103,7 +105,8 @@ export class AuthService {
 
         return {
             token_type: 'bearer',
-            expires_in: 3600,
+            // time in seconds
+            expires_in: 60 * 6, // 6 minutos
             access_token: newJwtTokens.accessToken,
             refresh_token: newJwtTokens.refreshToken,
         };
