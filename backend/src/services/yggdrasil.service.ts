@@ -262,7 +262,7 @@ export class YggdrasilService {
 
         // Check if user is banned
         if (await user.isBanned()) {
-            throw new APIError(403, 'User is banned from multiplayer.', 'UserBannedException');
+            throw new APIError(403, 'Your Modpack Store account is banned.', 'UserBannedException');
         }
 
         // Optionally validate IP if provided
