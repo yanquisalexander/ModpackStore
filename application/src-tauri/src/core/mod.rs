@@ -1,7 +1,10 @@
 pub mod accounts_manager;
 pub mod auth;
+pub mod authlib_injector;
+pub mod authserver_commands;
 pub mod bootstrap;
 pub mod bootstrap_error;
+pub mod game_session_manager;
 pub mod i18n;
 pub mod instance_bootstrap;
 pub mod instance_launcher;
@@ -13,6 +16,7 @@ pub mod minecraft_account;
 pub mod minecraft_instance;
 pub mod models;
 pub mod modpack_file_manager;
+pub mod modpackstore_auth;
 pub mod mrpack_handler;
 pub mod network_utilities;
 pub mod onboarding;
