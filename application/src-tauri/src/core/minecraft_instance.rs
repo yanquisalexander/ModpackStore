@@ -28,6 +28,9 @@ pub struct MinecraftInstance {
     pub favorite: bool,
     #[serde(default)]
     pub favorite_order: Option<i32>,
+    /// Custom nickname for Modpack Store accounts (when accountUuid is None)
+    #[serde(default)]
+    pub ms_nickname: Option<String>,
 }
 
 impl MinecraftInstance {
@@ -52,6 +55,7 @@ impl MinecraftInstance {
             javaPath: None,
             favorite: false,
             favorite_order: None,
+            ms_nickname: None,
         }
     }
 
