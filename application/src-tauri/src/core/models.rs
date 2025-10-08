@@ -20,4 +20,6 @@ pub struct MinecraftInstance {
     pub minecraftVersion: String,
     pub instanceDirectory: Option<String>,
     pub forgeVersion: Option<String>,
+    #[serde(default)]
+    pub ms_nickname: Option<String>, // Custom nickname for ModpackStore account
 }

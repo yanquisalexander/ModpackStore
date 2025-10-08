@@ -1,5 +1,7 @@
 use crate::config::get_config_manager;
 use crate::core::accounts_manager::AccountsManager;
+use crate::core::authlib_injector::AuthlibInjectorManager;
+use crate::core::modpackstore_auth::ModpackStoreAuth;
 use crate::core::minecraft::{
     arguments::ArgumentProcessor,
     classpath::ClasspathBuilder,
@@ -18,6 +20,89 @@ pub struct MinecraftLauncher {
 impl MinecraftLauncher {
     pub fn new(instance: MinecraftInstance) -> Self {
         Self { instance }
+    }
+
+    /// Resolves which account to use for the instance
+    /// Returns (account, authlib_injector_path)
+    async fn resolve_account(&self) -> Option<(MinecraftAccount, Option<String>)> {
+        match &self.instance.accountUuid {
+            // If accountUuid is set, use the account from AccountsManager
+            Some(uuid) => {
+                let accounts_manager = AccountsManager::new();
+                let account = accounts_manager.get_minecraft_account_by_uuid(uuid)?;
+                log::info!(
+                    "[MinecraftLauncher] Using account from AccountManager: {}",
+                    account.username()
+                );
+                Some((account, None))
+            }
+            // If accountUuid is null, use ModpackStore account
+            None => {
+                log::info!("[MinecraftLauncher] No account UUID set, using ModpackStore account");
+                
+                // Determine profile name: use ms_nickname if set, otherwise user's username
+                // The actual username will come from the server based on the user's JWT
+                let profile_name = self.instance.ms_nickname.as_ref()
+                    .map(|s| s.as_str())
+                    .unwrap_or("Player"); // Fallback, will be replaced by server
+
+                // Validate profile name
+                if !ModpackStoreAuth::is_valid_minecraft_username(profile_name) {
+                    log::error!(
+                        "[MinecraftLauncher] Invalid ms_nickname: {}. Must be 3-16 alphanumeric characters.",
+                        profile_name
+                    );
+                    return None;
+                }
+
+                // Get game session from ModpackStore AuthServer
+                let account = match Self::get_modpackstore_account_blocking(profile_name) {
+                    Ok(acc) => acc,
+                    Err(e) => {
+                        log::error!("[MinecraftLauncher] Failed to get ModpackStore game session: {}", e);
+                        return None;
+                    }
+                };
+
+                log::info!(
+                    "[MinecraftLauncher] Using ModpackStore account: {}",
+                    account.username()
+                );
+
+                // Ensure authlib-injector is downloaded
+                let authlib_manager = match AuthlibInjectorManager::new() {
+                    Ok(mgr) => mgr,
+                    Err(e) => {
+                        log::error!("[MinecraftLauncher] Failed to initialize authlib-injector manager: {}", e);
+                        return None;
+                    }
+                };
+
+                if let Err(e) = Self::ensure_authlib_downloaded_blocking(&authlib_manager) {
+                    log::error!("[MinecraftLauncher] Failed to download authlib-injector: {}", e);
+                    return None;
+                }
+
+                let authlib_path = authlib_manager.get_jar_path().to_string_lossy().to_string();
+                log::info!("[MinecraftLauncher] authlib-injector path: {}", authlib_path);
+
+                Some((account, Some(authlib_path)))
+            }
+        }
+    }
+
+    /// Blocking wrapper for async get_game_session
+    fn get_modpackstore_account_blocking(profile_name: &str) -> Result<MinecraftAccount, String> {
+        let runtime = tokio::runtime::Runtime::new()
+            .map_err(|e| format!("Failed to create tokio runtime: {}", e))?;
+        runtime.block_on(ModpackStoreAuth::get_game_session(profile_name))
+    }
+
+    /// Blocking wrapper for async ensure_downloaded
+    fn ensure_authlib_downloaded_blocking(authlib_manager: &AuthlibInjectorManager) -> Result<(), String> {
+        let runtime = tokio::runtime::Runtime::new()
+            .map_err(|e| format!("Failed to create tokio runtime: {}", e))?;
+        runtime.block_on(authlib_manager.ensure_downloaded())
     }
 }
 
@@ -49,14 +134,14 @@ impl GameLauncher for MinecraftLauncher {
 
         log::info!("Minecraft memory: {}MB", mc_memory);
 
-        // Get account
-        let accounts_manager = AccountsManager::new();
-        let account_uuid = self.instance.accountUuid.as_ref()?;
-        let account = accounts_manager.get_minecraft_account_by_uuid(account_uuid)?;
+        // Resolve account (Microsoft/Offline or ModpackStore)
+        let runtime = tokio::runtime::Runtime::new().ok()?;
+        let (account, authlib_injector_path) = runtime.block_on(self.resolve_account())?;
 
         log::info!(
-            "[MinecraftLauncher] Launching Minecraft using account: {}",
-            account.username()
+            "[MinecraftLauncher] Launching Minecraft using account: {} (type: {})",
+            account.username(),
+            account.user_type()
         );
 
         // Setup paths
@@ -64,6 +149,7 @@ impl GameLauncher for MinecraftLauncher {
 
         log::info!("[MinecraftLauncher] Minecraft paths: {:?}", paths);
         log::info!("[MinecraftLauncher] Java path: {:?}", paths.java_path());
+        
         // Load and merge manifests if needed
         let manifest_parser = ManifestParser::new(&paths);
         let manifest_json = match manifest_parser.load_merged_manifest() {
@@ -91,13 +177,20 @@ impl GameLauncher for MinecraftLauncher {
         // Process arguments
         let argument_processor =
             ArgumentProcessor::new(&manifest_json, &account, &paths, mc_memory);
-        let (jvm_args, game_args) = match argument_processor.process_arguments() {
+        let (mut jvm_args, game_args) = match argument_processor.process_arguments() {
             Ok(args) => args,
             Err(e) => {
                 log::error!("[MinecraftLauncher] Failed to process arguments: {}", e);
                 return None;
             }
         };
+
+        // Add authlib-injector if using ModpackStore account
+        if let Some(authlib_path) = authlib_injector_path {
+            let authlib_arg = format!("-javaagent:{}={}/yggdrasil", authlib_path, *crate::API_ENDPOINT);
+            log::info!("[MinecraftLauncher] Adding authlib-injector argument: {}", authlib_arg);
+            jvm_args.insert(0, authlib_arg);
+        }
 
         // Get main class
         let main_class = match manifest_json.get("mainClass").and_then(|v| v.as_str()) {
