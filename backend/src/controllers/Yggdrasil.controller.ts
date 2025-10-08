@@ -1,6 +1,7 @@
 import { Context } from "hono";
 import { YggdrasilService } from "@/services/yggdrasil.service";
 import { APIError } from "@/lib/APIError";
+import { User } from "@/entities/User";
 
 export class YggdrasilController {
     /**
@@ -25,6 +26,18 @@ export class YggdrasilController {
 
             if (!jwtToken) {
                 throw new APIError(401, 'JWT token is required.', 'MISSING_JWT');
+            }
+
+            // Decode JWT to get user and check if banned
+            const user = await User.fromJwt(jwtToken);
+            if (!user) {
+                throw new APIError(401, 'Invalid JWT token.', 'INVALID_JWT');
+            }
+
+            // Check if user is banned
+            const isBanned = await user.isBanned();
+            if (isBanned) {
+                throw new APIError(403, 'Your account has been banned from Modpack Store.', 'USER_BANNED');
             }
 
             const response = await YggdrasilService.authenticate(

@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, BaseEntity } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, BaseEntity, IsNull } from "typeorm";
 import { Session } from "./Session";
 import { PublisherMember } from "./PublisherMember";
 import { Modpack } from "./Modpack";
@@ -7,13 +7,14 @@ import { UserPurchase } from "./UserPurchase";
 import { WalletTransaction } from "./WalletTransaction";
 import { Publisher } from "./Publisher";
 import { PublisherMemberRole, UserRole, FriendshipStatus } from "@/types/enums";
-import { sign } from "jsonwebtoken";
+import { sign, verify } from "jsonwebtoken";
 import { TwitchService } from "@/services/twitch.service";
 import { Ticket } from "./Ticket";
 import { ModpackAcquisition } from "./ModpackAcquisition";
 import { Friendship } from "./Friendship";
 import { GameInvitation } from "./GameInvitation";
 import { UserActivity } from "./UserActivity";
+import { Ban } from "./Ban";
 import { JWT_ACCESS_TOKEN_EXPIRES_IN, JWT_REFRESH_TOKEN_EXPIRES_IN } from "@/services/auth.service";
 
 @Entity({ name: "users" })
@@ -313,6 +314,16 @@ export class User extends BaseEntity {
         return this.isPatron();
     }
 
+    async isBanned(): Promise<boolean> {
+        const activeBan = await Ban.findOne({
+            where: {
+                userId: this.id,
+                unbanDate: IsNull() // Ban is active if unbanDate is null
+            }
+        });
+        return !!activeBan;
+    }
+
     // Static method to find users by username or Discord ID for friend search
     static async searchForFriends(query: string, excludeUserId?: string): Promise<User[]> {
         const queryBuilder = User.createQueryBuilder("user")
@@ -325,5 +336,31 @@ export class User extends BaseEntity {
         }
 
         return await queryBuilder.getMany();
+    }
+
+    static async fromJwt(token: string): Promise<User | null> {
+        const secret = process.env.JWT_SECRET;
+        if (!secret) {
+            throw new Error("JWT_SECRET is not configured");
+        }
+
+        try {
+            const decoded = await new Promise<any>((resolve, reject) => {
+                verify(token, secret, { issuer: 'ModpackStore' }, (err, decoded) => {
+                    if (err) return reject(err);
+                    resolve(decoded);
+                });
+            });
+
+            if (!decoded || !decoded.sub) {
+                return null;
+            }
+
+            const user = await User.findOne({ where: { id: decoded.sub } });
+            return user || null;
+        } catch (error) {
+            console.error("Failed to decode JWT:", error);
+            return null;
+        }
     }
 }
