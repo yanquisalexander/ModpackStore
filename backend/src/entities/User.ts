@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, BaseEntity } from "typeorm";
 import { Session } from "./Session";
+import { GameSession } from "./GameSession";
 import { PublisherMember } from "./PublisherMember";
 import { Modpack } from "./Modpack";
 import { ModpackVersion } from "./ModpackVersion";
@@ -104,6 +105,9 @@ export class User extends BaseEntity {
     // Relations
     @OneToMany(() => Session, session => session.user)
     sessions: Session[];
+
+    @OneToMany(() => GameSession, gameSession => gameSession.user)
+    gameSessions: GameSession[];
 
     @OneToMany(() => PublisherMember, publisherMember => publisherMember.user)
     publisherMemberships: PublisherMember[];

@@ -1,5 +1,6 @@
 import { Hono, Context } from 'hono';
 import authRoutes from './v1/auth.routes'; // Now a Hono app
+import authServerRoutes from './v1/authserver.routes'; // AuthServer for Yggdrasil protocol
 import adminRoutes from './v1/admin.routes'; // Now a Hono app
 import publicRoutes from './v1/public.routes';
 // TODO: MIGRATE_ROUTES - These routes need to be migrated to Hono
@@ -16,6 +17,7 @@ const rootRouter = new Hono();
 
 // v1 routes
 rootRouter.route('/auth', authRoutes);
+rootRouter.route('/authserver', authServerRoutes); // Yggdrasil-compatible AuthServer
 rootRouter.route('/admin', adminRoutes); // Mount Hono adminRoutes
 rootRouter.route('/public', publicRoutes);
 rootRouter.route('/explore', exploreRoutes); // Mount Hono exploreRoutes
