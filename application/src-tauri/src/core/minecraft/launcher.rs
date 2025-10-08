@@ -7,6 +7,7 @@ use crate::core::minecraft::{
     paths::MinecraftPaths,
 };
 use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
+use crate::core::modpackstore_auth::ModpackStoreAuth;
 use crate::interfaces::game_launcher::GameLauncher;
 use std::process::{Child, Command, Stdio};
 use uuid::Uuid;
@@ -49,10 +50,35 @@ impl GameLauncher for MinecraftLauncher {
 
         log::info!("Minecraft memory: {}MB", mc_memory);
 
-        // Get account
+        // Get account - either from account manager or create ModpackStore account
         let accounts_manager = AccountsManager::new();
-        let account_uuid = self.instance.accountUuid.as_ref()?;
-        let account = accounts_manager.get_minecraft_account_by_uuid(account_uuid)?;
+        let account = match &self.instance.accountUuid {
+            Some(uuid) => {
+                // Use existing account (Microsoft or Offline)
+                match accounts_manager.get_minecraft_account_by_uuid(uuid) {
+                    Some(acc) => {
+                        log::info!(
+                            "[MinecraftLauncher] Using account from manager: {}",
+                            acc.username()
+                        );
+                        acc
+                    }
+                    None => {
+                        log::error!("[MinecraftLauncher] Account with UUID {} not found", uuid);
+                        return None;
+                    }
+                }
+            }
+            None => {
+                // No account UUID - use ModpackStore auth
+                log::info!("[MinecraftLauncher] No account UUID found, using ModpackStore auth");
+                
+                // This will be handled asynchronously, so we need to block here
+                // For now, return None - this needs to be refactored to async
+                log::error!("[MinecraftLauncher] ModpackStore auth requires async context - not yet implemented in synchronous launcher");
+                return None;
+            }
+        };
 
         log::info!(
             "[MinecraftLauncher] Launching Minecraft using account: {}",
