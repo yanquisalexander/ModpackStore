@@ -25,7 +25,10 @@ export class YggdrasilController {
             }
 
             if (!jwtToken) {
-                throw new APIError(401, 'JWT token is required.', 'MISSING_JWT');
+                return c.json({
+                    error: 'MISSING_JWT',
+                    errorMessage: 'JWT token is required.'
+                }, 401);
             }
 
             const response = await YggdrasilService.authenticate(
@@ -60,7 +63,10 @@ export class YggdrasilController {
             const { accessToken, clientToken } = body;
 
             if (!accessToken || !clientToken) {
-                throw new APIError(400, 'accessToken and clientToken are required.', 'MISSING_CREDENTIALS');
+                return c.json({
+                    error: 'MISSING_CREDENTIALS',
+                    errorMessage: 'accessToken and clientToken are required.'
+                }, 400);
             }
 
             const response = await YggdrasilService.refresh(accessToken, clientToken);
@@ -90,7 +96,10 @@ export class YggdrasilController {
             const { accessToken, clientToken } = body;
 
             if (!accessToken) {
-                throw new APIError(400, 'accessToken is required.', 'MISSING_TOKEN');
+                return c.json({
+                    error: 'MISSING_TOKEN',
+                    errorMessage: 'accessToken is required.'
+                }, 400);
             }
 
             const isValid = await YggdrasilService.validate(accessToken, clientToken);
@@ -129,7 +138,10 @@ export class YggdrasilController {
             const { accessToken, clientToken } = body;
 
             if (!accessToken || !clientToken) {
-                throw new APIError(400, 'accessToken and clientToken are required.', 'MISSING_CREDENTIALS');
+                return c.json({
+                    error: 'MISSING_CREDENTIALS',
+                    errorMessage: 'accessToken and clientToken are required.'
+                }, 400);
             }
 
             await YggdrasilService.invalidate(accessToken, clientToken);
@@ -161,7 +173,10 @@ export class YggdrasilController {
             const { username, password } = body;
 
             if (!username || !password) {
-                throw new APIError(400, 'username and password are required.', 'MISSING_CREDENTIALS');
+                return c.json({
+                    error: 'MISSING_CREDENTIALS',
+                    errorMessage: 'username and password are required.'
+                }, 400);
             }
 
             await YggdrasilService.signout(username, password);
@@ -193,13 +208,19 @@ export class YggdrasilController {
             const { accessToken, selectedProfile, serverId } = body;
 
             if (!accessToken || !selectedProfile || !serverId) {
-                throw new APIError(400, 'accessToken, selectedProfile, and serverId are required.', 'MISSING_CREDENTIALS');
+                return c.json({
+                    error: 'MISSING_CREDENTIALS',
+                    errorMessage: 'accessToken, selectedProfile, and serverId are required.'
+                }, 400);
             }
 
             // Check if user is banned before allowing to join server
             const user = await User.findOne({ where: { id: selectedProfile } });
             if (user && await user.isBanned()) {
-                throw new APIError(403, 'Your account has been banned from Modpack Store.', 'USER_BANNED');
+                return c.json({
+                    error: 'USER_BANNED',
+                    errorMessage: 'Your account has been banned from Modpack Store.'
+                }, 403);
             }
 
             // Get IP address from request (take first IP if multiple)
@@ -237,7 +258,10 @@ export class YggdrasilController {
             const ip = c.req.query('ip');
 
             if (!username || !serverId) {
-                throw new APIError(400, 'username and serverId are required.', 'MISSING_PARAMETERS');
+                return c.json({
+                    error: 'MISSING_PARAMETERS',
+                    errorMessage: 'username and serverId are required.'
+                }, 400);
             }
 
             const profile = await YggdrasilService.hasJoined(username, serverId, ip);
@@ -273,7 +297,10 @@ export class YggdrasilController {
             const unsigned = c.req.query('unsigned') === 'true';
 
             if (!uuid) {
-                throw new APIError(400, 'UUID is required.', 'MISSING_UUID');
+                return c.json({
+                    error: 'MISSING_UUID',
+                    errorMessage: 'UUID is required.'
+                }, 400);
             }
 
             const profile = await YggdrasilService.getProfile(uuid, unsigned);
