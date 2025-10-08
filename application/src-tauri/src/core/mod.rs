@@ -1,6 +1,7 @@
 pub mod accounts_manager;
 pub mod auth;
 pub mod authlib_injector;
+pub mod authserver_commands;
 pub mod bootstrap;
 pub mod bootstrap_error;
 pub mod game_session_manager;
