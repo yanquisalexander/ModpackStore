@@ -14,6 +14,7 @@ pub struct MinecraftInstance {
     pub iconUrl: Option<String>,
     pub instanceName: String,
     pub accountUuid: Option<String>,
+    pub ms_nickname: Option<String>,
     pub minecraftPath: String,
     pub modpackId: Option<String>,
     pub modpackInfo: Option<ModpackInfo>,
