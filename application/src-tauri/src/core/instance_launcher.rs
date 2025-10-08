@@ -393,10 +393,124 @@ impl InstanceLauncher {
         );
 
         thread::spawn(move || {
+            // Create a tokio runtime for async operations
+            let rt = match tokio::runtime::Runtime::new() {
+                Ok(rt) => rt,
+                Err(e) => {
+                    error!("Failed to create Tokio runtime: {}", e);
+                    return;
+                }
+            };
+
             let thread_launcher = Self {
                 instance: instance_arc_clone,
             };
-            thread_launcher.perform_launch_steps();
+            
+            // Run async launch steps in the runtime
+            rt.block_on(async {
+                thread_launcher.perform_launch_steps_async().await;
+            });
         });
+    }
+
+    /// Async version of perform_launch_steps to handle MS account authentication
+    async fn perform_launch_steps_async(&self) {
+        info!(
+            "[Launch Thread: {}] Starting async launch steps...",
+            self.instance.instanceId
+        );
+        self.emit_status(EVENT_LAUNCH_START, "Preparando lanzamiento...", None);
+
+        // Check if we need to prepare MS account session
+        let ms_account_data = if self.instance.accountUuid.is_none() {
+            use crate::core::game_session_manager::GameSessionManager;
+            
+            info!(
+                "[Launch Thread: {}] Instance uses Modpack Store account, preparing game session...",
+                self.instance.instanceId
+            );
+            
+            match GameSessionManager::new() {
+                Ok(session_manager) => {
+                    match session_manager.prepare_game_session(&self.instance).await {
+                        Ok((account, jvm_args)) => {
+                            info!(
+                                "[Launch Thread: {}] Game session prepared successfully",
+                                self.instance.instanceId
+                            );
+                            Some((account, jvm_args))
+                        }
+                        Err(e) => {
+                            let err_msg = format!("Failed to prepare game session: {}", e);
+                            error!("[Launch Thread: {}] {}", self.instance.instanceId, err_msg);
+                            self.emit_error(&err_msg, None);
+                            return;
+                        }
+                    }
+                }
+                Err(e) => {
+                    let err_msg = format!("Failed to initialize session manager: {}", e);
+                    error!("[Launch Thread: {}] {}", self.instance.instanceId, err_msg);
+                    self.emit_error(&err_msg, None);
+                    return;
+                }
+            }
+        } else {
+            None
+        };
+
+        // Continue with synchronous launch
+        let launch_result = (|| -> Result<Child, LaunchError> {
+            // 1. Revalidate Assets
+            self.revalidate_assets()?;
+            info!(
+                "[Launch Thread: {}] Asset revalidation successful.",
+                self.instance.instanceId
+            );
+
+            // 2. Launch Minecraft
+            let minecraft_launcher = if let Some((account, jvm_args)) = ms_account_data {
+                // Launch with MS account session
+                CoreMinecraftLauncher::with_ms_account(
+                    (*self.instance).clone(),
+                    account,
+                    jvm_args,
+                )
+            } else {
+                // Launch with regular account
+                CoreMinecraftLauncher::new((*self.instance).clone())
+            };
+
+            minecraft_launcher
+                .launch()
+                .ok_or(LaunchError::ProcessStartFailed)
+        })();
+
+        match launch_result {
+            Ok(child_process) => {
+                info!(
+                    "[Launch Thread: {}] Minecraft process started (PID: {}).",
+                    self.instance.instanceId,
+                    child_process.id()
+                );
+                self.emit_status(EVENT_LAUNCHED, "Minecraft se está ejecutando.", None);
+                Self::monitor_process(Arc::clone(&self.instance), child_process);
+
+                // Handle closing the launcher if configured
+                self.handle_close_on_launch();
+            }
+            Err(e) => {
+                let err_msg = e.to_string();
+                error!(
+                    "[Launch Thread: {}] Launch sequence failed: {}",
+                    self.instance.instanceId, err_msg
+                );
+                self.emit_error(&err_msg, None);
+            }
+        }
+        info!(
+            "[Launch Thread: {}] Finishing execution.",
+            self.instance.instanceId
+        );
     }
 }

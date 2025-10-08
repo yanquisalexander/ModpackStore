@@ -1,5 +1,8 @@
 use crate::config::get_config_manager;
 use crate::core::accounts_manager::AccountsManager;
+use crate::core::auth::storage;
+use crate::core::authlib_injector::AuthlibInjectorManager;
+use crate::core::modpackstore_auth::ModpackStoreAuthService;
 use crate::core::minecraft::{
     arguments::ArgumentProcessor,
     classpath::ClasspathBuilder,
@@ -8,16 +11,59 @@ use crate::core::minecraft::{
 };
 use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
 use crate::interfaces::game_launcher::GameLauncher;
+use crate::GLOBAL_APP_HANDLE;
 use std::process::{Child, Command, Stdio};
 use uuid::Uuid;
 
 pub struct MinecraftLauncher {
     instance: MinecraftInstance,
+    /// Optional override account for MS account sessions
+    pub override_account: Option<MinecraftAccount>,
+    /// Additional JVM arguments (e.g., for authlib-injector)
+    pub additional_jvm_args: Vec<String>,
 }
 
 impl MinecraftLauncher {
     pub fn new(instance: MinecraftInstance) -> Self {
-        Self { instance }
+        Self {
+            instance,
+            override_account: None,
+            additional_jvm_args: Vec::new(),
+        }
+    }
+
+    /// Create launcher with MS account session data
+    pub fn with_ms_account(
+        instance: MinecraftInstance,
+        account: MinecraftAccount,
+        jvm_args: Vec<String>,
+    ) -> Self {
+        Self {
+            instance,
+            override_account: Some(account),
+            additional_jvm_args: jvm_args,
+        }
+    }
+
+    /// Get or create a MinecraftAccount for launching
+    /// If accountUuid is None, creates a temporary MS account with game session
+    fn get_launch_account(&self) -> Option<MinecraftAccount> {
+        // If we have an override account (from MS session), use that
+        if let Some(ref account) = self.override_account {
+            return Some(account.clone());
+        }
+
+        // If instance has an accountUuid, use that account
+        if let Some(account_uuid) = &self.instance.accountUuid {
+            let accounts_manager = AccountsManager::new();
+            return accounts_manager.get_minecraft_account_by_uuid(account_uuid);
+        }
+
+        // Otherwise, use Modpack Store account
+        // This requires async operations, so we need to handle it differently
+        // For now, return None and handle this case in the async launcher
+        log::warn!("[MinecraftLauncher] Instance has no accountUuid - MS account launch not yet implemented in sync context");
+        None
     }
 }
 
@@ -49,10 +95,8 @@ impl GameLauncher for MinecraftLauncher {
 
         log::info!("Minecraft memory: {}MB", mc_memory);
 
-        // Get account
-        let accounts_manager = AccountsManager::new();
-        let account_uuid = self.instance.accountUuid.as_ref()?;
-        let account = accounts_manager.get_minecraft_account_by_uuid(account_uuid)?;
+        // Get account - either from account manager or MS account
+        let account = self.get_launch_account()?;
 
         log::info!(
             "[MinecraftLauncher] Launching Minecraft using account: {}",
@@ -91,13 +135,31 @@ impl GameLauncher for MinecraftLauncher {
         // Process arguments
         let argument_processor =
             ArgumentProcessor::new(&manifest_json, &account, &paths, mc_memory);
-        let (jvm_args, game_args) = match argument_processor.process_arguments() {
+        let (mut jvm_args, game_args) = match argument_processor.process_arguments() {
             Ok(args) => args,
             Err(e) => {
                 log::error!("[MinecraftLauncher] Failed to process arguments: {}", e);
                 return None;
             }
         };
+
+        // Inject additional JVM arguments (e.g., for authlib-injector)
+        if !self.additional_jvm_args.is_empty() {
+            log::info!(
+                "[MinecraftLauncher] Adding {} additional JVM arguments",
+                self.additional_jvm_args.len()
+            );
+            // Insert at the beginning (before main JVM args but after -Xmx/-Xms)
+            // Find where to insert (after memory args)
+            let insert_pos = jvm_args
+                .iter()
+                .position(|arg| !arg.starts_with("-Xm"))
+                .unwrap_or(jvm_args.len());
+            
+            for (i, arg) in self.additional_jvm_args.iter().enumerate() {
+                jvm_args.insert(insert_pos + i, arg.clone());
+            }
+        }
 
         // Get main class
         let main_class = match manifest_json.get("mainClass").and_then(|v| v.as_str()) {

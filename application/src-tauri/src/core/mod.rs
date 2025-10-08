@@ -3,6 +3,7 @@ pub mod auth;
 pub mod authlib_injector;
 pub mod bootstrap;
 pub mod bootstrap_error;
+pub mod game_session_manager;
 pub mod i18n;
 pub mod instance_bootstrap;
 pub mod instance_launcher;
