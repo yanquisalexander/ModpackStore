@@ -226,6 +226,7 @@ pub fn main() {
             core::instance_manager::remove_instance,
             core::accounts_manager::get_all_accounts,
             core::accounts_manager::add_offline_account,
+            core::accounts_manager::add_modpackstore_account,
             core::accounts_manager::ensure_account_exists,
             core::accounts_manager::remove_account,
             core::minecraft_instance::get_instances_by_modpack_id,
