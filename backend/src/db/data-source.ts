@@ -23,6 +23,8 @@ import { Friendship } from "../entities/Friendship";
 import { GameInvitation } from "../entities/GameInvitation";
 import { UserActivity } from "../entities/UserActivity";
 import { Ban } from "../entities/Ban";
+import { YggdrasilSession } from "../entities/YggdrasilSession";
+import { YggdrasilProfile } from "../entities/YggdrasilProfile";
 
 export const AppDataSource = new DataSource({
     type: "postgres",
@@ -64,5 +66,7 @@ export const AppDataSource = new DataSource({
         GameInvitation,
         UserActivity,
         Ban,
+        YggdrasilSession,
+        YggdrasilProfile,
     ],
 });
