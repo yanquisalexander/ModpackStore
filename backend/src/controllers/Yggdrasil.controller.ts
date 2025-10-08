@@ -28,18 +28,6 @@ export class YggdrasilController {
                 throw new APIError(401, 'JWT token is required.', 'MISSING_JWT');
             }
 
-            // Decode JWT to get user and check if banned
-            const user = await User.fromJwt(jwtToken);
-            if (!user) {
-                throw new APIError(401, 'Invalid JWT token.', 'INVALID_JWT');
-            }
-
-            // Check if user is banned
-            const isBanned = await user.isBanned();
-            if (isBanned) {
-                throw new APIError(403, 'Your account has been banned from Modpack Store.', 'USER_BANNED');
-            }
-
             const response = await YggdrasilService.authenticate(
                 jwtToken,
                 clientToken,
@@ -206,6 +194,12 @@ export class YggdrasilController {
 
             if (!accessToken || !selectedProfile || !serverId) {
                 throw new APIError(400, 'accessToken, selectedProfile, and serverId are required.', 'MISSING_CREDENTIALS');
+            }
+
+            // Check if user is banned before allowing to join server
+            const user = await User.findOne({ where: { id: selectedProfile } });
+            if (user && await user.isBanned()) {
+                throw new APIError(403, 'Your account has been banned from Modpack Store.', 'USER_BANNED');
             }
 
             // Get IP address from request (take first IP if multiple)
