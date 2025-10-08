@@ -93,7 +93,7 @@ export class YggdrasilController {
             }
 
             const isValid = await YggdrasilService.validate(accessToken, clientToken);
-            
+
             if (!isValid) {
                 return c.json({
                     error: 'INVALID_TOKEN',
@@ -132,7 +132,7 @@ export class YggdrasilController {
             }
 
             await YggdrasilService.invalidate(accessToken, clientToken);
-            
+
             // Yggdrasil invalidate returns 204 No Content on success
             return c.body(null, 204);
         } catch (error) {
@@ -164,7 +164,7 @@ export class YggdrasilController {
             }
 
             await YggdrasilService.signout(username, password);
-            
+
             // Yggdrasil signout returns 204 No Content on success
             return c.body(null, 204);
         } catch (error) {
@@ -199,7 +199,7 @@ export class YggdrasilController {
             const ipAddress = c.req.header('X-Forwarded-For') || c.req.header('X-Real-IP');
 
             await YggdrasilService.joinServer(accessToken, selectedProfile, serverId, ipAddress);
-            
+
             // Yggdrasil join returns 204 No Content on success
             return c.body(null, 204);
         } catch (error) {
@@ -232,7 +232,7 @@ export class YggdrasilController {
             }
 
             const profile = await YggdrasilService.hasJoined(username, serverId, ip);
-            
+
             if (!profile) {
                 // Return 204 No Content if session not found or invalid
                 return c.body(null, 204);
@@ -268,7 +268,7 @@ export class YggdrasilController {
             }
 
             const profile = await YggdrasilService.getProfile(uuid, unsigned);
-            
+
             if (!profile) {
                 return c.json({
                     error: 'PROFILE_NOT_FOUND',
@@ -290,5 +290,22 @@ export class YggdrasilController {
                 errorMessage: 'An internal error occurred.'
             }, 500);
         }
+    }
+
+    /**
+     * GET /yggdrasil
+     * Return Yggdrasil server metadata
+     */
+    static async metadata(c: Context) {
+        return c.json({
+            meta: {
+                serverName: "ModpackStore Yggdrasil",
+                implementationName: "ModpackStore Yggdrasil",
+                implementationVersion: "1.0.0",
+                "feature.non_email_login": true
+            },
+            skinDomains: ["*"],
+            signaturePublickey: null
+        }, 200);
     }
 }

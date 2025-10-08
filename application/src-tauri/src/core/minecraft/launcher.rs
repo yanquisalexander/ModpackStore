@@ -73,10 +73,60 @@ impl GameLauncher for MinecraftLauncher {
                 // No account UUID - use ModpackStore auth
                 log::info!("[MinecraftLauncher] No account UUID found, using ModpackStore auth");
                 
-                // This will be handled asynchronously, so we need to block here
-                // For now, return None - this needs to be refactored to async
-                log::error!("[MinecraftLauncher] ModpackStore auth requires async context - not yet implemented in synchronous launcher");
-                return None;
+                // Get JWT token from store synchronously
+                let app_handle = match crate::GLOBAL_APP_HANDLE.lock() {
+                    Ok(guard) => guard.as_ref().cloned(),
+                    Err(_) => return None,
+                };
+                
+                let access_token = match app_handle {
+                    Some(handle) => {
+                        match crate::core::instance_manager::get_access_token_sync(&handle) {
+                            Ok(Some(token)) => token,
+                            _ => {
+                                log::error!("[MinecraftLauncher] No access token found in store");
+                                return None;
+                            }
+                        }
+                    }
+                    None => {
+                        log::error!("[MinecraftLauncher] No app handle available");
+                        return None;
+                    }
+                };
+
+                // Create ModpackStore auth client
+                let api_endpoint = crate::API_ENDPOINT.to_string();
+                let ms_auth = ModpackStoreAuth::new(api_endpoint);
+
+                // Get username (ms_nickname if set, otherwise default from session)
+                let username = self.instance.ms_nickname.clone().unwrap_or_else(|| "Player".to_string());
+
+                // For synchronous launcher, we need to block on the async authentication
+                // This is not ideal but maintains compatibility
+                let rt = tokio::runtime::Runtime::new().unwrap();
+                let auth_response = match rt.block_on(ms_auth.authenticate(access_token, Some(username))) {
+                    Ok(response) => response,
+                    Err(e) => {
+                        log::error!("[MinecraftLauncher] Failed to authenticate with ModpackStore: {}", e);
+                        return None;
+                    }
+                };
+
+                // Create temporary MinecraftAccount
+                let account = MinecraftAccount::new(
+                    auth_response.selected_profile.name,
+                    auth_response.selected_profile.id,
+                    Some(auth_response.access_token),
+                    "modpackstore".to_string(),
+                );
+
+                log::info!(
+                    "[MinecraftLauncher] Created ModpackStore account: {}",
+                    account.username()
+                );
+
+                account
             }
         };
 
@@ -117,13 +167,28 @@ impl GameLauncher for MinecraftLauncher {
         // Process arguments
         let argument_processor =
             ArgumentProcessor::new(&manifest_json, &account, &paths, mc_memory);
-        let (jvm_args, game_args) = match argument_processor.process_arguments() {
+        let (mut jvm_args, game_args) = match argument_processor.process_arguments() {
             Ok(args) => args,
             Err(e) => {
                 log::error!("[MinecraftLauncher] Failed to process arguments: {}", e);
                 return None;
             }
         };
+
+        // Add authlib-injector if using ModpackStore auth
+        if self.instance.accountUuid.is_none() {
+            match crate::core::instance_manager::get_authlib_injector_arg_sync(&self.instance, &paths) {
+                Ok(authlib_arg) => {
+                    // Insert authlib-injector as the first JVM argument
+                    jvm_args.insert(0, authlib_arg);
+                    log::info!("[MinecraftLauncher] Added authlib-injector to JVM arguments");
+                }
+                Err(e) => {
+                    log::error!("[MinecraftLauncher] Failed to get authlib-injector argument: {}", e);
+                    return None;
+                }
+            }
+        }
 
         // Get main class
         let main_class = match manifest_json.get("mainClass").and_then(|v| v.as_str()) {

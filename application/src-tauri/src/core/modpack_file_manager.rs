@@ -810,16 +810,13 @@ fn remove_empty_directories(dir: &Path) -> Result<(), String> {
     let entries = fs::read_dir(dir)
         .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?;
 
-    let mut has_files = false;
     let mut subdirs = Vec::new();
 
     for entry in entries {
         let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
         let path = entry.path();
 
-        if path.is_file() {
-            has_files = true;
-        } else if path.is_dir() {
+        if path.is_dir() {
             subdirs.push(path);
         }
     }
@@ -837,8 +834,6 @@ fn remove_empty_directories(dir: &Path) -> Result<(), String> {
                     e
                 );
             }
-        } else {
-            has_files = true;
         }
     }
 
@@ -977,6 +972,7 @@ pub fn audit_user_data_protection(
         javaPath: None,
         favorite: false,
         favorite_order: None,
+        ms_nickname: None,
     };
 
     let essential_paths = get_essential_minecraft_paths(minecraft_dir, &dummy_instance);

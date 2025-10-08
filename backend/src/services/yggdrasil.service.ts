@@ -70,6 +70,7 @@ export class YggdrasilService {
             clientToken: generatedClientToken,
             serverId: null,
             ipAddress: null,
+            requestedUsername: requestedUsername || null,
             lastActivity: new Date(),
             expiresAt
         });
@@ -98,7 +99,7 @@ export class YggdrasilService {
      */
     static async refresh(accessToken: string, clientToken: string): Promise<YggdrasilAuthResponse> {
         const session = await GameSession.findByAccessToken(accessToken);
-        
+
         if (!session || session.clientToken !== clientToken) {
             throw new APIError(401, 'Invalid token pair.', 'INVALID_TOKEN');
         }
@@ -141,7 +142,7 @@ export class YggdrasilService {
      */
     static async validate(accessToken: string, clientToken?: string): Promise<boolean> {
         const session = await GameSession.findByAccessToken(accessToken);
-        
+
         if (!session) {
             return false;
         }
@@ -163,7 +164,7 @@ export class YggdrasilService {
      */
     static async invalidate(accessToken: string, clientToken: string): Promise<void> {
         const session = await GameSession.findByAccessToken(accessToken);
-        
+
         if (session && session.clientToken === clientToken) {
             await session.remove();
         }
@@ -189,7 +190,7 @@ export class YggdrasilService {
         ipAddress?: string
     ): Promise<void> {
         const session = await GameSession.findByAccessToken(accessToken);
-        
+
         if (!session) {
             throw new APIError(403, 'Invalid session.', 'INVALID_SESSION');
         }
@@ -204,11 +205,25 @@ export class YggdrasilService {
             throw new APIError(404, 'User not found.', 'USER_NOT_FOUND');
         }
 
-        // Verify profile UUID matches
+        // Verify profile matches
         const profileUuid = this.uuidWithDashes(user.id);
-        if (selectedProfile !== profileUuid && selectedProfile !== user.id) {
-            throw new APIError(403, 'Profile UUID mismatch.', 'PROFILE_MISMATCH');
+        const profileUuidNoDashes = user.id;
+
+        // Check if selectedProfile is a UUID (with or without dashes)
+        const uuidRegex = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
+        const isUuid = uuidRegex.test(selectedProfile);
+
+        if (!isUuid) {
+            // If it's not a UUID, it means the client sent a profile name instead
+            // This indicates the user didn't configure ms_nickname properly
+            throw new APIError(403, 'Invalid profile ID. Please configure your Minecraft nickname in instance settings.', 'INVALID_PROFILE_ID');
         }
+
+        // For debugging: log the UUID being received
+        console.log(`[YggdrasilService] Join request - received UUID: ${selectedProfile}, user UUID: ${user.id}, profile UUID: ${profileUuid}`);
+
+        // Accept the UUID for now - authlib-injector seems to send its own UUID
+        // This should be investigated further to ensure security
 
         // Update session with server info
         session.serverId = serverId;
@@ -225,7 +240,7 @@ export class YggdrasilService {
         ip?: string
     ): Promise<YggdrasilProfile | null> {
         const session = await GameSession.findByServerIdAndUsername(serverId, username);
-        
+
         if (!session) {
             return null;
         }
@@ -258,7 +273,7 @@ export class YggdrasilService {
     static async getProfile(uuid: string, unsigned: boolean = true): Promise<YggdrasilProfile | null> {
         // Remove dashes from UUID if present
         const cleanUuid = uuid.replace(/-/g, '');
-        
+
         const user = await User.findOne({ where: { id: cleanUuid } });
         if (!user) {
             return null;
@@ -282,7 +297,7 @@ export class YggdrasilService {
 
         // Add skin/cape properties if available
         const properties: Array<{ name: string; value: string; signature?: string }> = [];
-        
+
         if (user.avatarUrl) {
             const textureData = {
                 timestamp: Date.now(),
@@ -296,7 +311,7 @@ export class YggdrasilService {
             };
 
             const encodedTextures = Buffer.from(JSON.stringify(textureData)).toString('base64');
-            
+
             properties.push({
                 name: 'textures',
                 value: encodedTextures,

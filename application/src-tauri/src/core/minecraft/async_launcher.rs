@@ -23,24 +23,33 @@ impl AsyncMinecraftLauncher {
     }
 
     pub async fn launch(&self) -> Result<u32, String> {
-        let config_manager = get_config_manager()
-            .lock()
-            .map_err(|e| format!("Failed to lock config manager: {}", e))?;
+        // Extract config data before any await to avoid holding locks
+        let (mc_memory, paths) = {
+            let config_manager = get_config_manager()
+                .lock()
+                .map_err(|e| format!("Failed to lock config manager: {}", e))?;
 
-        let config = config_manager
-            .as_ref()
-            .map_err(|e| format!("Failed to get config: {:?}", e))?;
+            let config = config_manager
+                .as_ref()
+                .map_err(|e| format!("Failed to get config: {:?}", e))?;
+
+            let mc_memory = config.get_minecraft_memory().unwrap_or_else(|| {
+                log::warn!("No Minecraft memory config found, using default 2048MB");
+                2048
+            });
+
+            // Setup paths before dropping the lock
+            let paths = MinecraftPaths::new(&self.instance, config)
+                .ok_or_else(|| "Failed to setup Minecraft paths".to_string())?;
+
+            (mc_memory, paths)
+        }; // config_manager is dropped here
 
         log::info!("[AsyncMinecraftLauncher] Config loaded");
         log::info!(
             "[AsyncMinecraftLauncher] Starting {} Minecraft instance",
             self.instance.instanceName
         );
-
-        let mc_memory = config.get_minecraft_memory().unwrap_or_else(|| {
-            log::warn!("No Minecraft memory config found, using default 2048MB");
-            2048
-        });
 
         log::info!("Minecraft memory: {}MB", mc_memory);
 
@@ -51,10 +60,6 @@ impl AsyncMinecraftLauncher {
             "[AsyncMinecraftLauncher] Launching Minecraft using account: {}",
             account.username()
         );
-
-        // Setup paths
-        let paths = MinecraftPaths::new(&self.instance, config)
-            .ok_or_else(|| "Failed to setup Minecraft paths".to_string())?;
 
         log::info!("[AsyncMinecraftLauncher] Minecraft paths: {:?}", paths);
         log::info!("[AsyncMinecraftLauncher] Java path: {:?}", paths.java_path());
@@ -140,16 +145,11 @@ impl AsyncMinecraftLauncher {
                 // No account UUID - use ModpackStore auth
                 log::info!("[AsyncMinecraftLauncher] Using ModpackStore authentication");
 
-                // Get JWT token from store
-                let store = self.app_handle
-                    .store("auth_store.json")
-                    .map_err(|e| format!("Failed to load auth store: {}", e))?;
-
-                let access_token = store
-                    .get("access_token")
-                    .and_then(|v| v.as_str())
-                    .ok_or_else(|| "No access token found in store".to_string())?
-                    .to_string();
+                // Get JWT token from store using the proper function
+                let access_token = crate::core::instance_manager::get_access_token()
+                    .await
+                    .map_err(|e| format!("Failed to get access token: {}", e))?
+                    .ok_or_else(|| "No access token found in store".to_string())?;
 
                 // Create ModpackStore auth client
                 let api_endpoint = crate::API_ENDPOINT.to_string();

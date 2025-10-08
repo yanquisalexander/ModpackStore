@@ -41,6 +41,9 @@ export class GameSession extends BaseEntity {
     @UpdateDateColumn({ name: "updated_at" })
     updatedAt: Date;
 
+    @Column({ name: "requested_username", type: "text", nullable: true })
+    requestedUsername: string | null;
+
     // Relations
     @ManyToOne(() => User)
     @JoinColumn({ name: "user_id" })
@@ -73,7 +76,7 @@ export class GameSession extends BaseEntity {
      * Find session by access token
      */
     static async findByAccessToken(accessToken: string): Promise<GameSession | null> {
-        return await GameSession.findOne({ 
+        return await GameSession.findOne({
             where: { accessToken },
             relations: ['user']
         });
@@ -99,7 +102,7 @@ export class GameSession extends BaseEntity {
             .createQueryBuilder('gameSession')
             .leftJoinAndSelect('gameSession.user', 'user')
             .where('gameSession.serverId = :serverId', { serverId })
-            .andWhere('user.username = :username', { username })
+            .andWhere('(user.username = :username OR gameSession.requestedUsername = :username)', { username })
             .andWhere('gameSession.expiresAt > :now', { now: new Date() })
             .getOne();
     }

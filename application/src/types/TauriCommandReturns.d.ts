@@ -18,6 +18,7 @@ interface MinecraftInstance {
     minecraftVersion: string;
     instanceDirectory?: string;
     forgeVersion?: string;
+    ms_nickname?: string;
 }
 
 export type TauriCommandReturns = {

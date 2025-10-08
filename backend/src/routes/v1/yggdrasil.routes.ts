@@ -235,4 +235,82 @@ yggdrasilRoutes.get('/session/minecraft/hasJoined', YggdrasilController.hasJoine
  */
 yggdrasilRoutes.get('/session/minecraft/profile/:uuid', YggdrasilController.getProfile);
 
+/**
+ * @openapi
+ * /yggdrasil:
+ *   get:
+ *     summary: Get Yggdrasil server metadata
+ *     tags: [Yggdrasil]
+ *     description: Returns metadata about the Yggdrasil authentication server
+ *     responses:
+ *       200:
+ *         description: Server metadata
+ */
+yggdrasilRoutes.get('/', YggdrasilController.metadata);
+
+/**
+ * @openapi
+ * /yggdrasil/sessionserver/session/minecraft/join:
+ *   post:
+ *     summary: Join Minecraft server (client-side)
+ *     tags: [Yggdrasil]
+ *     description: Called by Minecraft client when joining a server
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - accessToken
+ *               - selectedProfile
+ *               - serverId
+ *             properties:
+ *               accessToken:
+ *                 type: string
+ *               selectedProfile:
+ *                 type: string
+ *                 description: Player UUID
+ *               serverId:
+ *                 type: string
+ *                 description: Server ID hash
+ *     responses:
+ *       204:
+ *         description: Successfully joined
+ *       403:
+ *         description: Invalid session
+ */
+yggdrasilRoutes.post('/sessionserver/session/minecraft/join', YggdrasilController.joinServer);
+
+/**
+ * @openapi
+ * /yggdrasil/sessionserver/session/minecraft/hasJoined:
+ *   get:
+ *     summary: Verify player session (server-side)
+ *     tags: [Yggdrasil]
+ *     description: Called by Minecraft server to verify player authentication
+ *     parameters:
+ *       - in: query
+ *         name: username
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: serverId
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: ip
+ *         required: false
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Player profile if authenticated
+ *       204:
+ *         description: Player not authenticated
+ */
+yggdrasilRoutes.get('/sessionserver/session/minecraft/hasJoined', YggdrasilController.hasJoined);
+
 export default yggdrasilRoutes;

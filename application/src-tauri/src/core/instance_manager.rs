@@ -6,6 +6,7 @@ use crate::core::bootstrap_error::BootstrapError;
 use crate::core::instance_bootstrap::InstanceBootstrap;
 use crate::core::minecraft_instance::{self, MinecraftInstance};
 use crate::core::modpack_file_manager::ModpackManifest;
+use crate::core::minecraft::MinecraftPaths;
 use crate::core::tasks_manager::{
     add_task, add_task_with_auto_start, remove_task, update_task, update_task_with_bootstrap_error,
     TaskStatus,
@@ -81,6 +82,7 @@ pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
 
         existing_instance.instanceName = instance.instanceName;
         existing_instance.accountUuid = instance.accountUuid;
+        existing_instance.ms_nickname = instance.ms_nickname;
         existing_instance.favorite = instance.favorite;
 
         existing_instance
@@ -199,6 +201,7 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
         }
     }
 
+    
     // Proceed with normal launch
     instance
         .launch()
@@ -1592,7 +1595,7 @@ pub fn get_favorite_instances() -> Result<Vec<MinecraftInstance>, String> {
 }
 
 /// Función helper para obtener el token de acceso
-async fn get_access_token() -> Result<Option<String>, String> {
+pub async fn get_access_token() -> Result<Option<String>, String> {
     let app_handle = {
         let guard = crate::GLOBAL_APP_HANDLE.lock()
             .map_err(|_| "Failed to lock app handle")?;
@@ -1606,6 +1609,21 @@ async fn get_access_token() -> Result<Option<String>, String> {
         Ok(None) => Ok(None),
         Err(e) => Err(format!("Error loading tokens: {}", e)),
     }
+}
+
+/// Función helper para obtener el token de acceso de forma síncrona
+pub fn get_access_token_sync(app_handle: &tauri::AppHandle) -> Result<Option<String>, String> {
+    // Create a runtime to run the async function synchronously
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| format!("Failed to create runtime: {}", e))?;
+    
+    rt.block_on(async {
+        match storage::load_tokens(app_handle).await {
+            Ok(Some(tokens)) => Ok(Some(tokens.access_token)),
+            Ok(None) => Ok(None),
+            Err(e) => Err(format!("Error loading tokens: {}", e)),
+        }
+    })
 }
 
 /// Create a new instance from a .mrpack file
@@ -1719,6 +1737,7 @@ pub async fn create_instance_from_mrpack(
         javaPath: None,
         favorite: false,
         favorite_order: None,
+        ms_nickname: None,
     };
 
     instance
@@ -1740,4 +1759,28 @@ pub async fn create_instance_from_mrpack(
     spawn_mrpack_bootstrap_task(instance, task_id.clone());
 
     Ok(instance_id)
+}
+
+/// Función helper para obtener el argumento de authlib-injector de forma síncrona
+pub fn get_authlib_injector_arg_sync(instance: &MinecraftInstance, paths: &MinecraftPaths) -> Result<String, String> {
+    // Create a runtime to run the async function synchronously
+    let rt = tokio::runtime::Runtime::new()
+        .map_err(|e| format!("Failed to create runtime: {}", e))?;
+    
+    rt.block_on(async {
+        let api_endpoint = crate::API_ENDPOINT.to_string();
+        let ms_auth = crate::core::modpackstore_auth::ModpackStoreAuth::new(api_endpoint.clone());
+
+        // Get Minecraft directory from paths
+        let minecraft_dir = paths.game_dir().parent()
+            .ok_or_else(|| "Failed to get Minecraft directory".to_string())?;
+
+        // Download authlib-injector if necessary
+        let jar_path = ms_auth
+            .get_authlib_injector_path(minecraft_dir)
+            .await?;
+
+        // Build the JVM argument
+        Ok(ms_auth.build_authlib_injector_arg(&jar_path))
+    })
 }

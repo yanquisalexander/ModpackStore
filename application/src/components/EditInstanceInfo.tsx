@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { LucideCpu, LucidePencil, LucideSave, LucideUser } from "lucide-react";
+import { LucideCpu, LucidePencil, LucideSave, LucideUser, LucideStore } from "lucide-react";
 import {
     Dialog,
     DialogContent,
@@ -24,6 +24,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { useAuthentication } from "@/stores/AuthContext";
 
 interface EditInstanceInfoProps {
     instanceId: string;
@@ -36,10 +37,18 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
     const [isLoading, setIsLoading] = useState(false);
     const [instance, setInstance] = useState<TauriCommandReturns['get_instance_by_id'] | null>(null);
     const [accounts, setAccounts] = useState<TauriCommandReturns['get_all_accounts']>([]);
-    const [formData, setFormData] = useState({
+    const [formData, setFormData] = useState<{
+        instanceName: string;
+        accountUuid: string | null;
+        ms_nickname: string;
+    }>({
         instanceName: "",
-        accountUuid: "",
+        accountUuid: null,
+        ms_nickname: "",
     });
+
+    // Obtener el contexto de autenticación
+    const { session } = useAuthentication();
 
     // Cargar la instancia y las cuentas cuando se abre el diálogo
     useEffect(() => {
@@ -57,9 +66,17 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
 
                 if (instanceData) {
                     setInstance(instanceData);
+
+                    // Determinar el ms_nickname inicial
+                    let initialMsNickname = instanceData.ms_nickname || "";
+                    if (instanceData.accountUuid === null && (!initialMsNickname || initialMsNickname.trim() === "")) {
+                        initialMsNickname = session?.username || "";
+                    }
+
                     setFormData({
                         instanceName: instanceData.instanceName || "",
-                        accountUuid: instanceData.accountUuid || "",
+                        accountUuid: instanceData.accountUuid || null,
+                        ms_nickname: initialMsNickname,
                     });
                 }
 
@@ -80,7 +97,7 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
         };
 
         loadData();
-    }, [open, instanceId]);
+    }, [open, instanceId, session]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -91,9 +108,15 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
     };
 
     const handleAccountChange = (value: string) => {
+        const newAccountUuid = value === "modpackstore" ? null : value;
+
         setFormData(prev => ({
             ...prev,
-            accountUuid: value
+            accountUuid: newAccountUuid,
+            // Si se selecciona modpackstore y ms_nickname está vacío, usar el username del usuario
+            ms_nickname: newAccountUuid === null && (!prev.ms_nickname || prev.ms_nickname.trim() === "")
+                ? (session?.username || "")
+                : prev.ms_nickname
         }));
     };
 
@@ -102,11 +125,20 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
         setIsLoading(true);
 
         try {
+            // Determinar el ms_nickname final
+            let finalMsNickname = formData.accountUuid === null ? formData.ms_nickname : null;
+
+            // Si accountUuid es null y no se colocó ms_nickname, tomar desde authContext
+            if (formData.accountUuid === null && (!finalMsNickname || finalMsNickname.trim() === "")) {
+                finalMsNickname = session?.username || "";
+            }
+
             await invoke("update_instance", {
                 instance: {
                     ...instance,
                     instanceName: formData.instanceName,
                     accountUuid: formData.accountUuid,
+                    ms_nickname: finalMsNickname,
                 }
             });
 
@@ -186,13 +218,19 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
                         <div className="space-y-2">
                             <Label htmlFor="accountUuid">Cuenta de Minecraft</Label>
                             <Select
-                                value={formData.accountUuid}
+                                value={formData.accountUuid === null ? "modpackstore" : formData.accountUuid}
                                 onValueChange={handleAccountChange}
                             >
                                 <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
                                     <SelectValue placeholder="Seleccionar cuenta" />
                                 </SelectTrigger>
                                 <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
+                                    <SelectItem value="modpackstore" className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <LucideStore className="size-4 text-purple-400" />
+                                            Usar cuenta de Modpack Store
+                                        </div>
+                                    </SelectItem>
                                     {accounts.length === 0 ? (
                                         <SelectItem value="no-accounts" disabled>
                                             No hay cuentas disponibles
@@ -218,8 +256,22 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
                             </p>
                         </div>
 
-
-
+                        {formData.accountUuid === null && (
+                            <div className="space-y-2">
+                                <Label htmlFor="ms_nickname">Nickname de Modpack Store</Label>
+                                <Input
+                                    id="ms_nickname"
+                                    name="ms_nickname"
+                                    value={formData.ms_nickname}
+                                    onChange={handleInputChange}
+                                    className="bg-neutral-800 border-neutral-700 text-white"
+                                    placeholder="Tu nickname en Modpack Store"
+                                />
+                                <p className="text-xs text-neutral-400">
+                                    Este nickname se usará para autenticarte con Modpack Store.
+                                </p>
+                            </div>
+                        )}
 
                         <DialogFooter>
                             <Button

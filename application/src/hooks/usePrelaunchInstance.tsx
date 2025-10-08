@@ -219,13 +219,16 @@ export const usePrelaunchInstance = (instanceId: string) => {
             return;
         }
 
-        const accountExists = await invoke<boolean>("ensure_account_exists", { uuid: instance.accountUuid });
-        if (!accountExists) {
-            playSound('ERROR_NOTIFICATION');
-            toast.error("Cuenta no encontrada", {
-                description: "La cuenta asociada no existe. Revísala en la configuración."
-            });
-            return;
+        if (instance.accountUuid && instance.accountUuid.trim() !== "") {
+            console.log("Verificando existencia de cuenta con UUID:", instance.accountUuid);
+            const accountExists = await invoke<boolean>("ensure_account_exists", { uuid: instance.accountUuid });
+            if (!accountExists) {
+                playSound('ERROR_NOTIFICATION');
+                toast.error("Cuenta no encontrada", {
+                    description: "La cuenta asociada no existe. Revísala en la configuración."
+                });
+                return;
+            }
         }
 
         try {
@@ -266,18 +269,17 @@ export const usePrelaunchInstance = (instanceId: string) => {
             return;
         }
 
-        if (!instance.accountUuid) {
-            setShowAccountSelection(true);
-            return;
-        }
-
-        const accountExists = await invoke<boolean>("ensure_account_exists", { uuid: instance.accountUuid });
-        if (!accountExists) {
-            playSound('ERROR_NOTIFICATION');
-            toast.error("Cuenta no encontrada", {
-                description: "La cuenta asociada no existe. Revísala en la configuración."
-            });
-            return;
+        // Si hay accountUuid, verificar que la cuenta existe
+        if (instance.accountUuid && instance.accountUuid.trim() !== "") {
+            console.log("Verificando existencia de cuenta con UUID:", instance.accountUuid);
+            const accountExists = await invoke<boolean>("ensure_account_exists", { uuid: instance.accountUuid });
+            if (!accountExists) {
+                playSound('ERROR_NOTIFICATION');
+                toast.error("Cuenta no encontrada", {
+                    description: "La cuenta asociada no existe. Revísala en la configuración."
+                });
+                return;
+            }
         }
 
         await launchInstance();
