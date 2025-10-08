@@ -38,9 +38,9 @@ export class YggdrasilController {
         } catch (error) {
             if (error instanceof APIError) {
                 return c.json({
-                    error: error.code,
+                    error: error.errorCode || 'API_ERROR',
                     errorMessage: error.message
-                }, error.statusCode);
+                }, error.statusCode as any);
             }
             console.error('[YggdrasilController] Authenticate error:', error);
             return c.json({
@@ -68,9 +68,9 @@ export class YggdrasilController {
         } catch (error) {
             if (error instanceof APIError) {
                 return c.json({
-                    error: error.code,
+                    error: error.errorCode || 'API_ERROR',
                     errorMessage: error.message
-                }, error.statusCode);
+                }, error.statusCode as any);
             }
             console.error('[YggdrasilController] Refresh error:', error);
             return c.json({
@@ -107,9 +107,9 @@ export class YggdrasilController {
         } catch (error) {
             if (error instanceof APIError) {
                 return c.json({
-                    error: error.code,
+                    error: error.errorCode || 'API_ERROR',
                     errorMessage: error.message
-                }, error.statusCode);
+                }, error.statusCode as any);
             }
             console.error('[YggdrasilController] Validate error:', error);
             return c.json({
@@ -139,9 +139,9 @@ export class YggdrasilController {
         } catch (error) {
             if (error instanceof APIError) {
                 return c.json({
-                    error: error.code,
+                    error: error.errorCode || 'API_ERROR',
                     errorMessage: error.message
-                }, error.statusCode);
+                }, error.statusCode as any);
             }
             console.error('[YggdrasilController] Invalidate error:', error);
             return c.json({
@@ -171,9 +171,9 @@ export class YggdrasilController {
         } catch (error) {
             if (error instanceof APIError) {
                 return c.json({
-                    error: error.code,
+                    error: error.errorCode || 'API_ERROR',
                     errorMessage: error.message
-                }, error.statusCode);
+                }, error.statusCode as any);
             }
             console.error('[YggdrasilController] Signout error:', error);
             return c.json({
@@ -214,9 +214,9 @@ export class YggdrasilController {
         } catch (error) {
             if (error instanceof APIError) {
                 return c.json({
-                    error: error.code,
+                    error: error.errorCode || 'API_ERROR',
                     errorMessage: error.message
-                }, error.statusCode);
+                }, error.statusCode as any);
             }
             console.error('[YggdrasilController] Join server error:', error);
             return c.json({
@@ -251,9 +251,9 @@ export class YggdrasilController {
         } catch (error) {
             if (error instanceof APIError) {
                 return c.json({
-                    error: error.code,
+                    error: error.errorCode || 'API_ERROR',
                     errorMessage: error.message
-                }, error.statusCode);
+                }, error.statusCode as any);
             }
             console.error('[YggdrasilController] Has joined error:', error);
             return c.json({
@@ -289,9 +289,9 @@ export class YggdrasilController {
         } catch (error) {
             if (error instanceof APIError) {
                 return c.json({
-                    error: error.code,
+                    error: error.errorCode || 'API_ERROR',
                     errorMessage: error.message
-                }, error.statusCode);
+                }, error.statusCode as any);
             }
             console.error('[YggdrasilController] Get profile error:', error);
             return c.json({
