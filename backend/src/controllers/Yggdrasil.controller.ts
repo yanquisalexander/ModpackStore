@@ -195,8 +195,10 @@ export class YggdrasilController {
                 throw new APIError(400, 'accessToken, selectedProfile, and serverId are required.', 'MISSING_CREDENTIALS');
             }
 
-            // Get IP address from request
-            const ipAddress = c.req.header('X-Forwarded-For') || c.req.header('X-Real-IP');
+            // Get IP address from request (take first IP if multiple)
+            const xForwardedFor = c.req.header('X-Forwarded-For');
+            const xRealIP = c.req.header('X-Real-IP');
+            const ipAddress = xForwardedFor ? xForwardedFor.split(',')[0].trim() : xRealIP;
 
             await YggdrasilService.joinServer(accessToken, selectedProfile, serverId, ipAddress);
 
