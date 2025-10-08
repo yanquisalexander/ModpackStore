@@ -2,6 +2,7 @@ import "reflect-metadata";
 import { DataSource } from "typeorm";
 import { User } from "../entities/User";
 import { Session } from "../entities/Session";
+import { GameSession } from "../entities/GameSession";
 import { Publisher } from "../entities/Publisher";
 import { PublisherMember } from "../entities/PublisherMember";
 import { Scope } from "../entities/Scope";
@@ -43,6 +44,7 @@ export const AppDataSource = new DataSource({
     entities: [
         User,
         Session,
+        GameSession,
         Publisher,
         PublisherMember,
         Scope,
