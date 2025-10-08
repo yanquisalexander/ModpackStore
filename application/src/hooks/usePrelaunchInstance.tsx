@@ -162,12 +162,12 @@ export const usePrelaunchInstance = (instanceId: string) => {
             return;
         }
 
-        if (!isConnected && instance.accountUuid === null && instance.ms_nickname) {
-            playSound('ERROR_NOTIFICATION');
-            toast.error("Cuenta no disponible", { description: "EL servicio de autenticación de Modpack Store no está disponible en modo offline. Selecciona otra cuenta para jugar." });
-            setShowAccountSelection(true);
-            return;
-        }
+        /*  if (!isConnected && instance.accountUuid === null && instance.ms_nickname) {
+             playSound('ERROR_NOTIFICATION');
+             toast.error("Cuenta no disponible", { description: "EL servicio de autenticación de Modpack Store no está disponible en modo offline. Selecciona otra cuenta para jugar." });
+             setShowAccountSelection(true);
+             return;
+         } */
 
         if (instance.accountUuid) {
             const accountExists = await invoke<boolean>("ensure_account_exists", { uuid: instance.accountUuid });
@@ -176,6 +176,9 @@ export const usePrelaunchInstance = (instanceId: string) => {
                 toast.error("Cuenta no encontrada", { description: "La cuenta asociada ya no existe." });
                 return;
             }
+        } else {
+            setShowAccountSelection(true);
+            return;
         }
 
         try {

@@ -7,7 +7,6 @@ import { APIError } from "@/lib/APIError";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 const YGGDRASIL_SESSION_DURATION = 24 * 60 * 60 * 1000; // 24 hours
-const YGGDRASIL_INACTIVITY_TIMEOUT = 20 * 60 * 1000; // 20 minutes
 
 export interface YggdrasilProfile {
     id: string;
