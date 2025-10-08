@@ -205,6 +205,11 @@ export class YggdrasilService {
             throw new APIError(404, 'User not found.', 'USER_NOT_FOUND');
         }
 
+        // Check if user is banned
+        if (await user.isBanned()) {
+            throw new APIError(403, 'User is banned from multiplayer.', 'UserBannedException');
+        }
+
         // Verify profile matches
         const profileUuid = this.uuidWithDashes(user.id);
         const profileUuidNoDashes = user.id;
@@ -253,6 +258,11 @@ export class YggdrasilService {
         const user = session.user;
         if (!user) {
             return null;
+        }
+
+        // Check if user is banned
+        if (await user.isBanned()) {
+            throw new APIError(403, 'User is banned from multiplayer.', 'UserBannedException');
         }
 
         // Optionally validate IP if provided
