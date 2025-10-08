@@ -1,5 +1,7 @@
 pub mod accounts_manager;
 pub mod auth;
+pub mod authlib_injector;
+pub mod authserver_client;
 pub mod bootstrap;
 pub mod bootstrap_error;
 pub mod i18n;

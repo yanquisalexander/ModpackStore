@@ -49,10 +49,60 @@ impl GameLauncher for MinecraftLauncher {
 
         log::info!("Minecraft memory: {}MB", mc_memory);
 
-        // Get account
-        let accounts_manager = AccountsManager::new();
-        let account_uuid = self.instance.accountUuid.as_ref()?;
-        let account = accounts_manager.get_minecraft_account_by_uuid(account_uuid)?;
+        // Get account - handle ModpackStore account if accountUuid is None
+        let account = if let Some(account_uuid) = &self.instance.accountUuid {
+            // Use existing account (Microsoft or Offline)
+            let accounts_manager = AccountsManager::new();
+            match accounts_manager.get_minecraft_account_by_uuid(account_uuid) {
+                Some(acc) => acc,
+                None => {
+                    log::error!("[MinecraftLauncher] Account not found: {}", account_uuid);
+                    return None;
+                }
+            }
+        } else {
+            // Use ModpackStore account
+            log::info!("[MinecraftLauncher] Using ModpackStore account");
+            
+            // Get JWT token from auth store
+            let jwt_token = match Self::get_modpackstore_jwt_token() {
+                Ok(token) => token,
+                Err(e) => {
+                    log::error!("[MinecraftLauncher] Failed to get ModpackStore token: {}", e);
+                    return None;
+                }
+            };
+
+            // Get or create game session
+            let game_session = match tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(async {
+                    crate::core::authserver_client::AuthServerClient::get_game_session(
+                        &jwt_token,
+                        self.instance.ms_nickname.clone(),
+                    )
+                    .await
+                }) {
+                Ok(session) => session,
+                Err(e) => {
+                    log::error!("[MinecraftLauncher] Failed to get game session: {}", e);
+                    return None;
+                }
+            };
+
+            log::info!(
+                "[MinecraftLauncher] ModpackStore session created for: {}",
+                game_session.username
+            );
+
+            // Create MinecraftAccount from game session
+            crate::core::minecraft_account::MinecraftAccount::new(
+                game_session.username,
+                game_session.uuid,
+                Some(game_session.access_token),
+                "modpackstore".to_string(),
+            )
+        };
 
         log::info!(
             "[MinecraftLauncher] Launching Minecraft using account: {}",
@@ -91,13 +141,51 @@ impl GameLauncher for MinecraftLauncher {
         // Process arguments
         let argument_processor =
             ArgumentProcessor::new(&manifest_json, &account, &paths, mc_memory);
-        let (jvm_args, game_args) = match argument_processor.process_arguments() {
+        let (mut jvm_args, game_args) = match argument_processor.process_arguments() {
             Ok(args) => args,
             Err(e) => {
                 log::error!("[MinecraftLauncher] Failed to process arguments: {}", e);
                 return None;
             }
         };
+
+        // Add authlib-injector for ModpackStore accounts
+        if self.instance.accountUuid.is_none() {
+            log::info!("[MinecraftLauncher] Adding authlib-injector for ModpackStore account");
+            
+            // Get authserver URL
+            let authserver_url = match crate::core::authserver_client::AuthServerClient::get_authserver_url() {
+                Ok(url) => url,
+                Err(e) => {
+                    log::error!("[MinecraftLauncher] Failed to get authserver URL: {}", e);
+                    return None;
+                }
+            };
+
+            // Get authlib-injector JVM argument
+            let authlib_arg = match tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(async {
+                    crate::core::authlib_injector::AuthlibInjector::get_jvm_argument(&authserver_url).await
+                }) {
+                Ok(arg) => arg,
+                Err(e) => {
+                    log::error!("[MinecraftLauncher] Failed to setup authlib-injector: {}", e);
+                    return None;
+                }
+            };
+
+            // Insert authlib-injector argument at the beginning of JVM args
+            jvm_args.insert(0, authlib_arg);
+
+            // Add compatibility flags
+            let compat_flags = crate::core::authlib_injector::AuthlibInjector::get_compatibility_flags();
+            for flag in compat_flags.iter().rev() {
+                jvm_args.insert(1, flag.clone());
+            }
+
+            log::info!("[MinecraftLauncher] authlib-injector configured for: {}", authserver_url);
+        }
 
         // Get main class
         let main_class = match manifest_json.get("mainClass").and_then(|v| v.as_str()) {
@@ -158,5 +246,29 @@ impl GameLauncher for MinecraftLauncher {
                 None
             }
         }
+    }
+
+    /// Get ModpackStore JWT access token from auth store
+    fn get_modpackstore_jwt_token() -> Result<String, String> {
+        // Get app handle
+        let app_handle = match crate::GLOBAL_APP_HANDLE.lock() {
+            Ok(guard) => match guard.as_ref() {
+                Some(handle) => handle.clone(),
+                None => return Err("App handle not available".to_string()),
+            },
+            Err(e) => return Err(format!("Failed to lock app handle: {}", e)),
+        };
+
+        // Use blocking runtime to call async function
+        let runtime = tokio::runtime::Runtime::new()
+            .map_err(|e| format!("Failed to create runtime: {}", e))?;
+
+        runtime.block_on(async {
+            match crate::core::auth::get_access_token(app_handle).await {
+                Ok(Some(token)) => Ok(token),
+                Ok(None) => Err("No access token available. Please log in.".to_string()),
+                Err(e) => Err(format!("Failed to get access token: {}", e)),
+            }
+        })
     }
 }
