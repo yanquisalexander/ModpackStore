@@ -7,6 +7,9 @@ pub struct MinecraftAccount {
     uuid: String,
     access_token: Option<String>,
     user_type: String,
+    /// Custom nickname for ModpackStore accounts per instance
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ms_nickname: Option<String>,
 }
 
 impl MinecraftAccount {
@@ -21,6 +24,7 @@ impl MinecraftAccount {
             uuid,
             access_token,
             user_type,
+            ms_nickname: None,
         }
     }
 
@@ -41,6 +45,10 @@ impl MinecraftAccount {
         &self.user_type
     }
 
+    pub fn ms_nickname(&self) -> Option<&str> {
+        self.ms_nickname.as_deref()
+    }
+
     // Setters
     pub fn set_username(&mut self, username: String) {
         self.username = username;
@@ -56,6 +64,10 @@ impl MinecraftAccount {
 
     pub fn set_user_type(&mut self, user_type: String) {
         self.user_type = user_type;
+    }
+
+    pub fn set_ms_nickname(&mut self, ms_nickname: Option<String>) {
+        self.ms_nickname = ms_nickname;
     }
 }
 

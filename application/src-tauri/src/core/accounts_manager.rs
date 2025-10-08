@@ -73,6 +73,26 @@ impl AccountsManager {
         Ok(account)
     }
 
+    pub fn add_modpackstore_account(
+        &mut self,
+        username: &str,
+        uuid: &str,
+        access_token: &str,
+    ) -> Result<MinecraftAccount, String> {
+        let account = MinecraftAccount::new(
+            username.to_string(),
+            uuid.to_string(),
+            Some(access_token.to_string()),
+            "modpackstore".to_string(),
+        );
+        if self.accounts.iter().any(|a| a.uuid() == uuid) {
+            return Err(format!("Account with UUID {} already exists", uuid));
+        }
+        self.accounts.push(account.clone());
+        self.save();
+        Ok(account)
+    }
+
     pub fn remove_account(&mut self, uuid: &str) {
         if let Some(pos) = self.accounts.iter().position(|a| a.uuid() == uuid) {
             self.accounts.remove(pos);
@@ -193,6 +213,20 @@ pub fn add_offline_account(username: &str) -> Result<MinecraftAccount, String> {
     let accounts_manager = get_accounts_manager();
     let mut manager = accounts_manager.lock().unwrap();
     match manager.add_offline_account(username) {
+        Ok(account) => Ok(account),
+        Err(e) => Err(e),
+    }
+}
+
+#[tauri::command]
+pub fn add_modpackstore_account(
+    username: &str,
+    uuid: &str,
+    access_token: &str,
+) -> Result<MinecraftAccount, String> {
+    let accounts_manager = get_accounts_manager();
+    let mut manager = accounts_manager.lock().unwrap();
+    match manager.add_modpackstore_account(username, uuid, access_token) {
         Ok(account) => Ok(account),
         Err(e) => Err(e),
     }
