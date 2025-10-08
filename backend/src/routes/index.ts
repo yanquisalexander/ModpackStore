@@ -11,11 +11,13 @@ import ticketRoutes from './v1/tickets.routes';
 import publisherPermissionsRoutes from './v1/publisher-permissions.route';
 import webhooksRoutes from './webhooks.routes';
 import { socialRoutes } from './v1/social.routes';
+import authServerRoutes from './v1/authserver.routes';
 
 const rootRouter = new Hono();
 
 // v1 routes
 rootRouter.route('/auth', authRoutes);
+rootRouter.route('/authserver', authServerRoutes); // Yggdrasil/authlib-injector compatible endpoints
 rootRouter.route('/admin', adminRoutes); // Mount Hono adminRoutes
 rootRouter.route('/public', publicRoutes);
 rootRouter.route('/explore', exploreRoutes); // Mount Hono exploreRoutes
