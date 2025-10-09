@@ -14,6 +14,7 @@ import {
     LucideActivity
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
+import { API_ENDPOINT } from "@/consts";
 
 // Types
 interface AuditLog {
@@ -41,7 +42,7 @@ interface PaginatedAuditLogs {
 
 // API Service
 class AuditAPI {
-    private static baseUrl = `${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/v1/admin/audit`;
+    private static baseUrl = `${API_ENDPOINT}/admin/audit`;
 
     static async fetchLogs(params: {
         page?: number;
