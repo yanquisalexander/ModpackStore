@@ -71,6 +71,12 @@ export const processModpackFileUpload = async (
           const fileBuffer = await file.async('nodebuffer');
           const filePath = path.join(tempDir, fileName);
 
+          // Ensure parent directories exist
+          const dirPath = path.dirname(filePath);
+          if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true });
+          }
+
           // Extract file to disk
           fs.writeFileSync(filePath, fileBuffer);
 
