@@ -58,40 +58,11 @@ export const processModpackFileUpload = async (
       // Load entire ZIP file into memory
       const zip = await JSZip.loadAsync(buffer);
 
-      // Detect and flatten single root folder structure
-      const filePaths = Object.keys(zip.files).filter(path => !zip.files[path].dir);
-
-      // Check if all files are inside a single root folder
-      let rootFolder = null;
-      let shouldFlatten = false;
-
-      if (filePaths.length > 0) {
-        // Get the first folder level for all files
-        const rootFolders = new Set();
-        for (const filePath of filePaths) {
-          const parts = filePath.split('/');
-          if (parts.length > 1) {
-            rootFolders.add(parts[0]);
-          } else {
-            // File is at root level, no flattening needed
-            rootFolders.clear();
-            break;
-          }
-        }
-
-        // If all files are in exactly one root folder, we should flatten
-        if (rootFolders.size === 1) {
-          rootFolder = Array.from(rootFolders)[0];
-          shouldFlatten = true;
-          console.log(`Detected single root folder "${rootFolder}" - will flatten structure`);
-        }
-      }
-
       // Create temporary directory for extraction
       const tempDir = path.join(TEMP_UPLOAD_DIR, `${modpackId}-${versionId}-${fileType}`);
       fs.mkdirSync(tempDir, { recursive: true });
 
-      const fileEntries: { path: string; hash: string; size: number }[] = [];
+      const fileEntries: { path: string; hash: string; size: number; buffer: Buffer }[] = [];
       const uploadPromises: { key: string; body: Buffer; contentType: string }[] = [];
 
       sendProgressUpdate(modpackId, versionId, `Extrayendo archivos del ZIP`, { category: fileType, percent: 10 });
@@ -99,14 +70,7 @@ export const processModpackFileUpload = async (
       for (const [fileName, file] of Object.entries(zip.files)) {
         if (!file.dir) {
           const fileBuffer = await file.async('nodebuffer');
-
-          // Flatten path if needed
-          let finalPath = fileName;
-          if (shouldFlatten && rootFolder && typeof rootFolder === 'string' && fileName.startsWith(`${rootFolder}/`)) {
-            finalPath = fileName.substring(rootFolder.length + 1); // Remove root folder prefix
-          }
-
-          const filePath = path.join(tempDir, finalPath);
+          const filePath = path.join(tempDir, fileName);
 
           // Ensure parent directories exist
           const dirPath = path.dirname(filePath);
@@ -120,7 +84,7 @@ export const processModpackFileUpload = async (
           // Calculate hash by reading from disk
           const hash = crypto.createHash('sha1').update(fs.readFileSync(filePath)).digest('hex');
 
-          fileEntries.push({ path: finalPath, hash, size: fileBuffer.length });
+          fileEntries.push({ path: fileName, hash, size: fileBuffer.length, buffer: fileBuffer });
 
           // Prepare for batch upload using hash-based keys
           const hashKey = `${hash.substring(0, 2)}/${hash.substring(2, 4)}/${hash}`;
@@ -134,10 +98,25 @@ export const processModpackFileUpload = async (
 
       sendProgressUpdate(modpackId, versionId, `Subiendo archivos a almacenamiento`, { category: fileType, percent: 50 });
 
-      // Batch upload all files to R2 with concurrency control
+      // Deduplicate uploads by hash to avoid concurrent uploads of same file
+      const uniqueUploads = new Map<string, { key: string; body: Buffer; contentType: string }>();
+      fileEntries.forEach(fe => {
+        const hashKey = `${fe.hash.substring(0, 2)}/${fe.hash.substring(2, 4)}/${fe.hash}`;
+        const key = `resources/files/${hashKey}`;
+        if (!uniqueUploads.has(fe.hash)) {
+          uniqueUploads.set(fe.hash, {
+            key,
+            body: fe.buffer,
+            contentType: "application/octet-stream"
+          });
+        }
+      });
+
+      const uploadPromisesDeduplicated = Array.from(uniqueUploads.values());
+
       try {
-        await batchUploadToR2(uploadPromises, 5); // Upload up to 5 files concurrently
-        console.log(`Successfully uploaded ${fileEntries.length} files to R2`);
+        await batchUploadToR2(uploadPromisesDeduplicated, 2); // Reduced to 2 concurrent uploads to avoid R2 rate limits
+        console.log(`Successfully uploaded ${uploadPromisesDeduplicated.length} unique files to R2 (${fileEntries.length - uploadPromisesDeduplicated.length} duplicates skipped)`);
       } catch (uploadError) {
         console.error(`Error uploading files to R2:`, uploadError);
         throw new Error(`Failed to upload files: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
