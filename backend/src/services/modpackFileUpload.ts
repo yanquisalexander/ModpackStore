@@ -7,7 +7,7 @@ import { In } from "typeorm";
 import { sendProgressUpdate, sendCompletionUpdate, sendErrorUpdate } from "./realtime.service";
 import JSZip from 'jszip';
 import crypto from 'crypto';
-import { uploadToR2 } from './r2UploadService';
+import { uploadToR2, batchUploadToR2 } from './r2UploadService';
 
 export const ALLOWED_FILE_TYPES = ['mods', 'resourcepacks', 'config', 'shaderpacks', 'datapacks', 'extras'];
 
@@ -63,6 +63,7 @@ export const processModpackFileUpload = async (
       fs.mkdirSync(tempDir, { recursive: true });
 
       const fileEntries: { path: string; hash: string; size: number }[] = [];
+      const uploadPromises: { key: string; body: Buffer; contentType: string }[] = [];
 
       sendProgressUpdate(modpackId, versionId, `Extrayendo archivos del ZIP`, { category: fileType, percent: 10 });
 
@@ -85,11 +86,31 @@ export const processModpackFileUpload = async (
 
           fileEntries.push({ path: fileName, hash, size: fileBuffer.length });
 
-          // Upload to R2
-          const key = `modpacks/${versionId}/${fileName}`;
-          await uploadToR2(key, fileBuffer, "application/octet-stream");
+          // Prepare for batch upload using hash-based keys
+          const hashKey = `${hash.substring(0, 2)}/${hash.substring(2, 4)}/${hash}`;
+          uploadPromises.push({
+            key: `resources/files/${hashKey}`,
+            body: fileBuffer,
+            contentType: "application/octet-stream"
+          });
         }
       }
+
+      sendProgressUpdate(modpackId, versionId, `Subiendo archivos a almacenamiento`, { category: fileType, percent: 50 });
+
+      // Batch upload all files to R2 with concurrency control
+      try {
+        await batchUploadToR2(uploadPromises, 5); // Upload up to 5 files concurrently
+        console.log(`Successfully uploaded ${fileEntries.length} files to R2`);
+      } catch (uploadError) {
+        console.error(`Error uploading files to R2:`, uploadError);
+        throw new Error(`Failed to upload files: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
+      }
+
+      // Clear buffers from memory after upload
+      fileEntries.forEach(fe => {
+        // Note: Buffers will be garbage collected automatically
+      });
 
       // After processing, check which files already exist to avoid re-uploading (though we already uploaded, this is for DB logic)
       const allHashes = fileEntries.map(fe => fe.hash);
