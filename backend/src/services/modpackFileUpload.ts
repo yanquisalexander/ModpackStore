@@ -58,6 +58,35 @@ export const processModpackFileUpload = async (
       // Load entire ZIP file into memory
       const zip = await JSZip.loadAsync(buffer);
 
+      // Detect and flatten single root folder structure
+      const filePaths = Object.keys(zip.files).filter(path => !zip.files[path].dir);
+
+      // Check if all files are inside a single root folder
+      let rootFolder = null;
+      let shouldFlatten = false;
+
+      if (filePaths.length > 0) {
+        // Get the first folder level for all files
+        const rootFolders = new Set();
+        for (const filePath of filePaths) {
+          const parts = filePath.split('/');
+          if (parts.length > 1) {
+            rootFolders.add(parts[0]);
+          } else {
+            // File is at root level, no flattening needed
+            rootFolders.clear();
+            break;
+          }
+        }
+
+        // If all files are in exactly one root folder, we should flatten
+        if (rootFolders.size === 1) {
+          rootFolder = Array.from(rootFolders)[0];
+          shouldFlatten = true;
+          console.log(`Detected single root folder "${rootFolder}" - will flatten structure`);
+        }
+      }
+
       // Create temporary directory for extraction
       const tempDir = path.join(TEMP_UPLOAD_DIR, `${modpackId}-${versionId}-${fileType}`);
       fs.mkdirSync(tempDir, { recursive: true });
@@ -70,7 +99,14 @@ export const processModpackFileUpload = async (
       for (const [fileName, file] of Object.entries(zip.files)) {
         if (!file.dir) {
           const fileBuffer = await file.async('nodebuffer');
-          const filePath = path.join(tempDir, fileName);
+
+          // Flatten path if needed
+          let finalPath = fileName;
+          if (shouldFlatten && rootFolder && typeof rootFolder === 'string' && fileName.startsWith(`${rootFolder}/`)) {
+            finalPath = fileName.substring(rootFolder.length + 1); // Remove root folder prefix
+          }
+
+          const filePath = path.join(tempDir, finalPath);
 
           // Ensure parent directories exist
           const dirPath = path.dirname(filePath);
@@ -84,7 +120,7 @@ export const processModpackFileUpload = async (
           // Calculate hash by reading from disk
           const hash = crypto.createHash('sha1').update(fs.readFileSync(filePath)).digest('hex');
 
-          fileEntries.push({ path: fileName, hash, size: fileBuffer.length });
+          fileEntries.push({ path: finalPath, hash, size: fileBuffer.length });
 
           // Prepare for batch upload using hash-based keys
           const hashKey = `${hash.substring(0, 2)}/${hash.substring(2, 4)}/${hash}`;
