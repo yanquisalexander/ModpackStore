@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -463,31 +463,53 @@ const ModpackVersionDetailView: React.FC = () => {
         await fetchPreviousFiles(type);
     };
 
-    const toggleFileSelection = (fileHash: string) => {
+    // Memoized calculations for performance
+    const allFileHashes = useMemo(() => 
+        reuseDialog.previousFiles.flatMap(version => version.files.map(file => file.fileHash)),
+        [reuseDialog.previousFiles]
+    );
+
+    const selectedFilesSet = useMemo(() => 
+        new Set(reuseDialog.selectedFiles), 
+        [reuseDialog.selectedFiles]
+    );
+
+    const allSelected = useMemo(() => 
+        allFileHashes.length > 0 && allFileHashes.every(hash => selectedFilesSet.has(hash)),
+        [allFileHashes, selectedFilesSet]
+    );
+
+    const noneSelected = useMemo(() => 
+        reuseDialog.selectedFiles.length === 0,
+        [reuseDialog.selectedFiles.length]
+    );
+
+    // Optimized selection functions using useCallback
+    const toggleFileSelection = useCallback((fileHash: string) => {
         setReuseDialog(prev => ({
             ...prev,
             selectedFiles: prev.selectedFiles.includes(fileHash)
                 ? prev.selectedFiles.filter(h => h !== fileHash)
                 : [...prev.selectedFiles, fileHash]
         }));
-    };
+    }, []);
 
-    const selectAllFiles = () => {
+    const selectAllFiles = useCallback(() => {
         const allFileHashes = reuseDialog.previousFiles.flatMap(version => version.files.map(file => file.fileHash));
         setReuseDialog(prev => ({
             ...prev,
             selectedFiles: allFileHashes
         }));
-    };
+    }, [reuseDialog.previousFiles]);
 
-    const deselectAllFiles = () => {
+    const deselectAllFiles = useCallback(() => {
         setReuseDialog(prev => ({
             ...prev,
             selectedFiles: []
         }));
-    };
+    }, []);
 
-    const selectAllFilesForVersion = (versionId: string) => {
+    const selectAllFilesForVersion = useCallback((versionId: string) => {
         const version = reuseDialog.previousFiles.find(v => v.versionId === versionId);
         if (!version) return;
 
@@ -496,9 +518,9 @@ const ModpackVersionDetailView: React.FC = () => {
             ...prev,
             selectedFiles: [...new Set([...prev.selectedFiles, ...versionFileHashes])]
         }));
-    };
+    }, [reuseDialog.previousFiles]);
 
-    const deselectAllFilesForVersion = (versionId: string) => {
+    const deselectAllFilesForVersion = useCallback((versionId: string) => {
         const version = reuseDialog.previousFiles.find(v => v.versionId === versionId);
         if (!version) return;
 
@@ -507,17 +529,17 @@ const ModpackVersionDetailView: React.FC = () => {
             ...prev,
             selectedFiles: prev.selectedFiles.filter(hash => !versionFileHashes.includes(hash))
         }));
-    };
+    }, [reuseDialog.previousFiles]);
 
-    const toggleFolderSelection = (folderPath: string, fileHashes: string[]) => {
-        const allSelected = fileHashes.every(hash => reuseDialog.selectedFiles.includes(hash));
+    const toggleFolderSelection = useCallback((folderPath: string, fileHashes: string[]) => {
+        const allSelected = fileHashes.every(hash => selectedFilesSet.has(hash));
         setReuseDialog(prev => ({
             ...prev,
             selectedFiles: allSelected
                 ? prev.selectedFiles.filter(hash => !fileHashes.includes(hash))
                 : [...new Set([...prev.selectedFiles, ...fileHashes])]
         }));
-    };
+    }, [selectedFilesSet]);
 
     const buildReuseFileTree = (files: Array<{ fileHash: string; path: string; size: number; type: string }>): { [key: string]: TreeNode } => {
         const tree: { [key: string]: TreeNode } = {};
@@ -553,6 +575,24 @@ const ModpackVersionDetailView: React.FC = () => {
             return;
         }
 
+        // Build fileRefs with versionId, fileHash, and path
+        const fileRefs = reuseDialog.selectedFiles.map(fileHash => {
+            // Find which version and path this file belongs to
+            for (const version of reuseDialog.previousFiles) {
+                const file = version.files.find(f => f.fileHash === fileHash);
+                if (file) {
+                    return {
+                        versionId: version.versionId,
+                        fileHash: fileHash,
+                        path: file.path
+                    };
+                }
+            }
+            return null;
+        }).filter(ref => ref !== null);
+
+        setReuseDialog(prev => ({ ...prev, loading: true }));
+
         try {
             const res = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/reuse-files/${reuseDialog.type}`, {
                 method: 'POST',
@@ -561,7 +601,7 @@ const ModpackVersionDetailView: React.FC = () => {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    fileHashes: reuseDialog.selectedFiles
+                    fileRefs
                 })
             });
 
@@ -573,10 +613,12 @@ const ModpackVersionDetailView: React.FC = () => {
             const data = await res.json();
             toast.success(data.message || 'Archivos reutilizados correctamente');
             fetchVersionDetails();
-            setReuseDialog(prev => ({ ...prev, open: false }));
+            setReuseDialog(prev => ({ ...prev, open: false, loading: false }));
         } catch (error) {
             console.error('Error reusing files:', error);
             toast.error(error instanceof Error ? error.message : 'Error al reutilizar archivos');
+        } finally {
+            setReuseDialog(prev => ({ ...prev, loading: false }));
         }
     };
 
@@ -1035,9 +1077,16 @@ const ModpackVersionDetailView: React.FC = () => {
                             </Button>
                             <Button
                                 onClick={confirmFileReuse}
-                                disabled={reuseDialog.selectedFiles.length === 0}
+                                disabled={reuseDialog.selectedFiles.length === 0 || reuseDialog.loading}
                             >
-                                Reutilizar {reuseDialog.selectedFiles.length} archivo(s)
+                                {reuseDialog.loading ? (
+                                    <>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                        Reutilizando...
+                                    </>
+                                ) : (
+                                    `Reutilizar ${reuseDialog.selectedFiles.length} archivo(s)`
+                                )}
                             </Button>
                         </div>
                     </DialogFooter>

@@ -906,10 +906,10 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
 
 
     const body = await c.req.json();
-    const fileRefs: Array<{ versionId: string; fileHash: string }> = body.fileRefs;
+    const fileRefs: Array<{ versionId: string; fileHash: string; path: string }> = body.fileRefs;
 
     if (!Array.isArray(fileRefs) || fileRefs.length === 0) {
-        throw new APIError(400, "Se requiere un array de referencias de archivos (versionId + fileHash)");
+        throw new APIError(400, "Se requiere un array de referencias de archivos (versionId + fileHash + path)");
     }
 
     // Get existing files in the current version for this type to check for duplicates
@@ -923,9 +923,13 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
 
     console.log("Reusing fileRefs:", fileRefs, "for version:", versionId);
 
-    // Get all referenced files in one query using OR conditions
+    // Get all referenced files in one query using OR conditions with versionId, fileHash, and path
     const filesToReuse = await ModpackVersionFile.find({
-        where: fileRefs.map(ref => ({ fileHash: ref.fileHash, modpackVersionId: ref.versionId })),
+        where: fileRefs.map(ref => ({
+            fileHash: ref.fileHash,
+            modpackVersionId: ref.versionId,
+            path: ref.path
+        })),
         relations: ["file"],
     });
 
