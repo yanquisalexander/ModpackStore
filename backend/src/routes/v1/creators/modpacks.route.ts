@@ -923,15 +923,11 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
 
     console.log("Reusing fileRefs:", fileRefs, "for version:", versionId);
 
-    // For each fileRef, find the original file by versionId + fileHash
-    const filesToReusePromises = fileRefs.map(async (ref) => {
-        return ModpackVersionFile.findOne({
-            where: { fileHash: ref.fileHash, modpackVersionId: ref.versionId },
-            relations: ["file"],
-        });
+    // Get all referenced files in one query using OR conditions
+    const filesToReuse = await ModpackVersionFile.find({
+        where: fileRefs.map(ref => ({ fileHash: ref.fileHash, modpackVersionId: ref.versionId })),
+        relations: ["file"],
     });
-
-    const filesToReuse = (await Promise.all(filesToReusePromises)).filter(Boolean) as ModpackVersionFile[];
 
     // Filter out files that are already in the current version (by fileHash or path)
     const newVersionFiles = filesToReuse.map(originalFile => {
@@ -954,8 +950,12 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
         return c.json({ message: "No se añadieron archivos nuevos (todos ya existen o son inválidos)" });
     }
 
-    // Insert only the new files
-    await ModpackVersionFile.insert(newVersionFiles as Partial<ModpackVersionFile>[]);
+    // Insert files in chunks to avoid overwhelming the database
+    const chunkSize = 1000;
+    for (let i = 0; i < newVersionFiles.length; i += chunkSize) {
+        const chunk = newVersionFiles.slice(i, i + chunkSize);
+        await ModpackVersionFile.insert(chunk as Partial<ModpackVersionFile>[]);
+    }
 
     return c.json({
         message: `${newVersionFiles.length} archivos reutilizados para ${type}`,
