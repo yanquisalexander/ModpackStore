@@ -9,7 +9,9 @@
         "start": "node dist/index.js",
         "db:generate": "drizzle-kit generate",
         "db:migrate": "tsx ./src/db/migrator.ts",
-        "db:migrate-acquisition-methods": "tsx ./src/db/migrate-acquisition-methods.ts"
+        "db:migrate-acquisition-methods": "tsx ./src/db/migrate-acquisition-methods.ts",
+        "db:migrate-filetype": "tsx ./src/db/migrate-filetype.ts",
+        "test:filetype-migration": "tsx ./test/filetype-migration.test.ts"
     },
     "pnpm": {
         "onlyBuiltDependencies": [

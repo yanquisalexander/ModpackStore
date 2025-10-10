@@ -1,6 +1,6 @@
 import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn, BaseEntity } from "typeorm";
 import { ModpackVersion } from "./ModpackVersion";
-import { ModpackFile } from "./ModpackFile";
+import { ModpackFile, ModpackFileType } from "./ModpackFile";
 
 @Entity({ name: "modpack_version_files" })
 export class ModpackVersionFile extends BaseEntity {
@@ -13,6 +13,9 @@ export class ModpackVersionFile extends BaseEntity {
 
     @PrimaryColumn({ name: "path", type: "text" })
     path: string; // e.g., "mods/jei.jar" inside the pack
+
+    @Column({ name: "file_type", type: "varchar", length: 32, nullable: true })
+    fileType?: ModpackFileType;
 
     // Relations
     @ManyToOne(() => ModpackVersion, modpackVersion => modpackVersion.files, { onDelete: "CASCADE" })

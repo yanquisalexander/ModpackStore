@@ -488,6 +488,7 @@ export class ModrinthImportService {
         versionFile.modpackVersionId = versionId;
         versionFile.fileHash = hash;
         versionFile.path = filePath;
+        versionFile.fileType = fileType as any; // NEW: Set fileType on ModpackVersionFile
 
         try {
             await versionFile.save();
@@ -566,6 +567,7 @@ export class ModrinthImportService {
             versionFile.modpackVersionId = versionId;
             versionFile.fileHash = f.hash;
             versionFile.path = f.path;
+            versionFile.fileType = fileType as any; // NEW: Set fileType on ModpackVersionFile
             return versionFile;
         });
 

@@ -47,11 +47,13 @@ export const processModpackFileUpload = async (
       sendProgressUpdate(modpackId, versionId, `Iniciando procesamiento de ${fileType}`, { category: fileType, percent: 0 });
 
       // Eliminar todos los ModpackVersionFile existentes para esta versión y tipo
+      // Note: We now check fileType directly on ModpackVersionFile, but keep backward compatibility
       await ModpackVersionFile.createQueryBuilder()
         .delete()
         .from(ModpackVersionFile)
-        .where(`modpackVersionId = :versionId AND fileHash IN (
-          SELECT hash FROM modpack_files WHERE type = :fileType
+        .where(`modpackVersionId = :versionId AND (
+          file_type = :fileType OR 
+          (file_type IS NULL AND fileHash IN (SELECT hash FROM modpack_files WHERE type = :fileType))
         )`, { versionId, fileType })
         .execute();
 
@@ -146,7 +148,7 @@ export const processModpackFileUpload = async (
             modpackFile = new ModpackFile();
             modpackFile.hash = fe.hash;
             modpackFile.size = fe.size;
-            modpackFile.type = fileType as ModpackFileType;
+            modpackFile.type = fileType as ModpackFileType; // Keep for backward compatibility
             await modpackFile.save();
           }
 
@@ -155,6 +157,7 @@ export const processModpackFileUpload = async (
           modpackVersionFile.modpackVersionId = versionId;
           modpackVersionFile.fileHash = fe.hash;
           modpackVersionFile.path = fe.path;
+          modpackVersionFile.fileType = fileType as ModpackFileType; // NEW: Set fileType on ModpackVersionFile
           modpackVersionFile.file = modpackFile; // Associate with the ModpackFile
           await modpackVersionFile.save();
         } catch (error) {

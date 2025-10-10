@@ -863,7 +863,11 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions/
         if (version.id === versionId) continue; // Skip current version
 
         const filesOfType = version.files
-            .filter(vf => vf.file.type === type)
+            .filter(vf => {
+                // Prefer fileType from ModpackVersionFile, fallback to ModpackFile.type for backward compatibility
+                const fileType = vf.fileType || vf.file?.type;
+                return fileType === type;
+            })
             .map(vf => ({
                 fileHash: vf.fileHash,
                 path: vf.path,
@@ -915,7 +919,11 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
     const existingFiles = await ModpackVersionFile.find({
         where: { modpackVersionId: versionId },
         relations: ["file"],
-    }).then(files => files.filter(f => f.file.type === type));
+    }).then(files => files.filter(f => {
+        // Prefer fileType from ModpackVersionFile, fallback to ModpackFile.type for backward compatibility
+        const fileType = f.fileType || f.file?.type;
+        return fileType === type;
+    }));
 
     const existingFileHashes = new Set(existingFiles.map(f => f.fileHash));
     const existingPaths = new Set(existingFiles.map(f => f.path));
