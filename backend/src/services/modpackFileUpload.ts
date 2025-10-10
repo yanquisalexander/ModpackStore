@@ -154,7 +154,7 @@ export const processModpackFileUpload = async (
           modpackVersionFile.modpackVersionId = versionId;
           modpackVersionFile.fileHash = fe.hash;
           modpackVersionFile.path = fe.path;
-          modpackVersionFile.type = fileType as ModpackFileType; // NEW: Set fileType on ModpackVersionFile
+          modpackVersionFile.fileType = fileType as ModpackFileType; // NEW: Set fileType on ModpackVersionFile
           modpackVersionFile.file = modpackFile; // Associate with the ModpackFile
           await modpackVersionFile.save();
         } catch (error) {
