@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
+import { useUppyUpload, UppyUploadOptions } from './useUppyUpload';
 
 export interface FileUploadState {
     file: File | null;
@@ -13,13 +14,28 @@ export interface UseFileUploadOptions {
     acceptedTypes?: string[];
     maxSize?: number; // in bytes
     onFileSelect?: (file: File | null) => void;
+    // Uppy integration options (optional)
+    endpoint?: string;
+    headers?: Record<string, string>;
+    fieldName?: string;
+    formData?: Record<string, string>;
+    onUploadSuccess?: (response: any) => void;
+    onUploadError?: (error: Error) => void;
+    onUploadComplete?: () => void;
 }
 
 export const useFileUpload = (options: UseFileUploadOptions = {}) => {
     const {
         acceptedTypes = ['image/*'],
         maxSize = 5 * 1024 * 1024, // 5MB default
-        onFileSelect
+        onFileSelect,
+        endpoint,
+        headers,
+        fieldName,
+        formData,
+        onUploadSuccess,
+        onUploadError,
+        onUploadComplete
     } = options;
 
     const [state, setState] = useState<FileUploadState>({
@@ -29,6 +45,32 @@ export const useFileUpload = (options: UseFileUploadOptions = {}) => {
         isUploading: false,
         error: null,
     });
+
+    // Initialize Uppy if endpoint is provided
+    const uppyUpload = endpoint ? useUppyUpload({
+        endpoint,
+        headers,
+        fieldName,
+        formData,
+        allowedFileTypes: acceptedTypes,
+        maxFileSize: maxSize,
+        onProgress: (progress: number) => {
+            setState(prev => ({ ...prev, progress }));
+        },
+        onSuccess: (response: any) => {
+            setState(prev => ({ ...prev, progress: 100, isUploading: false }));
+            onUploadSuccess?.(response);
+        },
+        onError: (error: Error) => {
+            setState(prev => ({ ...prev, error: error.message, isUploading: false }));
+            toast.error(error.message);
+            onUploadError?.(error);
+        },
+        onComplete: () => {
+            setState(prev => ({ ...prev, isUploading: false }));
+            onUploadComplete?.();
+        }
+    }) : null;
 
     const validateFile = useCallback((file: File): boolean => {
         // Check file type
@@ -119,6 +161,27 @@ export const useFileUpload = (options: UseFileUploadOptions = {}) => {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }, []);
 
+    const upload = useCallback(async () => {
+        if (!state.file) {
+            throw new Error('No file selected');
+        }
+
+        if (!uppyUpload) {
+            throw new Error('Upload endpoint not configured');
+        }
+
+        setState(prev => ({ ...prev, isUploading: true, error: null, progress: 0 }));
+
+        try {
+            uppyUpload.addFile(state.file);
+            await uppyUpload.upload();
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+            setState(prev => ({ ...prev, error: errorMessage, isUploading: false }));
+            throw error;
+        }
+    }, [state.file, uppyUpload]);
+
     return {
         ...state,
         selectFile,
@@ -127,5 +190,7 @@ export const useFileUpload = (options: UseFileUploadOptions = {}) => {
         setError,
         reset,
         formatFileSize,
+        upload,
+        uppyInstance: uppyUpload,
     };
 };
