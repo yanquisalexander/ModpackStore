@@ -672,6 +672,13 @@ pub async fn create_modpack_instance(
     // Procesar en segundo plano
     spawn_modpack_creation_task(instance, manifest_clone, task_id);
 
+    // Emitir evento de favorito actualizado ya que la instancia se crea como favorita
+    if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
+        if let Some(app_handle) = guard.as_ref() {
+            let _ = app_handle.emit("favorite_updated", ());
+        }
+    }
+
     Ok(instance_id)
 }
 
@@ -1305,6 +1312,7 @@ async fn create_modpack_instance_struct(
     instance.modpackVersionId = Some(final_version_id);
     instance.minecraftVersion = manifest.mc_version;
     instance.forgeVersion = manifest.forge_version;
+    instance.favorite = true;
 
     println!("{}", modpack_info.to_string());
 
@@ -1735,7 +1743,7 @@ pub async fn create_instance_from_mrpack(
         instanceDirectory: Some(instance_dir.to_string_lossy().to_string()),
         forgeVersion: manifest.dependencies.forge.clone(),
         javaPath: None,
-        favorite: false,
+        favorite: true,
         favorite_order: None,
         ms_nickname: None,
     };
@@ -1757,6 +1765,13 @@ pub async fn create_instance_from_mrpack(
 
     // Spawn bootstrap task in background (similar to modpack creation)
     spawn_mrpack_bootstrap_task(instance, task_id.clone());
+
+    // Emitir evento de favorito actualizado ya que la instancia se crea como favorita
+    if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
+        if let Some(app_handle) = guard.as_ref() {
+            let _ = app_handle.emit("favorite_updated", ());
+        }
+    }
 
     Ok(instance_id)
 }
