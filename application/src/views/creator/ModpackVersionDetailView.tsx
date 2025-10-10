@@ -31,6 +31,7 @@ import { useAuthentication } from '@/stores/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Progress } from '@/components/ui/progress';
 import { handleApiError } from '@/lib/utils';
+import { uploadFileWithUppy } from '@/utils/uppyUpload';
 
 // --- Interfaces & Types ---
 
@@ -337,57 +338,45 @@ const ModpackVersionDetailView: React.FC = () => {
         setUploadingFile(true);
         setUploadDialog(prev => ({ ...prev, progress: 0 }));
 
-        return new Promise<void>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-
-            xhr.upload.addEventListener('progress', (event) => {
-                if (event.lengthComputable) {
-                    const percentComplete = Math.round((event.loaded / event.total) * 100);
+        try {
+            await uploadFileWithUppy({
+                file,
+                endpoint: `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}`,
+                headers: {
+                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                },
+                fieldName: 'file',
+                onProgress: (percentComplete) => {
                     setUploadDialog(prev => ({ ...prev, progress: percentComplete }));
-                }
-            });
-
-            xhr.addEventListener('load', () => {
-                const isSuccess = xhr.status >= 200 && xhr.status < 300;
-                let parsed: any = null;
-                try {
-                    if (xhr.responseText) {
-                        parsed = JSON.parse(xhr.responseText);
-                    }
-                } catch (e) { /* ignore parse errors */ }
-
-                if (isSuccess) {
+                },
+                onSuccess: (response) => {
                     setUploadDialog(prev => ({ ...prev, progress: 100 }));
                     toast.success('Archivo subido correctamente');
                     fetchVersionDetails();
-                    resolve();
-                } else {
-                    let message = `Error ${xhr.status}`;
-                    if (parsed && parsed.errors && Array.isArray(parsed.errors) && parsed.errors.length > 0) {
-                        message = parsed.errors.map((err: any) => err.detail || err.title || err.code || JSON.stringify(err)).join('; ');
-                    } else if (xhr.statusText) {
-                        message = `${message}: ${xhr.statusText}`;
+                },
+                onError: (error) => {
+                    let message = error.message || 'Error al subir el archivo';
+                    
+                    // Try to parse error message if it contains API error details
+                    try {
+                        const errorData = JSON.parse(error.message);
+                        if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
+                            message = errorData.errors.map((err: any) => err.detail || err.title || err.code || JSON.stringify(err)).join('; ');
+                        }
+                    } catch (e) {
+                        // Keep original message if parsing fails
                     }
-                    reject(new Error(message));
+                    
+                    toast.error(message);
                 }
             });
-
-            xhr.addEventListener('error', () => reject(new Error('Error de red al subir el archivo')));
-            xhr.addEventListener('abort', () => reject(new Error('Subida cancelada')));
-
-            const formData = new FormData();
-            formData.append('file', file);
-
-            xhr.open('POST', `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}`);
-            xhr.setRequestHeader('Authorization', `Bearer ${sessionTokens?.accessToken}`);
-            xhr.send(formData);
-        }).catch((error) => {
+        } catch (error) {
             console.error('Error uploading file:', error);
-            toast.error(error.message || 'Error al subir el archivo');
-        }).finally(() => {
+            toast.error(error instanceof Error ? error.message : 'Error al subir el archivo');
+        } finally {
             setUploadingFile(false);
             setUploadDialog(prev => ({ ...prev, open: false, file: null, progress: 0 }));
-        });
+        }
     };
 
     const deleteFile = async (fileHash: string, fileType: string) => {

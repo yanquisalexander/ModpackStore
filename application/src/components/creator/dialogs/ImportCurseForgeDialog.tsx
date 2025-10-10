@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { LucideUpload, LucideFile, LucideTrash2, LucidePackage, LucideCheck, LucideX, LucideLoader2 } from 'lucide-react';
 import { useAuthentication } from "@/stores/AuthContext";
 import { API_ENDPOINT } from "@/consts";
+import { uploadFileWithUppy } from '@/utils/uppyUpload';
 
 interface Props {
     isOpen: boolean;
@@ -110,31 +111,35 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
         });
 
         try {
-            const formData = new FormData();
-            formData.append('zipFile', file);
-            if (slug.trim()) formData.append('slug', slug.trim());
-            formData.append('visibility', visibility);
-            formData.append('parallelDownloads', parallelDownloads.toString());
+            // Prepare form data for Uppy
+            const formDataFields: Record<string, string> = {
+                visibility,
+                parallelDownloads: parallelDownloads.toString(),
+            };
+            
+            if (slug.trim()) {
+                formDataFields.slug = slug.trim();
+            }
 
-            const xhr = new XMLHttpRequest();
-
-            // Handle upload progress
-            xhr.upload.addEventListener('progress', (event) => {
-                if (event.lengthComputable) {
-                    const progressPercent = Math.round((event.loaded / event.total) * 100);
+            // Use Uppy for upload
+            const response = await uploadFileWithUppy({
+                file,
+                endpoint: `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/import/curseforge`,
+                headers: {
+                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                },
+                fieldName: 'zipFile',
+                formData: formDataFields,
+                onProgress: (progressPercent) => {
                     setProgress(prev => ({
                         ...prev,
                         uploadProgress: progressPercent,
                         message: `Subiendo archivo... ${progressPercent}%`
                     }));
-                }
-            });
-
-            // Handle response
-            xhr.addEventListener('load', () => {
-                if (xhr.status === 200) {
+                },
+                onSuccess: (response) => {
                     try {
-                        const response = JSON.parse(xhr.responseText);
+                        const responseData = response.body || response;
                         setProgress({
                             stage: 'completed',
                             uploadProgress: 100,
@@ -142,12 +147,12 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
                         });
                         
                         setResult({
-                            ...response.data,
-                            isNewModpack: !response.data.modpack.existingModpack
+                            ...responseData.data,
+                            isNewModpack: !responseData.data.modpack.existingModpack
                         });
                         
                         toast.success('Modpack importado exitosamente desde CurseForge');
-                        onSuccess?.(response.data);
+                        onSuccess?.(responseData.data);
                     } catch (parseError) {
                         console.error('Error parsing response:', parseError);
                         setProgress({
@@ -157,53 +162,23 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
                         });
                         toast.error('Error al procesar la respuesta del servidor');
                     }
-                } else {
-                    try {
-                        const errorResponse = JSON.parse(xhr.responseText);
-                        const errorMessage = errorResponse.errors?.[0]?.detail || 
-                                           errorResponse.message || 
-                                           `Error ${xhr.status}: ${xhr.statusText}`;
-                        
-                        setProgress({
-                            stage: 'error',
-                            uploadProgress: 0,
-                            message: errorMessage
-                        });
-                        toast.error('Error al importar modpack', { description: errorMessage });
-                    } catch (parseError) {
-                        setProgress({
-                            stage: 'error',
-                            uploadProgress: 0,
-                            message: `Error ${xhr.status}: ${xhr.statusText}`
-                        });
-                        toast.error(`Error al importar modpack: ${xhr.status}`);
-                    }
+                },
+                onError: (error) => {
+                    const errorMessage = error.message || 'Error desconocido';
+                    setProgress({
+                        stage: 'error',
+                        uploadProgress: 0,
+                        message: errorMessage
+                    });
+                    toast.error('Error al importar modpack', { description: errorMessage });
                 }
-                setImporting(false);
             });
 
-            // Handle network errors
-            xhr.addEventListener('error', () => {
-                setProgress({
-                    stage: 'error',
-                    uploadProgress: 0,
-                    message: 'Error de conexión al servidor'
-                });
-                toast.error('Error de conexión al servidor');
-                setImporting(false);
-            });
-
-            // Start request
-            xhr.open('POST', `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/import/curseforge`);
-            xhr.setRequestHeader('Authorization', `Bearer ${sessionTokens?.accessToken}`);
-            
             setProgress(prev => ({
                 ...prev,
                 stage: 'processing',
                 message: 'Procesando importación...'
             }));
-            
-            xhr.send(formData);
 
         } catch (error) {
             console.error('Import error:', error);
