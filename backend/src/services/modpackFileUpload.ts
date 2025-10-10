@@ -65,7 +65,7 @@ export const processModpackFileUpload = async (
       const fileEntries: { path: string; hash: string; size: number; buffer: Buffer }[] = [];
       const uploadPromises: { key: string; body: Buffer; contentType: string }[] = [];
 
-      sendProgressUpdate(modpackId, versionId, `Extrayendo archivos del ZIP`, { category: fileType, percent: 10 });
+      sendProgressUpdate(modpackId, versionId, `Extrayendo archivos del ZIP (tipo: ${fileType})`, { category: fileType, percent: 10 });
 
       for (const [fileName, file] of Object.entries(zip.files)) {
         if (!file.dir) {
