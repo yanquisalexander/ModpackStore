@@ -42,7 +42,7 @@ export const uploadFileWithUppy = async (options: UploadFileOptions): Promise<an
             endpoint,
             headers,
             fieldName,
-            formData,
+            formData: true,
             method: 'POST',
         });
 
@@ -54,23 +54,23 @@ export const uploadFileWithUppy = async (options: UploadFileOptions): Promise<an
             }
         });
 
-        uppy.on('upload-success', (uppyFile, response) => {
+        uppy.on('upload-success', (_uppyFile, response) => {
             onSuccess?.(response);
-            uppy.close();
+            uppy.destroy();
             resolve(response);
         });
 
-        uppy.on('upload-error', (uppyFile, error) => {
+        uppy.on('upload-error', (_uppyFile, error) => {
             const err = error as Error;
             onError?.(err);
-            uppy.close();
+            uppy.destroy();
             reject(err);
         });
 
         uppy.on('error', (error) => {
             const err = error as Error;
             onError?.(err);
-            uppy.close();
+            uppy.destroy();
             reject(err);
         });
 
@@ -80,14 +80,15 @@ export const uploadFileWithUppy = async (options: UploadFileOptions): Promise<an
                 name: file.name,
                 type: file.type,
                 data: file,
+                meta: formData,
             });
 
             uppy.upload().catch((error) => {
-                uppy.close();
+                uppy.destroy();
                 reject(error);
             });
         } catch (error) {
-            uppy.close();
+            uppy.destroy();
             reject(error);
         }
     });
@@ -115,7 +116,7 @@ export const createUppyInstance = (options: {
         endpoint: options.endpoint,
         headers: options.headers || {},
         fieldName: options.fieldName || 'file',
-        formData: options.formData || {},
+        formData: true,
         method: 'POST',
     });
 
