@@ -8,6 +8,10 @@ import "dotenv/config";
 import { logger } from 'hono/logger'
 import { HTTPException } from 'hono/http-exception';
 import { wsManager } from './services/websocket.service';
+import { compress } from 'hono/compress'
+import { trimTrailingSlash } from 'hono/trailing-slash'
+
+
 
 
 // Swagger UI Setup
@@ -90,6 +94,12 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH']
 }));
+
+// Compression Middleware
+app.use('*', compress());
+app.use('*', trimTrailingSlash());
+
+
 
 app.notFound((c: Context) => {
   return c.json({

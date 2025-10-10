@@ -61,7 +61,6 @@ class Passport {
         passport.use('jwt', new JwtStrategy(jwtOptions, async (req: Request, payload: any, done) => {
             try {
 
-                console.log(chalk.blue('[PASSPORT]'), 'JWT payload:', payload)
 
                 const session = await Session.findBySessionId(payload.sessionId)
                 if (!session) return done(null, false, { message: 'Invalid session' })
