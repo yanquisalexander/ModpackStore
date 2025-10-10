@@ -182,8 +182,8 @@ export function useRealtime(
           timestamp: new Date().toISOString()
         });
 
-        // Auto-reconnect if not manually disconnected and under attempt limit
-        if (!isManualDisconnectRef.current && reconnectAttemptsRef.current < maxReconnectAttempts) {
+        // Auto-reconnect if not manually disconnected, under attempt limit, and not banned
+        if (!isManualDisconnectRef.current && reconnectAttemptsRef.current < maxReconnectAttempts && event.reason !== 'USER_BANNED') {
           const delay = calculateBackoffDelay(reconnectAttemptsRef.current);
           log(`Attempting reconnect in ${delay}ms (attempt ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`);
 
@@ -191,6 +191,11 @@ export function useRealtime(
             reconnectAttemptsRef.current++;
             connect();
           }, delay);
+        } else if (event.reason === 'USER_BANNED') {
+          const errorMsg = 'Connection closed: User has been banned';
+          setError(errorMsg);
+          log(errorMsg);
+          emit('banned', { timestamp: new Date().toISOString() });
         } else if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
           const errorMsg = `Max reconnection attempts (${maxReconnectAttempts}) reached`;
           setError(errorMsg);
