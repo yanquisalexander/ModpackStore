@@ -18,7 +18,7 @@ export class ModpackFile extends BaseEntity {
      * @deprecated This field is deprecated. Use ModpackVersionFile.fileType instead.
      * Kept for backward compatibility during migration.
      */
-    @Column({ name: "type", type: "varchar", length: 32 })
+    @Column({ name: "type", type: "varchar", length: 32, default: 'extras' })
     type: ModpackFileType;
 
     @CreateDateColumn({ name: "uploaded_at" })
