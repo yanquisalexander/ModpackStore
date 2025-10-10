@@ -668,7 +668,7 @@ const ModpackVersionDetailView: React.FC = () => {
 
         const filteredFiles = files.filter(file => {
             // Prefer fileType from ModpackVersionFile, fallback to file.type for backward compatibility
-            const fileType = file.fileType || file.file?.type;
+            const fileType = file.fileType || file.file?.type || 'extras';
             return fileType === type;
         });
 

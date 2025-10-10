@@ -708,6 +708,7 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions/
             files: {
                 path: true,
                 fileHash: true,
+                fileType: true,
                 file: {
                     type: true
                 }
@@ -865,7 +866,7 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions/
         const filesOfType = version.files
             .filter(vf => {
                 // Prefer fileType from ModpackVersionFile, fallback to ModpackFile.type for backward compatibility
-                const fileType = vf.fileType || vf.file?.type;
+                const fileType = vf.fileType || vf.file?.type || 'extras';
                 return fileType === type;
             })
             .map(vf => ({
@@ -997,7 +998,7 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
 
     const body = await c.req.parseBody();
 
-    console.log({ body });
+    console.log({ body, type });
 
     // For testing, throw an api error
 

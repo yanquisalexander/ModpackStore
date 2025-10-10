@@ -47,14 +47,11 @@ export const processModpackFileUpload = async (
       sendProgressUpdate(modpackId, versionId, `Iniciando procesamiento de ${fileType}`, { category: fileType, percent: 0 });
 
       // Eliminar todos los ModpackVersionFile existentes para esta versión y tipo
-      // Note: We now check fileType directly on ModpackVersionFile, but keep backward compatibility
+      // Note: We now check type directly on ModpackVersionFile
       await ModpackVersionFile.createQueryBuilder()
         .delete()
         .from(ModpackVersionFile)
-        .where(`modpackVersionId = :versionId AND (
-          file_type = :fileType OR 
-          (file_type IS NULL AND fileHash IN (SELECT hash FROM modpack_files WHERE type = :fileType))
-        )`, { versionId, fileType })
+        .where(`modpackVersionId = :versionId AND file_type = :fileType`, { versionId, fileType })
         .execute();
 
       // Load entire ZIP file into memory
@@ -117,7 +114,7 @@ export const processModpackFileUpload = async (
       const uploadPromisesDeduplicated = Array.from(uniqueUploads.values());
 
       try {
-        await batchUploadToR2(uploadPromisesDeduplicated, 2); // Reduced to 2 concurrent uploads to avoid R2 rate limits
+        await batchUploadToR2(uploadPromisesDeduplicated, 5);
         console.log(`Successfully uploaded ${uploadPromisesDeduplicated.length} unique files to R2 (${fileEntries.length - uploadPromisesDeduplicated.length} duplicates skipped)`);
       } catch (uploadError) {
         console.error(`Error uploading files to R2:`, uploadError);
@@ -157,7 +154,7 @@ export const processModpackFileUpload = async (
           modpackVersionFile.modpackVersionId = versionId;
           modpackVersionFile.fileHash = fe.hash;
           modpackVersionFile.path = fe.path;
-          modpackVersionFile.fileType = fileType as ModpackFileType; // NEW: Set fileType on ModpackVersionFile
+          modpackVersionFile.type = fileType as ModpackFileType; // NEW: Set fileType on ModpackVersionFile
           modpackVersionFile.file = modpackFile; // Associate with the ModpackFile
           await modpackVersionFile.save();
         } catch (error) {
