@@ -57,8 +57,9 @@ interface ModpackVersion {
 interface ModpackVersionFile {
     fileHash: string;
     path: string;
+    fileType?: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras' | 'datapacks'; // NEW: direct fileType on ModpackVersionFile
     file: {
-        type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras';
+        type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras'; // DEPRECATED: kept for backward compatibility
     };
     size?: number;
 }
@@ -693,7 +694,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     const modpackFile: ModpackVersionFile = {
                         fileHash: fileEntry.fileHash,
                         path: fileEntry.path,
-                        file: { type: type as any },
+                        fileType: type as any, // NEW: Set fileType directly
+                        file: { type: type as any }, // Keep for backward compatibility
                         size: fileEntry.size
                     };
                     currentLevel[part] = { type: 'file', data: modpackFile };
@@ -882,7 +884,11 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     }> = ({ title, description, type, files, icon, versionStatus, onDeleteFile }) => {
         const [expandedFolders, setExpandedFolders] = useState<{ [key: string]: boolean }>({});
 
-        const filteredFiles = files.filter(file => file.file.type === type);
+        const filteredFiles = files.filter(file => {
+            // Prefer fileType from ModpackVersionFile, fallback to file.type for backward compatibility
+            const fileType = file.fileType || file.file?.type;
+            return fileType === type;
+        });
 
         const fileTree = useMemo(() => {
             const buildFileTree = (filesToProcess: ModpackVersionFile[]): { [key: string]: TreeNode } => {

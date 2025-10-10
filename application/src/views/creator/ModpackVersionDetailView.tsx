@@ -55,8 +55,9 @@ interface ModpackVersion {
 interface ModpackVersionFile {
     fileHash: string;
     path: string;
+    fileType?: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras' | 'datapacks'; // NEW: direct fileType on ModpackVersionFile
     file: {
-        type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras';
+        type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras'; // DEPRECATED: kept for backward compatibility
     };
     size?: number;
 }
@@ -651,7 +652,11 @@ const ModpackVersionDetailView: React.FC = () => {
     }> = ({ title, description, type, files, icon, versionStatus, onDeleteFile }) => {
         const [expandedFolders, setExpandedFolders] = useState<{ [key: string]: boolean }>({});
 
-        const filteredFiles = files.filter(file => file.file.type === type);
+        const filteredFiles = files.filter(file => {
+            // Prefer fileType from ModpackVersionFile, fallback to file.type for backward compatibility
+            const fileType = file.fileType || file.file?.type;
+            return fileType === type;
+        });
 
         const fileTree = useMemo(() => {
             const buildFileTree = (filesToProcess: ModpackVersionFile[]): { [key: string]: TreeNode } => {

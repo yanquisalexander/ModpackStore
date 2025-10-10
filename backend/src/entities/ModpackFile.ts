@@ -14,6 +14,10 @@ export class ModpackFile extends BaseEntity {
     @Column({ name: "mime_type", type: "text", nullable: true })
     mimeType?: string;
 
+    /**
+     * @deprecated This field is deprecated. Use ModpackVersionFile.fileType instead.
+     * Kept for backward compatibility during migration.
+     */
     @Column({ name: "type", type: "varchar", length: 32 })
     type: ModpackFileType;
 
