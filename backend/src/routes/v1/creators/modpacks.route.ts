@@ -792,7 +792,6 @@ ModpackCreatorsRoute.delete("/publishers/:publisherId/modpacks/:modpackId/versio
     return c.json({ success: true });
 });
 
-
 // Archive version (logical archive, can be reversible if needed)
 ModpackCreatorsRoute.patch("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId/archive", isOrganizationMember, async (c) => {
     const user = c.get(USER_CONTEXT_KEY) as User;
@@ -1003,6 +1002,85 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
     return c.json({ version });
 });
 
+// Delete all files of a specific type
+ModpackCreatorsRoute.delete("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId/files/:type", isOrganizationMember, async (c) => {
+    const user = c.get(USER_CONTEXT_KEY) as User;
+    const { publisherId, modpackId, versionId, type } = c.req.param();
+
+    if (!ALLOWED_FILE_TYPES.includes(type)) {
+        throw new APIError(400, "Tipo de archivo no permitido");
+    }
+
+    const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
+    if (!modpack) return c.notFound();
+
+    const version = await ModpackVersion.findOneBy({ id: versionId, modpackId: modpack.id });
+    if (!version) return c.notFound();
+
+    const userRole = await user.getRoleInPublisher(publisherId);
+
+    if (userRole === PublisherMemberRole.MEMBER && version.createdBy !== user.id) {
+        throw new APIError(403, "No tienes permiso para editar esta versión");
+    }
+
+    // Delete all ModpackVersionFile entries for this version and type
+    const deleteResult = await ModpackVersionFile.createQueryBuilder()
+        .delete()
+        .from(ModpackVersionFile)
+        .where(`modpackVersionId = :versionId AND fileHash IN (
+            SELECT hash FROM modpack_files WHERE type = :fileType
+        )`, { versionId, fileType: type })
+        .execute();
+
+    return c.json({
+        message: `Eliminados ${deleteResult.affected || 0} archivos de tipo ${type}`,
+        deletedCount: deleteResult.affected || 0
+    });
+});
+
+// Delete multiple specific files
+ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId/files/:type/delete-multiple", isOrganizationMember, async (c) => {
+    const user = c.get(USER_CONTEXT_KEY) as User;
+    const { publisherId, modpackId, versionId, type } = c.req.param();
+
+    if (!ALLOWED_FILE_TYPES.includes(type)) {
+        throw new APIError(400, "Tipo de archivo no permitido");
+    }
+
+    const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
+    if (!modpack) return c.notFound();
+
+    const version = await ModpackVersion.findOneBy({ id: versionId, modpackId: modpack.id });
+    if (!version) return c.notFound();
+
+    const userRole = await user.getRoleInPublisher(publisherId);
+
+    if (userRole === PublisherMemberRole.MEMBER && version.createdBy !== user.id) {
+        throw new APIError(403, "No tienes permiso para editar esta versión");
+    }
+
+    const body = await c.req.json();
+    const { fileHashes }: { fileHashes: string[] } = body;
+
+    if (!Array.isArray(fileHashes) || fileHashes.length === 0) {
+        throw new APIError(400, "Lista de hashes de archivos requerida");
+    }
+
+    // Delete specific ModpackVersionFile entries
+    const deleteResult = await ModpackVersionFile.createQueryBuilder()
+        .delete()
+        .from(ModpackVersionFile)
+        .where(`modpackVersionId = :versionId AND fileHash IN (:...fileHashes) AND fileHash IN (
+            SELECT hash FROM modpack_files WHERE type = :fileType
+        )`, { versionId, fileHashes, fileType: type })
+        .execute();
+
+    return c.json({
+        message: `Eliminados ${deleteResult.affected || 0} archivos específicos de tipo ${type}`,
+        deletedCount: deleteResult.affected || 0
+    });
+});
+
 // CurseForge Import Endpoint
 ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/import/curseforge", isOrganizationMember, async (c) => {
     const user = c.get(USER_CONTEXT_KEY) as User;
@@ -1124,5 +1202,43 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/import/modrinth", i
 });
 
 // Public endpoints moved to explore routes
+ModpackCreatorsRoute.delete("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId/files/:type/:fileHash", isOrganizationMember, async (c) => {
+    const user = c.get(USER_CONTEXT_KEY) as User;
+    const { publisherId, modpackId, versionId, type, fileHash } = c.req.param();
+
+    if (!ALLOWED_FILE_TYPES.includes(type)) {
+        throw new APIError(400, "Tipo de archivo no permitido");
+    }
+
+    const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
+    if (!modpack) return c.notFound();
+
+    const version = await ModpackVersion.findOneBy({ id: versionId, modpackId: modpack.id });
+    if (!version) return c.notFound();
+
+    const userRole = await user.getRoleInPublisher(publisherId);
+
+    if (userRole === PublisherMemberRole.MEMBER && version.createdBy !== user.id) {
+        throw new APIError(403, "No tienes permiso para editar esta versión");
+    }
+
+    // Find and delete the specific ModpackVersionFile entry
+    const fileToDelete = await ModpackVersionFile.findOne({
+        where: {
+            modpackVersionId: versionId,
+            fileHash,
+            file: { type: type as any }
+        },
+        relations: ["file"]
+    });
+
+    if (!fileToDelete) {
+        throw new APIError(404, "Archivo no encontrado");
+    }
+
+    await fileToDelete.remove();
+
+    return c.json({ message: "Archivo eliminado correctamente" });
+});
 
 

@@ -107,7 +107,9 @@ const FileTreeNode: React.FC<{
     path: string;
     versionStatus: string;
     onDelete: (fileHash: string, fileType: string) => void;
-}> = ({ name, node, expandedFolders, setExpandedFolders, path, versionStatus, onDelete }) => {
+    selectedFiles?: Set<string>;
+    onToggleSelection?: (fileHash: string) => void;
+}> = ({ name, node, expandedFolders, setExpandedFolders, path, versionStatus, onDelete, selectedFiles, onToggleSelection }) => {
     if (node.type === 'folder') {
         const isExpanded = expandedFolders[path];
         const toggleExpand = () => setExpandedFolders(prev => ({ ...prev, [path]: !isExpanded }));
@@ -147,9 +149,19 @@ const FileTreeNode: React.FC<{
 
     // It's a file
     const fileData = node.data;
+    const isSelected = selectedFiles?.has(fileData.fileHash) || false;
+
     return (
         <div className="flex items-center justify-between p-1 ml-4 group hover:bg-gray-100 rounded">
-            <div className="flex items-center min-w-0">
+            <div className="flex items-center min-w-0 flex-1">
+                {selectedFiles && onToggleSelection && (
+                    <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggleSelection(fileData.fileHash)}
+                        className="mr-2 rounded border-gray-300 flex-shrink-0"
+                    />
+                )}
                 <div className="w-4 mr-2 flex-shrink-0"></div> {/* Indent spacer */}
                 {getFileIcon(name)}
                 <span className="text-gray-700 truncate" title={fileData.path}>{name}</span>
@@ -464,22 +476,22 @@ const ModpackVersionDetailView: React.FC = () => {
     };
 
     // Memoized calculations for performance
-    const allFileHashes = useMemo(() => 
+    const allFileHashes = useMemo(() =>
         reuseDialog.previousFiles.flatMap(version => version.files.map(file => file.fileHash)),
         [reuseDialog.previousFiles]
     );
 
-    const selectedFilesSet = useMemo(() => 
-        new Set(reuseDialog.selectedFiles), 
+    const selectedFilesSet = useMemo(() =>
+        new Set(reuseDialog.selectedFiles),
         [reuseDialog.selectedFiles]
     );
 
-    const allSelected = useMemo(() => 
+    const allSelected = useMemo(() =>
         allFileHashes.length > 0 && allFileHashes.every(hash => selectedFilesSet.has(hash)),
         [allFileHashes, selectedFilesSet]
     );
 
-    const noneSelected = useMemo(() => 
+    const noneSelected = useMemo(() =>
         reuseDialog.selectedFiles.length === 0,
         [reuseDialog.selectedFiles.length]
     );
@@ -650,8 +662,94 @@ const ModpackVersionDetailView: React.FC = () => {
         onDeleteFile: (fileHash: string, fileType: string) => void;
     }> = ({ title, description, type, files, icon, versionStatus, onDeleteFile }) => {
         const [expandedFolders, setExpandedFolders] = useState<{ [key: string]: boolean }>({});
+        const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+        const [isDeleting, setIsDeleting] = useState(false);
 
         const filteredFiles = files.filter(file => file.file.type === type);
+
+        const toggleFileSelection = useCallback((fileHash: string) => {
+            setSelectedFiles(prev => {
+                const newSet = new Set(prev);
+                if (newSet.has(fileHash)) {
+                    newSet.delete(fileHash);
+                } else {
+                    newSet.add(fileHash);
+                }
+                return newSet;
+            });
+        }, []);
+
+        const selectAllFiles = useCallback(() => {
+            const allHashes = filteredFiles.map(f => f.fileHash);
+            setSelectedFiles(new Set(allHashes));
+        }, [filteredFiles]);
+
+        const deselectAllFiles = useCallback(() => {
+            setSelectedFiles(new Set());
+        }, []);
+
+        const deleteSelectedFiles = async () => {
+            if (selectedFiles.size === 0) return;
+
+            setIsDeleting(true);
+            try {
+                const res = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}/delete-multiple`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        fileHashes: Array.from(selectedFiles)
+                    })
+                });
+
+                if (!res.ok) {
+                    await handleApiError(res);
+                    return;
+                }
+
+                const data = await res.json();
+                toast.success(data.message || 'Archivos eliminados correctamente');
+                setSelectedFiles(new Set());
+                fetchVersionDetails();
+            } catch (error) {
+                console.error('Error deleting files:', error);
+                toast.error(error instanceof Error ? error.message : 'Error al eliminar archivos');
+            } finally {
+                setIsDeleting(false);
+            }
+        };
+
+        const deleteAllFiles = async () => {
+            if (!confirm(`¿Estás seguro de que quieres eliminar todos los archivos de ${title.toLowerCase()}? Esta acción no se puede deshacer.`)) {
+                return;
+            }
+
+            setIsDeleting(true);
+            try {
+                const res = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                    }
+                });
+
+                if (!res.ok) {
+                    await handleApiError(res);
+                    return;
+                }
+
+                const data = await res.json();
+                toast.success(data.message || 'Todos los archivos eliminados correctamente');
+                fetchVersionDetails();
+            } catch (error) {
+                console.error('Error deleting all files:', error);
+                toast.error(error instanceof Error ? error.message : 'Error al eliminar todos los archivos');
+            } finally {
+                setIsDeleting(false);
+            }
+        };
 
         const fileTree = useMemo(() => {
             const buildFileTree = (filesToProcess: ModpackVersionFile[]): { [key: string]: TreeNode } => {
@@ -715,6 +813,46 @@ const ModpackVersionDetailView: React.FC = () => {
                                         <LucidePackage className="h-4 w-4 mr-2" /> Reutilizar
                                     </Button>
                                 </div>
+                                {filteredFiles.length > 0 && (
+                                    <div className="flex flex-col gap-2 w-full">
+                                        <div className="flex gap-2 justify-center">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={selectAllFiles}
+                                                disabled={selectedFiles.size === filteredFiles.length}
+                                            >
+                                                Seleccionar todo
+                                            </Button>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={deselectAllFiles}
+                                                disabled={selectedFiles.size === 0}
+                                            >
+                                                Deseleccionar todo
+                                            </Button>
+                                        </div>
+                                        <div className="flex gap-2 justify-center">
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={deleteSelectedFiles}
+                                                disabled={selectedFiles.size === 0 || isDeleting}
+                                            >
+                                                {isDeleting ? 'Eliminando...' : `Eliminar ${selectedFiles.size} archivo(s)`}
+                                            </Button>
+                                            <Button
+                                                variant="destructive"
+                                                size="sm"
+                                                onClick={deleteAllFiles}
+                                                disabled={isDeleting}
+                                            >
+                                                {isDeleting ? 'Eliminando...' : 'Eliminar todo'}
+                                            </Button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                         {filteredFiles.length > 0 ? (
@@ -735,6 +873,8 @@ const ModpackVersionDetailView: React.FC = () => {
                                             path={name}
                                             versionStatus={versionStatus}
                                             onDelete={onDeleteFile}
+                                            selectedFiles={selectedFiles}
+                                            onToggleSelection={toggleFileSelection}
                                         />
                                     ))
                                 }
