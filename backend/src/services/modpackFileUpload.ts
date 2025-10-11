@@ -7,7 +7,7 @@ import { In } from "typeorm";
 import { sendProgressUpdate, sendCompletionUpdate, sendErrorUpdate } from "./realtime.service";
 import JSZip from 'jszip';
 import crypto from 'crypto';
-import { uploadToR2, batchUploadToR2 } from './r2UploadService';
+import { batchUploadToR2 } from './r2UploadService';
 
 export const ALLOWED_FILE_TYPES = ['mods', 'resourcepacks', 'config', 'shaderpacks', 'datapacks', 'extras'];
 
@@ -15,6 +15,51 @@ const TEMP_UPLOAD_DIR = path.join(__dirname, "../../tmp/uploads");
 if (!fs.existsSync(TEMP_UPLOAD_DIR)) fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true });
 
 type UploadSource = Buffer | File;
+
+/**
+ * Determina si el ZIP contiene un único directorio raíz que coincide con el tipo de archivo.
+ * Si es así, devuelve esa ruta para que pueda ser eliminada del path final.
+ * @param zip - La instancia de JSZip.
+ * @param fileType - El tipo de archivo (ej: 'mods').
+ * @returns El path base a eliminar (ej: 'mods/'), o una cadena vacía si no se debe eliminar nada.
+ */
+const determineBasePath = (zip: JSZip, fileType: string): string => {
+  // 'extras' siempre se extrae tal cual
+  if (fileType === 'extras') {
+    return '';
+  }
+
+  const topLevelEntries = Object.values(zip.files).filter(file => !file.dir && !file.name.includes('/'));
+
+  // Si hay archivos en la raíz del ZIP, no hay un directorio base que eliminar.
+  if (topLevelEntries.length > 0) {
+    return '';
+  }
+
+  // Obtenemos todos los directorios de primer nivel
+  const rootDirs = new Set<string>();
+  Object.values(zip.files).forEach(file => {
+    if (!file.dir) {
+      const parts = file.name.split('/');
+      if (parts.length > 1) {
+        rootDirs.add(parts[0]);
+      }
+    }
+  });
+
+  // Si hay más de un directorio en la raíz, o ninguno, no hacemos nada.
+  // También comprobamos si el nombre del único directorio raíz coincide con el fileType.
+  if (rootDirs.size === 1) {
+    const singleRootDir = rootDirs.values().next().value;
+    if (singleRootDir?.toLowerCase() === fileType.toLowerCase()) {
+      console.log(`Se detectó un directorio raíz coincidente: '${singleRootDir}'. Se eliminará del path final.`);
+      return `${singleRootDir}/`; // Retornamos el prefijo a eliminar, ej: "mods/"
+    }
+  }
+
+  return '';
+};
+
 
 export const processModpackFileUpload = async (
   source: UploadSource,
@@ -27,7 +72,6 @@ export const processModpackFileUpload = async (
     throw new Error(`Tipo de archivo no permitido: ${fileType}`);
   }
 
-  // Convertir File a Buffer si es necesario
   const buffer: Buffer =
     source instanceof Buffer
       ? source
@@ -35,169 +79,130 @@ export const processModpackFileUpload = async (
         ? Buffer.from(await source.arrayBuffer())
         : (() => { throw new Error("El tipo de 'source' no es soportado."); })();
 
-  // Guardar temporalmente el archivo
   const tempPath = path.join(TEMP_UPLOAD_DIR, `${Date.now()}-${filename}`);
   fs.writeFileSync(tempPath, buffer);
   console.log(`Archivo guardado temporalmente: ${tempPath}`);
 
-  // Función que se delega a la queue
   const task = async () => {
     try {
       console.log(`Procesando ${fileType} para modpack ${modpackId}...`);
       sendProgressUpdate(modpackId, versionId, `Iniciando procesamiento de ${fileType}`, { category: fileType, percent: 0 });
 
-      // Eliminar todos los ModpackVersionFile existentes para esta versión y tipo
-      // Note: We now check type directly on ModpackVersionFile
-      await ModpackVersionFile.createQueryBuilder()
-        .delete()
-        .from(ModpackVersionFile)
-        .where(`modpackVersionId = :versionId AND file_type = :fileType`, { versionId, fileType })
-        .execute();
+      // Eliminar relaciones existentes para esta versión y tipo de archivo
+      await ModpackVersionFile.delete({ modpackVersionId: versionId, fileType: fileType as ModpackFileType });
+      sendProgressUpdate(modpackId, versionId, `Limpiando registros antiguos`, { category: fileType, percent: 5 });
 
-      // Load entire ZIP file into memory
       const zip = await JSZip.loadAsync(buffer);
 
-      // Create temporary directory for extraction
-      const tempDir = path.join(TEMP_UPLOAD_DIR, `${modpackId}-${versionId}-${fileType}`);
-      fs.mkdirSync(tempDir, { recursive: true });
+      // Determinar si hay que eliminar un directorio base (ej. una carpeta 'mods' dentro de mods.zip)
+      const basePathToStrip = determineBasePath(zip, fileType);
 
-      const fileEntries: { path: string; hash: string; size: number; buffer: Buffer }[] = [];
-      const uploadPromises: { key: string; body: Buffer; contentType: string }[] = [];
+      const fileDbEntries: { path: string; hash: string; size: number }[] = [];
+      const uniqueUploads = new Map<string, { key: string; body: Buffer; contentType: string }>();
 
-      sendProgressUpdate(modpackId, versionId, `Extrayendo archivos del ZIP (tipo: ${fileType})`, { category: fileType, percent: 10 });
+      sendProgressUpdate(modpackId, versionId, `Procesando archivos desde ZIP`, { category: fileType, percent: 10 });
 
-      for (const [fileName, file] of Object.entries(zip.files)) {
-        if (!file.dir) {
-          const fileBuffer = await file.async('nodebuffer');
-          const filePath = path.join(tempDir, fileName);
+      const filesToProcess = Object.values(zip.files).filter(file => !file.dir);
 
-          // Ensure parent directories exist
-          const dirPath = path.dirname(filePath);
-          if (!fs.existsSync(dirPath)) {
-            fs.mkdirSync(dirPath, { recursive: true });
-          }
+      for (const file of filesToProcess) {
+        const fileBuffer = await file.async('nodebuffer');
 
-          // Extract file to disk
-          fs.writeFileSync(filePath, fileBuffer);
+        // OPTIMIZACIÓN: Calcular hash directamente desde el buffer en memoria
+        const hash = crypto.createHash('sha1').update(fileBuffer).digest('hex');
 
-          // Calculate hash by reading from disk
-          const hash = crypto.createHash('sha1').update(fs.readFileSync(filePath)).digest('hex');
+        // LÓGICA DE RUTAS: Eliminar el prefijo si es necesario y añadir el de la categoría
+        let finalPath = file.name;
+        if (basePathToStrip && finalPath.startsWith(basePathToStrip)) {
+          finalPath = finalPath.substring(basePathToStrip.length);
+        }
 
-          fileEntries.push({ path: fileName, hash, size: fileBuffer.length, buffer: fileBuffer });
+        // 'extras' no lleva prefijo, los demás sí.
+        const dbPath = fileType === 'extras' ? finalPath : path.join(fileType, finalPath).replace(/\\/g, '/');
 
-          // Prepare for batch upload using hash-based keys
+        // Ignorar archivos vacíos resultantes de la eliminación del path (ej. el propio directorio)
+        if (!dbPath) continue;
+
+        fileDbEntries.push({ path: dbPath, hash, size: fileBuffer.length });
+
+        // Preparar para subida a R2, evitando duplicados por hash
+        if (!uniqueUploads.has(hash)) {
           const hashKey = `${hash.substring(0, 2)}/${hash.substring(2, 4)}/${hash}`;
-          uploadPromises.push({
+          uniqueUploads.set(hash, {
             key: `resources/files/${hashKey}`,
             body: fileBuffer,
-            contentType: "application/octet-stream"
+            contentType: "application/octet-stream",
           });
         }
       }
 
-      sendProgressUpdate(modpackId, versionId, `Subiendo archivos a almacenamiento`, { category: fileType, percent: 50 });
+      sendProgressUpdate(modpackId, versionId, `Subiendo ${uniqueUploads.size} archivos únicos`, { category: fileType, percent: 40 });
 
-      // Deduplicate uploads by hash to avoid concurrent uploads of same file
-      const uniqueUploads = new Map<string, { key: string; body: Buffer; contentType: string }>();
-      fileEntries.forEach(fe => {
-        const hashKey = `${fe.hash.substring(0, 2)}/${fe.hash.substring(2, 4)}/${fe.hash}`;
-        const key = `resources/files/${hashKey}`;
-        if (!uniqueUploads.has(fe.hash)) {
-          uniqueUploads.set(fe.hash, {
-            key,
-            body: fe.buffer,
-            contentType: "application/octet-stream"
-          });
-        }
-      });
-
-      const uploadPromisesDeduplicated = Array.from(uniqueUploads.values());
-
+      const uploadPromises = Array.from(uniqueUploads.values());
       try {
-        await batchUploadToR2(uploadPromisesDeduplicated, 5);
-        console.log(`Successfully uploaded ${uploadPromisesDeduplicated.length} unique files to R2 (${fileEntries.length - uploadPromisesDeduplicated.length} duplicates skipped)`);
+        await batchUploadToR2(uploadPromises, 5); // 5 subidas concurrentes
+        console.log(`Subidos ${uploadPromises.length} archivos únicos a R2 (${fileDbEntries.length - uploadPromises.length} duplicados omitidos).`);
       } catch (uploadError) {
-        console.error(`Error uploading files to R2:`, uploadError);
-        throw new Error(`Failed to upload files: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
+        console.error(`Error subiendo archivos a R2:`, uploadError);
+        throw new Error(`Fallo al subir archivos: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`);
       }
 
-      // Clear buffers from memory after upload
-      fileEntries.forEach(fe => {
-        // Note: Buffers will be garbage collected automatically
-      });
+      // OPTIMIZACIÓN: Lógica de base de datos en lote
+      sendProgressUpdate(modpackId, versionId, `Actualizando base de datos`, { category: fileType, percent: 85 });
 
-      // After processing, check which files already exist to avoid re-uploading (though we already uploaded, this is for DB logic)
-      const allHashes = fileEntries.map(fe => fe.hash);
+      const allHashes = fileDbEntries.map(fe => fe.hash);
       const existingFiles = await ModpackFile.find({ where: { hash: In(allHashes) } });
       const existingHashes = new Set(existingFiles.map(ef => ef.hash));
-      const newFileCount = fileEntries.length - existingHashes.size;
 
-      console.log(`Uploaded ${newFileCount} new files, ${existingHashes.size} already existed`);
+      // 1. Identificar y guardar solo los ModpackFile que son nuevos
+      const newModpackFileEntities = fileDbEntries
+        .filter(fe => !existingHashes.has(fe.hash))
+        // Evitar duplicados en el lote de nuevos archivos
+        .filter((fe, index, self) => self.findIndex(t => t.hash === fe.hash) === index)
+        .map(fe => ModpackFile.create({ hash: fe.hash, size: fe.size, type: fileType as ModpackFileType }));
 
-      sendProgressUpdate(modpackId, versionId, `Archivos procesados: ${fileEntries.length} archivos`, { category: fileType, percent: 85 });
+      if (newModpackFileEntities.length > 0) {
+        await ModpackFile.save(newModpackFileEntities);
+        console.log(`Guardados ${newModpackFileEntities.length} nuevos registros en ModpackFile.`);
+      }
 
-      // Save to DB
-      const savePromises = fileEntries.map(async (fe) => {
-        try {
-          // Find or create ModpackFile
-          let modpackFile = await ModpackFile.findOne({ where: { hash: fe.hash } });
-          if (!modpackFile) {
-            modpackFile = new ModpackFile();
-            modpackFile.hash = fe.hash;
-            modpackFile.size = fe.size;
-            modpackFile.type = fileType as ModpackFileType; // Keep for backward compatibility
-            await modpackFile.save();
-          }
+      // 2. Crear todas las entradas de relación ModpackVersionFile
+      const newVersionFileEntries = fileDbEntries.map(fe =>
+        ModpackVersionFile.create({
+          modpackVersionId: versionId,
+          fileHash: fe.hash,
+          path: fe.path,
+          fileType: fileType as ModpackFileType,
+        })
+      );
 
-          // Create ModpackVersionFile entry for all files, even if they already exist
-          const modpackVersionFile = new ModpackVersionFile();
-          modpackVersionFile.modpackVersionId = versionId;
-          modpackVersionFile.fileHash = fe.hash;
-          modpackVersionFile.path = fe.path;
-          modpackVersionFile.fileType = fileType as ModpackFileType; // NEW: Set fileType on ModpackVersionFile
-          modpackVersionFile.file = modpackFile; // Associate with the ModpackFile
-          await modpackVersionFile.save();
-        } catch (error) {
-          // Ignore duplicate key errors for both ModpackFile and ModpackVersionFile
-          if (error instanceof Error && !error.message.includes('duplicate key') && !error.message.includes('llave duplicada')) {
-            throw error;
-          }
-        }
-      });
+      // 3. Guardar todas las relaciones en una sola operación
+      if (newVersionFileEntries.length > 0) {
+        await ModpackVersionFile.save(newVersionFileEntries);
+        console.log(`Guardadas ${newVersionFileEntries.length} relaciones en ModpackVersionFile.`);
+      }
 
-      await Promise.all(savePromises);
-      sendProgressUpdate(modpackId, versionId, `Guardados ${fileEntries.length} archivos en base de datos`, { category: fileType, percent: 95 });
-
-      // Mostrar tabla con path y hash
+      sendProgressUpdate(modpackId, versionId, `Proceso finalizado`, { category: fileType, percent: 95 });
       console.log(`Hashes generados para ${fileType}:`);
-      console.table(fileEntries.map(fe => ({ path: fe.path, hash: fe.hash })));
+      console.table(fileDbEntries.map(fe => ({ path: fe.path, hash: fe.hash.substring(0, 12) })));
 
-      console.log(`Procesamiento completo para ${fileType}`);
       sendCompletionUpdate(modpackId, versionId, `Procesamiento completo para ${fileType}`);
 
-      // Clean up temporary directory
-      fs.rmSync(tempDir, { recursive: true, force: true });
     } catch (error) {
       console.error(`Error procesando ${fileType} para modpack ${modpackId}:`, error);
       sendErrorUpdate(modpackId, versionId, `Error procesando ${fileType}: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
-      // Clean up temp file
-      try {
-        if (fs.existsSync(tempPath)) {
-          fs.unlinkSync(tempPath);
-          console.log(`Archivo temporal eliminado: ${tempPath}`);
-        }
-      } catch (cleanupError) {
-        console.error(`Error eliminando archivo temporal: ${cleanupError}`);
+      // Limpiar el archivo ZIP temporal inicial
+      if (fs.existsSync(tempPath)) {
+        fs.unlinkSync(tempPath);
+        console.log(`Archivo temporal eliminado: ${tempPath}`);
       }
     }
   };
 
-  // Delegar a la queue
   const { position, estimatedTime } = queue.add(task, `${modpackId}-${fileType}`);
 
   return {
-    message: `Archivo recibido, se procesará en background. Posición en cola: ${position}. ${estimatedTime}`,
+    message: `Archivo recibido. Procesando en segundo plano. Posición en cola: ${position}. ${estimatedTime}`,
     tempPath,
   };
 };
