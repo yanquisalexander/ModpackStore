@@ -24,6 +24,7 @@ import { APIError } from "./lib/APIError";
 import { AppDataSource } from "./db/data-source";
 import { generateSystemUser } from "./utils/system";
 import { initRedis, closeRedis } from "./lib/redis";
+import { databaseService } from "./services/database.service";
 
 const app = new Hono();
 
@@ -44,22 +45,13 @@ const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
 const port = Number(process.env.PORT) || 3000;
 
 const initializeServices = async (): Promise<void> => {
-  // Initialize database with retry logic for serverless auto-sleeping
-  let dbRetries = 5;
-  while (dbRetries > 0) {
-    try {
-      await AppDataSource.initialize();
-      console.log('Database connection established successfully.');
-      break;
-    } catch (error) {
-      console.error(`Database initialization failed, retries left: ${dbRetries - 1}`, error);
-      dbRetries--;
-      if (dbRetries === 0) {
-        throw new Error('Failed to initialize database after multiple retries. The database may be in auto-sleep mode.');
-      }
-      console.log('Retrying database connection in 2 seconds...');
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
+  // Initialize database using the singleton service
+  try {
+    await databaseService.ensureDatabaseReady();
+    console.log('Database service initialized successfully.');
+  } catch (error) {
+    console.error('Database service initialization failed:', error);
+    throw error; // Re-throw to stop server startup
   }
 
   /* Initialize the system user */
@@ -99,7 +91,9 @@ app.use('*', cors({
 app.use('*', compress());
 app.use('*', trimTrailingSlash());
 
-
+// Database Readiness Middleware
+import { requireDatabaseReady } from './middlewares/database.middleware';
+app.use('/v1/*', requireDatabaseReady);
 
 app.notFound((c: Context) => {
   return c.json({
