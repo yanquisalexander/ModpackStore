@@ -6,8 +6,8 @@ use crate::core::minecraft::{
     manifest::{ManifestMerger, ManifestParser},
     paths::MinecraftPaths,
 };
-use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
 use crate::core::modpackstore_auth::ModpackStoreAuth;
+use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
 use crate::interfaces::game_launcher::GameLauncher;
 use std::process::{Child, Command, Stdio};
 use uuid::Uuid;
@@ -72,13 +72,13 @@ impl GameLauncher for MinecraftLauncher {
             None => {
                 // No account UUID - use ModpackStore auth
                 log::info!("[MinecraftLauncher] No account UUID found, using ModpackStore auth");
-                
+
                 // Get JWT token from store synchronously
                 let app_handle = match crate::GLOBAL_APP_HANDLE.lock() {
                     Ok(guard) => guard.as_ref().cloned(),
                     Err(_) => return None,
                 };
-                
+
                 let access_token = match app_handle {
                     Some(handle) => {
                         match crate::core::instance_manager::get_access_token_sync(&handle) {
@@ -100,18 +100,26 @@ impl GameLauncher for MinecraftLauncher {
                 let ms_auth = ModpackStoreAuth::new(api_endpoint);
 
                 // Get username (ms_nickname if set, otherwise default from session)
-                let username = self.instance.ms_nickname.clone().unwrap_or_else(|| "Player".to_string());
+                let username = self
+                    .instance
+                    .ms_nickname
+                    .clone()
+                    .unwrap_or_else(|| "Player".to_string());
 
                 // For synchronous launcher, we need to block on the async authentication
                 // This is not ideal but maintains compatibility
                 let rt = tokio::runtime::Runtime::new().unwrap();
-                let auth_response = match rt.block_on(ms_auth.authenticate(access_token, Some(username))) {
-                    Ok(response) => response,
-                    Err(e) => {
-                        log::error!("[MinecraftLauncher] Failed to authenticate with ModpackStore: {}", e);
-                        return None;
-                    }
-                };
+                let auth_response =
+                    match rt.block_on(ms_auth.authenticate(access_token, Some(username))) {
+                        Ok(response) => response,
+                        Err(e) => {
+                            log::error!(
+                                "[MinecraftLauncher] Failed to authenticate with ModpackStore: {}",
+                                e
+                            );
+                            return None;
+                        }
+                    };
 
                 // Create temporary MinecraftAccount
                 let account = MinecraftAccount::new(
@@ -177,14 +185,20 @@ impl GameLauncher for MinecraftLauncher {
 
         // Add authlib-injector if using ModpackStore auth
         if self.instance.accountUuid.is_none() {
-            match crate::core::instance_manager::get_authlib_injector_arg_sync(&self.instance, &paths) {
+            match crate::core::instance_manager::get_authlib_injector_arg_sync(
+                &self.instance,
+                &paths,
+            ) {
                 Ok(authlib_arg) => {
                     // Insert authlib-injector as the first JVM argument
                     jvm_args.insert(0, authlib_arg);
                     log::info!("[MinecraftLauncher] Added authlib-injector to JVM arguments");
                 }
                 Err(e) => {
-                    log::error!("[MinecraftLauncher] Failed to get authlib-injector argument: {}", e);
+                    log::error!(
+                        "[MinecraftLauncher] Failed to get authlib-injector argument: {}",
+                        e
+                    );
                     return None;
                 }
             }

@@ -509,10 +509,7 @@ pub fn add_task_with_auto_start(label: &str, data: Option<serde_json::Value>) ->
 /// Wait for a task to complete (either successfully or with failure)
 /// Returns Ok(()) if the task completed successfully, Err with error message if it failed
 /// Times out after the specified duration
-pub async fn wait_for_task_completion(
-    task_id: &str,
-    timeout_seconds: u64,
-) -> Result<(), String> {
+pub async fn wait_for_task_completion(task_id: &str, timeout_seconds: u64) -> Result<(), String> {
     let start_time = std::time::Instant::now();
     let timeout_duration = std::time::Duration::from_secs(timeout_seconds);
     let mut last_known_status: Option<TaskStatus> = None;
@@ -552,10 +549,7 @@ pub async fn wait_for_task_completion(
                 // If we previously saw it as Completed, treat this as success
                 // (the task was removed after successful completion)
                 if let Some(TaskStatus::Completed) = last_known_status {
-                    info!(
-                        "Task {} was completed and has been cleaned up",
-                        task_id
-                    );
+                    info!("Task {} was completed and has been cleaned up", task_id);
                     return Ok(());
                 }
                 // Otherwise, this is an error - task never existed or failed

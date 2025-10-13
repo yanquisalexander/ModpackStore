@@ -1,15 +1,15 @@
 // src/core/i18n.rs
 // Internationalization system for Modpack Store
 
-use crate::{GLOBAL_APP_HANDLE, API_ENDPOINT};
+use crate::{API_ENDPOINT, GLOBAL_APP_HANDLE};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::sync::RwLock;
 use tauri::Emitter;
+use tokio::sync::RwLock;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct I18nData {
@@ -37,7 +37,10 @@ impl I18nManager {
         // Detect system language and set as current
         let detected_language = manager.detect_system_language();
         {
-            let mut current = manager.current_language.try_write().map_err(|_| "Failed to acquire write lock")?;
+            let mut current = manager
+                .current_language
+                .try_write()
+                .map_err(|_| "Failed to acquire write lock")?;
             *current = detected_language;
         }
 
@@ -64,8 +67,8 @@ impl I18nManager {
             .map_err(|e| format!("Failed to read language file: {}", e))?;
 
         // Parse YAML to JSON
-        let messages: HashMap<String, Value> = serde_yaml::from_str(&content)
-            .map_err(|e| format!("Failed to parse YAML: {}", e))?;
+        let messages: HashMap<String, Value> =
+            serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse YAML: {}", e))?;
 
         let data = I18nData {
             language: language.to_string(),
@@ -101,10 +104,13 @@ impl I18nManager {
         // Emit language change event to frontend
         if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
             if let Some(app_handle) = guard.as_ref() {
-                let _ = app_handle.emit("language-changed", json!({
-                    "language": language,
-                    "messages": data.messages
-                }));
+                let _ = app_handle.emit(
+                    "language-changed",
+                    json!({
+                        "language": language,
+                        "messages": data.messages
+                    }),
+                );
             }
         }
 
@@ -172,7 +178,11 @@ impl I18nManager {
     }
 
     /// Get translated message with parameters
-    pub async fn get_message_with_params(&self, key: &str, params: HashMap<String, String>) -> String {
+    pub async fn get_message_with_params(
+        &self,
+        key: &str,
+        params: HashMap<String, String>,
+    ) -> String {
         let mut message = self.get_message(key).await;
 
         for (param, value) in params {
@@ -195,7 +205,9 @@ impl I18nManager {
         // Preload other common languages if available
         let available_langs = self.get_available_languages().unwrap_or_default();
         for lang in &["es-419"] {
-            if available_langs.contains(&lang.to_string()) && !languages_to_preload.contains(&lang.to_string()) {
+            if available_langs.contains(&lang.to_string())
+                && !languages_to_preload.contains(&lang.to_string())
+            {
                 languages_to_preload.push(lang.to_string());
             }
         }
@@ -227,18 +239,15 @@ impl I18nManager {
     /// Get system locale from environment variables
     fn get_system_locale(&self) -> String {
         // Try different environment variables for locale detection
-        let locale_vars = [
-            "LANG",
-            "LC_ALL",
-            "LC_MESSAGES",
-            "LANGUAGE",
-        ];
+        let locale_vars = ["LANG", "LC_ALL", "LC_MESSAGES", "LANGUAGE"];
 
         for var in &locale_vars {
             if let Ok(locale) = std::env::var(var) {
                 if !locale.is_empty() && locale != "C" && locale != "POSIX" {
                     // Extract language code from locale (e.g., "es_ES.UTF-8" -> "es")
-                    let lang_code = locale.split('.').next()
+                    let lang_code = locale
+                        .split('.')
+                        .next()
                         .and_then(|s| s.split('_').next())
                         .unwrap_or("en");
                     return lang_code.to_lowercase();
@@ -251,7 +260,11 @@ impl I18nManager {
     }
 
     /// Map a detected locale to the best available language
-    fn map_locale_to_available_language(&self, system_locale: &str, available_languages: &[String]) -> String {
+    fn map_locale_to_available_language(
+        &self,
+        system_locale: &str,
+        available_languages: &[String],
+    ) -> String {
         // Direct match
         if available_languages.contains(&system_locale.to_string()) {
             return system_locale.to_string();
@@ -366,9 +379,7 @@ use once_cell::sync::OnceCell;
 static I18N_MANAGER: OnceCell<Arc<I18nManager>> = OnceCell::new();
 
 pub fn get_i18n_manager() -> &'static Arc<I18nManager> {
-    I18N_MANAGER.get_or_init(|| {
-        Arc::new(I18nManager::new().expect("Failed to create I18nManager"))
-    })
+    I18N_MANAGER.get_or_init(|| Arc::new(I18nManager::new().expect("Failed to create I18nManager")))
 }
 
 // Tauri commands
@@ -404,8 +415,13 @@ pub async fn get_message(key: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn get_message_with_params(key: String, params: HashMap<String, String>) -> Result<String, String> {
-    Ok(get_i18n_manager().get_message_with_params(&key, params).await)
+pub async fn get_message_with_params(
+    key: String,
+    params: HashMap<String, String>,
+) -> Result<String, String> {
+    Ok(get_i18n_manager()
+        .get_message_with_params(&key, params)
+        .await)
 }
 
 #[tauri::command]

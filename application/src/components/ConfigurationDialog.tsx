@@ -28,6 +28,7 @@ import { Slider } from "@/components/ui/slider";
 
 // Configuration components
 import { ConfigSection } from '@/components/configuration/ConfigSection';
+import { ThemeSelector } from '@/components/configuration/ThemeSelector';
 
 // Types
 import type {
@@ -409,6 +410,8 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                                                 return 'Configuraciones específicas de Minecraft';
                                             case 'account':
                                                 return 'Configuraciones de cuenta y autenticación';
+                                            case 'appearance':
+                                                return 'Personaliza la apariencia visual de la aplicación';
                                             default:
                                                 return `Configuraciones de ${sectionName}`;
                                         }
@@ -427,6 +430,21 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                                         />
                                     );
                                 })}
+
+                                {/* Theme Selector - Always shown */}
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle className="text-lg font-semibold">
+                                            Temas
+                                        </CardTitle>
+                                        <CardDescription>
+                                            Personaliza la apariencia visual de la aplicación
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <ThemeSelector />
+                                    </CardContent>
+                                </Card>
 
                                 {/* Advanced options for authenticated users */}
                                 {isAuthenticated && (

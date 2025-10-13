@@ -60,11 +60,10 @@ pub struct MrpackCompatibility {
 }
 
 pub fn read_mrpack_manifest(mrpack_path: &Path) -> Result<MrpackManifest, String> {
-    let file = fs::File::open(mrpack_path)
-        .map_err(|e| format!("Failed to open .mrpack file: {}", e))?;
+    let file =
+        fs::File::open(mrpack_path).map_err(|e| format!("Failed to open .mrpack file: {}", e))?;
 
-    let mut archive =
-        ZipArchive::new(file).map_err(|e| format!("Invalid .mrpack file: {}", e))?;
+    let mut archive = ZipArchive::new(file).map_err(|e| format!("Invalid .mrpack file: {}", e))?;
 
     let mut manifest_file = archive
         .by_name("modrinth.index.json")
@@ -89,10 +88,7 @@ pub fn validate_mrpack_file(mrpack_path: String) -> Result<MrpackManifest, Strin
         return Err("File does not exist".to_string());
     }
 
-    if !path
-        .extension()
-        .map_or(false, |ext| ext == "mrpack")
-    {
+    if !path.extension().map_or(false, |ext| ext == "mrpack") {
         return Err("File is not a .mrpack file".to_string());
     }
 
@@ -100,9 +96,7 @@ pub fn validate_mrpack_file(mrpack_path: String) -> Result<MrpackManifest, Strin
 }
 
 #[tauri::command]
-pub fn check_mrpack_compatibility(
-    manifest: MrpackManifest,
-) -> Result<MrpackCompatibility, String> {
+pub fn check_mrpack_compatibility(manifest: MrpackManifest) -> Result<MrpackCompatibility, String> {
     let mut warnings = Vec::new();
     let mut errors = Vec::new();
 
@@ -131,7 +125,11 @@ pub fn check_mrpack_compatibility(
     if loader != "forge" && loader != "vanilla" {
         errors.push(format!(
             "Solo se admite Forge actualmente. {}, Quilt y NeoForge no están soportados todavía.",
-            if loader == "fabric" { "Fabric" } else { &loader }
+            if loader == "fabric" {
+                "Fabric"
+            } else {
+                &loader
+            }
         ));
     }
 
@@ -166,15 +164,14 @@ pub fn check_mrpack_compatibility(
 
 /// Extract overrides from .mrpack to instance directory
 pub fn extract_mrpack_overrides(mrpack_path: &Path, instance_dir: &Path) -> Result<(), String> {
-    let file = fs::File::open(mrpack_path)
-        .map_err(|e| format!("Failed to open .mrpack file: {}", e))?;
+    let file =
+        fs::File::open(mrpack_path).map_err(|e| format!("Failed to open .mrpack file: {}", e))?;
 
-    let mut archive =
-        ZipArchive::new(file).map_err(|e| format!("Invalid .mrpack file: {}", e))?;
+    let mut archive = ZipArchive::new(file).map_err(|e| format!("Invalid .mrpack file: {}", e))?;
 
     // Extract to minecraft/ subdirectory to match standard instance structure
     let minecraft_dir = instance_dir.join("minecraft");
-    
+
     // Extract all files from "overrides/" directory
     for i in 0..archive.len() {
         let mut file = archive
@@ -220,10 +217,7 @@ pub fn extract_mrpack_overrides(mrpack_path: &Path, instance_dir: &Path) -> Resu
 }
 
 /// Download a single mod file from Modrinth
-async fn download_mod_file(
-    mod_file: &MrpackFile,
-    mods_dir: &Path,
-) -> Result<(), String> {
+async fn download_mod_file(mod_file: &MrpackFile, mods_dir: &Path) -> Result<(), String> {
     // Create mods directory if it doesn't exist
     fs::create_dir_all(mods_dir).map_err(|e| format!("Failed to create mods directory: {}", e))?;
 
@@ -237,13 +231,16 @@ async fn download_mod_file(
     // Skip if file already exists with correct hash
     if output_path.exists() {
         if let Ok(existing_content) = fs::read(&output_path) {
-            use sha1::{Sha1, Digest};
+            use sha1::{Digest, Sha1};
             let mut hasher = Sha1::new();
             hasher.update(&existing_content);
             let existing_hash = format!("{:x}", hasher.finalize());
-            
+
             if existing_hash == mod_file.hashes.sha1 {
-                log::info!("File {} already exists with correct hash, skipping", file_name);
+                log::info!(
+                    "File {} already exists with correct hash, skipping",
+                    file_name
+                );
                 return Ok(());
             }
         }
@@ -318,7 +315,9 @@ pub async fn download_mrpack_mods(
             // - client is "required"
             // - client is not "unsupported"
             f.env.as_ref().map_or(true, |env| {
-                env.client.as_ref().map_or(true, |c| c == "required" || c == "optional")
+                env.client
+                    .as_ref()
+                    .map_or(true, |c| c == "required" || c == "optional")
             })
         })
         .collect();

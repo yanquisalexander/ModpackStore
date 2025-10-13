@@ -29,13 +29,12 @@ pub fn get_version_manifest(
 
     // Fetch new manifest with failover support
     use super::manifest_servers::{fetch_manifest_with_failover, FailoverConfig};
-    
+
     let config = FailoverConfig::default();
-    let manifest = fetch_manifest_with_failover(client, &config)
-        .map_err(|e| {
-            log::error!("[get_version_manifest] Failed to fetch manifest: {}", e);
-            e
-        })?;
+    let manifest = fetch_manifest_with_failover(client, &config).map_err(|e| {
+        log::error!("[get_version_manifest] Failed to fetch manifest: {}", e);
+        e
+    })?;
 
     // Update cache
     *cache = Some((manifest.clone(), current_time));
@@ -68,7 +67,7 @@ pub fn get_version_details(
 
     // Download version details with failover support
     use super::manifest_servers::{fetch_version_json_with_failover, FailoverConfig};
-    
+
     let config = FailoverConfig::default();
     fetch_version_json_with_failover(client, version_url, &config)
 }

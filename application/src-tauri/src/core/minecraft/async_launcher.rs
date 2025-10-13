@@ -6,8 +6,8 @@ use crate::core::minecraft::{
     manifest::{ManifestMerger, ManifestParser},
     paths::MinecraftPaths,
 };
-use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
 use crate::core::modpackstore_auth::ModpackStoreAuth;
+use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use tauri_plugin_store::StoreExt;
@@ -19,7 +19,10 @@ pub struct AsyncMinecraftLauncher {
 
 impl AsyncMinecraftLauncher {
     pub fn new(instance: MinecraftInstance, app_handle: tauri::AppHandle) -> Self {
-        Self { instance, app_handle }
+        Self {
+            instance,
+            app_handle,
+        }
     }
 
     pub async fn launch(&self) -> Result<u32, String> {
@@ -62,7 +65,10 @@ impl AsyncMinecraftLauncher {
         );
 
         log::info!("[AsyncMinecraftLauncher] Minecraft paths: {:?}", paths);
-        log::info!("[AsyncMinecraftLauncher] Java path: {:?}", paths.java_path());
+        log::info!(
+            "[AsyncMinecraftLauncher] Java path: {:?}",
+            paths.java_path()
+        );
 
         // Load and merge manifests
         let manifest_parser = ManifestParser::new(&paths);
@@ -187,13 +193,13 @@ impl AsyncMinecraftLauncher {
         let ms_auth = ModpackStoreAuth::new(api_endpoint.clone());
 
         // Get Minecraft directory from paths
-        let minecraft_dir = paths.game_dir().parent()
+        let minecraft_dir = paths
+            .game_dir()
+            .parent()
             .ok_or_else(|| "Failed to get Minecraft directory".to_string())?;
 
         // Download authlib-injector if necessary
-        let jar_path = ms_auth
-            .get_authlib_injector_path(minecraft_dir)
-            .await?;
+        let jar_path = ms_auth.get_authlib_injector_path(minecraft_dir).await?;
 
         // Build the JVM argument
         Ok(ms_auth.build_authlib_injector_arg(&jar_path))
@@ -205,7 +211,10 @@ pub async fn launch_minecraft_async(
     instance_id: String,
     app_handle: tauri::AppHandle,
 ) -> Result<u32, String> {
-    log::info!("[launch_minecraft_async] Launching instance: {}", instance_id);
+    log::info!(
+        "[launch_minecraft_async] Launching instance: {}",
+        instance_id
+    );
 
     // Load instance
     let instance = MinecraftInstance::from_instance_id(&instance_id)

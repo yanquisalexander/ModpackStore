@@ -11,6 +11,7 @@ import { AppProviders } from "./providers/AppProviders"; // Importas el nuevo co
 import { info, debug, error, warn } from "@tauri-apps/plugin-log";
 import { preloadSounds } from '@/utils/sounds';
 import { useLayout } from './providers/LayoutProvider';
+import { ThemeEngine } from './services/themeEngine';
 
 
 // La llamada a Discord RPC se mantiene igual
@@ -20,6 +21,11 @@ startDiscordRpc("943184136976334879").catch((err) => {
 
 // Preload sounds including notification sounds
 preloadSounds();
+
+// Initialize theme engine
+ThemeEngine.initialize().catch((err) => {
+  console.error("Failed to initialize theme engine:", err);
+});
 
 const $root = document.getElementById("root");
 

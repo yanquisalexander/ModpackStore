@@ -2,16 +2,16 @@
 // Alternative Minecraft launcher meta servers with failover support
 
 use serde_json::Value;
-use tauri_plugin_http::reqwest;
 use std::time::Duration;
+use tauri_plugin_http::reqwest;
 
 /// List of alternative Minecraft launcher meta servers
 /// These servers mirror the official Mojang launcher meta API
 pub const MANIFEST_SERVERS: &[&str] = &[
-    "https://launchermeta.mojang.com/mc/game/version_manifest.json",           // Official Mojang
+    "https://launchermeta.mojang.com/mc/game/version_manifest.json", // Official Mojang
     "https://launchermeta.fastmcmirror.org/mc/game/version_manifest.json", // FastMC Mirror
-    "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json",           // BMCLAPI (China mirror)
-    "https://download.mcbbs.net/mc/game/version_manifest.json",                 // MCBBS (China mirror)
+    "https://bmclapi2.bangbang93.com/mc/game/version_manifest.json", // BMCLAPI (China mirror)
+    "https://download.mcbbs.net/mc/game/version_manifest.json",      // MCBBS (China mirror)
 ];
 
 /// Configuration for server failover behavior
@@ -40,8 +40,11 @@ pub fn fetch_manifest_with_failover(
     let mut last_error = String::new();
 
     for server_url in MANIFEST_SERVERS {
-        log::info!("[fetch_manifest_with_failover] Trying server: {}", server_url);
-        
+        log::info!(
+            "[fetch_manifest_with_failover] Trying server: {}",
+            server_url
+        );
+
         for attempt in 0..=config.max_retries_per_server {
             if attempt > 0 {
                 log::warn!(
@@ -62,7 +65,7 @@ pub fn fetch_manifest_with_failover(
                 Err(e) => {
                     last_error = format!("Server {} failed: {}", server_url, e);
                     log::warn!("[fetch_manifest_with_failover] {}", last_error);
-                    
+
                     // Don't retry immediately, wait a bit before next attempt
                     if attempt < config.max_retries_per_server {
                         std::thread::sleep(Duration::from_millis(500));
@@ -104,12 +107,12 @@ pub fn fetch_version_json_with_failover(
     // Extract the path component from the version URL
     // Example: https://launchermeta.mojang.com/v1/packages/xxx/1.20.1.json
     // We want to try alternative base URLs
-    
+
     let alternative_urls = convert_to_alternative_urls(version_url);
-    
+
     for url in alternative_urls {
         log::info!("[fetch_version_json_with_failover] Trying URL: {}", url);
-        
+
         match fetch_version_json_from_url(client, &url, config.timeout) {
             Ok(json) => {
                 log::info!(
@@ -134,18 +137,18 @@ pub fn fetch_version_json_with_failover(
 /// Converts a Mojang URL to alternative mirror URLs
 fn convert_to_alternative_urls(mojang_url: &str) -> Vec<String> {
     let mut urls = vec![mojang_url.to_string()]; // Start with original URL
-    
+
     // If it's a Mojang URL, create alternative mirror URLs
     if mojang_url.starts_with("https://launchermeta.mojang.com/") {
         let path = mojang_url.replace("https://launchermeta.mojang.com/", "");
-        
+
         // Add BMCLAPI mirror
         urls.push(format!("https://bmclapi2.bangbang93.com/{}", path));
-        
+
         // Add MCBBS mirror
         urls.push(format!("https://download.mcbbs.net/{}", path));
     }
-    
+
     urls
 }
 
@@ -171,7 +174,7 @@ mod tests {
     fn test_convert_to_alternative_urls() {
         let mojang_url = "https://launchermeta.mojang.com/v1/packages/abc123/1.20.1.json";
         let urls = convert_to_alternative_urls(mojang_url);
-        
+
         assert_eq!(urls.len(), 3);
         assert_eq!(urls[0], mojang_url);
         assert!(urls[1].contains("bmclapi2.bangbang93.com"));
@@ -182,7 +185,7 @@ mod tests {
     fn test_convert_non_mojang_url() {
         let other_url = "https://example.com/some/path.json";
         let urls = convert_to_alternative_urls(other_url);
-        
+
         assert_eq!(urls.len(), 1);
         assert_eq!(urls[0], other_url);
     }
