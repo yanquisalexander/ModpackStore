@@ -215,8 +215,7 @@ impl InstanceBootstrap {
         // Download version JSON
         let version_json_path = version_dir.join(format!("{}.json", instance.minecraftVersion));
         if !version_json_path.exists() {
-            let version_manifest = self
-                .get_version_manifest()?;
+            let version_manifest = self.get_version_manifest()?;
 
             let versions = version_manifest["versions"]
                 .as_array()
@@ -807,7 +806,8 @@ impl InstanceBootstrap {
         }
 
         // First, bootstrap the vanilla base (this will download/detect Java)
-        let java_path_option = self.bootstrap_vanilla_instance(instance, task_id.clone())
+        let java_path_option = self
+            .bootstrap_vanilla_instance(instance, task_id.clone())
             .map_err(|e| format!("Error configurando base Vanilla: {}", e))?;
 
         // Update task status - 70%

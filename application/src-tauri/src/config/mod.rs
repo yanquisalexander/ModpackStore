@@ -66,7 +66,8 @@ impl ConfigManager {
                 if let Some(config_def) = schema.get_config_definition(key) {
                     if config_def.type_ == ConfigValueType::Path {
                         if let Some(path_str) = value.as_str() {
-                            let normalized_path = normalize_path_separators(PathBuf::from(path_str));
+                            let normalized_path =
+                                normalize_path_separators(PathBuf::from(path_str));
                             let normalized_str = normalized_path.to_string_lossy().to_string();
                             if path_str != normalized_str {
                                 *value = json!(normalized_str);
@@ -307,7 +308,10 @@ pub async fn set_config(key: String, value: Value) -> Result<(), String> {
 
     // Después de liberar el mutex, actualizar el sistema de i18n si cambió el idioma
     if let Some(lang_str) = language_update {
-        if let Err(e) = crate::core::i18n::get_i18n_manager().set_language(&lang_str).await {
+        if let Err(e) = crate::core::i18n::get_i18n_manager()
+            .set_language(&lang_str)
+            .await
+        {
             log::error!("Failed to update language: {}", e);
         }
     }
