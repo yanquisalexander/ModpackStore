@@ -21,8 +21,6 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 
@@ -169,9 +167,12 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
         try {
             setConfig(prev => ({ ...prev, saving: true }));
 
+            // Excluir selectedTheme ya que se maneja por separado en ThemeSelector
+            const configToSave = Object.entries(config.values).filter(([key]) => key !== 'selectedTheme');
+
             // Usar Promise.all para guardar en paralelo
             await Promise.all(
-                Object.entries(config.values).map(([key, value]) =>
+                configToSave.map(([key, value]) =>
                     invoke('set_config', { key, value })
                 )
             );
