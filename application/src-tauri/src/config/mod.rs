@@ -336,3 +336,8 @@ pub fn get_config_value(key: String) -> Result<Option<Value>, String> {
         Err(_) => Err("Error al obtener el bloqueo del gestor de configuración".to_string()),
     }
 }
+
+#[tauri::command]
+pub async fn set_config_value(key: String, value: Value) -> Result<(), String> {
+    set_config(key, value).await
+}

@@ -86,3 +86,9 @@ lastReminderTimestamp:
   default: 0
   description: "Timestamp del último recordatorio mostrado"
   ui_section: internal
+
+selectedTheme:
+  type: string
+  default: "dark"
+  description: "Tema seleccionado por el usuario"
+  ui_section: appearance
