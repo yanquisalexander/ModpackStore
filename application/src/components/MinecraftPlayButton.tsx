@@ -16,8 +16,8 @@ export interface MinecraftPlayButtonProps {
     onClick?: () => void;
     /** Icono personalizado (opcional, por defecto LucideGamepad2) */
     icon?: LucideIcon;
-    /** Estilos CSS personalizados para el botón */
-    style?: React.CSSProperties;
+    /** Estilos CSS personalizados para el botón; permite variables CSS personalizados como --border-color */
+    style?: React.CSSProperties & Record<string, string | number>;
     /** Clases CSS adicionales */
     className?: string;
     /** Si tiene posicionamiento personalizado */
@@ -68,7 +68,9 @@ export const MinecraftPlayButton: React.FC<MinecraftPlayButtonProps> = ({
     playingText = "Ya estás jugando",
     onClick,
     icon: Icon = LucideGamepad2,
-    style = {},
+    style = {
+        '--border-color': '#000000'
+    },
     className = "",
     hasCustomPosition = false,
     disabled = false,
