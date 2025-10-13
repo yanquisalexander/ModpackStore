@@ -19,3 +19,4 @@ pub mod network_utilities;
 pub mod onboarding;
 pub mod prelaunch_appearance;
 pub mod tasks_manager;
+pub mod theme_manager;

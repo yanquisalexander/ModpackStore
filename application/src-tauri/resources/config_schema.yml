@@ -86,3 +86,9 @@ lastReminderTimestamp:
   default: 0
   description: "Timestamp del último recordatorio mostrado"
   ui_section: internal
+
+theme:
+  type: string
+  default: "dark"
+  description: "Tema visual de la aplicación"
+  ui_section: appearance
