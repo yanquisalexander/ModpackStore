@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { builtInThemes, freeThemes } from '@/themes/built-in-themes';
 import { ThemeDefinition, ThemeInfo, ThemeType, ExternalThemeManifest } from '@/types/theme';
 import { applyTheme } from '@/themes/theme-utils';
-import { useAuth } from './AuthContext';
+import { useAuthentication } from './AuthContext';
 import { toast } from 'sonner';
 
 interface ThemeContextType {
@@ -34,10 +34,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [availableThemes, setAvailableThemes] = useState<ThemeInfo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [externalThemes, setExternalThemes] = useState<Record<string, ThemeDefinition>>({});
-  const { user } = useAuth();
+  const { session } = useAuthentication();
 
   // Check if user can access premium themes
-  const canAccessPremium = user?.isAdmin?.() || user?.isSuperAdmin?.() || false;
+  const canAccessPremium = session?.isAdmin?.() || session?.isSuperAdmin?.() || false;
 
   /**
    * Load external themes from the themes directory
