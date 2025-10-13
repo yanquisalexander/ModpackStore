@@ -23,8 +23,6 @@ import { WindowControls } from "./appbar/WindowControls";
 import { UpdateButton } from "./appbar/UpdateButton";
 import { PatreonButton } from "./appbar/PatreonButton";
 import { NativeContextMenu } from "./appbar/ContextMenu";
-import { SocialButton } from '@/components/social/SocialButton';
-import { NotificationType, useNotifications } from "@/hooks/useNotifications";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState<Window | null>(null);
@@ -143,23 +141,23 @@ export const AppTitleBar = () => {
                     data-tauri-drag-region
                     style={{ gridArea: 'appbar' }}
                     className={`flex z-40 top-0 h-[var(--app-top-bar-height)] transition ease-in-out w-full items-center justify-between 
-                     text-white select-none ${titleBarState.opaque ? 'bg-ms-primary' : 'bg-transparent'}`}
+                     text-[var(--sidebar-foreground)] select-none ${titleBarState.opaque ? 'bg-[var(--sidebar)]' : 'bg-transparent'}`}
                 >
                     <div className="flex items-center justify-center">
                         <div className="flex items-center gap-2">
                             <a
                                 href="/"
                                 onClick={handleBackClick}
-                                className={`cursor-pointer transition-transform duration-500 flex size-9 aspect-square items-center justify-center hover:bg-neutral-800 ${!titleBarState.canGoBack && '-translate-x-9'}`}
+                                className={`cursor-pointer transition-transform duration-500 flex size-9 aspect-square items-center justify-center hover:bg-[var(--sidebar-accent)] ${!titleBarState.canGoBack && '-translate-x-9'}`}
                                 aria-label="Back"
                             >
-                                <LucideArrowLeft className="h-4 w-4 text-white" />
+                                <LucideArrowLeft className="h-4 w-4 text-[var(--sidebar-foreground)]" />
                             </a>
 
 
                             <div
                                 data-tauri-drag-region
-                                className={`flex gap-x-2 select-none duration-500 items-center justify-center text-white/80 transition ${!titleBarState.canGoBack ? '-translate-x-7' : ''}`}>
+                                className={`flex gap-x-2 select-none duration-500 items-center justify-center text-[var(--sidebar-foreground)]/80 transition ${!titleBarState.canGoBack ? '-translate-x-7' : ''}`}>
                                 {
                                     titleBarState.icon && typeof titleBarState.icon === "string" ? (
                                         <img
@@ -176,12 +174,12 @@ export const AppTitleBar = () => {
                                         titleBarState.icon ? (
                                             <titleBarState.icon
                                                 data-tauri-drag-region
-                                                className={`size-6 p-0.5 rounded-md border border-solid border-white/10 ${titleBarState.customIconClassName ?? 'bg-pink-500/20'}`} />
+                                                className={`size-6 p-0.5 rounded-md border border-solid border-[var(--border)] ${titleBarState.customIconClassName ?? 'bg-pink-500/20'}`} />
                                         ) : null
                                     )
                                 }
 
-                                <span className="text-sm font-normal font-gotham select-none pointer-events-none" data-tauri-drag-region
+                                <span className="text-sm font-normal font-gotham select-none pointer-events-none opacity-90" data-tauri-drag-region
                                 >
                                     {titleBarState.title}
                                 </span>
@@ -189,7 +187,7 @@ export const AppTitleBar = () => {
                         </div>
                     </div>
 
-                    <div className="flex ml-auto border-r px-1 mr-1 border-white/10" onContextMenu={(e) => {
+                    <div className="flex ml-auto border-r px-1 mr-1 border-[var(--border)]" onContextMenu={(e) => {
                         e.preventDefault();
                     }}>
                         {
@@ -197,7 +195,7 @@ export const AppTitleBar = () => {
                                 <button
                                     onClick={handleReloadAppOffline}
                                     title="Recargar aplicación (offline)"
-                                    className="cursor-pointer flex  size-9 aspect-square items-center justify-center hover:bg-neutral-800"
+                                    className="cursor-pointer flex  size-9 aspect-square items-center justify-center hover:bg-[var(--sidebar-accent)]"
                                     aria-label="Reload"
                                 >
                                     <LucideWifiOff className="size-4 text-yellow-400" />

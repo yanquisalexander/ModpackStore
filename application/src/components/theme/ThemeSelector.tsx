@@ -75,7 +75,7 @@ export const ThemeSelector: React.FC = () => {
                 isLocked && 'opacity-60 cursor-not-allowed hover:border-border'
               )}
             >
-              <div className="flex items-start justify-between mb-2">
+              <div className="flex justify-between mb-2">
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <h4 className="font-semibold">{theme.name}</h4>
@@ -91,7 +91,7 @@ export const ThemeSelector: React.FC = () => {
                     </p>
                   )}
                 </div>
-                
+
                 {isSelected && (
                   <Check className="h-5 w-5 text-primary flex-shrink-0" />
                 )}

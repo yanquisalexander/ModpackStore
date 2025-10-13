@@ -91,4 +91,4 @@ selectedTheme:
   type: string
   default: "dark"
   description: "Tema seleccionado por el usuario"
-  ui_section: appearance
+  ui_section: internal # We don't show this in the UI, because the Theme Chooser handles it

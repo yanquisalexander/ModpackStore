@@ -14,10 +14,10 @@ export const PatreonButton: React.FC = () => {
         <button
             onClick={handlePatreonClick}
             title="Colaborar con el desarrollo"
-            className="cursor-pointer flex group size-9 aspect-square items-center justify-center hover:bg-neutral-800"
+            className="cursor-pointer flex group size-9 aspect-square items-center justify-center hover:bg-[var(--sidebar-accent)]"
             aria-label="Patreon"
         >
-            <PatreonIcon className="size-4 text-white/80 group-hover:text-pink-500" />
+            <PatreonIcon className="size-4 text-[var(--sidebar-foreground)]/80 group-hover:text-[var(--sidebar-accent-foreground)]" />
         </button>
     );
 };

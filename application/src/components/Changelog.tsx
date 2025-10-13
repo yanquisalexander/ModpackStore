@@ -5,10 +5,10 @@ import { invoke } from '@tauri-apps/api/core';
 import ReactMarkdown from 'react-markdown';
 
 // Versión actual del changelog
-const CHANGELOG_ID = 6;
+const CHANGELOG_ID = 7;
 
 // DIA MES AÑO (DD/MM/YYYY)
-const PATCH_NOTES_RELEASE_DATE = '07/10/2025';
+const PATCH_NOTES_RELEASE_DATE = '13/10/2025';
 
 const PATCH_NOTES_DATE_STRING = (() => {
   const [day, month, year] = PATCH_NOTES_RELEASE_DATE.split('/').map(Number);
@@ -21,20 +21,24 @@ const PATCH_NOTES_DATE_STRING = (() => {
   }).format(date);
 })();
 
-const CHANGELOG_CONTENT = `## 🧩 Pequeños cambios, grandes mejoras  
-Gracias por seguir acompañándonos.  
+const CHANGELOG_CONTENT = `## 🎨 Personalizá tu launcher — Nuevo sistema de temas (BETA)
 
-Bueno, no tan pequeños 😏. Hay varias cosas nuevas que seguro te van a encantar.  
+- 🖌️ **Sistema de temas activado (BETA)**  
+  Ahora podés cambiar el aspecto de Modpack Store con un par de clics. Probá los **3 temas gratuitos** incluidos y dale estilo a tu experiencia.
 
-## 🎨 Novedades  
-- 📦 **Soporte experimental para archivos \`.mrpack\`** de Modrinth. Sí, ahora podés importar modpacks sin pasar por rituales extraños.  
-- 🚀 **Migramos el servidor backend principal** para lograr un rendimiento mucho más fluido. Todo carga más rápido, incluso tu hype.  
-- 🧭 **Servidores alternativos de launcher**: cuando Mojang decide tomarse un descanso, vos no.  
-- 🌍 **Hola, Bonjour, Hello!** Empezamos a trabajar en **el soporte multilenguaje** para que todos puedan disfrutar la app en su idioma.  
+- 🌟 **Preparando Modpack Store+**  
+  Se empieza a integrar nuestro sistema de suscripción para quienes quieren ir más allá:
+  - Todos los temas desbloqueados  
+  - Acceso anticipado a funciones experimentales  
+  - Soporte prioritario y rol especial en Discord  
+  - Velocidades de descarga mejoradas en modpacks
 
----  
+- ⚙️ **Optimización de carga**  
+  Seguimos mejorando el rendimiento general de la app para que todo responda más rápido, incluso tus clics impulsivos.
 
-🙌 Gracias por seguir usando Modpack Store. Y sí… se vienen cositas.  
+---
+
+Gracias por seguir usando Modpack Store. Cada actualización te da más control, más estilo y más poder. 💚
 `;
 
 export const Changelog: React.FC = () => {

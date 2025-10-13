@@ -554,7 +554,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                 </motion.div>
 
                 {/* Capa de gradiente */}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-[#181818] pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-[var(--background)] pointer-events-none" />
             </div>
 
             {/* Contenido principal - con scroll normal */}
@@ -632,10 +632,10 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                         modpackId={modpackId}
                                         modpackName={modpackData.name!}
                                         localInstances={localInstancesOfModpack}
-                                        acquisitionMethod={modpackData.acquisitionMethod || 
+                                        acquisitionMethod={modpackData.acquisitionMethod ||
                                             (modpackData.isPasswordProtected ? 'password' :
-                                             modpackData.requiresTwitchSubscription ? 'twitch_sub' :
-                                             modpackData.isPaid ? 'paid' : 'free')
+                                                modpackData.requiresTwitchSubscription ? 'twitch_sub' :
+                                                    modpackData.isPaid ? 'paid' : 'free')
                                         }
                                         isPasswordProtected={modpackData.isPasswordProtected}
                                         isPaid={modpackData.isPaid}

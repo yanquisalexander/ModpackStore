@@ -44,7 +44,7 @@
   --font-minecraft-ten: "Minecraft Ten", sans-serif;
   --font-minecraft-five: "Minecraft Five", sans-serif;
   --default-font-family: var(--font-jost);
-  --color-ms-primary: #181818FF;
+  --color-ms-primary: var(--background);
   --color-twitch-purple: #9146FF;
   --color-box: #0b1422;
   --animate-spin: spin 1s linear infinite;
@@ -66,7 +66,7 @@ body,
   @apply max-h-dvh w-full custom-scrollbar;
   /* Scrollar */
   --color-background: var(--color-ms-primary);
-  scrollbar-color: #444 #181818FF;
+  scrollbar-color: var(--color-border) var(--background);
 }
 
 #root {

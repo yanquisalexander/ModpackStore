@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { builtInThemes, freeThemes } from '@/themes/built-in-themes';
 import { ThemeDefinition, ThemeInfo, ThemeType, ExternalThemeManifest } from '@/types/theme';
@@ -36,8 +36,11 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   const [externalThemes, setExternalThemes] = useState<Record<string, ThemeDefinition>>({});
   const { session } = useAuthentication();
 
-  // Check if user can access premium themes
-  const canAccessPremium = session?.isAdmin?.() || session?.isSuperAdmin?.() || false;
+  // Check if user can access premium themes (memoized to prevent re-renders)
+  const canAccessPremium = useMemo(() =>
+    session?.isAdmin?.() || session?.isSuperAdmin?.() || false,
+    [session]
+  );
 
   /**
    * Load external themes from the themes directory
@@ -77,43 +80,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
   }, [externalThemes]);
 
   /**
-   * Build the list of available themes for the UI
-   */
-  const buildAvailableThemes = useCallback((): ThemeInfo[] => {
-    const allThemes = getAllThemes();
-    const themeList: ThemeInfo[] = [];
-
-    Object.entries(allThemes).forEach(([id, theme]) => {
-      const isExternal = !builtInThemes[id];
-      themeList.push({
-        id: theme.id,
-        name: theme.name,
-        description: theme.description,
-        isPremium: theme.isPremium,
-        type: isExternal ? ThemeType.EXTERNAL : ThemeType.INTERNAL,
-        author: theme.author,
-      });
-    });
-
-    // Sort: free themes first, then premium
-    themeList.sort((a, b) => {
-      if (a.isPremium === b.isPremium) {
-        return a.name.localeCompare(b.name);
-      }
-      return a.isPremium ? 1 : -1;
-    });
-
-    return themeList;
-  }, [getAllThemes]);
-
-  /**
    * Load and apply the saved theme
    */
   const loadSavedTheme = useCallback(async () => {
     try {
       // Get the selected theme from config
       const selectedThemeId = await invoke<string>('get_config_value', { key: 'selectedTheme' });
-      
+
       const allThemes = getAllThemes();
       const theme = allThemes[selectedThemeId] || builtInThemes.dark;
 
@@ -142,15 +115,14 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     try {
       const external = await loadExternalThemes();
       setExternalThemes(external);
-      
-      const themes = buildAvailableThemes();
-      setAvailableThemes(themes);
+
+      // Theme list will be updated by the useEffect when externalThemes changes
     } catch (error) {
       console.error('Error refreshing themes:', error);
     } finally {
       setIsLoading(false);
     }
-  }, [loadExternalThemes, buildAvailableThemes]);
+  }, [loadExternalThemes]);
 
   /**
    * Set a new theme
@@ -174,9 +146,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
     try {
       // Save theme preference to config
-      await invoke('set_config_value', { 
-        key: 'selectedTheme', 
-        value: themeId 
+      await invoke('set_config_value', {
+        key: 'selectedTheme',
+        value: themeId
       });
 
       // TODO: Sync with backend if user is logged in
@@ -202,9 +174,31 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
         const external = await loadExternalThemes();
         setExternalThemes(external);
 
-        // Build available themes list
-        const themes = buildAvailableThemes();
-        setAvailableThemes(themes);
+        // Build available themes list (inline to avoid dependency issues)
+        const allThemes = { ...builtInThemes, ...external };
+        const themeList: ThemeInfo[] = [];
+
+        Object.entries(allThemes).forEach(([id, theme]) => {
+          const isExternal = !builtInThemes[id];
+          themeList.push({
+            id: theme.id,
+            name: theme.name,
+            description: theme.description,
+            isPremium: theme.isPremium,
+            type: isExternal ? ThemeType.EXTERNAL : ThemeType.INTERNAL,
+            author: theme.author,
+          });
+        });
+
+        // Sort: free themes first, then premium
+        themeList.sort((a, b) => {
+          if (a.isPremium === b.isPremium) {
+            return a.name.localeCompare(b.name);
+          }
+          return a.isPremium ? 1 : -1;
+        });
+
+        setAvailableThemes(themeList);
 
         // Load and apply saved theme
         await loadSavedTheme();
@@ -216,13 +210,35 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     };
 
     initThemes();
-  }, [loadExternalThemes, buildAvailableThemes, loadSavedTheme]);
+  }, []); // Remove dependencies to prevent re-runs
 
   // Update theme list when external themes change
   useEffect(() => {
-    const themes = buildAvailableThemes();
-    setAvailableThemes(themes);
-  }, [externalThemes, buildAvailableThemes]);
+    const allThemes = { ...builtInThemes, ...externalThemes };
+    const themeList: ThemeInfo[] = [];
+
+    Object.entries(allThemes).forEach(([id, theme]) => {
+      const isExternal = !builtInThemes[id];
+      themeList.push({
+        id: theme.id,
+        name: theme.name,
+        description: theme.description,
+        isPremium: theme.isPremium,
+        type: isExternal ? ThemeType.EXTERNAL : ThemeType.INTERNAL,
+        author: theme.author,
+      });
+    });
+
+    // Sort: free themes first, then premium
+    themeList.sort((a, b) => {
+      if (a.isPremium === b.isPremium) {
+        return a.name.localeCompare(b.name);
+      }
+      return a.isPremium ? 1 : -1;
+    });
+
+    setAvailableThemes(themeList);
+  }, [externalThemes]);
 
   return (
     <ThemeContext.Provider
