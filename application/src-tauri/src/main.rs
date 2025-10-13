@@ -179,6 +179,39 @@ pub fn main() {
                 }
             });
 
+            // Initialize theme manager
+            let app_handle_clone = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                // Initialize theme manager and load external themes
+                if let Err(e) = crate::core::theme_manager::initialize_theme_manager() {
+                    log::warn!("Failed to initialize theme manager: {}", e);
+                } else {
+                    log::info!("Theme manager initialized successfully");
+                }
+
+                // Load theme from config
+                let theme_id = {
+                    match crate::config::get_config_manager().lock() {
+                        Ok(config_result) => match &*config_result {
+                            Ok(config) => config
+                                .get("theme")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("dark")
+                                .to_string(),
+                            Err(_) => "dark".to_string(),
+                        },
+                        Err(_) => "dark".to_string(),
+                    }
+                };
+
+                // Set the theme
+                if let Err(e) = crate::core::theme_manager::set_theme(theme_id.clone(), app_handle_clone.clone()).await {
+                    log::error!("Failed to set initial theme {}: {}", theme_id, e);
+                } else {
+                    log::info!("Initialized theme system with theme: {}", theme_id);
+                }
+            });
+
             // Emit an event to the main window
 
             let args: Vec<String> = std::env::args().collect();
@@ -250,6 +283,13 @@ pub fn main() {
             core::i18n::get_message_with_params,
             core::i18n::get_detected_system_language,
             core::i18n::reset_to_system_language,
+            core::theme_manager::get_available_themes,
+            core::theme_manager::get_free_themes,
+            core::theme_manager::get_premium_themes,
+            core::theme_manager::get_theme_by_id,
+            core::theme_manager::get_current_theme,
+            core::theme_manager::set_theme,
+            core::theme_manager::reload_external_themes,
             core::mrpack_handler::validate_mrpack_file,
             core::mrpack_handler::check_mrpack_compatibility,
             core::instance_manager::create_instance_from_mrpack,
