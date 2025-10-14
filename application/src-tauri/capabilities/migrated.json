@@ -65,6 +65,14 @@
     "store:allow-load",
     "store:default",
     "log:default",
-    "notification:default"
+    "notification:default",
+    {
+      "identifier": "opener:allow-open-path",
+      "allow": [
+        {
+          "path": "/**"
+        }
+      ]
+    }
   ]
 }

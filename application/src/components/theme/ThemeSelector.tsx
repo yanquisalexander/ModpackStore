@@ -3,7 +3,7 @@ import { ThemeInfo, ThemeType } from '@/types/theme';
 import { Check, Lock, ExternalLink } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { invoke } from '@tauri-apps/api/core';
-import { open } from '@tauri-apps/plugin-shell';
+import { openPath } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
 
 export const ThemeSelector: React.FC = () => {
@@ -23,10 +23,12 @@ export const ThemeSelector: React.FC = () => {
   const openThemesFolder = async () => {
     try {
       const themesPath = await invoke<string>('get_themes_directory_path');
-      await open(themesPath);
+      console.log('Opening themes folder at:', themesPath);
+      await openPath(themesPath);
       toast.success('Carpeta de temas abierta');
     } catch (error) {
       console.error('Error opening themes folder:', error);
+      console.error(error);
       toast.error('Error al abrir la carpeta de temas');
     }
   };
@@ -43,10 +45,7 @@ export const ThemeSelector: React.FC = () => {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold">Temas</h3>
-          <p className="text-sm text-muted-foreground">
-            Personaliza la apariencia de la aplicación
-          </p>
+
         </div>
         <button
           onClick={openThemesFolder}
