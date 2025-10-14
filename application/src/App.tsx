@@ -207,7 +207,7 @@ function App() {
   return (
     <>
       {(isAuthenticated || !isConnected) && !isFirstRun && !isBanned && <AppSidebar />}
-      <main className={`overflow-y-auto h-full border-t ${isShowingLogin ? "border-transparent" : "relative"} ${hasSidebar ? 'rounded-tl-md border-l' : 'border-l-transparent'}`} style={{ gridArea: 'main' }}>
+      <main className={`overflow-y-auto h-full border-t ${isShowingLogin ? "border-transparent" : "relative bg-[var(--background)]"} ${hasSidebar ? 'rounded-tl-md border-l' : 'border-l-transparent'}`} style={{ gridArea: 'main' }}>
         <div className="">
           {isFirstRun ? (
             <OnboardingFlow onComplete={refreshStatus} />

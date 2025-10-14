@@ -172,10 +172,67 @@ export const sunsetTheme: ThemeDefinition = {
   },
 };
 
+export const minecraftiaTheme: ThemeDefinition = {
+  id: 'minecraftia',
+  name: '🟩 Minecraftia',
+  description: 'Verdes pixelados al estilo Minecraft',
+  author: 'ModpackStore',
+  version: '1.0.0',
+  isPremium: false,
+  colors: {
+    // Fondo oscuro con toque marrón/terroso
+    background: 'oklch(0.12 0.02 120)',
+    foreground: 'oklch(0.98 0.01 120)',
+
+    card: 'oklch(0.16 0.02 120)',
+    cardForeground: 'oklch(0.98 0.01 120)',
+
+    popover: 'oklch(0.16 0.02 120)',
+    popoverForeground: 'oklch(0.98 0.01 120)',
+
+    // Verde Creeper brillante
+    primary: 'oklch(0.72 0.18 140)',
+    primaryForeground: 'oklch(0.12 0.02 120)',
+
+    // Verde apagado (tipo hierba sombreada)
+    secondary: 'oklch(0.48 0.10 140)',
+    secondaryForeground: 'oklch(0.98 0.01 120)',
+
+    muted: 'oklch(0.28 0.05 140)',
+    mutedForeground: 'oklch(0.72 0.02 140)',
+
+    accent: 'oklch(0.60 0.15 140)',
+    accentForeground: 'oklch(0.12 0.02 120)',
+
+    destructive: 'oklch(0.704 0.191 22.216)',
+
+    border: 'oklch(0.20 0.02 120 / 15%)',
+    input: 'oklch(0.20 0.02 120 / 20%)',
+    ring: 'oklch(0.60 0.15 140)',
+
+    // Charts estilo biomas: verde, tierra, piedra, esmeralda
+    chart1: 'oklch(0.72 0.18 140)', // Verde brillante
+    chart2: 'oklch(0.45 0.07 120)', // Verde oscuro
+    chart3: 'oklch(0.35 0.03 80)',  // Tierra
+    chart4: 'oklch(0.55 0.02 250)', // Piedra
+    chart5: 'oklch(0.80 0.18 140)', // Esmeralda clara
+
+    sidebar: 'oklch(0.14 0.02 120)',
+    sidebarForeground: 'oklch(0.98 0.01 120)',
+    sidebarPrimary: 'oklch(0.72 0.18 140)',
+    sidebarPrimaryForeground: 'oklch(0.12 0.02 120)',
+    sidebarAccent: 'oklch(0.48 0.10 140)',
+    sidebarAccentForeground: 'oklch(0.98 0.01 120)',
+    sidebarBorder: 'oklch(0.20 0.02 120 / 15%)',
+    sidebarRing: 'oklch(0.60 0.15 140)',
+  },
+};
+
 // Map of all built-in themes
 export const builtInThemes: Record<string, ThemeDefinition> = {
   dark: darkTheme,
   ice: iceTheme,
+  minecraftia: minecraftiaTheme,
   'dark-knight': darkKnightTheme,
   sunset: sunsetTheme,
 };
