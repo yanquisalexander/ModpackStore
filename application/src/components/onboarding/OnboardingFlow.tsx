@@ -88,11 +88,13 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
       title: 'Configuración de RAM',
       component: RAMConfigurationStep,
     },
-    {
-      id: 'account-creation',
-      title: 'Crear Primera Cuenta',
-      component: AccountCreationStep,
-    },
+    /*  
+         Temporalmente quitaremos este paso
+     {
+       id: 'account-creation',
+       title: 'Crear Primera Cuenta',
+       component: AccountCreationStep,
+     }, */
     // More steps can be added here in the future
   ];
 
