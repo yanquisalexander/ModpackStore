@@ -929,7 +929,6 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
     const existingFileHashes = new Set(existingFiles.map(f => f.fileHash));
     const existingPaths = new Set(existingFiles.map(f => f.path));
 
-    console.log("Reusing fileRefs:", fileRefs, "for version:", versionId);
 
     // Get all referenced files in one query using OR conditions with versionId, fileHash, and path
     const filesToReuse = await ModpackVersionFile.find({
