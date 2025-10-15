@@ -954,9 +954,10 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
         return {
             modpackVersionId: versionId,
             fileHash,
-            path: originalFile.path
+            path: originalFile.path,
+            fileType: type
         };
-    }).filter((v): v is { modpackVersionId: string; fileHash: string; path: string } => v !== null);
+    }).filter((v): v is { modpackVersionId: string; fileHash: string; path: string; fileType: string } => v !== null);
 
     if (newVersionFiles.length === 0) {
         return c.json({ message: "No se añadieron archivos nuevos (todos ya existen o son inválidos)" });
