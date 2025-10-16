@@ -4,9 +4,10 @@ use crate::config::get_config_manager;
 use crate::core::auth::storage;
 use crate::core::bootstrap_error::BootstrapError;
 use crate::core::instance_bootstrap::InstanceBootstrap;
-use crate::core::minecraft_instance::{self, MinecraftInstance};
+use crate::core::minecraft_instance::{self, MinecraftInstance, ModLoaderType};
 use crate::core::modpack_file_manager::ModpackManifest;
 use crate::core::minecraft::MinecraftPaths;
+
 use crate::core::tasks_manager::{
     add_task, add_task_with_auto_start, remove_task, update_task, update_task_with_bootstrap_error,
     TaskStatus,
@@ -511,7 +512,6 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
     Ok(instances)
 }
 
-#[tauri::command]
 #[tauri::command]
 pub async fn create_local_instance(
     instance_name: String,
@@ -1797,6 +1797,8 @@ pub async fn create_instance_from_mrpack(
         minecraftVersion: manifest.dependencies.minecraft.clone(),
         instanceDirectory: Some(instance_dir.to_string_lossy().to_string()),
         forgeVersion: manifest.dependencies.forge.clone(),
+        loaderType: if manifest.dependencies.forge.is_some() { ModLoaderType::Forge } else { ModLoaderType::Vanilla },
+        loaderVersion: manifest.dependencies.forge.clone(),
         javaPath: None,
         favorite: true,
         favorite_order: None,

@@ -2,7 +2,9 @@ use crate::core::bootstrap::tasks::{
     emit_bootstrap_complete, emit_status, emit_status_with_stage, Stage,
 };
 use crate::core::minecraft::paths::MinecraftPaths;
-use crate::core::minecraft_instance::MinecraftInstance;
+use crate::core::minecraft_instance::{  
+    self, MinecraftInstance, ModLoaderType,
+};
 use crate::core::tasks_manager::{
     add_task, add_task_with_auto_start, remove_task, task_exists, update_task, TaskStatus,
 };
@@ -973,6 +975,8 @@ pub fn audit_user_data_protection(
         minecraftVersion: "1.20.1".to_string(),
         instanceDirectory: None,
         forgeVersion: None,
+        loaderType: ModLoaderType::Vanilla,
+        loaderVersion: None,
         javaPath: None,
         favorite: false,
         favorite_order: None,
