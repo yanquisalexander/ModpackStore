@@ -84,3 +84,11 @@ export enum ActivityType {
     ACHIEVEMENT_UNLOCKED = 'achievement_unlocked',
     FRIENDSHIP_CREATED = 'friendship_created'
 }
+
+export enum ModLoaderType {
+    VANILLA = 'vanilla',
+    FORGE = 'forge',
+    FABRIC = 'fabric',
+    NEOFORGE = 'neoforge',
+    QUILT = 'quilt'
+}
