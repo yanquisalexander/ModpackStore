@@ -512,10 +512,13 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
 }
 
 #[tauri::command]
+#[tauri::command]
 pub async fn create_local_instance(
     instance_name: String,
     mc_version: String,
     forge_version: Option<String>,
+    loader_type: Option<String>,
+    loader_version: Option<String>,
 ) -> Result<String, String> {
     let instances_dir = get_instances_dir()?;
     let instance_id = uuid::Uuid::new_v4().to_string();
@@ -524,12 +527,37 @@ pub async fn create_local_instance(
     let mut instance = MinecraftInstance::new();
     instance.instanceName = instance_name.clone();
     instance.minecraftVersion = mc_version;
-    instance.forgeVersion = forge_version.clone();
+    
+    // Handle new loader system with backward compatibility
+    if let Some(loader_type_str) = loader_type {
+        instance.loaderType = match loader_type_str.to_lowercase().as_str() {
+            "forge" => ModLoaderType::Forge,
+            "fabric" => ModLoaderType::Fabric,
+            "neoforge" => ModLoaderType::NeoForge,
+            "quilt" => ModLoaderType::Quilt,
+            _ => ModLoaderType::Vanilla,
+        };
+        instance.loaderVersion = loader_version.clone();
+        
+        // Keep forgeVersion for backward compatibility
+        if matches!(instance.loaderType, ModLoaderType::Forge) {
+            instance.forgeVersion = loader_version.clone();
+        }
+    } else if let Some(forge_ver) = forge_version.clone() {
+        // Legacy: if only forge_version is provided
+        instance.forgeVersion = Some(forge_ver.clone());
+        instance.loaderType = ModLoaderType::Forge;
+        instance.loaderVersion = Some(forge_ver);
+    } else {
+        instance.loaderType = ModLoaderType::Vanilla;
+        instance.loaderVersion = None;
+    }
+    
     instance.instanceId = instance_id.clone();
 
     // Configurar ícono por defecto
     instance.bannerUrl = Some(
-        if forge_version.is_some() {
+        if !matches!(instance.loaderType, ModLoaderType::Vanilla) {
             DEFAULT_FORGE_ICON
         } else {
             DEFAULT_VANILLA_ICON
@@ -1311,7 +1339,34 @@ async fn create_modpack_instance_struct(
     instance.modpackId = Some(modpack_id.clone());
     instance.modpackVersionId = Some(final_version_id);
     instance.minecraftVersion = manifest.mc_version;
-    instance.forgeVersion = manifest.forge_version;
+    
+    // Handle new loader system with backward compatibility
+    use crate::core::minecraft_instance::ModLoaderType;
+    
+    if let Some(loader_type_str) = manifest.loader_type {
+        instance.loaderType = match loader_type_str.to_lowercase().as_str() {
+            "forge" => ModLoaderType::Forge,
+            "fabric" => ModLoaderType::Fabric,
+            "neoforge" => ModLoaderType::NeoForge,
+            "quilt" => ModLoaderType::Quilt,
+            _ => ModLoaderType::Vanilla,
+        };
+        instance.loaderVersion = manifest.loader_version.clone();
+        
+        // Keep forgeVersion for backward compatibility
+        if matches!(instance.loaderType, ModLoaderType::Forge) {
+            instance.forgeVersion = manifest.loader_version;
+        }
+    } else if let Some(forge_ver) = manifest.forge_version {
+        // Legacy: if only forge_version is in manifest
+        instance.forgeVersion = Some(forge_ver.clone());
+        instance.loaderType = ModLoaderType::Forge;
+        instance.loaderVersion = Some(forge_ver);
+    } else {
+        instance.loaderType = ModLoaderType::Vanilla;
+        instance.loaderVersion = None;
+    }
+    
     instance.favorite = true;
 
     println!("{}", modpack_info.to_string());

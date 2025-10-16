@@ -9,6 +9,22 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum ModLoaderType {
+    Vanilla,
+    Forge,
+    Fabric,
+    NeoForge,
+    Quilt,
+}
+
+impl Default for ModLoaderType {
+    fn default() -> Self {
+        ModLoaderType::Vanilla
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MinecraftInstance {
     pub instanceId: String,
@@ -22,7 +38,12 @@ pub struct MinecraftInstance {
     pub modpackVersionId: Option<String>,
     pub minecraftVersion: String,
     pub instanceDirectory: Option<String>,
-    pub forgeVersion: Option<String>,
+    #[serde(default)]
+    pub forgeVersion: Option<String>, // Deprecated, kept for backward compatibility
+    #[serde(default)]
+    pub loaderType: ModLoaderType,
+    #[serde(default)]
+    pub loaderVersion: Option<String>,
     pub javaPath: Option<String>, // In the future, we automatically download the correct Java version
     #[serde(default)]
     pub favorite: bool,
@@ -34,7 +55,33 @@ pub struct MinecraftInstance {
 
 impl MinecraftInstance {
     pub fn is_forge_instance(&self) -> bool {
-        self.forgeVersion.is_some()
+        matches!(self.loaderType, ModLoaderType::Forge) || self.forgeVersion.is_some()
+    }
+
+    pub fn is_vanilla_instance(&self) -> bool {
+        matches!(self.loaderType, ModLoaderType::Vanilla)
+    }
+
+    pub fn is_fabric_instance(&self) -> bool {
+        matches!(self.loaderType, ModLoaderType::Fabric)
+    }
+
+    pub fn is_neoforge_instance(&self) -> bool {
+        matches!(self.loaderType, ModLoaderType::NeoForge)
+    }
+
+    pub fn is_quilt_instance(&self) -> bool {
+        matches!(self.loaderType, ModLoaderType::Quilt)
+    }
+
+    pub fn get_loader_name(&self) -> &str {
+        match self.loaderType {
+            ModLoaderType::Vanilla => "Vanilla",
+            ModLoaderType::Forge => "Forge",
+            ModLoaderType::Fabric => "Fabric",
+            ModLoaderType::NeoForge => "NeoForge",
+            ModLoaderType::Quilt => "Quilt",
+        }
     }
 
     pub fn new() -> Self {
@@ -51,6 +98,8 @@ impl MinecraftInstance {
             minecraftVersion: String::new(),
             instanceDirectory: None,
             forgeVersion: None,
+            loaderType: ModLoaderType::Vanilla,
+            loaderVersion: None,
             javaPath: None,
             favorite: false,
             favorite_order: None,

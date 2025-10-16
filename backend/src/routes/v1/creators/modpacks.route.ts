@@ -641,7 +641,7 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
 
 
 
-    const { versionName, mcVersion, forgeVersion } = await c.req.json();
+    const { versionName, mcVersion, forgeVersion, loaderType, loaderVersion } = await c.req.json();
 
     if (!versionName || !mcVersion) {
         throw new APIError(400, "El nombre de la versión y la versión de Minecraft son requeridos");
@@ -650,7 +650,26 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
     const newVersion = new ModpackVersion();
     newVersion.version = versionName;
     newVersion.mcVersion = mcVersion;
-    newVersion.forgeVersion = forgeVersion;
+    
+    // Handle new loader fields with backward compatibility
+    if (loaderType && loaderVersion) {
+        newVersion.loaderType = loaderType;
+        newVersion.loaderVersion = loaderVersion;
+        // Keep forgeVersion for backward compatibility
+        if (loaderType === 'forge') {
+            newVersion.forgeVersion = loaderVersion;
+        }
+    } else if (forgeVersion) {
+        // Legacy: if only forgeVersion is provided
+        newVersion.forgeVersion = forgeVersion;
+        newVersion.loaderType = 'forge' as any;
+        newVersion.loaderVersion = forgeVersion;
+    } else {
+        // No loader specified, default to vanilla
+        newVersion.loaderType = 'vanilla' as any;
+        newVersion.loaderVersion = null;
+    }
+    
     newVersion.modpackId = modpack.id;
     newVersion.createdBy = user.id;
 
@@ -695,6 +714,8 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions/
             version: true,
             mcVersion: true,
             forgeVersion: true,
+            loaderType: true,
+            loaderVersion: true,
             changelog: true,
             status: true,
             releaseDate: true,

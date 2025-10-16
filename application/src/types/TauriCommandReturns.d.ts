@@ -5,6 +5,8 @@ interface MCAccount {
     user_type: string;
 }
 
+export type ModLoaderType = 'vanilla' | 'forge' | 'fabric' | 'neoforge' | 'quilt';
+
 interface MinecraftInstance {
     instanceId: string;
     usesDefaultIcon: boolean;
@@ -17,7 +19,9 @@ interface MinecraftInstance {
     modpackInfo?: ModpackInfo;
     minecraftVersion: string;
     instanceDirectory?: string;
-    forgeVersion?: string;
+    forgeVersion?: string; // Deprecated, kept for backward compatibility
+    loaderType?: ModLoaderType;
+    loaderVersion?: string;
     ms_nickname?: string;
 }
 

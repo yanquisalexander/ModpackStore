@@ -2,7 +2,7 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 import { Modpack } from "./Modpack";
 import { User } from "./User";
 import { ModpackVersionFile } from "./ModpackVersionFile";
-import { ModpackVersionStatus } from "../types/enums";
+import { ModpackVersionStatus, ModLoaderType } from "../types/enums";
 
 @Entity({ name: "modpack_versions" })
 export class ModpackVersion extends BaseEntity {
@@ -20,6 +20,19 @@ export class ModpackVersion extends BaseEntity {
 
     @Column({ name: "forge_version", type: "text", nullable: true })
     forgeVersion?: string;
+
+    @Column({
+        name: "loader_type",
+        type: "enum",
+        enum: ModLoaderType,
+        enumName: "mod_loader_type",
+        default: ModLoaderType.VANILLA,
+        nullable: true
+    })
+    loaderType?: ModLoaderType;
+
+    @Column({ name: "loader_version", type: "text", nullable: true })
+    loaderVersion?: string;
 
     @Column({ name: "changelog", type: "text", nullable: true })
     changelog: string;

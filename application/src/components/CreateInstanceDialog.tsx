@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { LucidePlus, Loader2, LucideAnvil, LucideTestTubeDiagonal } from "lucide-react"
+import { LucidePlus, Loader2, LucideAnvil, LucideTestTubeDiagonal, LucidePackage, LucideHammer, LucideFeather } from "lucide-react"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { fetchMinecraftManifestWithFailover } from "@/utils/minecraftManifestFailover"
 
@@ -39,7 +39,7 @@ interface MinecraftVersion {
 }
 
 // Instance type definition
-type InstanceType = "vanilla" | "forge";
+type InstanceType = "vanilla" | "forge" | "fabric" | "neoforge" | "quilt";
 
 // Props type definition
 interface CreateInstanceDialogProps {
@@ -55,11 +55,14 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
     const [isLoading, setIsLoading] = useState(false);
     const [minecraftVersions, setMinecraftVersions] = useState<MinecraftVersion[]>([]);
     const [forgeVersionsMap, setForgeVersionsMap] = useState<Record<string, string[]>>({});
+    const [loaderVersionsMap, setLoaderVersionsMap] = useState<Record<string, string[]>>({});
     const [selectedType, setSelectedType] = useState<InstanceType>("vanilla");
     const [selectedMinecraftVersion, setSelectedMinecraftVersion] = useState<string>("");
     const [selectedForgeVersion, setSelectedForgeVersion] = useState<string>("");
+    const [selectedLoaderVersion, setSelectedLoaderVersion] = useState<string>("");
     const [loadingVersions, setLoadingVersions] = useState(false);
     const [compatibleForgeVersions, setCompatibleForgeVersions] = useState<string[]>([]);
+    const [compatibleLoaderVersions, setCompatibleLoaderVersions] = useState<string[]>([]);
     const [showSnapshots, setShowSnapshots] = useState(false);
 
     const checkShowSnapshots = async () => {
@@ -93,7 +96,19 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
         } else if (forgeVersions.length === 0) {
             setSelectedForgeVersion("");
         }
-    }, [selectedMinecraftVersion, forgeVersionsMap, selectedForgeVersion]);
+        
+        // Update loader versions based on selected type
+        if (selectedType !== "vanilla" && selectedType !== "forge") {
+            const loaderVersions = loaderVersionsMap[selectedMinecraftVersion] || [];
+            setCompatibleLoaderVersions(loaderVersions);
+            
+            if (loaderVersions.length > 0 && !selectedLoaderVersion) {
+                setSelectedLoaderVersion(loaderVersions[0]);
+            } else if (loaderVersions.length === 0) {
+                setSelectedLoaderVersion("");
+            }
+        }
+    }, [selectedMinecraftVersion, forgeVersionsMap, selectedForgeVersion, selectedType, loaderVersionsMap, selectedLoaderVersion]);
 
     const fetchMinecraftVersions = async (): Promise<void> => {
         setLoadingVersions(true);
@@ -177,6 +192,13 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
             });
             return;
         }
+        
+        if (["fabric", "neoforge", "quilt"].includes(selectedType) && !selectedLoaderVersion) {
+            toast.error("Error", {
+                description: `Debes seleccionar una versión de ${selectedType}`
+            });
+            return;
+        }
 
         setIsLoading(true);
 
@@ -186,7 +208,9 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
                 instanceName: instanceName.trim(),
                 mcVersion: selectedMinecraftVersion,
                 type: selectedType,
-                forgeVersion: selectedType === "forge" ? selectedForgeVersion : undefined
+                forgeVersion: selectedType === "forge" ? selectedForgeVersion : undefined,
+                loaderType: selectedType,
+                loaderVersion: selectedType === "forge" ? selectedForgeVersion : selectedLoaderVersion
             };
 
             // Call Tauri command to create instance
@@ -200,7 +224,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
                 name: "Instance Created",
                 type: selectedType,
                 minecraftVersion: selectedMinecraftVersion,
-                forgeVersion: selectedType === "forge" ? selectedForgeVersion : "none",
+                loaderVersion: selectedType === "forge" ? selectedForgeVersion : selectedLoaderVersion || "none",
                 timestamp: new Date().toISOString(),
             });
 
@@ -237,8 +261,9 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
     const isCreateButtonDisabled = isLoading ||
         !instanceName.trim() ||
         !selectedMinecraftVersion ||
-        (selectedType === "forge" && !selectedForgeVersion)
-        || instanceNames.includes(instanceName.trim());
+        (selectedType === "forge" && !selectedForgeVersion) ||
+        (["fabric", "neoforge", "quilt"].includes(selectedType) && !selectedLoaderVersion) ||
+        instanceNames.includes(instanceName.trim());
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -310,29 +335,71 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
                     {/* Instance Type Selection */}
                     <div className="space-y-3">
                         <Label className="text-white">Tipo de instancia</Label>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-3 gap-3">
                             <div
-                                className={`flex flex-col items-center gap-3 p-4 rounded-md border cursor-pointer transition-all ${selectedType === "vanilla"
+                                className={`flex flex-col items-center gap-2 p-3 rounded-md border cursor-pointer transition-all ${selectedType === "vanilla"
                                     ? "border-blue-500 bg-blue-900/20"
                                     : "border-gray-700 hover:border-gray-500"
                                     }`}
                                 onClick={() => setSelectedType("vanilla")}
                             >
-                                <CreeperIcon className="h-12 w-12" />
-                                <span className="font-medium text-center">Vanilla</span>
+                                <CreeperIcon className="h-10 w-10" />
+                                <span className="font-medium text-center text-sm">Vanilla</span>
                             </div>
 
                             <div
-                                className={`flex flex-col items-center gap-3 p-4 overflow-hidden rounded-md border cursor-pointer transition-all relative ${selectedType === "forge"
+                                className={`flex flex-col items-center gap-2 p-3 overflow-hidden rounded-md border cursor-pointer transition-all relative ${selectedType === "forge"
                                     ? "border-orange-500 bg-orange-900/20"
                                     : "border-gray-700 hover:border-gray-500"
                                     }`}
                                 onClick={() => setSelectedType("forge")}
                             >
-                                <LucideAnvil className="h-12 w-12" />
-                                <span className="font-medium text-center">Forge</span>
-                                <span className="rounded-bl-lg absolute top-0 right-0 bg-blue-500/20 text-xs text-white px-2 py-1">
-                                    Para mods
+                                <LucideAnvil className="h-10 w-10" />
+                                <span className="font-medium text-center text-sm">Forge</span>
+                                <span className="rounded-bl-lg absolute top-0 right-0 bg-blue-500/20 text-xs text-white px-1.5 py-0.5">
+                                    Mods
+                                </span>
+                            </div>
+                            
+                            <div
+                                className={`flex flex-col items-center gap-2 p-3 overflow-hidden rounded-md border cursor-pointer transition-all relative ${selectedType === "fabric"
+                                    ? "border-green-500 bg-green-900/20"
+                                    : "border-gray-700 hover:border-gray-500"
+                                    }`}
+                                onClick={() => setSelectedType("fabric")}
+                            >
+                                <LucideFeather className="h-10 w-10" />
+                                <span className="font-medium text-center text-sm">Fabric</span>
+                                <span className="rounded-bl-lg absolute top-0 right-0 bg-blue-500/20 text-xs text-white px-1.5 py-0.5">
+                                    Mods
+                                </span>
+                            </div>
+                            
+                            <div
+                                className={`flex flex-col items-center gap-2 p-3 overflow-hidden rounded-md border cursor-pointer transition-all relative ${selectedType === "neoforge"
+                                    ? "border-purple-500 bg-purple-900/20"
+                                    : "border-gray-700 hover:border-gray-500"
+                                    }`}
+                                onClick={() => setSelectedType("neoforge")}
+                            >
+                                <LucideHammer className="h-10 w-10" />
+                                <span className="font-medium text-center text-sm">NeoForge</span>
+                                <span className="rounded-bl-lg absolute top-0 right-0 bg-blue-500/20 text-xs text-white px-1.5 py-0.5">
+                                    Mods
+                                </span>
+                            </div>
+                            
+                            <div
+                                className={`flex flex-col items-center gap-2 p-3 overflow-hidden rounded-md border cursor-pointer transition-all relative ${selectedType === "quilt"
+                                    ? "border-pink-500 bg-pink-900/20"
+                                    : "border-gray-700 hover:border-gray-500"
+                                    }`}
+                                onClick={() => setSelectedType("quilt")}
+                            >
+                                <LucidePackage className="h-10 w-10" />
+                                <span className="font-medium text-center text-sm">Quilt</span>
+                                <span className="rounded-bl-lg absolute top-0 right-0 bg-blue-500/20 text-xs text-white px-1.5 py-0.5">
+                                    Mods
                                 </span>
                             </div>
                         </div>
@@ -403,6 +470,27 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
                                     </p>
                                 </div>
                             )}
+                        </div>
+                    )}
+                    
+                    {/* Loader Version Selector (for Fabric, NeoForge, Quilt) */}
+                    {["fabric", "neoforge", "quilt"].includes(selectedType) && (
+                        <div className="space-y-2">
+                            <Label className="text-white" htmlFor="loaderVersion">
+                                Versión de {selectedType.charAt(0).toUpperCase() + selectedType.slice(1)}
+                            </Label>
+                            <Alert className="bg-yellow-900/20 border-yellow-700/50 text-yellow-300">
+                                <LucideTestTubeDiagonal className="h-4 w-4" />
+                                <AlertTitle className="text-yellow-300">
+                                    Próximamente
+                                </AlertTitle>
+                                <AlertDescription>
+                                    <p>
+                                        El soporte para {selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} está en desarrollo. 
+                                        Por favor, selecciona Forge o Vanilla por ahora.
+                                    </p>
+                                </AlertDescription>
+                            </Alert>
                         </div>
                     )}
                 </div>

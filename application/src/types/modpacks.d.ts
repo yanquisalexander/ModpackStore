@@ -72,7 +72,9 @@ export interface ModpackVersion {
   modpackId: string;
   version: string;
   mcVersion: string;
-  forgeVersion?: string | null;
+  forgeVersion?: string | null; // Deprecated, kept for backward compatibility
+  loaderType?: 'vanilla' | 'forge' | 'fabric' | 'neoforge' | 'quilt';
+  loaderVersion?: string | null;
   changelog: string;
   status: 'draft' | 'published' | 'archived'; // Or an enum
   releaseDate?: string | null; // Or Date
@@ -84,7 +86,9 @@ export interface ModpackVersion {
 export interface NewModpackVersionData {
   version: string;
   mcVersion: string;
-  forgeVersion?: string | null;
+  forgeVersion?: string | null; // Deprecated, kept for backward compatibility
+  loaderType?: 'vanilla' | 'forge' | 'fabric' | 'neoforge' | 'quilt';
+  loaderVersion?: string | null;
   changelog: string;
   // modpackId and createdBy will be handled by the service/route
 }
