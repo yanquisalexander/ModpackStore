@@ -44,6 +44,8 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
         versionName: '',
         mcVersion: latestVersion?.mcVersion || '',
         forgeVersion: latestVersion?.forgeVersion || 'none',
+        loaderType: (latestVersion?.loaderType || 'vanilla') as 'vanilla' | 'forge' | 'fabric' | 'neoforge' | 'quilt',
+        loaderVersion: latestVersion?.loaderVersion || '',
         changelog: ''
     });
 
@@ -86,6 +88,8 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                         versionName: formData.versionName.trim(),
                         mcVersion: formData.mcVersion,
                         forgeVersion: formData.forgeVersion === 'none' ? null : formData.forgeVersion || null,
+                        loaderType: formData.loaderType,
+                        loaderVersion: formData.loaderVersion || null,
                         changelog: formData.changelog.trim() || null
                     }),
                 }
@@ -104,6 +108,8 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                 versionName: '',
                 mcVersion: latestVersion?.mcVersion || '',
                 forgeVersion: latestVersion?.forgeVersion || 'none',
+                loaderType: (latestVersion?.loaderType || 'vanilla') as 'vanilla' | 'forge' | 'fabric' | 'neoforge' | 'quilt',
+                loaderVersion: latestVersion?.loaderVersion || '',
                 changelog: ''
             });
 
@@ -123,6 +129,8 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                 versionName: '',
                 mcVersion: latestVersion?.mcVersion || '',
                 forgeVersion: latestVersion?.forgeVersion || 'none',
+                loaderType: (latestVersion?.loaderType || 'vanilla') as 'vanilla' | 'forge' | 'fabric' | 'neoforge' | 'quilt',
+                loaderVersion: latestVersion?.loaderVersion || '',
                 changelog: ''
             });
             onClose();
