@@ -427,69 +427,51 @@ pub async fn export_instance_to_mrpack(
         None,
     );
 
-    // Collect all files from the minecraft directory
+    // Collect all files from the minecraft directory (only essential directories)
     let mut files_to_include = Vec::new();
     let walker = WalkDir::new(&minecraft_dir).into_iter();
+    
+    // Essential directories to include
+    let essential_dirs = [
+        "mods",
+        "config", 
+        "resourcepacks",
+        "shaderpacks",
+        "datapacks",
+        "saves"
+    ];
+    
+    // Essential files in root minecraft directory
+    let essential_root_files = [
+        "options.txt"
+    ];
     
     for entry in walker.filter_map(|e| e.ok()) {
         let path = entry.path();
         if path.is_file() {
             if let Ok(relative_path) = path.strip_prefix(&minecraft_dir) {
-                files_to_include.push(relative_path.to_path_buf());
+                // Check if file is in an essential directory or is an essential root file
+                let should_include = if let Some(parent) = relative_path.parent() {
+                    let parent_str = parent.to_string_lossy();
+                    essential_dirs.iter().any(|dir| parent_str.starts_with(dir) || parent_str == *dir)
+                } else {
+                    // Check if it's an essential file in root directory
+                    let file_name = relative_path.to_string_lossy();
+                    essential_root_files.contains(&file_name.as_ref())
+                };
+                
+                if should_include {
+                    files_to_include.push(relative_path.to_path_buf());
+                }
             }
         }
     }
 
     log::info!("Found {} files to include", files_to_include.len());
 
-    tasks_manager::update_task(
-        &task_id,
-        tasks_manager::TaskStatus::Running,
-        30.0,
-        &format!("Calculando hashes de {} archivos...", files_to_include.len()),
-        None,
-    );
-
-    // Calculate hashes and build file entries
-    let mut mrpack_files = Vec::new();
-    let total_files = files_to_include.len();
-    
-    for (index, relative_path) in files_to_include.iter().enumerate() {
-        let full_path = minecraft_dir.join(relative_path);
-        
-        let progress = 30.0 + ((index as f32 / total_files as f32) * 40.0);
-        if index % 10 == 0 {
-            tasks_manager::update_task(
-                &task_id,
-                tasks_manager::TaskStatus::Running,
-                progress,
-                &format!("Procesando archivo {}/{}", index + 1, total_files),
-                None,
-            );
-        }
-
-        let sha1_hash = calculate_sha1(&full_path)?;
-        let sha512_hash = calculate_sha512(&full_path)?;
-        let file_size = fs::metadata(&full_path)
-            .map_err(|e| format!("Failed to get file metadata: {}", e))?
-            .len();
-
-        let override_path = format!("overrides/{}", relative_path.to_string_lossy().replace("\\", "/"));
-
-        mrpack_files.push(MrpackFile {
-            path: override_path,
-            hashes: MrpackHashes {
-                sha1: sha1_hash,
-                sha512: sha512_hash,
-            },
-            env: Some(MrpackEnv {
-                client: Some("required".to_string()),
-                server: Some("required".to_string()),
-            }),
-            downloads: vec![],
-            file_size,
-        });
-    }
+    // For local instance export, we don't include files in the manifest's files array
+    // since they are stored in overrides/ and copied directamente durante la instalación
+    let mrpack_files = Vec::new();
 
     tasks_manager::update_task(
         &task_id,
@@ -532,7 +514,7 @@ pub async fn export_instance_to_mrpack(
     let output = fs::File::create(&output_path)
         .map_err(|e| format!("Failed to create output file: {}", e))?;
     let mut zip = ZipWriter::new(output);
-    let options = FileOptions::default()
+    let options = FileOptions::<()>::default()
         .compression_method(zip::CompressionMethod::Deflated)
         .unix_permissions(0o755);
 
@@ -558,13 +540,13 @@ pub async fn export_instance_to_mrpack(
         let full_path = minecraft_dir.join(relative_path);
         let zip_path = format!("overrides/{}", relative_path.to_string_lossy().replace("\\", "/"));
         
-        let progress = 80.0 + ((index as f32 / total_files as f32) * 15.0);
+        let progress = 80.0 + ((index as f32 / files_to_include.len() as f32) * 15.0);
         if index % 10 == 0 {
             tasks_manager::update_task(
                 &task_id,
                 tasks_manager::TaskStatus::Running,
                 progress,
-                &format!("Empaquetando archivo {}/{}", index + 1, total_files),
+                &format!("Empaquetando archivo {}/{}", index + 1, files_to_include.len()),
                 None,
             );
         }

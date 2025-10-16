@@ -96,7 +96,7 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceUpda
         try {
             // Use save dialog from @tauri-apps/plugin-dialog
             const { save } = await import('@tauri-apps/plugin-dialog');
-            
+
             const filePath = await save({
                 defaultPath: `${instance.instanceName}.mrpack`,
                 filters: [{
@@ -290,14 +290,14 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceUpda
                             <span>Exportar como .mrpack</span>
                         </ContextMenuItem>
                     )}
-
+                    {/* 
                     <ContextMenuItem
                         onClick={() => handleContextAction("backup")}
                         className="hover:bg-neutral-800 focus:bg-neutral-800 cursor-pointer"
                     >
                         <LucideDownload className="mr-2 h-4 w-4" />
                         <span>Crear copia de seguridad</span>
-                    </ContextMenuItem>
+                    </ContextMenuItem> */}
 
                     <ContextMenuSeparator className="bg-neutral-800" />
 
