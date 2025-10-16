@@ -29,6 +29,10 @@ pub struct ModpackManifest {
     pub mc_version: String,
     #[serde(rename = "forgeVersion")]
     pub forge_version: Option<String>,
+    #[serde(rename = "loaderType", default)]
+    pub loader_type: Option<String>,
+    #[serde(rename = "loaderVersion", default)]
+    pub loader_version: Option<String>,
     pub files: Vec<ModpackFileEntry>,
 }
 
