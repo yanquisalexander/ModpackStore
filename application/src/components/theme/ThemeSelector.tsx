@@ -1,13 +1,13 @@
 import { useTheme } from '@/stores/ThemeContext';
 import { ThemeInfo, ThemeType } from '@/types/theme';
-import { Check, Lock, ExternalLink } from 'lucide-react';
+import { Check, Lock, ExternalLink, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { invoke } from '@tauri-apps/api/core';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
 
 export const ThemeSelector: React.FC = () => {
-  const { currentTheme, availableThemes, isLoading, canAccessPremium, setTheme } = useTheme();
+  const { currentTheme, availableThemes, isLoading, canAccessPremium, setTheme, refreshThemes } = useTheme();
 
   const handleThemeClick = async (theme: ThemeInfo) => {
     if (theme.isPremium && !canAccessPremium) {
@@ -47,13 +47,25 @@ export const ThemeSelector: React.FC = () => {
         <div>
 
         </div>
-        <button
-          onClick={openThemesFolder}
-          className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
-        >
-          <ExternalLink className="h-4 w-4" />
-          Abrir carpeta de temas
-        </button>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={refreshThemes}
+            disabled={isLoading}
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 disabled:opacity-50 disabled:cursor-not-allowed rounded-md transition-colors"
+          >
+            <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+            Recargar temas
+          </button>
+
+          <button
+            onClick={openThemesFolder}
+            className="flex items-center gap-2 px-4 py-2 text-sm bg-secondary hover:bg-secondary/80 rounded-md transition-colors"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Abrir carpeta de temas
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
