@@ -3,6 +3,11 @@ use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use zip::ZipArchive;
+use zip::write::{FileOptions, ZipWriter};
+use sha1::{Sha1, Digest as Sha1Digest};
+use sha2::{Sha512, Digest as Sha512Digest};
+use std::io::Cursor;
+use walkdir::WalkDir;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MrpackManifest {
@@ -333,6 +338,266 @@ pub async fn download_mrpack_mods(
             .await
             .map_err(|e| format!("Failed to download {}: {}", mod_file.path, e))?;
     }
+
+    Ok(())
+}
+
+/// Calculate SHA1 hash of a file
+fn calculate_sha1(path: &Path) -> Result<String, String> {
+    let mut file = fs::File::open(path)
+        .map_err(|e| format!("Failed to open file: {}", e))?;
+    let mut hasher = Sha1::new();
+    std::io::copy(&mut file, &mut hasher)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+/// Calculate SHA512 hash of a file
+fn calculate_sha512(path: &Path) -> Result<String, String> {
+    let mut file = fs::File::open(path)
+        .map_err(|e| format!("Failed to open file: {}", e))?;
+    let mut hasher = Sha512::new();
+    std::io::copy(&mut file, &mut hasher)
+        .map_err(|e| format!("Failed to read file: {}", e))?;
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+/// Export a local instance to .mrpack format
+#[tauri::command]
+pub async fn export_instance_to_mrpack(
+    instance_id: String,
+    output_path: String,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    use crate::core::minecraft_instance::MinecraftInstance;
+    use crate::core::tasks_manager;
+
+    log::info!("Starting export of instance {} to {}", instance_id, output_path);
+
+    // Create task for progress tracking
+    let task_id = tasks_manager::add_task(
+        "Exportando instancia a .mrpack",
+        None,
+    );
+
+    // Get instance
+    let instance = MinecraftInstance::from_instance_id(&instance_id)
+        .ok_or_else(|| "Instance not found".to_string())?;
+
+    // Verify it's a local instance (no modpackId)
+    if instance.modpackId.is_some() {
+        tasks_manager::update_task(
+            &task_id,
+            tasks_manager::TaskStatus::Failed,
+            0.0,
+            "No se pueden exportar instancias de modpacks",
+            None,
+        );
+        return Err("Cannot export modpack instances".to_string());
+    }
+
+    tasks_manager::update_task(
+        &task_id,
+        tasks_manager::TaskStatus::Running,
+        10.0,
+        "Recopilando información de la instancia...",
+        None,
+    );
+
+    // Get minecraft directory
+    let instance_dir = PathBuf::from(instance.instanceDirectory.as_ref().unwrap());
+    let minecraft_dir = instance_dir.join("minecraft");
+
+    if !minecraft_dir.exists() {
+        tasks_manager::update_task(
+            &task_id,
+            tasks_manager::TaskStatus::Failed,
+            0.0,
+            "Directorio de Minecraft no encontrado",
+            None,
+        );
+        return Err("Minecraft directory not found".to_string());
+    }
+
+    tasks_manager::update_task(
+        &task_id,
+        tasks_manager::TaskStatus::Running,
+        20.0,
+        "Recorriendo archivos de la instancia...",
+        None,
+    );
+
+    // Collect all files from the minecraft directory
+    let mut files_to_include = Vec::new();
+    let walker = WalkDir::new(&minecraft_dir).into_iter();
+    
+    for entry in walker.filter_map(|e| e.ok()) {
+        let path = entry.path();
+        if path.is_file() {
+            if let Ok(relative_path) = path.strip_prefix(&minecraft_dir) {
+                files_to_include.push(relative_path.to_path_buf());
+            }
+        }
+    }
+
+    log::info!("Found {} files to include", files_to_include.len());
+
+    tasks_manager::update_task(
+        &task_id,
+        tasks_manager::TaskStatus::Running,
+        30.0,
+        &format!("Calculando hashes de {} archivos...", files_to_include.len()),
+        None,
+    );
+
+    // Calculate hashes and build file entries
+    let mut mrpack_files = Vec::new();
+    let total_files = files_to_include.len();
+    
+    for (index, relative_path) in files_to_include.iter().enumerate() {
+        let full_path = minecraft_dir.join(relative_path);
+        
+        let progress = 30.0 + ((index as f32 / total_files as f32) * 40.0);
+        if index % 10 == 0 {
+            tasks_manager::update_task(
+                &task_id,
+                tasks_manager::TaskStatus::Running,
+                progress,
+                &format!("Procesando archivo {}/{}", index + 1, total_files),
+                None,
+            );
+        }
+
+        let sha1_hash = calculate_sha1(&full_path)?;
+        let sha512_hash = calculate_sha512(&full_path)?;
+        let file_size = fs::metadata(&full_path)
+            .map_err(|e| format!("Failed to get file metadata: {}", e))?
+            .len();
+
+        let override_path = format!("overrides/{}", relative_path.to_string_lossy().replace("\\", "/"));
+
+        mrpack_files.push(MrpackFile {
+            path: override_path,
+            hashes: MrpackHashes {
+                sha1: sha1_hash,
+                sha512: sha512_hash,
+            },
+            env: Some(MrpackEnv {
+                client: Some("required".to_string()),
+                server: Some("required".to_string()),
+            }),
+            downloads: vec![],
+            file_size,
+        });
+    }
+
+    tasks_manager::update_task(
+        &task_id,
+        tasks_manager::TaskStatus::Running,
+        70.0,
+        "Creando manifest...",
+        None,
+    );
+
+    // Create manifest
+    let version_id = format!("local-export-{}", chrono::Utc::now().timestamp());
+    
+    let dependencies = MrpackDependencies {
+        minecraft: instance.minecraftVersion.clone(),
+        forge: instance.forgeVersion.clone(),
+        fabric_loader: None,
+        quilt_loader: None,
+        neoforge: None,
+    };
+
+    let manifest = MrpackManifest {
+        format_version: 1,
+        game: "minecraft".to_string(),
+        version_id,
+        name: instance.instanceName.clone(),
+        summary: Some(format!("Exportado desde ModpackStore")),
+        files: mrpack_files,
+        dependencies,
+    };
+
+    tasks_manager::update_task(
+        &task_id,
+        tasks_manager::TaskStatus::Running,
+        75.0,
+        "Creando archivo .mrpack...",
+        None,
+    );
+
+    // Create ZIP file
+    let output = fs::File::create(&output_path)
+        .map_err(|e| format!("Failed to create output file: {}", e))?;
+    let mut zip = ZipWriter::new(output);
+    let options = FileOptions::default()
+        .compression_method(zip::CompressionMethod::Deflated)
+        .unix_permissions(0o755);
+
+    // Write manifest
+    let manifest_json = serde_json::to_string_pretty(&manifest)
+        .map_err(|e| format!("Failed to serialize manifest: {}", e))?;
+    
+    zip.start_file("modrinth.index.json", options)
+        .map_err(|e| format!("Failed to start manifest file: {}", e))?;
+    zip.write_all(manifest_json.as_bytes())
+        .map_err(|e| format!("Failed to write manifest: {}", e))?;
+
+    tasks_manager::update_task(
+        &task_id,
+        tasks_manager::TaskStatus::Running,
+        80.0,
+        &format!("Agregando {} archivos al paquete...", files_to_include.len()),
+        None,
+    );
+
+    // Add all files to overrides/
+    for (index, relative_path) in files_to_include.iter().enumerate() {
+        let full_path = minecraft_dir.join(relative_path);
+        let zip_path = format!("overrides/{}", relative_path.to_string_lossy().replace("\\", "/"));
+        
+        let progress = 80.0 + ((index as f32 / total_files as f32) * 15.0);
+        if index % 10 == 0 {
+            tasks_manager::update_task(
+                &task_id,
+                tasks_manager::TaskStatus::Running,
+                progress,
+                &format!("Empaquetando archivo {}/{}", index + 1, total_files),
+                None,
+            );
+        }
+
+        zip.start_file(&zip_path, options)
+            .map_err(|e| format!("Failed to start file in zip: {}", e))?;
+        
+        let file_content = fs::read(&full_path)
+            .map_err(|e| format!("Failed to read file: {}", e))?;
+        zip.write_all(&file_content)
+            .map_err(|e| format!("Failed to write file to zip: {}", e))?;
+    }
+
+    tasks_manager::update_task(
+        &task_id,
+        tasks_manager::TaskStatus::Running,
+        95.0,
+        "Finalizando archivo...",
+        None,
+    );
+
+    zip.finish()
+        .map_err(|e| format!("Failed to finish zip: {}", e))?;
+
+    tasks_manager::update_task(
+        &task_id,
+        tasks_manager::TaskStatus::Completed,
+        100.0,
+        "Instancia exportada correctamente",
+        None,
+    );
+
+    log::info!("Successfully exported instance to {}", output_path);
 
     Ok(())
 }

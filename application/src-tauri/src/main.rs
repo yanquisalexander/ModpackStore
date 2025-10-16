@@ -253,6 +253,7 @@ pub fn main() {
             core::i18n::reset_to_system_language,
             core::mrpack_handler::validate_mrpack_file,
             core::mrpack_handler::check_mrpack_compatibility,
+            core::mrpack_handler::export_instance_to_mrpack,
             core::instance_manager::create_instance_from_mrpack,
             core::minecraft::async_launcher::launch_minecraft_async,
             core::theme_manager::get_external_themes,

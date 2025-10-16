@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { LucidePlay, LucideHardDrive, LucideMoreVertical, LucideSettings, LucideTrash2, LucideDownload, LucideRefreshCw, LucideGamepad2, LucideFolderSymlink, LucidePackageOpen, LucideStar } from "lucide-react"
+import { LucidePlay, LucideHardDrive, LucideMoreVertical, LucideSettings, LucideTrash2, LucideDownload, LucideRefreshCw, LucideGamepad2, LucideFolderSymlink, LucidePackageOpen, LucideStar, LucideUpload } from "lucide-react"
 import { useState, useEffect } from "react"
 import {
     ContextMenu,
@@ -92,6 +92,37 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceUpda
             })
     }
 
+    const handleExportToMrpack = async () => {
+        try {
+            // Use save dialog from @tauri-apps/plugin-dialog
+            const { save } = await import('@tauri-apps/plugin-dialog');
+            
+            const filePath = await save({
+                defaultPath: `${instance.instanceName}.mrpack`,
+                filters: [{
+                    name: 'Modrinth Modpack',
+                    extensions: ['mrpack']
+                }]
+            });
+
+            if (!filePath) {
+                // User cancelled
+                return;
+            }
+
+            await invoke('export_instance_to_mrpack', {
+                instanceId: instance.instanceId,
+                outputPath: filePath
+            });
+
+            toast.success('Instancia exportada correctamente');
+        } catch (error) {
+            playSound("ERROR_NOTIFICATION")
+            console.error('Error al exportar instancia:', error)
+            toast.error(`Error al exportar instancia: ${(error as any)?.message || 'Error desconocido'}`)
+        }
+    }
+
     const handleContextAction = (action: string) => {
         if (action === "settings") {
             handleOpenSettings()
@@ -100,6 +131,11 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceUpda
 
         if (action === "create_shortcut") {
             handleCreateShortcut()
+            return
+        }
+
+        if (action === "export_mrpack") {
+            handleExportToMrpack()
             return
         }
 
@@ -244,6 +280,16 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceUpda
                         <LucideFolderSymlink className="mr-2 h-4 w-4" />
                         <span>Crear acceso directo</span>
                     </ContextMenuItem>
+
+                    {installationType === "local" && (
+                        <ContextMenuItem
+                            onClick={() => handleContextAction("export_mrpack")}
+                            className="hover:bg-neutral-800 focus:bg-neutral-800 cursor-pointer"
+                        >
+                            <LucideUpload className="mr-2 h-4 w-4" />
+                            <span>Exportar como .mrpack</span>
+                        </ContextMenuItem>
+                    )}
 
                     <ContextMenuItem
                         onClick={() => handleContextAction("backup")}
