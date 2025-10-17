@@ -5,6 +5,7 @@ import { serializeResource, serializeCollection, serializeError } from "../utils
 import { z } from "zod";
 import { APIError } from '@/lib/APIError'; // Assuming APIError is in lib
 import { PublisherMemberRole } from '../types/enums';
+import { User } from '../entities/User';
 
 // Interface for user object potentially set by middleware
 // interface AuthenticatedUser {
@@ -15,8 +16,8 @@ export class AdminPublishersController {
     static async createPublisher(c: Context): Promise<Response> {
         try {
             // TODO: MIGRATE_MIDDLEWARE - This relies on 'c.get('user')' which comes from requireAuth/validateAdmin middleware
-            const user = c.get('user') as { id: string } | undefined;
-            if (!user || !user.id) {
+            const user = c.get('user') as User;
+            if (!user || !user.isAdmin()) {
                 throw new APIError(401, 'Unauthorized', 'Admin privileges required.');
             }
             const userId = user.id;
@@ -94,8 +95,8 @@ export class AdminPublishersController {
     static async updatePublisher(c: Context): Promise<Response> {
         try {
             // TODO: MIGRATE_MIDDLEWARE - This relies on 'c.get('user')'
-            const user = c.get('user') as { id: string } | undefined;
-            if (!user || !user.id) {
+            const user = c.get('user') as User;
+            if (!user || !user.isAdmin()) {
                 throw new APIError(401, 'Unauthorized', 'Admin privileges required.');
             }
             const adminUserId = user.id;
@@ -137,8 +138,8 @@ export class AdminPublishersController {
     static async deletePublisher(c: Context): Promise<Response> {
         try {
             // TODO: MIGRATE_MIDDLEWARE - This relies on 'c.get('user')'
-            const user = c.get('user') as { id: string } | undefined;
-            if (!user || !user.id) {
+            const user = c.get('user') as User;
+            if (!user || !user.isAdmin()) {
                 throw new APIError(401, 'Unauthorized', 'Admin privileges required.');
             }
             const adminUserId = user.id;
@@ -186,8 +187,8 @@ export class AdminPublishersController {
 
     static async addMember(c: Context): Promise<Response> {
         try {
-            const user = c.get('user') as { id: string } | undefined;
-            if (!user || !user.id) {
+            const user = c.get('user') as User;
+            if (!user || !user.isAdmin()) {
                 throw new APIError(401, 'Unauthorized', 'Admin privileges required.');
             }
             const adminUserId = user.id;
@@ -218,8 +219,8 @@ export class AdminPublishersController {
 
     static async removeMember(c: Context): Promise<Response> {
         try {
-            const user = c.get('user') as { id: string } | undefined;
-            if (!user || !user.id) {
+            const user = c.get('user') as User;
+            if (!user || !user.isAdmin()) {
                 throw new APIError(401, 'Unauthorized', 'Admin privileges required.');
             }
             const adminUserId = user.id;
@@ -241,8 +242,8 @@ export class AdminPublishersController {
 
     static async updateMemberRole(c: Context): Promise<Response> {
         try {
-            const user = c.get('user') as { id: string } | undefined;
-            if (!user || !user.id) {
+            const user = c.get('user') as User;
+            if (!user || !user.isAdmin()) {
                 throw new APIError(401, 'Unauthorized', 'Admin privileges required.');
             }
             const adminUserId = user.id;

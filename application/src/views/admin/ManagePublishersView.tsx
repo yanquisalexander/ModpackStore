@@ -19,7 +19,11 @@ import {
     LucidePackage,
     LucideShield,
     LucideCheck,
-    LucideX
+    LucideX,
+    LucidePlus,
+    LucideUserMinus,
+    LucideUserCheck,
+    LucideCrown
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from "@/consts";
@@ -385,7 +389,13 @@ const PublisherDetails: React.FC<{
 }> = ({ publisher, onEdit, onDelete, onToggleStatus }) => {
     const [members, setMembers] = useState<PublisherMember[]>([]);
     const [membersLoading, setMembersLoading] = useState(false);
+    const [showAddMemberDialog, setShowAddMemberDialog] = useState(false);
+    const [showChangeRoleDialog, setShowChangeRoleDialog] = useState(false);
+    const [selectedMember, setSelectedMember] = useState<PublisherMember | null>(null);
+    const [addMemberForm, setAddMemberForm] = useState({ userId: '', role: 'member' });
+    const [operationLoading, setOperationLoading] = useState(false);
     const { sessionTokens } = useAuthentication();
+    const { toast } = useToast();
 
     useEffect(() => {
         loadMembers();
@@ -405,6 +415,101 @@ const PublisherDetails: React.FC<{
             console.error('Error loading members:', error);
         } finally {
             setMembersLoading(false);
+        }
+    };
+
+    const handleAddMember = async () => {
+        if (!sessionTokens?.accessToken) {
+            toast({
+                title: 'Error',
+                description: 'No access token available',
+                variant: 'destructive'
+            });
+            return;
+        }
+
+        setOperationLoading(true);
+        try {
+            await AdminPublishersAPI.addMember(publisher.id, addMemberForm.userId, addMemberForm.role, sessionTokens.accessToken);
+            toast({
+                title: "Éxito",
+                description: "Miembro añadido exitosamente",
+            });
+            setShowAddMemberDialog(false);
+            setAddMemberForm({ userId: '', role: 'member' });
+            loadMembers();
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: "Error al añadir miembro: " + error.message,
+                variant: "destructive",
+            });
+        } finally {
+            setOperationLoading(false);
+        }
+    };
+
+    const handleRemoveMember = async (member: PublisherMember) => {
+        if (!confirm(`¿Estás seguro de que quieres remover a ${member.user?.username} del publisher?`)) {
+            return;
+        }
+
+        if (!sessionTokens?.accessToken) {
+            toast({
+                title: 'Error',
+                description: 'No access token available',
+                variant: 'destructive'
+            });
+            return;
+        }
+
+        setOperationLoading(true);
+        try {
+            await AdminPublishersAPI.removeMember(publisher.id, member.userId, sessionTokens.accessToken);
+            toast({
+                title: "Éxito",
+                description: "Miembro removido exitosamente",
+            });
+            loadMembers();
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: "Error al remover miembro: " + error.message,
+                variant: "destructive",
+            });
+        } finally {
+            setOperationLoading(false);
+        }
+    };
+
+    const handleChangeRole = async (memberId: string, newRole: string) => {
+        if (!sessionTokens?.accessToken) {
+            toast({
+                title: 'Error',
+                description: 'No access token available',
+                variant: 'destructive'
+            });
+            return;
+        }
+
+        setOperationLoading(true);
+        try {
+            await AdminPublishersAPI.updateMemberRole(publisher.id, memberId, newRole, sessionTokens.accessToken);
+            toast({
+                title: "Éxito",
+                description: "Rol del miembro actualizado exitosamente",
+            });
+            setShowChangeRoleDialog(false);
+            setSelectedMember(null);
+            loadMembers();
+        } catch (error: any) {
+            toast({
+                title: "Error",
+                description: "Error al cambiar rol: " + error.message,
+                variant: "destructive",
+            });
+        } finally {
+            setOperationLoading(false);
         }
     };
 
@@ -479,10 +584,19 @@ const PublisherDetails: React.FC<{
                 <TabsContent value="members">
                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <LucideUsers className="h-5 w-5" />
-                                Miembros del Publisher
-                            </CardTitle>
+                            <div className="flex justify-between items-center">
+                                <CardTitle className="flex items-center gap-2">
+                                    <LucideUsers className="h-5 w-5" />
+                                    Miembros del Publisher
+                                </CardTitle>
+                                <Button
+                                    onClick={() => setShowAddMemberDialog(true)}
+                                    size="sm"
+                                >
+                                    <LucidePlus className="h-4 w-4 mr-2" />
+                                    Añadir Miembro
+                                </Button>
+                            </div>
                         </CardHeader>
                         <CardContent>
                             {membersLoading ? (
@@ -496,6 +610,7 @@ const PublisherDetails: React.FC<{
                                             <TableHead>Usuario</TableHead>
                                             <TableHead>Rol</TableHead>
                                             <TableHead>Unido</TableHead>
+                                            <TableHead>Acciones</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -523,6 +638,29 @@ const PublisherDetails: React.FC<{
                                                 </TableCell>
                                                 <TableCell>
                                                     {new Date(member.createdAt).toLocaleDateString('es-ES')}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => {
+                                                                setSelectedMember(member);
+                                                                setShowChangeRoleDialog(true);
+                                                            }}
+                                                        >
+                                                            <LucideCrown className="h-4 w-4 mr-2" />
+                                                            Cambiar Rol
+                                                        </Button>
+                                                        <Button
+                                                            variant="destructive"
+                                                            size="sm"
+                                                            onClick={() => handleRemoveMember(member)}
+                                                        >
+                                                            <LucideUserMinus className="h-4 w-4 mr-2" />
+                                                            Remover
+                                                        </Button>
+                                                    </div>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -621,6 +759,108 @@ const PublisherDetails: React.FC<{
                     </Card>
                 </TabsContent>
             </Tabs>
+
+            {/* Add Member Dialog */}
+            <Dialog open={showAddMemberDialog} onOpenChange={setShowAddMemberDialog}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Agregar Miembro al Publisher</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-2">ID de Usuario</label>
+                            <Input
+                                value={addMemberForm.userId}
+                                onChange={(e) => setAddMemberForm({ ...addMemberForm, userId: e.target.value })}
+                                placeholder="Ingrese el ID del usuario"
+                                required
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Rol</label>
+                            <Select
+                                value={addMemberForm.role}
+                                onValueChange={(value) => setAddMemberForm({ ...addMemberForm, role: value })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccione un rol" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="owner">Propietario</SelectItem>
+                                    <SelectItem value="admin">Administrador</SelectItem>
+                                    <SelectItem value="member">Miembro</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowAddMemberDialog(false)}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleAddMember} disabled={operationLoading}>
+                            {operationLoading && <LucideLoader className="mr-2 h-4 w-4 animate-spin" />}
+                            Agregar Miembro
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Change Role Dialog */}
+            <Dialog open={showChangeRoleDialog} onOpenChange={setShowChangeRoleDialog}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Cambiar Rol del Miembro</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Usuario</label>
+                            <Input
+                                value={selectedMember?.user?.username}
+                                readOnly
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Rol Actual</label>
+                            <Badge variant={getRoleBadgeVariant(selectedMember?.role || 'member')}>
+                                {getRoleLabel(selectedMember?.role || 'member')}
+                            </Badge>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-2">Nuevo Rol</label>
+                            <Select
+                                value={selectedMember?.role || 'member'}
+                                onValueChange={(value) => {
+                                    if (selectedMember) {
+                                        handleChangeRole(selectedMember.userId, value);
+                                    }
+                                }}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Seleccione un nuevo rol" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="owner">Propietario</SelectItem>
+                                    <SelectItem value="admin">Administrador</SelectItem>
+                                    <SelectItem value="member">Miembro</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowChangeRoleDialog(false)}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={() => {
+                            if (selectedMember) {
+                                handleChangeRole(selectedMember.userId, selectedMember.role);
+                            }
+                        }} disabled={operationLoading}>
+                            {operationLoading && <LucideLoader className="mr-2 h-4 w-4 animate-spin" />}
+                            Cambiar Rol
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };

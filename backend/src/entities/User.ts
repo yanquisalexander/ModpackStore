@@ -69,6 +69,9 @@ export class User extends BaseEntity {
     @Column({ name: "patreon_last_verified", type: "timestamp", nullable: true })
     patreonLastVerified?: Date | null;
 
+    @Column({ name: "role", type: "enum", enum: UserRole, default: UserRole.USER })
+    role: UserRole;
+
     // Twitch fields
     @Column({ name: "twitch_id", type: "text", nullable: true, unique: true })
     twitchId?: string | null;
@@ -80,14 +83,11 @@ export class User extends BaseEntity {
     twitchRefreshToken?: string | null;
 
     @Column({
-        name: "role",
-        type: "enum",
-        enum: UserRole,
-        default: UserRole.USER
+        name: "provider",
+        type: "varchar",
+        length: 50,
+        nullable: true
     })
-    role: UserRole;
-
-    @Column({ name: "provider", type: "varchar", length: 50, nullable: true })
     provider?: string | null;
 
     @Column({ name: "last_login_at", type: "timestamp", nullable: true })

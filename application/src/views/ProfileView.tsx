@@ -356,36 +356,3 @@ export const HelpSection = () => {
     </Card>
   );
 };
-
-export const TicketsSection = () => {
-  const { session } = useAuthentication();
-
-  if (!session) return null;
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Mis Tickets de Soporte</h2>
-        <Button size="sm">
-          <LucidePlus className="h-4 w-4 mr-2" />
-          Nuevo Ticket
-        </Button>
-      </div>
-
-      <Card>
-        <CardContent className="p-6">
-          <div className="text-center py-8">
-            <LucideTicket className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <h3 className="text-lg font-medium mb-2">No tienes tickets activos</h3>
-            <p className="text-muted-foreground text-sm mb-4">
-              Cuando tengas problemas o necesites soporte, podrás crear tickets aquí.
-            </p>
-            <Button variant="outline" size="sm">
-              Crear mi primer ticket
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
