@@ -157,12 +157,18 @@ export class ExploreModpacksController {
                     forgeVersion: true,
                     releaseDate: true,
                     status: true,
-
                     version: true,
                     files: {
+                        // Primary keys are required for TypeORM to properly load the relation
+                        fileHash: true,
+                        modpackVersionId: true,
                         path: true,
+                        fileType: true,
                         file: {
-                            type: true
+                            // Primary key required for nested relation
+                            hash: true,
+                            type: true,
+                            size: true
                         }
                     }
                 }
@@ -272,9 +278,14 @@ export class ExploreModpacksController {
                     status: true,
                     version: true,
                     files: {
-                        path: true,
+                        // Primary keys required for TypeORM to properly load the relation
                         fileHash: true,
+                        modpackVersionId: true,
+                        path: true,
+                        fileType: true,
                         file: {
+                            // Primary key required for nested relation
+                            hash: true,
                             type: true,
                             size: true,
                         }
