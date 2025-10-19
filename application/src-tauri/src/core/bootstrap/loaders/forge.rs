@@ -1,5 +1,11 @@
 // src/core/bootstrap/loaders/forge.rs
 // Forge loader installer implementation
+//
+// This module provides the ForgeInstaller struct which handles downloading
+// and running the Forge installer for Minecraft instances.
+//
+// Forge requires Java to run its installer, which downloads libraries, patches
+// binaries, and sets up the Minecraft environment for modding.
 
 use crate::core::bootstrap::download::download_file;
 use crate::core::bootstrap::manifest::build_forge_installer_url;
@@ -11,6 +17,12 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri_plugin_http::reqwest;
 
+/// Forge modloader installer
+///
+/// Handles the complete installation process for Forge, including:
+/// - Downloading the Forge installer JAR
+/// - Running the installer with appropriate options
+/// - Handling installation failures and retries
 pub struct ForgeInstaller<'a> {
     client: &'a reqwest::blocking::Client,
     minecraft_version: String,
