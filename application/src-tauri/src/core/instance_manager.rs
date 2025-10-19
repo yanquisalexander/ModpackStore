@@ -922,10 +922,23 @@ fn spawn_instance_creation_task(instance: MinecraftInstance, task_id: String) {
             None,
         );
 
-        let result = if instance.forgeVersion.is_some() {
-            bootstrap.bootstrap_forge_instance(&instance, Some(task_id.clone()))
-        } else {
-            bootstrap.bootstrap_vanilla_instance(&instance, Some(task_id.clone()))
+        // Determine which bootstrap method to use based on loader type
+        let result = match instance.loaderType {
+            ModLoaderType::Forge => {
+                bootstrap.bootstrap_forge_instance(&instance, Some(task_id.clone()))
+            }
+            ModLoaderType::Fabric => {
+                bootstrap.bootstrap_fabric_instance(&instance, Some(task_id.clone()))
+            }
+            ModLoaderType::NeoForge => {
+                bootstrap.bootstrap_neoforge_instance(&instance, Some(task_id.clone()))
+            }
+            ModLoaderType::Quilt => {
+                bootstrap.bootstrap_quilt_instance(&instance, Some(task_id.clone()))
+            }
+            ModLoaderType::Vanilla => {
+                bootstrap.bootstrap_vanilla_instance(&instance, Some(task_id.clone()))
+            }
         };
 
         match result {
@@ -990,10 +1003,23 @@ fn spawn_modpack_creation_task(
             None,
         );
 
-        let bootstrap_result = if instance.forgeVersion.is_some() {
-            bootstrap.bootstrap_forge_instance(&instance, Some(task_id.clone()))
-        } else {
-            bootstrap.bootstrap_vanilla_instance(&instance, Some(task_id.clone()))
+        // Determine which bootstrap method to use based on loader type
+        let bootstrap_result = match instance.loaderType {
+            ModLoaderType::Forge => {
+                bootstrap.bootstrap_forge_instance(&instance, Some(task_id.clone()))
+            }
+            ModLoaderType::Fabric => {
+                bootstrap.bootstrap_fabric_instance(&instance, Some(task_id.clone()))
+            }
+            ModLoaderType::NeoForge => {
+                bootstrap.bootstrap_neoforge_instance(&instance, Some(task_id.clone()))
+            }
+            ModLoaderType::Quilt => {
+                bootstrap.bootstrap_quilt_instance(&instance, Some(task_id.clone()))
+            }
+            ModLoaderType::Vanilla => {
+                bootstrap.bootstrap_vanilla_instance(&instance, Some(task_id.clone()))
+            }
         };
 
         // Handle bootstrap result and update Java path if needed
