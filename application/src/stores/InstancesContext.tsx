@@ -278,41 +278,19 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             unlistenList.push(downloadingModpackFilesUnlisten);
 
             // Listeners for bootstrap completion so UI doesn't stay stuck in a stage like "Instalando Forge..."
-            const forgeBootstrappedUnlisten = await listen("forge-instance-bootstrapped", (e: any) => {
+
+
+            const instanceBootstrappedUnlisten = await listen("instance-bootstrapped", (e: any) => {
                 const { id, message } = e.payload;
-                console.log("Forge bootstrapped event:", { id, message });
+                console.log("Instance bootstrapped event:", { id, message });
 
                 updateInstance(id, {
                     status: "idle",
-                    message: message || "Forge instalado correctamente",
+                    message: message || "Instancia instalada correctamente",
                     stage: undefined
                 });
             });
-            unlistenList.push(forgeBootstrappedUnlisten);
-
-            const vanillaBootstrappedUnlisten = await listen("vanilla-instance-bootstrapped", (e: any) => {
-                const { id, message } = e.payload;
-                console.log("Vanilla bootstrapped event:", { id, message });
-
-                updateInstance(id, {
-                    status: "idle",
-                    message: message || "Bootstrap completado",
-                    stage: undefined
-                });
-            });
-            unlistenList.push(vanillaBootstrappedUnlisten);
-
-            const fabricBootstrappedUnlisten = await listen("fabric-instance-bootstrapped", (e: any) => {
-                const { id, message } = e.payload;
-                console.log("Fabric bootstrapped event:", { id, message });
-
-                updateInstance(id, {
-                    status: "idle",
-                    message: message || "Fabric instalado correctamente",
-                    stage: undefined
-                });
-            });
-            unlistenList.push(fabricBootstrappedUnlisten);
+            unlistenList.push(instanceBootstrappedUnlisten);
         };
 
         setupListeners();
