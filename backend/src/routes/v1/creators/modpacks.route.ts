@@ -727,11 +727,16 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions/
                 publisherId: true,
             },
             files: {
-                path: true,
+                // Primary keys required for TypeORM to properly load the relation
                 fileHash: true,
+                modpackVersionId: true,
+                path: true,
                 fileType: true,
                 file: {
-                    type: true
+                    // Primary key required for nested relation
+                    hash: true,
+                    type: true,
+                    size: true
                 }
             },
             createdByUser: {
