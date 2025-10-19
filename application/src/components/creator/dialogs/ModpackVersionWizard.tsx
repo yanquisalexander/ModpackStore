@@ -95,19 +95,16 @@ const ModpackVersionWizard: React.FC<Props> = ({
     const [breakingChanges, setBreakingChanges] = useState<BreakingChange[]>([]);
     const [acknowledgedBreaking, setAcknowledgedBreaking] = useState(false);
     
-    // Success animation data (placeholder - you can replace with actual Lottie JSON)
-    const successAnimation = {
-        v: "5.5.7",
-        fr: 60,
-        ip: 0,
-        op: 120,
-        w: 500,
-        h: 500,
-        nm: "Success",
-        ddd: 0,
-        assets: [],
-        layers: []
-    };
+    // Load success animation
+    const [successAnimation, setSuccessAnimation] = useState<any>(null);
+    
+    useEffect(() => {
+        // Load the success animation
+        fetch('/animations/success.json')
+            .then(res => res.json())
+            .then(data => setSuccessAnimation(data))
+            .catch(err => console.error('Failed to load animation:', err));
+    }, []);
 
     // Load Minecraft and Forge versions when wizard opens
     useEffect(() => {
@@ -617,13 +614,15 @@ const ModpackVersionWizard: React.FC<Props> = ({
                                 animate={{ opacity: 1, scale: 1 }}
                                 className="flex flex-col items-center justify-center py-12 space-y-6"
                             >
-                                <div className="w-48 h-48">
-                                    <Lottie 
-                                        animationData={successAnimation} 
-                                        loop={true}
-                                        className="w-full h-full"
-                                    />
-                                </div>
+                                {successAnimation && (
+                                    <div className="w-48 h-48">
+                                        <Lottie 
+                                            animationData={successAnimation} 
+                                            loop={true}
+                                            className="w-full h-full"
+                                        />
+                                    </div>
+                                )}
                                 <h3 className="text-2xl font-bold text-white">
                                     Creando versión...
                                 </h3>
