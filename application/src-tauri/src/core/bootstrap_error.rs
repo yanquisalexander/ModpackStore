@@ -16,6 +16,7 @@ pub enum BootstrapStep {
     DownloadingForgeInstaller,
     RunningForgeInstaller,
     CreatingLauncherProfiles,
+    CreatingFiles,
 }
 
 impl fmt::Display for BootstrapStep {
@@ -33,6 +34,7 @@ impl fmt::Display for BootstrapStep {
             BootstrapStep::DownloadingForgeInstaller => "Descargando instalador de Forge",
             BootstrapStep::RunningForgeInstaller => "Ejecutando instalador de Forge",
             BootstrapStep::CreatingLauncherProfiles => "Creando perfiles del launcher",
+            BootstrapStep::CreatingFiles => "Creando archivos",
         };
         write!(f, "{}", step_name)
     }

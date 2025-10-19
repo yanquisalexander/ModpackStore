@@ -4,65 +4,13 @@
 use crate::core::bootstrap::download::download_file;
 use crate::core::bootstrap_error::{BootstrapError, BootstrapStep};
 use crate::core::minecraft_instance::MinecraftInstance;
-use serde::{Deserialize, Serialize};
+use serde_json;
+use serde_json::Value as JsonValue;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri_plugin_http::reqwest;
 
 const FABRIC_META_URL: &str = "https://meta.fabricmc.net/v2";
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct FabricVersion {
-    loader: LoaderInfo,
-    intermediary: IntermediaryInfo,
-    #[serde(rename = "launcherMeta")]
-    launcher_meta: LauncherMeta,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct LoaderInfo {
-    separator: String,
-    build: i32,
-    maven: String,
-    version: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct IntermediaryInfo {
-    maven: String,
-    version: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct LauncherMeta {
-    version: i32,
-    libraries: Libraries,
-    #[serde(rename = "mainClass")]
-    main_class: MainClass,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Libraries {
-    common: Vec<LibraryEntry>,
-    client: Vec<LibraryEntry>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct LibraryEntry {
-    name: String,
-    url: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct MainClass {
-    client: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct FabricLoaderVersion {
-    version: String,
-    stable: bool,
-}
 
 pub struct FabricInstaller<'a> {
     client: &'a reqwest::blocking::Client,
@@ -102,11 +50,11 @@ impl<'a> FabricInstaller<'a> {
             ));
         }
 
-        let versions: Vec<FabricLoaderVersion> = response
+        let versions: Vec<String> = response
             .json()
             .map_err(|e| format!("Failed to parse Fabric loader versions: {}", e))?;
 
-        Ok(versions.into_iter().map(|v| v.version).collect())
+        Ok(versions)
     }
 
     /// Install Fabric loader for the instance
@@ -162,7 +110,7 @@ impl<'a> FabricInstaller<'a> {
     }
 
     /// Fetch Fabric profile from meta API
-    fn fetch_fabric_profile(&self) -> Result<FabricVersion, BootstrapError> {
+    fn fetch_fabric_profile(&self) -> Result<JsonValue, BootstrapError> {
         let url = format!(
             "{}/versions/loader/{}/{}/profile/json",
             FABRIC_META_URL, self.minecraft_version, self.loader_version
@@ -187,7 +135,15 @@ impl<'a> FabricInstaller<'a> {
             ));
         }
 
-        let fabric_version: FabricVersion = response.json().map_err(|e| {
+        let response_text = response.text().map_err(|e| {
+            BootstrapError::network_error(
+                BootstrapStep::DownloadingManifest,
+                format!("Failed to read Fabric profile response: {}", e),
+            )
+        })?;
+
+        let fabric_version: JsonValue = serde_json::from_str(&response_text).map_err(|e| {
+            log::error!("Failed to parse Fabric profile JSON. Response body: {}", response_text);
             BootstrapError::network_error(
                 BootstrapStep::DownloadingManifest,
                 format!("Failed to parse Fabric profile: {}", e),
@@ -200,53 +156,18 @@ impl<'a> FabricInstaller<'a> {
     /// Generate Minecraft version JSON for Fabric
     fn generate_version_json(
         &self,
-        fabric_profile: &FabricVersion,
+        fabric_profile: &JsonValue,
         version_id: &str,
-    ) -> Result<serde_json::Value, BootstrapError> {
-        // Build libraries array
-        let mut libraries = Vec::new();
+    ) -> Result<JsonValue, BootstrapError> {
+        // Start with the fabric profile
+        let mut version_json = fabric_profile.clone();
 
-        // Add Fabric loader libraries
-        for lib in &fabric_profile.launcher_meta.libraries.common {
-            libraries.push(serde_json::json!({
-                "name": lib.name,
-                "url": lib.url
-            }));
+        // Update the id
+        if let Some(obj) = version_json.as_object_mut() {
+            obj.insert("id".to_string(), JsonValue::String(version_id.to_string()));
+            obj.insert("inheritsFrom".to_string(), JsonValue::String(self.minecraft_version.clone()));
+            // Keep other fields as is
         }
-
-        for lib in &fabric_profile.launcher_meta.libraries.client {
-            libraries.push(serde_json::json!({
-                "name": lib.name,
-                "url": lib.url
-            }));
-        }
-
-        // Add intermediary library
-        libraries.push(serde_json::json!({
-            "name": fabric_profile.intermediary.maven,
-            "url": "https://maven.fabricmc.net/"
-        }));
-
-        // Add loader library
-        libraries.push(serde_json::json!({
-            "name": fabric_profile.loader.maven,
-            "url": "https://maven.fabricmc.net/"
-        }));
-
-        // Create version JSON
-        let version_json = serde_json::json!({
-            "id": version_id,
-            "inheritsFrom": self.minecraft_version,
-            "releaseTime": chrono::Utc::now().to_rfc3339(),
-            "time": chrono::Utc::now().to_rfc3339(),
-            "type": "release",
-            "mainClass": fabric_profile.launcher_meta.main_class.client,
-            "libraries": libraries,
-            "arguments": {
-                "game": [],
-                "jvm": []
-            }
-        });
 
         Ok(version_json)
     }

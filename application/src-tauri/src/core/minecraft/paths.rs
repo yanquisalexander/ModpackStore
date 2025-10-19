@@ -89,7 +89,7 @@ impl MinecraftPaths {
         // Handle different loader types
         match self.loader_type {
             ModLoaderType::Forge => {
-                if let Some(forge_ref) = &self.forge_version.or(self.loader_version.as_ref()) {
+                if let Some(forge_ref) = self.forge_version.as_ref().or(self.loader_version.as_ref()) {
                     log::info!(
                         "[MinecraftPaths] Searching for Forge version manifest {}",
                         forge_ref

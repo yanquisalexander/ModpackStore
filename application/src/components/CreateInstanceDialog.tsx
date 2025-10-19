@@ -96,7 +96,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
         } else if (forgeVersions.length === 0) {
             setSelectedForgeVersion("");
         }
-        
+
         // Fetch and update loader versions based on selected type
         if (selectedType !== "vanilla" && selectedType !== "forge" && selectedMinecraftVersion) {
             fetchLoaderVersions(selectedType, selectedMinecraftVersion);
@@ -108,7 +108,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
         if (selectedType !== "vanilla" && selectedType !== "forge") {
             const loaderVersions = loaderVersionsMap[selectedMinecraftVersion] || [];
             setCompatibleLoaderVersions(loaderVersions);
-            
+
             if (loaderVersions.length > 0 && !selectedLoaderVersion) {
                 setSelectedLoaderVersion(loaderVersions[0]);
             } else if (loaderVersions.length === 0) {
@@ -181,12 +181,14 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
     const fetchLoaderVersions = async (loaderType: InstanceType, mcVersion: string): Promise<void> => {
         try {
             let versions: string[] = [];
-            
+
             if (loaderType === "fabric") {
                 // Fetch Fabric loader versions
                 const response = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${mcVersion}`);
                 const data = await response.json();
-                versions = data.map((item: any) => item.loader.version);
+                // Filter by stability based on showSnapshots config
+                versions = data
+                    .map((item: any) => item.loader.version);
             } else if (loaderType === "quilt") {
                 // Fetch Quilt loader versions
                 const response = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${mcVersion}`);
@@ -200,7 +202,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
                 // NeoForge versions typically start with the MC version (e.g., "20.2.59" for 1.20.2)
                 versions = data.versions || [];
             }
-            
+
             // Update the loader versions map with the fetched versions
             setLoaderVersionsMap(prev => ({
                 ...prev,
@@ -233,7 +235,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
             });
             return;
         }
-        
+
         if (["fabric", "neoforge", "quilt"].includes(selectedType) && !selectedLoaderVersion) {
             toast.error("Error", {
                 description: `Debes seleccionar una versión de ${selectedType}`
@@ -401,7 +403,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
                                     Mods
                                 </span>
                             </div>
-                            
+
                             <div
                                 className={`flex flex-col items-center gap-2 p-3 overflow-hidden rounded-md border cursor-pointer transition-all relative ${selectedType === "fabric"
                                     ? "border-green-500 bg-green-900/20"
@@ -415,7 +417,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
                                     Mods
                                 </span>
                             </div>
-                            
+
                             <div
                                 className={`flex flex-col items-center gap-2 p-3 overflow-hidden rounded-md border cursor-pointer transition-all relative ${selectedType === "neoforge"
                                     ? "border-purple-500 bg-purple-900/20"
@@ -429,7 +431,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
                                     Mods
                                 </span>
                             </div>
-                            
+
                             <div
                                 className={`flex flex-col items-center gap-2 p-3 overflow-hidden rounded-md border cursor-pointer transition-all relative ${selectedType === "quilt"
                                     ? "border-pink-500 bg-pink-900/20"
@@ -513,7 +515,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
                             )}
                         </div>
                     )}
-                    
+
                     {/* Loader Version Selector (for Fabric, NeoForge, Quilt) */}
                     {["fabric", "neoforge", "quilt"].includes(selectedType) && (
                         <div className="space-y-2">
