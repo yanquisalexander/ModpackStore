@@ -123,21 +123,23 @@ pub trait ModLoaderInstaller: Send + Sync {
         instance: &MinecraftInstance,
     ) -> Result<(), BootstrapError> {
         log::info!(
-            "[Instance: {}] Installing {} {} for Minecraft {}",
+            "[Instance: {}] [Trait] Installing {} {} for Minecraft {} - libraries_dir: {}",
             instance.instanceId,
             self.name(),
             self.loader_version(),
-            self.minecraft_version()
+            self.minecraft_version(),
+            libraries_dir.display()
         );
 
         // Download loader-specific libraries
+        log::info!("[Instance: {}] [Trait] Calling download_libraries for {}", instance.instanceId, self.name());
         self.download_libraries(libraries_dir, instance)?;
 
         // Run post-installation steps
         self.run_post_install(minecraft_dir, versions_dir, instance)?;
 
         log::info!(
-            "[Instance: {}] {} installation completed successfully",
+            "[Instance: {}] [Trait] {} installation completed successfully",
             instance.instanceId,
             self.name()
         );

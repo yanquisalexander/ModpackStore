@@ -301,6 +301,18 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                 });
             });
             unlistenList.push(vanillaBootstrappedUnlisten);
+
+            const fabricBootstrappedUnlisten = await listen("fabric-instance-bootstrapped", (e: any) => {
+                const { id, message } = e.payload;
+                console.log("Fabric bootstrapped event:", { id, message });
+
+                updateInstance(id, {
+                    status: "idle",
+                    message: message || "Fabric instalado correctamente",
+                    stage: undefined
+                });
+            });
+            unlistenList.push(fabricBootstrappedUnlisten);
         };
 
         setupListeners();

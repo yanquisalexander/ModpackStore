@@ -175,7 +175,7 @@ pub fn emit_bootstrap_start(instance: &MinecraftInstance, instance_type: &str) {
 pub fn emit_bootstrap_complete(instance: &MinecraftInstance, instance_type: &str) {
     emit_status(
         instance,
-        &format!("{}-instance-bootstrapped", instance_type.to_lowercase()),
+        "instance-bootstrapped",
         &format!(
             "Bootstrap de instancia {} completado para {}",
             instance_type, instance.minecraftVersion

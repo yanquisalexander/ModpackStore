@@ -151,6 +151,9 @@ impl MinecraftInstance {
                             if let Ok(mut instance) =
                                 serde_json::from_str::<MinecraftInstance>(&content)
                             {
+                                // Migrate legacy fields
+                                instance.migrate_legacy_fields();
+
                                 // Check if this is the instance we're looking for
                                 if instance.instanceId == instance_id {
                                     // Make sure instanceDirectory is set
@@ -185,6 +188,9 @@ impl MinecraftInstance {
             Ok(content) => {
                 match serde_json::from_str::<MinecraftInstance>(&content) {
                     Ok(mut instance) => {
+                        // Migrate legacy fields
+                        instance.migrate_legacy_fields();
+
                         // Aseguramos que instanceDirectory sea una ruta válida
                         // y que no esté vacía
                         if instance.instanceDirectory.is_none() {
@@ -240,6 +246,14 @@ impl MinecraftInstance {
             println!("Error saving Java path: {}", e);
         });
     }
+
+    pub fn migrate_legacy_fields(&mut self) {
+        // Migrate forgeVersion to loaderType for backward compatibility
+        if self.loaderType == ModLoaderType::Vanilla && self.forgeVersion.is_some() {
+            self.loaderType = ModLoaderType::Forge;
+            self.loaderVersion = self.forgeVersion.clone();
+        }
+    }
 }
 
 #[tauri::command]
@@ -273,7 +287,10 @@ pub fn get_instances_by_modpack_id(modpack_id: String) -> Vec<MinecraftInstance>
                 let config_file = path.join("instance.json");
                 if config_file.exists() {
                     if let Ok(content) = fs::read_to_string(&config_file) {
-                        if let Ok(instance) = serde_json::from_str::<MinecraftInstance>(&content) {
+                        if let Ok(mut instance) = serde_json::from_str::<MinecraftInstance>(&content) {
+                            // Migrate legacy fields
+                            instance.migrate_legacy_fields();
+
                             if instance.modpackId == Some(modpack_id.clone()) {
                                 instances.push(instance);
                             }

@@ -497,6 +497,9 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
         let mut instance: MinecraftInstance =
             from_str(&contents).map_err(|e| format!("Error parsing JSON: {}", e))?;
 
+        // Migrate legacy fields for backward compatibility
+        instance.migrate_legacy_fields();
+
         // Normalizar rutas
         instance.instanceDirectory = Some(normalize_path(&instance_path));
         instance.minecraftPath = normalize_path(&instance_path.join("minecraft"));

@@ -1,5 +1,6 @@
 // src-tauri/src/instance_bootstrap.rs
 use crate::config::get_config_manager;
+use crate::core::bootstrap::loaders::ModLoaderInstaller;
 use crate::core::bootstrap::{
     download::{download_file, download_forge_libraries, download_libraries},
     filesystem::{create_launcher_profiles, create_minecraft_directories, extract_natives},
@@ -722,6 +723,8 @@ impl InstanceBootstrap {
         instance: &MinecraftInstance,
         task_id: Option<String>,
     ) -> Result<Option<PathBuf>, String> {
+        log::info!("[Instance: {}] Starting Fabric bootstrap", instance.instanceId);
+
         use crate::core::bootstrap::loaders::FabricInstaller;
 
         // Verificar que tengamos información de Fabric
@@ -768,6 +771,7 @@ impl InstanceBootstrap {
         let instance_dir = Path::new(instance.instanceDirectory.as_deref().unwrap_or(""));
         let minecraft_dir = instance_dir.join("minecraft");
         let versions_dir = minecraft_dir.join("versions");
+        let libraries_dir = minecraft_dir.join("libraries");
 
         // Update task status - 80%
         if let Some(task_id) = &task_id {
@@ -797,7 +801,7 @@ impl InstanceBootstrap {
             instance.loaderVersion.as_ref().unwrap().clone(),
         );
 
-        fabric_installer.install(instance, &versions_dir).map_err(|e| {
+        fabric_installer.install(&minecraft_dir, &versions_dir, &libraries_dir, instance).map_err(|e| {
             emit_bootstrap_error(instance, &e);
             if let Some(task_id) = &task_id {
                 update_task_with_bootstrap_error(task_id, &e);
