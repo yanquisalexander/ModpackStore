@@ -171,4 +171,70 @@ impl<'a> FabricInstaller<'a> {
 
         Ok(version_json)
     }
+
+    /// Get the version name for this Fabric installation
+    pub fn get_version_name(&self) -> String {
+        format!(
+            "fabric-loader-{}-{}",
+            self.loader_version, self.minecraft_version
+        )
+    }
+}
+
+// Implement the ModLoaderInstaller trait for FabricInstaller
+impl<'a> super::ModLoaderInstaller for FabricInstaller<'a> {
+    fn name(&self) -> &str {
+        "Fabric"
+    }
+
+    fn loader_version(&self) -> &str {
+        &self.loader_version
+    }
+
+    fn minecraft_version(&self) -> &str {
+        &self.minecraft_version
+    }
+
+    fn download_libraries(
+        &self,
+        _libraries_dir: &Path,
+        _instance: &MinecraftInstance,
+    ) -> Result<(), BootstrapError> {
+        // Fabric libraries are defined in the version JSON
+        // They will be downloaded by the standard library downloader
+        Ok(())
+    }
+
+    fn run_post_install(
+        &self,
+        _minecraft_dir: &Path,
+        versions_dir: &Path,
+        instance: &MinecraftInstance,
+    ) -> Result<(), BootstrapError> {
+        // The actual installation is done in the install method
+        // No additional post-install steps needed
+        Ok(())
+    }
+
+    fn install(
+        &self,
+        _minecraft_dir: &Path,
+        versions_dir: &Path,
+        _libraries_dir: &Path,
+        instance: &MinecraftInstance,
+    ) -> Result<(), BootstrapError> {
+        // Use the existing install method
+        Self::install(self, instance, versions_dir)
+    }
+
+    fn get_version_name(&self) -> String {
+        format!(
+            "fabric-loader-{}-{}",
+            self.loader_version, self.minecraft_version
+        )
+    }
+
+    fn requires_java_for_install(&self) -> bool {
+        false
+    }
 }
