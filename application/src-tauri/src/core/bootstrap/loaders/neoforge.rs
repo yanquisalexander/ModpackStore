@@ -183,4 +183,51 @@ impl<'a> NeoForgeInstaller<'a> {
 
         Ok(())
     }
+
+    /// Get the version name for this NeoForge installation
+    pub fn get_version_name(&self) -> String {
+        format!("neoforge-{}", self.neoforge_version)
+    }
+}
+
+// Implement the ModLoaderInstaller trait for NeoForgeInstaller
+impl<'a> super::ModLoaderInstaller for NeoForgeInstaller<'a> {
+    fn name(&self) -> &str {
+        "NeoForge"
+    }
+
+    fn loader_version(&self) -> &str {
+        &self.neoforge_version
+    }
+
+    fn minecraft_version(&self) -> &str {
+        &self.minecraft_version
+    }
+
+    fn download_libraries(
+        &self,
+        _libraries_dir: &Path,
+        _instance: &MinecraftInstance,
+    ) -> Result<(), BootstrapError> {
+        // NeoForge installer handles library downloads internally
+        Ok(())
+    }
+
+    fn run_post_install(
+        &self,
+        _minecraft_dir: &Path,
+        _versions_dir: &Path,
+        _instance: &MinecraftInstance,
+    ) -> Result<(), BootstrapError> {
+        // Post-install steps are handled by the NeoForge installer
+        Ok(())
+    }
+
+    fn get_version_name(&self) -> String {
+        format!("neoforge-{}", self.neoforge_version)
+    }
+
+    fn requires_java_for_install(&self) -> bool {
+        true
+    }
 }

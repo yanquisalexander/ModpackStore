@@ -517,188 +517,6 @@ impl InstanceBootstrap {
         Ok(Some(java_path))
     }
 
-    fn run_forge_installer(
-        &self,
-        installer_path: &Path,
-        minecraft_dir: &Path,
-        minecraft_version: &str,
-        forge_version: &str,
-        instance: &MinecraftInstance,
-    ) -> Result<(), BootstrapError> {
-        log::info!(
-            "[Instance: {}] Starting Forge installer - Minecraft: {}, Forge: {}",
-            instance.instanceId,
-            minecraft_version,
-            forge_version
-        );
-
-        // Determinar la ruta de Java
-        let java_path = self.find_java_path()?;
-        log::debug!(
-            "[Instance: {}] Using Java path: {}",
-            instance.instanceId,
-            java_path
-        );
-
-        // Crear archivo temporal para parámetros de instalación
-        let install_profile = minecraft_dir.join("forge-install-profile.json");
-        let install_profile_content = json!({
-            "profile": format!("forge-{}-{}", minecraft_version, forge_version),
-            "version": format!("{}-forge-{}", minecraft_version, forge_version),
-            "installDir": minecraft_dir.to_string_lossy(),
-            "minecraft": minecraft_version,
-            "forge": forge_version
-        });
-
-        log::debug!(
-            "[Instance: {}] Creating Forge install profile at: {}",
-            instance.instanceId,
-            install_profile.display()
-        );
-
-        fs::write(&install_profile, install_profile_content.to_string()).map_err(|e| {
-            log::error!(
-                "[Instance: {}] Failed to create install profile: {}",
-                instance.instanceId,
-                e
-            );
-            BootstrapError::filesystem_error(
-                BootstrapStep::RunningForgeInstaller,
-                format!("Error al crear archivo de perfil de instalación: {}", e),
-            )
-        })?;
-
-        // Lista de opciones de instalación para probar secuencialmente
-        let install_options = ["--installClient", "--installDir", "--installServer"];
-
-        let mut success = false;
-        let mut last_error = String::new();
-        let mut attempted_options = Vec::new();
-
-        log::info!(
-            "[Instance: {}] Attempting Forge installation with {} options",
-            instance.instanceId,
-            install_options.len()
-        );
-
-        // Intentar cada opción de instalación hasta que una tenga éxito
-        for &option in &install_options {
-            attempted_options.push(option);
-
-            // Preparar comando para ejecutar el instalador con la opción actual
-            let mut install_cmd = Command::new(&java_path);
-            install_cmd
-                .arg("-jar")
-                .arg(installer_path)
-                .arg(option)
-                .current_dir(minecraft_dir);
-
-            // En Windows, usar CREATE_NO_WINDOW para evitar que aparezca una ventana de CMD
-            #[cfg(target_os = "windows")]
-            {
-                use std::os::windows::process::CommandExt;
-                install_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-            }
-
-            // Ejecutar instalador con la opción actual
-            log::info!(
-                "[Instance: {}] Executing Forge installer with option '{}': {:?}",
-                instance.instanceId,
-                option,
-                install_cmd
-            );
-
-            match install_cmd.output() {
-                Ok(output) => {
-                    if output.status.success() {
-                        success = true;
-                        log::info!(
-                            "[Instance: {}] Forge installation completed successfully using option '{}'",
-                            instance.instanceId,
-                            option
-                        );
-                        break;
-                    } else {
-                        let error_msg = String::from_utf8_lossy(&output.stderr);
-                        let stdout_msg = String::from_utf8_lossy(&output.stdout);
-
-                        log::warn!(
-                            "[Instance: {}] Forge installation failed with option '{}' - Exit code: {:?}",
-                            instance.instanceId,
-                            option,
-                            output.status.code()
-                        );
-                        log::debug!(
-                            "[Instance: {}] Forge installer stderr: {}",
-                            instance.instanceId,
-                            error_msg
-                        );
-                        log::debug!(
-                            "[Instance: {}] Forge installer stdout: {}",
-                            instance.instanceId,
-                            stdout_msg
-                        );
-
-                        last_error = format!(
-                            "Error en instalación de Forge con {}: {}",
-                            option, error_msg
-                        );
-                    }
-                }
-                Err(e) => {
-                    log::error!(
-                        "[Instance: {}] Failed to execute Forge installer with option '{}': {}",
-                        instance.instanceId,
-                        option,
-                        e
-                    );
-                    last_error = format!(
-                        "Error al ejecutar instalador de Forge con {}: {}",
-                        option, e
-                    );
-                }
-            }
-        }
-
-        // Limpiar archivo temporal de instalación
-        if install_profile.exists() {
-            if let Err(e) = fs::remove_file(&install_profile) {
-                log::warn!(
-                    "[Instance: {}] Failed to remove install profile: {}",
-                    instance.instanceId,
-                    e
-                );
-            } else {
-                log::debug!(
-                    "[Instance: {}] Cleaned up install profile",
-                    instance.instanceId
-                );
-            }
-        }
-
-        // Verificar resultado final
-        if success {
-            log::info!(
-                "[Instance: {}] Forge installation completed successfully",
-                instance.instanceId
-            );
-            Ok(())
-        } else {
-            log::error!(
-                "[Instance: {}] All Forge installation methods failed. Attempted options: {:?}. Last error: {}",
-                instance.instanceId,
-                attempted_options,
-                last_error
-            );
-            Err(
-                BootstrapError::forge_error(last_error).with_technical_details(format!(
-                    "Tried installation options: {:?}. All failed.",
-                    attempted_options
-                )),
-            )
-        }
-    }
-
     fn find_java_path(&self) -> Result<String, BootstrapError> {
         log::debug!("Starting Java path resolution");
 
@@ -784,6 +602,8 @@ impl InstanceBootstrap {
         instance: &MinecraftInstance,
         task_id: Option<String>,
     ) -> Result<Option<PathBuf>, String> {
+        use crate::core::bootstrap::loaders::ForgeInstaller;
+
         // Verificar que tengamos información de Forge
         if instance.forgeVersion.is_none() || instance.forgeVersion.as_ref().unwrap().is_empty() {
             return Err("No se especificó versión de Forge".to_string());
@@ -829,36 +649,17 @@ impl InstanceBootstrap {
         let minecraft_dir = instance_dir.join("minecraft");
         let versions_dir = minecraft_dir.join("versions");
 
-        // Setup Forge-specific files
+        // Get Java path for the Forge installer
+        let java_path = self.find_java_path()
+            .map_err(|e| format!("Error finding Java: {}", e))?;
+
+        // Setup Forge installer
         let forge_version = instance.forgeVersion.as_ref().unwrap();
-        let forge_version_name = format!("{}-forge-{}", instance.minecraftVersion, forge_version);
-        let forge_version_dir = versions_dir.join(&forge_version_name);
-
-        if !forge_version_dir.exists() {
-            // Update task status - 75%
-            if let Some(task_id) = &task_id {
-                update_task(
-                    task_id,
-                    TaskStatus::Running,
-                    75.0,
-                    &format!("Creando directorio para Forge {}", forge_version),
-                    Some(serde_json::json!({
-                        "instanceName": instance.instanceName.clone(),
-                        "instanceId": instance.instanceId.clone(),
-                        "forgeVersion": forge_version
-                    })),
-                );
-            }
-
-            fs::create_dir_all(&forge_version_dir)
-                .map_err(|e| format!("Error creating Forge version directory: {}", e))?;
-        }
-
-        // Download Forge installer
-        let forge_installer_url =
-            build_forge_installer_url(&instance.minecraftVersion, forge_version);
-
-        let forge_installer_path = minecraft_dir.join("forge-installer.jar");
+        let forge_installer = ForgeInstaller::new(
+            &self.client,
+            instance.minecraftVersion.clone(),
+            forge_version.clone(),
+        );
 
         // Update task status - 80%
         if let Some(task_id) = &task_id {
@@ -866,31 +667,6 @@ impl InstanceBootstrap {
                 task_id,
                 TaskStatus::Running,
                 80.0,
-                "Descargando instalador de Forge",
-                Some(serde_json::json!({
-                    "instanceName": instance.instanceName.clone(),
-                    "instanceId": instance.instanceId.clone(),
-                    "fileName": "forge-installer.jar",
-                    "fileType": "forge_installer"
-                })),
-            );
-        }
-
-        emit_status(
-            instance,
-            "instance-downloading-forge-installer",
-            "Descargando instalador de Forge",
-        );
-
-        self.download_file(&forge_installer_url, &forge_installer_path)
-            .map_err(|e| format!("Error downloading Forge installer: {}", e))?;
-
-        // Update task status - 85%
-        if let Some(task_id) = &task_id {
-            update_task(
-                task_id,
-                TaskStatus::Running,
-                85.0,
                 "Instalando Forge",
                 Some(serde_json::json!({
                     "instanceName": instance.instanceName.clone(),
@@ -904,14 +680,8 @@ impl InstanceBootstrap {
         let stage = Stage::InstallingForge;
         emit_status_with_stage(instance, "instance-installing-forge", &stage);
 
-        // Ejecutar el instalador de Forge
-        match self.run_forge_installer(
-            &forge_installer_path,
-            &minecraft_dir,
-            &instance.minecraftVersion,
-            forge_version,
-            instance,
-        ) {
+        // Install Forge using the new installer
+        match forge_installer.install(&minecraft_dir, &versions_dir, instance, &java_path) {
             Ok(_) => {
                 // Update task status - 95%
                 if let Some(task_id) = &task_id {
