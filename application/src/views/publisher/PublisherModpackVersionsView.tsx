@@ -26,7 +26,6 @@ import {
 import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from '@/consts';
 import { toast } from 'sonner';
-import { CreateVersionDialog } from '@/components/creator/CreateVersionDialog';
 
 // Types
 interface ModpackVersion {
@@ -129,7 +128,11 @@ const getStatusLabel = (status: string) => {
     }
 };
 
-export const PublisherModpackVersionsView: React.FC = () => {
+interface PublisherModpackVersionsViewProps {
+    onOpenWizard?: (modpack: any, existingVersions: any[], onSuccess: () => void) => void;
+}
+
+export const PublisherModpackVersionsView: React.FC<PublisherModpackVersionsViewProps> = ({ onOpenWizard }) => {
     const { publisherId, modpackId } = useParams<{ publisherId: string; modpackId: string }>();
     const { session, sessionTokens } = useAuthentication();
     const navigate = useNavigate();
@@ -139,7 +142,6 @@ export const PublisherModpackVersionsView: React.FC = () => {
     const [modpack, setModpack] = useState<Modpack | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [createVersionDialogOpen, setCreateVersionDialogOpen] = useState(false);
 
 
     // AlertDialog states for confirmations
@@ -191,7 +193,9 @@ export const PublisherModpackVersionsView: React.FC = () => {
 
     const handleCreateVersion = () => {
         console.log('handleCreateVersion called, modpack:', modpack, 'canCreateVersions:', canCreateVersions);
-        setCreateVersionDialogOpen(true);
+        if (onOpenWizard && modpack) {
+            onOpenWizard(modpack, versions, onVersionCreated);
+        }
     };
 
     const handleViewVersion = (version: ModpackVersion) => {
@@ -228,7 +232,6 @@ export const PublisherModpackVersionsView: React.FC = () => {
 
     const onVersionCreated = () => {
         loadVersions(); // Refresh the list
-        setCreateVersionDialogOpen(false);
     };
 
     if (loading) {
@@ -262,17 +265,6 @@ export const PublisherModpackVersionsView: React.FC = () => {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-
-            {/* Create Version Dialog */}
-            {modpack && (
-                <CreateVersionDialog
-                    isOpen={createVersionDialogOpen}
-                    onClose={() => setCreateVersionDialogOpen(false)}
-                    onSuccess={onVersionCreated}
-                    modpack={modpack}
-                    existingVersions={versions}
-                />
-            )}
 
             <div className="space-y-6">
                 {/* Header */}

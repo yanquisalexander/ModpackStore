@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Routes, Route, Link, useLocation, useParams } from 'react-router-dom';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,6 +21,7 @@ import { PublisherModpackVersionsView } from '@/views/publisher/PublisherModpack
 import PublisherModpackVersionDetailView from '@/views/publisher/PublisherModpackVersionDetailView';
 import { PublisherPaymentsView } from '@/views/publisher/PublisherPaymentsView';
 import { useGlobalContext } from "@/stores/GlobalContext";
+import PublisherModpackVersionWizard from '@/components/publisher/PublisherModpackVersionWizard';
 
 interface PublisherLayoutProps {
     children?: React.ReactNode;
@@ -153,6 +154,61 @@ export const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) =>
     const { publisherId } = useParams<{ publisherId: string }>();
     const { teams } = useTeams(sessionTokens?.accessToken);
 
+    // Wizard state
+    const [wizardState, setWizardState] = useState<{
+        isOpen: boolean;
+        modpack: {
+            id: string;
+            name: string;
+            publisherId: string;
+        } | null;
+        existingVersions: Array<{
+            id: string;
+            version: string;
+            mcVersion: string;
+            forgeVersion?: string;
+            loaderType?: string;
+            loaderVersion?: string;
+            createdAt: string;
+        }>;
+        onSuccess: () => void;
+    }>({
+        isOpen: false,
+        modpack: null,
+        existingVersions: [],
+        onSuccess: () => { }
+    });
+
+    const openWizard = (
+        modpack: { id: string; name: string; publisherId: string },
+        existingVersions: Array<{
+            id: string;
+            version: string;
+            mcVersion: string;
+            forgeVersion?: string;
+            loaderType?: string;
+            loaderVersion?: string;
+            createdAt: string;
+        }>,
+        onSuccess: () => void
+    ) => {
+        setWizardState({
+            isOpen: true,
+            modpack,
+            existingVersions,
+            onSuccess
+        });
+    };
+
+    const closeWizard = () => {
+        setWizardState(prev => ({ ...prev, isOpen: false }));
+    };
+
+    const handleWizardSuccess = () => {
+        wizardState.onSuccess();
+        closeWizard();
+    };
+
     // Show loading while auth is being checked
     if (loading) {
         return (
@@ -194,31 +250,42 @@ export const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) =>
     const publisherName = publisherData?.publisherName || publisherId;
 
     return (
-        <div className="container mx-auto p-4">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                {/* Sidebar */}
-                <div className="lg:col-span-1">
-                    <PublisherSidebar
-                        publisherId={publisherId!}
-                        publisherName={publisherName}
-                        userRole={publisherMembership.role}
-                    />
-                </div>
+        <>
+            {/* Global Wizard - Outside any container */}
+            <PublisherModpackVersionWizard
+                isOpen={wizardState.isOpen}
+                onClose={closeWizard}
+                onSuccess={handleWizardSuccess}
+                modpack={wizardState.modpack}
+                existingVersions={wizardState.existingVersions}
+            />
 
-                {/* Main Content */}
-                <div className="lg:col-span-3">
-                    {children || (
-                        <Routes>
-                            <Route path="/modpacks" element={<PublisherModpacksView />} />
-                            <Route path="/modpacks/:modpackId/versions" element={<PublisherModpackVersionsView />} />
-                            <Route path="/modpacks/:modpackId/versions/:versionId" element={<PublisherModpackVersionDetailView />} />
-                            <Route path="/team" element={<PublisherTeamView />} />
-                            <Route path="/payments" element={<PublisherPaymentsView />} />
-                            <Route path="*" element={<PublisherModpacksView />} /> {/* Default to modpacks */}
-                        </Routes>
-                    )}
+            <div className="container mx-auto p-4">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    {/* Sidebar */}
+                    <div className="lg:col-span-1">
+                        <PublisherSidebar
+                            publisherId={publisherId!}
+                            publisherName={publisherName}
+                            userRole={publisherMembership.role}
+                        />
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="lg:col-span-3">
+                        {children || (
+                            <Routes>
+                                <Route path="/modpacks" element={<PublisherModpacksView />} />
+                                <Route path="/modpacks/:modpackId/versions" element={<PublisherModpackVersionsView onOpenWizard={openWizard} />} />
+                                <Route path="/modpacks/:modpackId/versions/:versionId" element={<PublisherModpackVersionDetailView />} />
+                                <Route path="/team" element={<PublisherTeamView />} />
+                                <Route path="/payments" element={<PublisherPaymentsView />} />
+                                <Route path="*" element={<PublisherModpacksView />} /> {/* Default to modpacks */}
+                            </Routes>
+                        )}
+                    </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 };

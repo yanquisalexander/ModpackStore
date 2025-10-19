@@ -1,12 +1,13 @@
 import { API_ENDPOINT } from "@/consts"
 import { fetchWithAuth } from "@/lib/fetchWithAuth"
-import { ModpackVersion } from "@/types/modpacks"
 
 export interface ModpackVersionPublic {
     id: string
     version: string
     mcVersion: string
     forgeVersion?: string | null
+    loaderType?: string | null
+    loaderVersion?: string | null
     changelog: string
     status: 'draft' | 'published' | 'archived'
     releaseDate?: string | null

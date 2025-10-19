@@ -28,6 +28,37 @@ import { useAuthentication } from "@/stores/AuthContext";
 import { getModpackById } from "@/services/getModpacks";
 import { API_ENDPOINT } from "@/consts";
 
+// Función helper para formatear la información del modloader
+const formatLoaderInfo = (version: ModpackVersionPublic): string => {
+    const loaderType = version.loaderType || 'vanilla';
+    const loaderVersion = version.loaderVersion;
+
+    if (loaderType === 'vanilla') {
+        return 'Vanilla';
+    }
+
+    if (loaderType === 'forge') {
+        // Para compatibilidad backward, usar forgeVersion si loaderVersion no está disponible
+        const forgeVer = loaderVersion || version.forgeVersion;
+        return forgeVer ? `Forge ${forgeVer}` : 'Forge';
+    }
+
+    if (loaderType === 'fabric') {
+        return loaderVersion ? `Fabric ${loaderVersion}` : 'Fabric';
+    }
+
+    if (loaderType === 'neoforge') {
+        return loaderVersion ? `NeoForge ${loaderVersion}` : 'NeoForge';
+    }
+
+    if (loaderType === 'quilt') {
+        return loaderVersion ? `Quilt ${loaderVersion}` : 'Quilt';
+    }
+
+    // Fallback para tipos desconocidos
+    return loaderVersion ? `${loaderType} ${loaderVersion}` : loaderType;
+};
+
 // Hook personalizado para verificar el acceso del usuario a un modpack
 const useModpackAccess = (modpackId: string, requiresTwitchSubscription: boolean) => {
     const [accessState, setAccessState] = useState<{
@@ -721,7 +752,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                             value={version.id}
                                                             className="focus:bg-zinc-800"
                                                         >
-                                                            {version.version} - MC {version.mcVersion}
+                                                            {version.version} - MC {version.mcVersion} • {formatLoaderInfo(version)}
                                                         </SelectItem>
                                                     ))}
                                                 </SelectContent>
@@ -754,8 +785,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                                             {selectedVersion.version}
                                                                         </h3>
                                                                         <p className="text-white/60 text-sm">
-                                                                            Minecraft {selectedVersion.mcVersion}
-                                                                            {selectedVersion.forgeVersion && ` • Forge ${selectedVersion.forgeVersion}`}
+                                                                            Minecraft {selectedVersion.mcVersion} • {formatLoaderInfo(selectedVersion)}
                                                                         </p>
                                                                     </div>
                                                                     <div className="text-right">
@@ -881,7 +911,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                                                 <span className="text-white/60">Minecraft:</span> {version.mcVersion}
                                                                             </div>
                                                                             <div>
-                                                                                <span className="text-white/60">Forge:</span> {version.forgeVersion || 'No especificado'}
+                                                                                <span className="text-white/60">Loader:</span> {formatLoaderInfo(version)}
                                                                             </div>
                                                                             <div>
                                                                                 <span className="text-white/60">Publicado:</span> {

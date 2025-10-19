@@ -156,6 +156,8 @@ export class ExploreModpacksController {
                     mcVersion: true,
                     forgeVersion: true,
                     releaseDate: true,
+                    loaderType: true,
+                    loaderVersion: true,
                     status: true,
                     version: true,
                     files: {
@@ -274,6 +276,8 @@ export class ExploreModpacksController {
                     changelog: true,
                     mcVersion: true,
                     forgeVersion: true,
+                    loaderType: true,
+                    loaderVersion: true,
                     releaseDate: true,
                     status: true,
                     version: true,
@@ -329,6 +333,8 @@ export class ExploreModpacksController {
                 changelog: mpVersion.changelog,
                 mcVersion: mpVersion.mcVersion,
                 forgeVersion: mpVersion.forgeVersion,
+                loaderType: mpVersion.loaderType,
+                loaderVersion: mpVersion.loaderVersion,
                 releaseDate: mpVersion.releaseDate,
                 status: mpVersion.status,
                 version: mpVersion.version,
@@ -390,6 +396,9 @@ export class ExploreModpacksController {
                     mcVersion: latestVersion.mcVersion,
                     forgeVersion: latestVersion.forgeVersion,
                     releaseDate: latestVersion.releaseDate,
+                    changelog: latestVersion.changelog,
+                    loaderType: latestVersion.loaderType,
+                    loaderVersion: latestVersion.loaderVersion,
                     modpack: {
                         id: latestVersion.modpack.id,
                         name: latestVersion.modpack.name
@@ -448,7 +457,9 @@ export class ExploreModpacksController {
                     mcVersion: latestVersion.mcVersion,
                     forgeVersion: latestVersion.forgeVersion,
                     releaseDate: latestVersion.releaseDate,
-                    changelog: latestVersion.changelog
+                    changelog: latestVersion.changelog,
+                    loaderType: latestVersion.loaderType,
+                    loaderVersion: latestVersion.loaderVersion
                 },
                 modpack: {
                     id: latestVersion.modpack.id,

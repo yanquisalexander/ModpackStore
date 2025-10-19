@@ -15,7 +15,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ApiErrorPayload } from "@/types/ApiResponses";
 import { playSound } from "@/utils/sounds";
 import { ModpackStatus } from "@/components/creator/ModpackStatus";
-import ModpackVersionsDialog from "@/components/creator/dialogs/ModpackVersionsDialog";
 import { MdiMinecraft } from "@/icons/MdiMinecraft";
 
 interface ModpackListItemProps {
@@ -219,8 +218,8 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-bold">Modpacks de {team?.publisherName}</h1>
                 <div className="flex gap-2">
-                    <Button 
-                        variant="outline" 
+                    <Button
+                        variant="outline"
                         onClick={() => setIsImportDialogOpen(true)}
                         className="flex items-center gap-2"
                     >
@@ -255,13 +254,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                 teamId={team?.id}
             />
 
-            <ModpackVersionsDialog
-                isOpen={isVersionsDialogOpen}
-                onClose={() => setIsVersionsDialogOpen(false)}
-                modpackId={selectedModpack?.id || ""}
-                modpack={selectedModpack as Modpack}
-                publisherId={team?.id || ""}
-            />
+
             {/* Commented out: Now using dedicated edit page instead of dialog
             {editingModpack && (
                 <EditModpackDialog
@@ -295,7 +288,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                     </AlertDialogContent>
                 </AlertDialog>
             )}
-            
+
             <ImportCurseForgeDialog
                 isOpen={isImportDialogOpen}
                 onClose={() => setIsImportDialogOpen(false)}
