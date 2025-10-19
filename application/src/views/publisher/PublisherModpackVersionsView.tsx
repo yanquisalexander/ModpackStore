@@ -34,6 +34,8 @@ interface ModpackVersion {
     mcVersion: string;
     forgeVersion?: string;
     changelog?: string;
+    loaderType?: string;
+    loaderVersion?: string;
     status: string;
     releaseDate?: string;
     createdAt: string;
@@ -50,6 +52,8 @@ interface Modpack {
     status: string;
     createdAt: string;
     updatedAt: string;
+    loaderType: string;
+    loaderVersion: string;
     publisherId: string; // Added
     creatorUser?: {
         username: string;
@@ -325,7 +329,8 @@ export const PublisherModpackVersionsView: React.FC<PublisherModpackVersionsView
                                     <TableRow>
                                         <TableHead>Versión</TableHead>
                                         <TableHead>Minecraft</TableHead>
-                                        <TableHead>Forge</TableHead>
+                                        <TableHead>Modloader</TableHead>
+                                        <TableHead>Versión de Modloader</TableHead>
                                         <TableHead>Estado</TableHead>
                                         <TableHead>Fecha de Creación</TableHead>
                                         <TableHead className="text-right">Acciones</TableHead>
@@ -341,7 +346,10 @@ export const PublisherModpackVersionsView: React.FC<PublisherModpackVersionsView
                                                 {version.mcVersion}
                                             </TableCell>
                                             <TableCell>
-                                                {version.forgeVersion || 'N/A'}
+                                                {version.loaderType || 'N/A'}
+                                            </TableCell>
+                                            <TableCell>
+                                                {version.loaderVersion || 'N/A'}
                                             </TableCell>
                                             <TableCell>
                                                 <Badge variant={getStatusBadgeVariant(version.status)}>

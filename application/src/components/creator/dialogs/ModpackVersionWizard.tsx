@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-    LucidePackage, 
-    LucideArrowRight, 
-    LucideArrowLeft, 
-    LucideCheck, 
+import {
+    LucidePackage,
+    LucideArrowRight,
+    LucideArrowLeft,
+    LucideCheck,
     LucideX,
     LucideAnvil,
     LucideFeather,
@@ -19,11 +19,11 @@ import { toast } from 'sonner';
 import { API_ENDPOINT } from '@/consts';
 import { useAuthentication } from '@/stores/AuthContext';
 import { fetchMinecraftManifestWithFailover } from '@/utils/minecraftManifestFailover';
-import { 
-    fetchForgeVersions, 
-    fetchLoaderVersions, 
+import {
+    fetchForgeVersions,
+    fetchLoaderVersions,
     getModLoaderDisplayName,
-    type ModLoaderType 
+    type ModLoaderType
 } from '@/utils/modloaderVersions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { motion, AnimatePresence } from 'motion/react';
@@ -63,41 +63,43 @@ interface BreakingChange {
 
 type WizardStep = 'info' | 'loader' | 'confirm' | 'processing';
 
-const ModpackVersionWizard: React.FC<Props> = ({ 
-    isOpen, 
-    onClose, 
-    onSuccess, 
-    modpack, 
-    existingVersions 
+const ModpackVersionWizard: React.FC<Props> = ({
+    isOpen,
+    onClose,
+    onSuccess,
+    modpack,
+    existingVersions
 }) => {
     const { sessionTokens } = useAuthentication();
-    
+
     // Wizard state
     const [currentStep, setCurrentStep] = useState<WizardStep>('info');
     const [loading, setLoading] = useState(false);
-    
+
     // Form data
-    const latestVersion = existingVersions.length > 0 ? existingVersions[0] : null;
+    const latestVersion = existingVersions.length > 0
+        ? existingVersions.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
+        : null;
     const [versionName, setVersionName] = useState('');
     const [mcVersion, setMcVersion] = useState(latestVersion?.mcVersion || '');
     const [loaderType, setLoaderType] = useState<ModLoaderType>(
         (latestVersion?.loaderType as ModLoaderType) || 'vanilla'
     );
     const [loaderVersion, setLoaderVersion] = useState(latestVersion?.loaderVersion || '');
-    
+
     // Version lists
     const [minecraftVersions, setMinecraftVersions] = useState<MinecraftVersion[]>([]);
     const [forgeVersionsMap, setForgeVersionsMap] = useState<Record<string, string[]>>({});
     const [loaderVersions, setLoaderVersions] = useState<string[]>([]);
     const [loadingVersions, setLoadingVersions] = useState(false);
-    
+
     // Breaking changes
     const [breakingChanges, setBreakingChanges] = useState<BreakingChange[]>([]);
     const [acknowledgedBreaking, setAcknowledgedBreaking] = useState(false);
-    
+
     // Load success animation
     const [successAnimation, setSuccessAnimation] = useState<any>(null);
-    
+
     useEffect(() => {
         // Load the success animation
         fetch('/animations/success.json')
@@ -112,6 +114,20 @@ const ModpackVersionWizard: React.FC<Props> = ({
             loadVersions();
         }
     }, [isOpen]);
+
+    // Initialize form values when component mounts or when latestVersion changes
+    useEffect(() => {
+        if (latestVersion) {
+            setMcVersion(latestVersion.mcVersion);
+            setLoaderType((latestVersion.loaderType as ModLoaderType) || 'vanilla');
+            setLoaderVersion(latestVersion.loaderVersion || '');
+        } else {
+            // Default values for first version
+            setMcVersion('');
+            setLoaderType('vanilla');
+            setLoaderVersion('');
+        }
+    }, [latestVersion]);
 
     // Update loader versions when MC version or loader type changes
     useEffect(() => {
@@ -137,12 +153,12 @@ const ModpackVersionWizard: React.FC<Props> = ({
             const data = await fetchMinecraftManifestWithFailover();
             const releases = data.versions.filter((v: MinecraftVersion) => v.type === 'release');
             setMinecraftVersions(releases);
-            
+
             // Set default MC version if not set
             if (!mcVersion && releases.length > 0) {
                 setMcVersion(releases[0].id);
             }
-            
+
             // Load Forge versions
             const forgeMap = await fetchForgeVersions();
             setForgeVersionsMap(forgeMap);
@@ -159,14 +175,22 @@ const ModpackVersionWizard: React.FC<Props> = ({
         try {
             const versions = await fetchLoaderVersions(loaderType, mcVersion);
             setLoaderVersions(versions);
-            
-            // Set first version as default if not set
-            if (versions.length > 0 && !loaderVersion) {
-                setLoaderVersion(versions[0]);
+
+            // Set loader version based on latest version if it matches current loader type, otherwise pick first available
+            if (versions.length > 0) {
+                if (latestVersion?.loaderType === loaderType && latestVersion.loaderVersion && versions.includes(latestVersion.loaderVersion)) {
+                    setLoaderVersion(latestVersion.loaderVersion);
+                } else if (!loaderVersion || !versions.includes(loaderVersion)) {
+                    setLoaderVersion(versions[0]);
+                }
+            } else {
+                setLoaderVersion('');
             }
         } catch (error) {
             console.error('Error loading loader versions:', error);
             toast.error(`No se pudieron cargar las versiones de ${getModLoaderDisplayName(loaderType)}`);
+            setLoaderVersions([]);
+            setLoaderVersion('');
         } finally {
             setLoadingVersions(false);
         }
@@ -174,10 +198,10 @@ const ModpackVersionWizard: React.FC<Props> = ({
 
     const detectBreakingChanges = () => {
         const changes: BreakingChange[] = [];
-        
+
         for (const version of existingVersions) {
             const versionLoaderType = version.loaderType || (version.forgeVersion ? 'forge' : 'vanilla');
-            
+
             // Check if MC version or loader type differs
             if (version.mcVersion !== mcVersion || versionLoaderType !== loaderType) {
                 changes.push({
@@ -187,7 +211,7 @@ const ModpackVersionWizard: React.FC<Props> = ({
                 });
             }
         }
-        
+
         setBreakingChanges(changes);
         setAcknowledgedBreaking(false);
     };
@@ -256,7 +280,7 @@ const ModpackVersionWizard: React.FC<Props> = ({
 
             // Show success animation for a moment
             await new Promise(resolve => setTimeout(resolve, 2000));
-            
+
             toast.success('Versión creada exitosamente');
             resetForm();
             onSuccess();
@@ -273,6 +297,7 @@ const ModpackVersionWizard: React.FC<Props> = ({
     const resetForm = () => {
         setCurrentStep('info');
         setVersionName('');
+        // Reset to latest version values or empty defaults
         setMcVersion(latestVersion?.mcVersion || '');
         setLoaderType((latestVersion?.loaderType as ModLoaderType) || 'vanilla');
         setLoaderVersion(latestVersion?.loaderVersion || '');
@@ -331,14 +356,13 @@ const ModpackVersionWizard: React.FC<Props> = ({
                         {(['info', 'loader', 'confirm'] as const).map((step, index) => (
                             <React.Fragment key={step}>
                                 <div className="flex flex-col items-center gap-2">
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                                        currentStep === step 
-                                            ? 'bg-blue-600 text-white' 
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${currentStep === step
+                                            ? 'bg-blue-600 text-white'
                                             : index < ['info', 'loader', 'confirm'].indexOf(currentStep)
-                                            ? 'bg-green-600 text-white'
-                                            : 'bg-zinc-800 text-zinc-500'
-                                    }`}>
-                                        {index < ['info', 'loader', 'confirm'].indexOf(currentStep) 
+                                                ? 'bg-green-600 text-white'
+                                                : 'bg-zinc-800 text-zinc-500'
+                                        }`}>
+                                        {index < ['info', 'loader', 'confirm'].indexOf(currentStep)
                                             ? <LucideCheck className="h-5 w-5" />
                                             : index + 1
                                         }
@@ -346,11 +370,10 @@ const ModpackVersionWizard: React.FC<Props> = ({
                                     <span className="text-xs text-zinc-400 capitalize">{step}</span>
                                 </div>
                                 {index < 2 && (
-                                    <div className={`flex-1 h-1 mx-4 ${
-                                        index < ['info', 'loader', 'confirm'].indexOf(currentStep)
+                                    <div className={`flex-1 h-1 mx-4 ${index < ['info', 'loader', 'confirm'].indexOf(currentStep)
                                             ? 'bg-green-600'
                                             : 'bg-zinc-800'
-                                    }`} />
+                                        }`} />
                                 )}
                             </React.Fragment>
                         ))}
@@ -399,7 +422,7 @@ const ModpackVersionWizard: React.FC<Props> = ({
                                             <LucidePackage className="h-4 w-4" />
                                             <AlertTitle>Versión anterior detectada</AlertTitle>
                                             <AlertDescription>
-                                                Tu última versión fue <strong>{latestVersion.version}</strong> con 
+                                                Tu última versión fue <strong>{latestVersion.version}</strong> con
                                                 Minecraft {latestVersion.mcVersion}.
                                                 Los valores se precargarán automáticamente en el siguiente paso.
                                             </AlertDescription>
@@ -464,11 +487,10 @@ const ModpackVersionWizard: React.FC<Props> = ({
                                                     key={type}
                                                     type="button"
                                                     onClick={() => setLoaderType(type)}
-                                                    className={`p-4 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${
-                                                        loaderType === type
+                                                    className={`p-4 rounded-lg border-2 transition-all flex flex-col items-center gap-2 ${loaderType === type
                                                             ? 'bg-blue-600/20 border-blue-600 text-white'
                                                             : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
-                                                    }`}
+                                                        }`}
                                                 >
                                                     {getLoaderIcon(type)}
                                                     <span className="font-medium">
@@ -509,7 +531,7 @@ const ModpackVersionWizard: React.FC<Props> = ({
                                                 <Alert className="bg-yellow-900/20 border-yellow-800">
                                                     <LucideAlertTriangle className="h-4 w-4" />
                                                     <AlertDescription>
-                                                        No hay versiones de {getModLoaderDisplayName(loaderType)} disponibles 
+                                                        No hay versiones de {getModLoaderDisplayName(loaderType)} disponibles
                                                         para Minecraft {mcVersion}
                                                     </AlertDescription>
                                                 </Alert>
@@ -567,13 +589,13 @@ const ModpackVersionWizard: React.FC<Props> = ({
                                             </AlertTitle>
                                             <AlertDescription className="space-y-3 mt-2">
                                                 <p className="text-zinc-300">
-                                                    La nueva configuración del modloader o de la versión de Minecraft 
+                                                    La nueva configuración del modloader o de la versión de Minecraft
                                                     no es compatible con las siguientes versiones anteriores:
                                                 </p>
                                                 <ul className="list-disc list-inside space-y-1 text-sm">
                                                     {breakingChanges.slice(0, 5).map((change, idx) => (
                                                         <li key={idx} className="text-zinc-400">
-                                                            <strong>{change.version}</strong> 
+                                                            <strong>{change.version}</strong>
                                                             {' '}(Minecraft {change.mcVersion} - {getModLoaderDisplayName(change.loaderType as ModLoaderType)})
                                                         </li>
                                                     ))}
@@ -584,10 +606,10 @@ const ModpackVersionWizard: React.FC<Props> = ({
                                                     )}
                                                 </ul>
                                                 <p className="text-yellow-300 text-sm">
-                                                    Los usuarios que actualicen a esta nueva versión desde las mencionadas anteriormente 
+                                                    Los usuarios que actualicen a esta nueva versión desde las mencionadas anteriormente
                                                     deberán reinstalar la instancia por completo para evitar errores.
                                                 </p>
-                                                
+
                                                 <label className="flex items-start gap-3 mt-4 cursor-pointer">
                                                     <input
                                                         type="checkbox"
@@ -596,7 +618,7 @@ const ModpackVersionWizard: React.FC<Props> = ({
                                                         className="mt-1"
                                                     />
                                                     <span className="text-white text-sm">
-                                                        Entiendo que esta versión no es compatible con versiones anteriores 
+                                                        Entiendo que esta versión no es compatible con versiones anteriores
                                                         y deseo continuar.
                                                     </span>
                                                 </label>
@@ -616,8 +638,8 @@ const ModpackVersionWizard: React.FC<Props> = ({
                             >
                                 {successAnimation && (
                                     <div className="w-48 h-48">
-                                        <Lottie 
-                                            animationData={successAnimation} 
+                                        <Lottie
+                                            animationData={successAnimation}
                                             loop={true}
                                             className="w-full h-full"
                                         />
@@ -627,7 +649,7 @@ const ModpackVersionWizard: React.FC<Props> = ({
                                     Creando versión...
                                 </h3>
                                 <p className="text-zinc-400 text-center max-w-md">
-                                    Estamos configurando todo para tu nueva versión. 
+                                    Estamos configurando todo para tu nueva versión.
                                     Esto solo tomará un momento.
                                 </p>
                             </motion.div>
@@ -647,7 +669,7 @@ const ModpackVersionWizard: React.FC<Props> = ({
                             <LucideArrowLeft className="h-4 w-4 mr-2" />
                             {currentStep === 'info' ? 'Cancelar' : 'Atrás'}
                         </Button>
-                        
+
                         <Button
                             onClick={handleNext}
                             disabled={loading}
