@@ -109,55 +109,76 @@ All changes maintain full backward compatibility:
 - New code should use `loaderType` and `loaderVersion`
 - Both fields are synchronized for Forge instances
 
-## What's Still Needed
+## Implementation Status ✅
 
-### Rust Loader Installation
-- Create `LoaderInstaller` trait
-- Implement installers for each loader:
-  - `ForgeInstaller` (refactor existing logic)
-  - `FabricInstaller`
-  - `NeoForgeInstaller`
-  - `QuiltInstaller`
+### ✅ Rust Loader Installation (COMPLETE)
+- ✅ Created loader installers in `loaders/` module:
+  - ✅ `FabricInstaller` - Integrates with meta.fabricmc.net API
+  - ✅ `NeoForgeInstaller` - Downloads and executes NeoForge installer
+  - ✅ `QuiltInstaller` - Integrates with meta.quiltmc.org API
+- ✅ Added bootstrap methods to `InstanceBootstrap`:
+  - ✅ `bootstrap_fabric_instance()`
+  - ✅ `bootstrap_neoforge_instance()`
+  - ✅ `bootstrap_quilt_instance()`
+- ✅ Updated task spawning to handle all loader types
 
-### Instance Launcher Updates
-- Update classpath generation for each loader type
-- Update JVM arguments for each loader type
-- Handle loader-specific launch configurations
+### ✅ Instance Launcher Updates (COMPLETE)
+- ✅ Updated `MinecraftPaths` to track loader type and version
+- ✅ Updated `manifest_file()` to locate correct JSON for each loader:
+  - Fabric: `fabric-loader-{version}-{mc_version}.json`
+  - NeoForge: `{mc_version}-neoforge-{version}.json` or `neoforge-{version}.json`
+  - Quilt: `quilt-loader-{version}-{mc_version}.json`
+- ✅ Classpath and JVM arguments handled via version JSON inheritance
 
-### Frontend Enhancements
-- Implement version fetching for Fabric, NeoForge, Quilt
-- Add loader icons/badges to instance cards
-- Show loader information in instance details view
-- Update instance list filtering by loader type
+### ✅ Frontend Enhancements (COMPLETE)
+- ✅ Implemented version fetching for Fabric, NeoForge, Quilt
+  - Fabric: Fetches from https://meta.fabricmc.net/v2
+  - NeoForge: Fetches from https://maven.neoforged.net/api
+  - Quilt: Fetches from https://meta.quiltmc.org/v3
+- ✅ Removed "Coming Soon" alerts
+- ✅ Added functional Select components for loader versions
+- 🔄 Loader badges/icons (optional future enhancement)
+- 🔄 Instance details view enhancements (optional)
 
-### Testing
-- Test vanilla instance creation and launch
-- Test Forge instance creation and launch (existing)
-- Test Fabric instance creation and launch
-- Test NeoForge instance creation and launch
-- Test Quilt instance creation and launch
-- Test modpack creation with different loaders
-- Test migration of existing data
+### ⏳ Testing (Pending)
+- ⏳ Test vanilla instance creation and launch
+- ⏳ Test Forge instance creation and launch (existing)
+- ⏳ Test Fabric instance creation and launch
+- ⏳ Test NeoForge instance creation and launch
+- ⏳ Test Quilt instance creation and launch
+- ⏳ Test modpack creation with different loaders
+- ⏳ Test migration of existing data
 
 ## Files Modified
 
-### Backend
+### Backend (Previous PR)
 - `backend/src/types/enums.ts`
 - `backend/src/entities/ModpackVersion.ts`
 - `backend/src/routes/v1/creators/modpacks.route.ts`
 - `backend/package.json`
 - `backend/src/db/migrate-loader-types.ts` (new)
 
-### Rust
+### Rust (This Implementation)
 - `application/src-tauri/src/core/minecraft_instance.rs`
 - `application/src-tauri/src/core/instance_manager.rs`
+- `application/src-tauri/src/core/instance_bootstrap.rs` (added bootstrap methods)
+- `application/src-tauri/src/core/minecraft/paths.rs` (updated for all loaders)
+- `application/src-tauri/src/core/bootstrap/mod.rs` (added loaders module)
+- `application/src-tauri/src/core/bootstrap/loaders/mod.rs` (new)
+- `application/src-tauri/src/core/bootstrap/loaders/fabric.rs` (new)
+- `application/src-tauri/src/core/bootstrap/loaders/neoforge.rs` (new)
+- `application/src-tauri/src/core/bootstrap/loaders/quilt.rs` (new)
 - `application/src-tauri/src/core/modpack_file_manager.rs`
 
-### Frontend
+### Frontend (This Implementation)
 - `application/src/types/TauriCommandReturns.d.ts`
 - `application/src/types/modpacks.d.ts`
-- `application/src/components/CreateInstanceDialog.tsx`
+- `application/src/components/CreateInstanceDialog.tsx` (removed "Coming Soon", added version fetching)
 - `application/src/components/creator/CreateVersionDialog.tsx`
+
+### Documentation (This Implementation)
+- `MULTI_LOADER_QUICK_START.md` (updated status)
+- `MULTI_LOADER_IMPLEMENTATION.md` (this file - updated status)
 
 ## API Examples
 

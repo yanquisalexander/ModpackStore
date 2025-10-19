@@ -946,4 +946,332 @@ impl InstanceBootstrap {
         // Return the Java path so the caller can update the instance
         Ok(java_path_option)
     }
+
+    pub fn bootstrap_fabric_instance(
+        &mut self,
+        instance: &MinecraftInstance,
+        task_id: Option<String>,
+    ) -> Result<Option<PathBuf>, String> {
+        use crate::core::bootstrap::loaders::FabricInstaller;
+
+        // Verificar que tengamos información de Fabric
+        if instance.loaderVersion.is_none() || instance.loaderVersion.as_ref().unwrap().is_empty() {
+            return Err("No se especificó versión de Fabric".to_string());
+        }
+
+        // Emit start event using modular function
+        emit_bootstrap_start(instance, "Fabric");
+
+        // Update task status if task_id exists
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                5.0,
+                "Iniciando configuración base de Vanilla",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
+        }
+
+        // First, bootstrap the vanilla base (this will download/detect Java)
+        let java_path_option = self.bootstrap_vanilla_instance(instance, task_id.clone())
+            .map_err(|e| format!("Error configurando base Vanilla: {}", e))?;
+
+        // Update task status - 70%
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                70.0,
+                "Configuración base Vanilla completada, configurando Fabric",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
+        }
+
+        // Get minecraft directory
+        let instance_dir = Path::new(instance.instanceDirectory.as_deref().unwrap_or(""));
+        let minecraft_dir = instance_dir.join("minecraft");
+        let versions_dir = minecraft_dir.join("versions");
+
+        // Update task status - 80%
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                80.0,
+                "Instalando Fabric",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone(),
+                    "loaderVersion": instance.loaderVersion.as_ref().unwrap()
+                })),
+            );
+        }
+
+        emit_status(
+            instance,
+            "instance-installing-fabric",
+            "Instalando Fabric",
+        );
+
+        // Install Fabric
+        let fabric_installer = FabricInstaller::new(
+            &self.client,
+            instance.minecraftVersion.clone(),
+            instance.loaderVersion.as_ref().unwrap().clone(),
+        );
+
+        fabric_installer.install(instance, &versions_dir).map_err(|e| {
+            emit_bootstrap_error(instance, &e);
+            if let Some(task_id) = &task_id {
+                update_task_with_bootstrap_error(task_id, &e);
+            }
+            e.to_string()
+        })?;
+
+        // Update task status - 95%
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                95.0,
+                "Fabric instalado correctamente",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone(),
+                    "loaderVersion": instance.loaderVersion.as_ref().unwrap()
+                })),
+            );
+        }
+
+        emit_bootstrap_complete(instance, "Fabric");
+
+        // Return the Java path so the caller can update the instance
+        Ok(java_path_option)
+    }
+
+    pub fn bootstrap_neoforge_instance(
+        &mut self,
+        instance: &MinecraftInstance,
+        task_id: Option<String>,
+    ) -> Result<Option<PathBuf>, String> {
+        use crate::core::bootstrap::loaders::NeoForgeInstaller;
+
+        // Verificar que tengamos información de NeoForge
+        if instance.loaderVersion.is_none() || instance.loaderVersion.as_ref().unwrap().is_empty() {
+            return Err("No se especificó versión de NeoForge".to_string());
+        }
+
+        // Emit start event using modular function
+        emit_bootstrap_start(instance, "NeoForge");
+
+        // Update task status if task_id exists
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                5.0,
+                "Iniciando configuración base de Vanilla",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
+        }
+
+        // First, bootstrap the vanilla base (this will download/detect Java)
+        let java_path_option = self.bootstrap_vanilla_instance(instance, task_id.clone())
+            .map_err(|e| format!("Error configurando base Vanilla: {}", e))?;
+
+        // Update task status - 70%
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                70.0,
+                "Configuración base Vanilla completada, configurando NeoForge",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
+        }
+
+        // Get minecraft directory
+        let instance_dir = Path::new(instance.instanceDirectory.as_deref().unwrap_or(""));
+        let minecraft_dir = instance_dir.join("minecraft");
+        let versions_dir = minecraft_dir.join("versions");
+
+        // Update task status - 80%
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                80.0,
+                "Descargando instalador de NeoForge",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone(),
+                    "loaderVersion": instance.loaderVersion.as_ref().unwrap()
+                })),
+            );
+        }
+
+        emit_status(
+            instance,
+            "instance-installing-neoforge",
+            "Instalando NeoForge",
+        );
+
+        // Install NeoForge
+        let java_path = self.find_java_path()?;
+        let neoforge_installer = NeoForgeInstaller::new(
+            &self.client,
+            instance.minecraftVersion.clone(),
+            instance.loaderVersion.as_ref().unwrap().clone(),
+        );
+
+        neoforge_installer.install(instance, &minecraft_dir, &versions_dir, &java_path).map_err(|e| {
+            emit_bootstrap_error(instance, &e);
+            if let Some(task_id) = &task_id {
+                update_task_with_bootstrap_error(task_id, &e);
+            }
+            e.to_string()
+        })?;
+
+        // Update task status - 95%
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                95.0,
+                "NeoForge instalado correctamente",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone(),
+                    "loaderVersion": instance.loaderVersion.as_ref().unwrap()
+                })),
+            );
+        }
+
+        emit_bootstrap_complete(instance, "NeoForge");
+
+        // Return the Java path so the caller can update the instance
+        Ok(java_path_option)
+    }
+
+    pub fn bootstrap_quilt_instance(
+        &mut self,
+        instance: &MinecraftInstance,
+        task_id: Option<String>,
+    ) -> Result<Option<PathBuf>, String> {
+        use crate::core::bootstrap::loaders::QuiltInstaller;
+
+        // Verificar que tengamos información de Quilt
+        if instance.loaderVersion.is_none() || instance.loaderVersion.as_ref().unwrap().is_empty() {
+            return Err("No se especificó versión de Quilt".to_string());
+        }
+
+        // Emit start event using modular function
+        emit_bootstrap_start(instance, "Quilt");
+
+        // Update task status if task_id exists
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                5.0,
+                "Iniciando configuración base de Vanilla",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
+        }
+
+        // First, bootstrap the vanilla base (this will download/detect Java)
+        let java_path_option = self.bootstrap_vanilla_instance(instance, task_id.clone())
+            .map_err(|e| format!("Error configurando base Vanilla: {}", e))?;
+
+        // Update task status - 70%
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                70.0,
+                "Configuración base Vanilla completada, configurando Quilt",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone()
+                })),
+            );
+        }
+
+        // Get minecraft directory
+        let instance_dir = Path::new(instance.instanceDirectory.as_deref().unwrap_or(""));
+        let minecraft_dir = instance_dir.join("minecraft");
+        let versions_dir = minecraft_dir.join("versions");
+
+        // Update task status - 80%
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                80.0,
+                "Instalando Quilt",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone(),
+                    "loaderVersion": instance.loaderVersion.as_ref().unwrap()
+                })),
+            );
+        }
+
+        emit_status(
+            instance,
+            "instance-installing-quilt",
+            "Instalando Quilt",
+        );
+
+        // Install Quilt
+        let quilt_installer = QuiltInstaller::new(
+            &self.client,
+            instance.minecraftVersion.clone(),
+            instance.loaderVersion.as_ref().unwrap().clone(),
+        );
+
+        quilt_installer.install(instance, &versions_dir).map_err(|e| {
+            emit_bootstrap_error(instance, &e);
+            if let Some(task_id) = &task_id {
+                update_task_with_bootstrap_error(task_id, &e);
+            }
+            e.to_string()
+        })?;
+
+        // Update task status - 95%
+        if let Some(task_id) = &task_id {
+            update_task(
+                task_id,
+                TaskStatus::Running,
+                95.0,
+                "Quilt instalado correctamente",
+                Some(serde_json::json!({
+                    "instanceName": instance.instanceName.clone(),
+                    "instanceId": instance.instanceId.clone(),
+                    "loaderVersion": instance.loaderVersion.as_ref().unwrap()
+                })),
+            );
+        }
+
+        emit_bootstrap_complete(instance, "Quilt");
+
+        // Return the Java path so the caller can update the instance
+        Ok(java_path_option)
+    }
 }

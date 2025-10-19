@@ -97,7 +97,14 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
             setSelectedForgeVersion("");
         }
         
-        // Update loader versions based on selected type
+        // Fetch and update loader versions based on selected type
+        if (selectedType !== "vanilla" && selectedType !== "forge" && selectedMinecraftVersion) {
+            fetchLoaderVersions(selectedType, selectedMinecraftVersion);
+        }
+    }, [selectedMinecraftVersion, forgeVersionsMap, selectedForgeVersion, selectedType]);
+
+    // Update selected loader version when loader versions are fetched
+    useEffect(() => {
         if (selectedType !== "vanilla" && selectedType !== "forge") {
             const loaderVersions = loaderVersionsMap[selectedMinecraftVersion] || [];
             setCompatibleLoaderVersions(loaderVersions);
@@ -108,7 +115,7 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
                 setSelectedLoaderVersion("");
             }
         }
-    }, [selectedMinecraftVersion, forgeVersionsMap, selectedForgeVersion, selectedType, loaderVersionsMap, selectedLoaderVersion]);
+    }, [loaderVersionsMap, selectedMinecraftVersion, selectedType]);
 
     const fetchMinecraftVersions = async (): Promise<void> => {
         setLoadingVersions(true);
@@ -168,6 +175,40 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
         } catch (error) {
             console.error("Error fetching Forge versions:", error);
             toast.error("No se pudieron cargar las versiones de Forge");
+        }
+    };
+
+    const fetchLoaderVersions = async (loaderType: InstanceType, mcVersion: string): Promise<void> => {
+        try {
+            let versions: string[] = [];
+            
+            if (loaderType === "fabric") {
+                // Fetch Fabric loader versions
+                const response = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${mcVersion}`);
+                const data = await response.json();
+                versions = data.map((item: any) => item.loader.version);
+            } else if (loaderType === "quilt") {
+                // Fetch Quilt loader versions
+                const response = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${mcVersion}`);
+                const data = await response.json();
+                versions = data.map((item: any) => item.loader.version);
+            } else if (loaderType === "neoforge") {
+                // Fetch NeoForge versions
+                const response = await fetch("https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge");
+                const data = await response.json();
+                // Filter versions that are compatible with the selected Minecraft version
+                // NeoForge versions typically start with the MC version (e.g., "20.2.59" for 1.20.2)
+                versions = data.versions || [];
+            }
+            
+            // Update the loader versions map with the fetched versions
+            setLoaderVersionsMap(prev => ({
+                ...prev,
+                [mcVersion]: versions
+            }));
+        } catch (error) {
+            console.error(`Error fetching ${loaderType} versions:`, error);
+            toast.error(`No se pudieron cargar las versiones de ${loaderType}`);
         }
     };
 
@@ -479,18 +520,35 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
                             <Label className="text-white" htmlFor="loaderVersion">
                                 Versión de {selectedType.charAt(0).toUpperCase() + selectedType.slice(1)}
                             </Label>
-                            <Alert className="bg-yellow-900/20 border-yellow-700/50 text-yellow-300">
-                                <LucideTestTubeDiagonal className="h-4 w-4" />
-                                <AlertTitle className="text-yellow-300">
-                                    Próximamente
-                                </AlertTitle>
-                                <AlertDescription>
-                                    <p>
-                                        El soporte para {selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} está en desarrollo. 
-                                        Por favor, selecciona Forge o Vanilla por ahora.
+
+                            {loadingVersions ? (
+                                <div className="flex items-center justify-center p-2">
+                                    <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
+                                    <span className="ml-2 text-sm text-gray-400">Cargando versiones...</span>
+                                </div>
+                            ) : compatibleLoaderVersions.length > 0 ? (
+                                <Select
+                                    value={selectedLoaderVersion}
+                                    onValueChange={setSelectedLoaderVersion}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder={`Selecciona una versión de ${selectedType}`} />
+                                    </SelectTrigger>
+                                    <SelectContent className="max-h-80">
+                                        {compatibleLoaderVersions.map((version) => (
+                                            <SelectItem key={version} value={version}>
+                                                {version}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            ) : (
+                                <div className="p-3 rounded-md bg-yellow-900/20 border border-yellow-700/50">
+                                    <p className="text-sm text-yellow-300">
+                                        No hay versiones de {selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} disponibles para Minecraft {selectedMinecraftVersion}
                                     </p>
-                                </AlertDescription>
-                            </Alert>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
