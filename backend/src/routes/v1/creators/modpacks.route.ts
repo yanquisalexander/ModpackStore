@@ -647,6 +647,29 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
         throw new APIError(400, "El nombre de la versión y la versión de Minecraft son requeridos");
     }
 
+    // Get all previous versions to check for breaking changes
+    const previousVersions = await ModpackVersion.find({
+        where: { modpackId: modpack.id },
+        order: { createdAt: "DESC" }
+    });
+
+    // Detect breaking changes
+    const breakingChanges: Array<{ version: string; mcVersion: string; loaderType: string }> = [];
+    const newLoaderType = loaderType || (forgeVersion ? 'forge' : 'vanilla');
+    
+    for (const prevVersion of previousVersions) {
+        const prevLoaderType = prevVersion.loaderType || (prevVersion.forgeVersion ? 'forge' : 'vanilla');
+        
+        // Check if there's a breaking change (different MC version or different loader type)
+        if (prevVersion.mcVersion !== mcVersion || prevLoaderType !== newLoaderType) {
+            breakingChanges.push({
+                version: prevVersion.version,
+                mcVersion: prevVersion.mcVersion,
+                loaderType: prevLoaderType
+            });
+        }
+    }
+
     const newVersion = new ModpackVersion();
     newVersion.version = versionName;
     newVersion.mcVersion = mcVersion;
@@ -676,7 +699,11 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
     await newVersion.save();
 
 
-    return c.json({ success: true });
+    return c.json({ 
+        success: true, 
+        version: newVersion,
+        breakingChanges: breakingChanges.length > 0 ? breakingChanges : undefined
+    });
 });
 
 ModpackCreatorsRoute.patch("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId/publish", isOrganizationMember, async (c) => {
