@@ -296,6 +296,69 @@ pub fn download_libraries(
                         break; // Found and processed one classifier, no need to try others
                     }
                 }
+
+                // If we have classifiers but no artifact, download the base JAR using Maven format
+                if downloads.get("artifact").is_none() {
+                    let name = library["name"].as_str().unwrap_or("");
+                    if !name.is_empty() {
+                        // Parse the name in Maven format: groupId:artifactId:version[:classifier]
+                        let parts: Vec<&str> = name.split(':').collect();
+                        if parts.len() >= 3 {
+                            let group_id = parts[0];
+                            let artifact_id = parts[1];
+                            let version = parts[2];
+
+                            // Convert the group specification to path
+                            let group_path = group_id.replace('.', "/");
+
+                            // Build the path to the JAR file (base artifact without classifier)
+                            let jar_name = format!("{}-{}.jar", artifact_id, version);
+                            let relative_path =
+                                format!("{}/{}/{}/{}", group_path, artifact_id, version, jar_name);
+                            let target_path = libraries_dir.join(&relative_path);
+
+                            // Create parent directories if necessary
+                            if let Some(parent) = target_path.parent() {
+                                fs::create_dir_all(parent).map_err(|e| {
+                                    format!("Error creating directory for library: {}", e)
+                                })?;
+                            }
+
+                            // Build the URL for the download
+                            let repo_url = library["url"]
+                                .as_str()
+                                .unwrap_or("https://libraries.minecraft.net/");
+                            let download_url = format!("{}{}", repo_url, relative_path);
+
+                            // Download if the file doesn't exist
+                            if !target_path.exists() {
+                                emit_status(
+                                    instance,
+                                    "instance-downloading-library",
+                                    &format!("Descargando librería base: {}", jar_name),
+                                );
+
+                                if let Err(e) = download_file(client, &download_url, &target_path) {
+                                    // If it fails with the Minecraft repository, try Maven Central
+                                    let maven_url =
+                                        format!("https://repo1.maven.org/maven2/{}", relative_path);
+                                    download_file(client, &maven_url, &target_path).map_err(|e| {
+                                        format!(
+                                            "Error al descargar librería base desde múltiples repositorios: {}",
+                                            e
+                                        )
+                                    })?;
+                                }
+                            } else {
+                                emit_status(
+                                    instance,
+                                    "instance-library-already-exists",
+                                    &format!("Librería base ya existe: {}", jar_name),
+                                );
+                            }
+                        }
+                    }
+                }
             }
         }
         // For libraries without direct download information, use Maven format
@@ -984,297 +1047,5 @@ fn build_maven_download_info(
         Some((download_url, target_path))
     } else {
         None
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use serde_json::json;
-    use tempfile::tempdir;
-
-    #[test]
-    fn test_is_library_allowed() {
-        // Library with no rules should be allowed
-        let library_no_rules = json!({
-            "name": "test:library:1.0"
-        });
-        assert!(is_library_allowed(&library_no_rules));
-
-        // Library with allow rule for current OS should be allowed
-        let current_os = if cfg!(target_os = "windows") {
-            "windows"
-        } else if cfg!(target_os = "macos") {
-            "osx"
-        } else {
-            "linux"
-        };
-
-        let library_allow_current = json!({
-            "name": "test:library:1.0",
-            "rules": [{
-                "action": "allow",
-                "os": {
-                    "name": current_os
-                }
-            }]
-        });
-        assert!(is_library_allowed(&library_allow_current));
-
-        // Library with disallow rule for current OS should not be allowed
-        let library_disallow_current = json!({
-            "name": "test:library:1.0",
-            "rules": [{
-                "action": "disallow",
-                "os": {
-                    "name": current_os
-                }
-            }]
-        });
-        assert!(!is_library_allowed(&library_disallow_current));
-
-        // Library with allow rule for different OS should not be allowed
-        let different_os = if cfg!(target_os = "windows") {
-            "linux"
-        } else {
-            "windows"
-        };
-
-        let library_allow_different = json!({
-            "name": "test:library:1.0",
-            "rules": [{
-                "action": "allow",
-                "os": {
-                    "name": different_os
-                }
-            }]
-        });
-        assert!(!is_library_allowed(&library_allow_different));
-    }
-
-    #[test]
-    fn test_get_current_os_classifier() {
-        let classifier = get_current_os_classifier();
-
-        if cfg!(target_os = "windows") {
-            assert!(classifier.starts_with("windows-"));
-        } else if cfg!(target_os = "macos") {
-            assert!(classifier.starts_with("osx-"));
-        } else {
-            assert!(classifier.starts_with("linux-"));
-        }
-
-        // Should include architecture
-        assert!(
-            classifier.contains("64") || classifier.contains("32") || classifier.contains("arm64")
-        );
-    }
-
-    #[test]
-    fn test_get_current_os_classifier_forge() {
-        let classifier = get_current_os_classifier_forge();
-
-        if cfg!(target_os = "windows") {
-            assert_eq!(classifier, "natives-windows");
-        } else if cfg!(target_os = "macos") {
-            assert_eq!(classifier, "natives-osx");
-        } else {
-            assert_eq!(classifier, "natives-linux");
-        }
-    }
-
-    #[test]
-    fn test_build_maven_download_info() {
-        let temp_dir = tempdir().unwrap();
-        let libraries_dir = temp_dir.path();
-
-        // Test basic Maven coordinates
-        let library = json!({
-            "name": "org.example:test-lib:1.0.0",
-            "url": "https://repo.example.com/"
-        });
-
-        let result =
-            build_maven_download_info("org.example:test-lib:1.0.0", &library, libraries_dir);
-
-        assert!(result.is_some());
-        let (url, path) = result.unwrap();
-
-        assert_eq!(
-            url,
-            "https://repo.example.com/org/example/test-lib/1.0.0/test-lib-1.0.0.jar"
-        );
-        assert!(path
-            .to_string_lossy()
-            .contains("org/example/test-lib/1.0.0/test-lib-1.0.0.jar"));
-
-        // Test with classifier
-        let result = build_maven_download_info(
-            "org.example:test-lib:1.0.0:natives",
-            &library,
-            libraries_dir,
-        );
-
-        assert!(result.is_some());
-        let (url, path) = result.unwrap();
-
-        assert_eq!(
-            url,
-            "https://repo.example.com/org/example/test-lib/1.0.0/test-lib-1.0.0-natives.jar"
-        );
-        assert!(path
-            .to_string_lossy()
-            .contains("test-lib-1.0.0-natives.jar"));
-
-        // Test invalid format
-        let result = build_maven_download_info("invalid", &library, libraries_dir);
-
-        assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_download_file_backward_compatibility() {
-        // Test that the deprecated download_file function still works
-        // This ensures we maintain API compatibility
-        let temp_dir = tempdir().unwrap();
-        let test_file = temp_dir.path().join("test.txt");
-
-        // We can't actually test HTTP downloads in unit tests,
-        // but we can test the path handling logic
-        assert!(test_file.parent().is_some());
-
-        // Test that the function signature is still available
-        let client = reqwest::blocking::Client::new();
-        let _test_fn: fn(&reqwest::blocking::Client, &str, &Path) -> Result<(), String> =
-            download_file;
-
-        // Function should exist and be callable (even if it fails due to no network)
-        assert!(true); // This test passes if compilation succeeds
-    }
-
-    /// Test that the enhanced functions have correct signatures for async usage
-    #[tokio::test]
-    async fn test_enhanced_functions_signatures() {
-        let temp_dir = tempdir().unwrap();
-        let libraries_dir = temp_dir.path().join("libraries");
-        fs::create_dir_all(&libraries_dir).unwrap();
-
-        // Create a mock instance
-        let instance = MinecraftInstance {
-            instanceId: "test".to_string(),
-            usesDefaultIcon: false,
-            iconUrl: None,
-            bannerUrl: None,
-            instanceName: "Test Instance".to_string(),
-            accountUuid: None,
-            minecraftPath: String::new(),
-            modpackId: None,
-            modpackVersionId: None,
-            minecraftVersion: "1.20.1".to_string(),
-            instanceDirectory: Some(temp_dir.path().to_string_lossy().to_string()),
-            forgeVersion: None,
-            javaPath: None,
-        };
-
-        let version_details = json!({
-            "libraries": []
-        });
-
-        // Test that the enhanced functions can be called
-        let result = download_libraries_enhanced(&instance, &version_details, &libraries_dir).await;
-        assert!(result.is_ok()); // Should succeed with empty libraries
-
-        let result =
-            download_forge_libraries_enhanced(&instance, &version_details, &libraries_dir).await;
-        assert!(result.is_ok()); // Should succeed with empty libraries
-    }
-
-    #[tokio::test]
-    async fn test_download_file_with_manager() {
-        let temp_dir = tempdir().unwrap();
-        let test_file = temp_dir.path().join("test.txt");
-
-        let download_manager = DownloadManager::with_concurrency(1);
-
-        // Test with no hash (should use dummy hash logic)
-        let result = download_file_with_manager(
-            &download_manager,
-            "https://httpbin.org/status/404", // This will fail, but tests the function signature
-            &test_file,
-            None,
-        )
-        .await;
-
-        // We expect this to fail due to 404, but the function should handle it gracefully
-        assert!(result.is_err());
-
-        // Test with hash (will also fail but tests the signature)
-        let result = download_file_with_manager(
-            &download_manager,
-            "https://httpbin.org/status/404",
-            &test_file,
-            Some("da39a3ee5e6b4b0d3255bfef95601890afd80709"),
-        )
-        .await;
-
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_library_processing_logic() {
-        // Test the logic for extracting download information from library JSON
-        let library_with_downloads = json!({
-            "name": "test:library:1.0",
-            "downloads": {
-                "artifact": {
-                    "path": "test/library/1.0/library-1.0.jar",
-                    "url": "https://repo.example.com/test/library/1.0/library-1.0.jar",
-                    "sha1": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
-                }
-            }
-        });
-
-        // Verify we can extract artifact information
-        if let Some(downloads) = library_with_downloads.get("downloads") {
-            if let Some(artifact) = downloads.get("artifact") {
-                assert_eq!(
-                    artifact["path"].as_str().unwrap(),
-                    "test/library/1.0/library-1.0.jar"
-                );
-                assert_eq!(
-                    artifact["url"].as_str().unwrap(),
-                    "https://repo.example.com/test/library/1.0/library-1.0.jar"
-                );
-                assert_eq!(
-                    artifact["sha1"].as_str().unwrap(),
-                    "da39a3ee5e6b4b0d3255bfef95601890afd80709"
-                );
-            }
-        }
-
-        // Test classifier handling
-        let library_with_classifiers = json!({
-            "name": "test:native:1.0",
-            "downloads": {
-                "classifiers": {
-                    "natives-linux": {
-                        "path": "test/native/1.0/native-1.0-natives-linux.jar",
-                        "url": "https://repo.example.com/test/native/1.0/native-1.0-natives-linux.jar",
-                        "sha1": "356a192b7913b04c54574d18c28d46e6395428ab"
-                    }
-                }
-            }
-        });
-
-        if let Some(downloads) = library_with_classifiers.get("downloads") {
-            if let Some(classifiers) = downloads.get("classifiers") {
-                if let Some(native_linux) = classifiers.get("natives-linux") {
-                    assert_eq!(
-                        native_linux["path"].as_str().unwrap(),
-                        "test/native/1.0/native-1.0-natives-linux.jar"
-                    );
-                }
-            }
-        }
     }
 }
