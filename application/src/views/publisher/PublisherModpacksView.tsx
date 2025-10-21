@@ -366,14 +366,16 @@ export const PublisherModpacksView: React.FC = () => {
                                             <TableCell>
                                                 <div className="flex items-center gap-3">
                                                     <img
-                                                        src={modpack.iconUrl}
-                                                        alt={modpack.name}
                                                         className="w-10 h-10 rounded object-cover"
+                                                        src={modpack.iconUrl || '/images/modpack-fallback.webp'}
                                                         onError={(e) => {
-                                                            const target = e.target as HTMLImageElement;
-                                                            target.src = '/placeholder-modpack.png';
+                                                            const target = e.currentTarget;
+                                                            target.src = '/images/modpack-fallback.webp';
+                                                            target.onerror = null;
                                                         }}
+                                                        alt={modpack.name}
                                                     />
+
                                                     <div>
                                                         <p className="font-medium">{modpack.name}</p>
                                                         <p className="text-sm text-muted-foreground">

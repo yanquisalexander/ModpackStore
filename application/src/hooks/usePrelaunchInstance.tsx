@@ -121,7 +121,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
             const instance = await invoke<TauriCommandReturns['get_instance_by_id']>("get_instance_by_id", { instanceId });
             if (abortSignal.aborted || !instance) throw new Error("Instance not found or request aborted");
 
-            setTitleBarState(prev => ({ ...prev, title: instance.instanceName, canGoBack: true, opaque: true }));
+            setTitleBarState(prev => ({ ...prev, title: instance.instanceName, canGoBack: true, opaque: true, icon: instance.iconUrl || undefined }));
 
             const defaultAppearance = getDefaultAppeareance({ logoUrl: "/images/mc_logo.svg" });
             const customAppearance = await invoke<PreLaunchAppearance>("get_prelaunch_appearance", { instanceId });

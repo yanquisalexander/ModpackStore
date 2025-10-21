@@ -167,7 +167,7 @@ export const AppTitleBar = () => {
                                                 e.currentTarget.src = "/images/modpack-fallback.webp"; // Fallback icon
                                             }}
                                             src={titleBarState.icon}
-                                            className={`size-6 ${titleBarState.customIconClassName}`}
+                                            className={`size-6 ${titleBarState.customIconClassName} rounded-md border border-solid border-[var(--border)]`}
                                             alt="icon"
                                         />
                                     ) : (

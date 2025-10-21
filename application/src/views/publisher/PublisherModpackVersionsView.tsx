@@ -16,7 +16,8 @@ import {
     LucideArrowLeft,
     LucideEye,
     LucideSend,
-    Copy
+    Copy,
+    ExternalLink
 } from 'lucide-react';
 import {
     DropdownMenu,
@@ -198,13 +199,16 @@ export const PublisherModpackVersionsView: React.FC<PublisherModpackVersionsView
 
         try {
             await navigator.clipboard.writeText(idToCopy);
-            toast.success('ID copiado al portapapeles', {
-                description: idToCopy
-            });
+            toast.success('ID copiado al portapapeles');
         } catch (error) {
             console.error('Error copying to clipboard:', error);
-            toast.error('Error al copiar el ID al portapapeles');
+            toast.error('Error al copiar el ID');
         }
+    };
+
+    const handleGoToModpack = () => {
+        if (!modpack) return;
+        navigate(`/modpack/${modpack.id}`);
     };
 
     useEffect(() => {
@@ -317,6 +321,14 @@ export const PublisherModpackVersionsView: React.FC<PublisherModpackVersionsView
                                 >
                                     <Copy className="w-4 h-4" />
                                     Copiar ID
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    onClick={handleGoToModpack}
+                                    className="flex items-center gap-2"
+                                >
+                                    <ExternalLink className="w-4 h-4" />
+                                    Ir al modpack
                                 </Button>
                                 {canCreateVersions && (
                                     <Button onClick={handleCreateVersion}>
