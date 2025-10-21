@@ -73,19 +73,19 @@ export class ExploreModpacksController {
             // Check if query matches mpack:{ID} pattern
             const mpackPattern = /^mpack:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
             const match = q.match(mpackPattern);
-            
+
             if (match) {
                 // Extract the modpack ID from the pattern
                 const modpackId = match[1];
-                
+
                 // Get the authenticated user if available
                 const user = c.get('user') as User | undefined;
-                
+
                 // Search by ID with permission checks
-                const modpack = await searchModpacks(modpackId, 25, user);
+                const modpack = await getModpackById(modpackId, user);
                 return c.json(serializeCollection('modpack', modpack ? [modpack] : []), 200);
             }
-            
+
             // Regular text search
             const modpacks = await searchModpacks(q);
             return c.json(serializeCollection('modpack', modpacks), 200);
@@ -102,7 +102,7 @@ export class ExploreModpacksController {
 
     static async getModpack(c: Context): Promise<Response> {
         const modpackId = c.req.param('modpackId');
-        
+
         // Get the authenticated user if available (set by optionalAuth middleware)
         const user = c.get('user') as User | undefined;
 
@@ -129,7 +129,7 @@ export class ExploreModpacksController {
 
     static async getPrelaunchAppearance(c: Context): Promise<Response> {
         const modpackId = c.req.param('modpackId');
-        
+
         // Get the authenticated user if available (set by optionalAuth middleware)
         const user = c.get('user') as User | undefined;
 

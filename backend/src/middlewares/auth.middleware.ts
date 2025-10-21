@@ -159,6 +159,7 @@ export async function requireAuthAllowBanned(c: Context<{ Variables: AuthVariabl
  */
 export async function optionalAuth(c: Context<{ Variables: AuthVariables }>, next: Next) {
     const authHeader = c.req.header(AUTH_HEADER);
+    console.log('[OPTIONAL_AUTH] Authorization header:', authHeader);
 
     // If no auth header, just continue without setting user
     if (!authHeader || !authHeader.startsWith(AUTH_SCHEME)) {
@@ -176,11 +177,12 @@ export async function optionalAuth(c: Context<{ Variables: AuthVariables }>, nex
         if (user) {
             // Check if user is banned
             const isBanned = await BanService.isBanned(user.id);
-            
+
             c.set(USER_CONTEXT_KEY, user);
             c.set(JWT_CONTEXT_KEY, payload);
             c.set('userId', user.id);
             c.set('isBanned', isBanned);
+
         }
     } catch (err) {
         // Silently ignore invalid tokens for optional auth

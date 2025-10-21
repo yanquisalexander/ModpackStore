@@ -15,7 +15,8 @@ import {
     LucideTrash2,
     LucideArrowLeft,
     LucideEye,
-    LucideSend
+    LucideSend,
+    Copy
 } from 'lucide-react';
 import {
     DropdownMenu,
@@ -191,6 +192,21 @@ export const PublisherModpackVersionsView: React.FC<PublisherModpackVersionsView
         }
     };
 
+    const handleCopyId = async () => {
+        if (!modpack) return;
+        const idToCopy = `mpack:${modpack.id}`;
+
+        try {
+            await navigator.clipboard.writeText(idToCopy);
+            toast.success('ID copiado al portapapeles', {
+                description: idToCopy
+            });
+        } catch (error) {
+            console.error('Error copying to clipboard:', error);
+            toast.error('Error al copiar el ID al portapapeles');
+        }
+    };
+
     useEffect(() => {
         loadVersions();
     }, [publisherId, modpackId, sessionTokens?.accessToken]);
@@ -290,12 +306,26 @@ export const PublisherModpackVersionsView: React.FC<PublisherModpackVersionsView
                                     Versiones de {modpack?.name || 'Modpack'}
                                 </CardTitle>
                             </div>
-                            {canCreateVersions && (
-                                <Button onClick={handleCreateVersion}>
-                                    <LucidePlus className="h-4 w-4 mr-2" />
-                                    Crear Nueva Versión
+
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={handleCopyId}
+                                    className="flex items-center gap-1"
+                                    title="Copiar ID del modpack"
+                                >
+                                    <Copy className="w-4 h-4" />
+                                    Copiar ID
                                 </Button>
-                            )}
+                                {canCreateVersions && (
+                                    <Button onClick={handleCreateVersion}>
+                                        <LucidePlus className="h-4 w-4 mr-2" />
+                                        Crear Nueva Versión
+                                    </Button>
+                                )}
+                            </div>
+
                         </div>
                     </CardHeader>
                 </Card>
