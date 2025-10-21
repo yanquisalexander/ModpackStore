@@ -139,10 +139,21 @@ impl<'a> ClasspathBuilder<'a> {
                     .libraries_dir()
                     .join(p.replace('/', &MAIN_SEPARATOR.to_string()))
             })
+            // If there is no explicit downloads.artifact path, avoid blindly
+            // constructing a path from the `name` field unless that file actually
+            // exists on disk. Some entries (for example `*-platform` libraries)
+            // only provide classifier natives and do not have a main artifact
+            // JAR; treating the constructed path as required leads to false
+            // "missing library" errors.
             .or_else(|| {
-                lib.get("name")
-                    .and_then(Value::as_str)
-                    .map(|n| self.construct_library_path_from_name(n, None))
+                lib.get("name").and_then(Value::as_str).and_then(|n| {
+                    let candidate = self.construct_library_path_from_name(n, None);
+                    if candidate.exists() {
+                        Some(candidate)
+                    } else {
+                        None
+                    }
+                })
             })
     }
 
