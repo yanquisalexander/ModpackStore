@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { ExploreModpacksController } from '../../controllers/ExploreModpacks.controller';
-import { requireAuth, type AuthVariables } from '../../middlewares/auth.middleware';
+import { requireAuth, optionalAuth, type AuthVariables } from '../../middlewares/auth.middleware';
 
 const app = new Hono();
 
@@ -131,7 +131,7 @@ app.get('/', ExploreModpacksController.getHomepage);
  *       500:
  *         description: Internal Server Error.
  */
-app.get('/search', ExploreModpacksController.search);
+app.get('/search', optionalAuth, ExploreModpacksController.search);
 
 /**
  * @openapi
@@ -173,8 +173,8 @@ app.get('/search', ExploreModpacksController.search);
  *       500:
  *         description: Internal Server Error.
  */
-app.get('/modpacks/:modpackId', ExploreModpacksController.getModpack);
-app.get('/modpacks/:modpackId/prelaunch-appearance', ExploreModpacksController.getPrelaunchAppearance);
+app.get('/modpacks/:modpackId', optionalAuth, ExploreModpacksController.getModpack);
+app.get('/modpacks/:modpackId/prelaunch-appearance', optionalAuth, ExploreModpacksController.getPrelaunchAppearance);
 app.get('/modpacks/:modpackId/versions', ExploreModpacksController.getModpackVersions);
 app.get('/modpacks/:modpackId/versions/:versionId', requireAuth, ExploreModpacksController.getModpackVersionManifest);
 app.get('/modpacks/:modpackId/latest', requireAuth, ExploreModpacksController.getLatestVersion);

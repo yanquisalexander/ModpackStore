@@ -302,7 +302,7 @@ type ModpackDetails = {
     requiresTwitchSubscription: boolean;
 };
 
-export const getModpackById = async (modpackId: string): Promise<ModpackDetails | null> => {
+export const getModpackById = async (modpackId: string, user?: any): Promise<ModpackDetails | null> => {
     console.log(`[SERVICE_MODPACKS] Fetching modpack by ID: ${modpackId}`);
     try {
         const modpack = await Modpack.findOne({
@@ -315,13 +315,50 @@ export const getModpackById = async (modpackId: string): Promise<ModpackDetails 
             return null;
         }
 
+        // Permission checks based on modpack status and visibility
+        if (modpack.status === ModpackStatus.DRAFT) {
+            // Draft: only accessible to creator, admins, or team members
+            if (!user) {
+                console.log(`[SERVICE_MODPACKS] Draft modpack ${modpackId} requires authentication.`);
+                return null;
+            }
+            
+            // Check if user is creator
+            if (modpack.creatorUserId === user.id) {
+                console.log(`[SERVICE_MODPACKS] User is creator of draft modpack ${modpackId}.`);
+            } else {
+                // Check if user is admin
+                const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+                if (!isAdmin) {
+                    // Check if user is team member with access
+                    const hasTeamAccess = await user.getRoleInPublisher(modpack.publisherId);
+                    if (!hasTeamAccess) {
+                        console.log(`[SERVICE_MODPACKS] User does not have access to draft modpack ${modpackId}.`);
+                        return null;
+                    }
+                }
+            }
+        } else if (modpack.status === ModpackStatus.PUBLISHED) {
+            // Published modpack with private visibility: accessible to anyone
+            if (modpack.visibility === ModpackVisibility.PRIVATE) {
+                console.log(`[SERVICE_MODPACKS] Private published modpack ${modpackId} accessible.`);
+            } else if (modpack.visibility !== ModpackVisibility.PUBLIC) {
+                // Other visibility restrictions still apply (e.g., PATREON)
+                console.log(`[SERVICE_MODPACKS] Modpack ${modpackId} has visibility: ${modpack.visibility}.`);
+            }
+        } else if (modpack.status === ModpackStatus.ARCHIVED || modpack.status === ModpackStatus.DELETED) {
+            // Archived or deleted modpacks not accessible
+            console.log(`[SERVICE_MODPACKS] Modpack ${modpackId} has status: ${modpack.status} and is not accessible.`);
+            return null;
+        }
+
         const formattedCategories = modpack.categories?.map(modpackCategory => ({
             id: modpackCategory.category.id,
             name: modpackCategory.category.name,
             shortDescription: modpackCategory.category.shortDescription ?? null,
         })) || [];
 
-        console.log(`[SERVICE_MODPACKS] Modpack ID ${modpackId} found.`);
+        console.log(`[SERVICE_MODPACKS] Modpack ID ${modpackId} found and accessible.`);
         return {
             id: modpack.id,
             name: modpack.name,

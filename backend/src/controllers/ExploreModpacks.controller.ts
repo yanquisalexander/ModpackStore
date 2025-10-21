@@ -102,11 +102,12 @@ export class ExploreModpacksController {
 
     static async getModpack(c: Context): Promise<Response> {
         const modpackId = c.req.param('modpackId');
-
-        // modpackId is guaranteed by the route, no need to check for its existence here.
+        
+        // Get the authenticated user if available (set by optionalAuth middleware)
+        const user = c.get('user') as User | undefined;
 
         try {
-            const modpack = await getModpackById(modpackId);
+            const modpack = await getModpackById(modpackId, user);
             if (!modpack) {
                 return c.json(serializeError({
                     status: '404',
@@ -128,9 +129,12 @@ export class ExploreModpacksController {
 
     static async getPrelaunchAppearance(c: Context): Promise<Response> {
         const modpackId = c.req.param('modpackId');
+        
+        // Get the authenticated user if available (set by optionalAuth middleware)
+        const user = c.get('user') as User | undefined;
 
         try {
-            const modpack = await getModpackById(modpackId);
+            const modpack = await getModpackById(modpackId, user);
             if (!modpack) {
                 return c.json(serializeError({
                     status: '404',

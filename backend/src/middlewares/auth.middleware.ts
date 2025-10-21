@@ -151,3 +151,41 @@ export async function isOrganizationMember(c: Context<{ Variables: AuthVariables
 export async function requireAuthAllowBanned(c: Context<{ Variables: AuthVariables }>, next: Next) {
     return requireAuth(c, next, true);
 }
+
+/**
+ * Optional authentication middleware.
+ * Attempts to verify JWT and attach user if present, but doesn't fail if token is missing.
+ * Useful for endpoints that work for both authenticated and unauthenticated users.
+ */
+export async function optionalAuth(c: Context<{ Variables: AuthVariables }>, next: Next) {
+    const authHeader = c.req.header(AUTH_HEADER);
+
+    // If no auth header, just continue without setting user
+    if (!authHeader || !authHeader.startsWith(AUTH_SCHEME)) {
+        await next();
+        return;
+    }
+
+    const token = authHeader.substring(AUTH_SCHEME.length);
+
+    try {
+        const payload = verify(token, JWT_SECRET) as AuthVariables['jwt_payload'];
+
+        const user = await User.findOne({ where: { id: payload.sub }, relations: ['publisherMemberships'] });
+
+        if (user) {
+            // Check if user is banned
+            const isBanned = await BanService.isBanned(user.id);
+            
+            c.set(USER_CONTEXT_KEY, user);
+            c.set(JWT_CONTEXT_KEY, payload);
+            c.set('userId', user.id);
+            c.set('isBanned', isBanned);
+        }
+    } catch (err) {
+        // Silently ignore invalid tokens for optional auth
+        console.log('[OPTIONAL_AUTH] Token verification failed, continuing without authentication');
+    }
+
+    await next();
+}
