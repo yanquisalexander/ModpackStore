@@ -21,6 +21,12 @@ export interface CustomBlock {
     position?: CustomBlockPosition;
     children?: CustomBlock[];
     zIndex?: number;
+    // Dynamic content variables support
+    dynamicContent?: {
+        enabled?: boolean;
+        variables?: Record<string, any>;
+        refreshInterval?: number; // in milliseconds
+    };
 }
 
 export interface CustomBlockPosition {

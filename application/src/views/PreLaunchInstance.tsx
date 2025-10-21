@@ -218,6 +218,7 @@ export const PreLaunchInstance = () => {
                 />
                 <CustomBlocksRenderer
                     blocks={appearance?.customBlocks}
+                    instance={prelaunchState.instance!}
                 />
                 <Footer
                     appearance={appearance}
