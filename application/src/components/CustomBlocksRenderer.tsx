@@ -430,9 +430,9 @@ const CustomBlockComponent: React.FC<CustomBlockComponentProps> = ({
             key,
             className: combinedClassName,
             style: combinedStyle,
-            dangerouslySetInnerHTML: content ? { __html: content } : undefined
+            ...(content ? { dangerouslySetInnerHTML: { __html: content } } : {})
         },
-        childrenElements
+        ...(content ? [] : childrenElements || [])
     );
 };
 
