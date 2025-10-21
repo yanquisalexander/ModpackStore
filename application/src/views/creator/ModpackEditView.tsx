@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { FileUploadComponent } from '@/components/ui/file-upload';
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, FileText, ExternalLink, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthentication } from '@/stores/AuthContext';
 import { useGlobalContext } from '@/stores/GlobalContext';
@@ -98,6 +98,26 @@ export const ModpackEditView: React.FC<ModpackEditViewProps> = ({ teams }) => {
         navigate(`/creators/org/${orgId}/modpacks`);
     };
 
+    const handleGoToModpack = () => {
+        if (!modpack) return;
+        navigate(`/modpack/${modpack.id}`);
+    };
+
+    const handleCopyId = async () => {
+        if (!modpack) return;
+        const idToCopy = `mpack:${modpack.id}`;
+        
+        try {
+            await navigator.clipboard.writeText(idToCopy);
+            toast.success('ID copiado al portapapeles', {
+                description: idToCopy
+            });
+        } catch (error) {
+            console.error('Error copying to clipboard:', error);
+            toast.error('Error al copiar el ID al portapapeles');
+        }
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!modpack) return;
@@ -171,19 +191,41 @@ export const ModpackEditView: React.FC<ModpackEditViewProps> = ({ teams }) => {
     return (
         <div className="max-w-4xl mx-auto p-6 space-y-6">
             {/* Header with back button */}
-            <div className="flex items-center gap-4 mb-6">
+            <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-4">
+                    <Button
+                        variant="outline"
+                        onClick={handleBack}
+                        className="flex items-center gap-2"
+                    >
+                        <ArrowLeft className="w-4 h-4" />
+                        Volver
+                    </Button>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-2xl font-bold">Editar Modpack</h1>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={handleCopyId}
+                                className="flex items-center gap-1"
+                                title="Copiar ID del modpack"
+                            >
+                                <Copy className="w-4 h-4" />
+                                Copiar ID
+                            </Button>
+                        </div>
+                        <p className="text-gray-600">Modifica los detalles de "{modpack.name}"</p>
+                    </div>
+                </div>
                 <Button
                     variant="outline"
-                    onClick={handleBack}
+                    onClick={handleGoToModpack}
                     className="flex items-center gap-2"
                 >
-                    <ArrowLeft className="w-4 h-4" />
-                    Volver
+                    <ExternalLink className="w-4 h-4" />
+                    Ir al modpack
                 </Button>
-                <div>
-                    <h1 className="text-2xl font-bold">Editar Modpack</h1>
-                    <p className="text-gray-600">Modifica los detalles de "{modpack.name}"</p>
-                </div>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
