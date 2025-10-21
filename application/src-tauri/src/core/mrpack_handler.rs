@@ -1,13 +1,13 @@
 use serde::{Deserialize, Serialize};
+use sha1::{Digest as Sha1Digest, Sha1};
+use sha2::{Digest as Sha512Digest, Sha512};
 use std::fs;
+use std::io::Cursor;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use zip::ZipArchive;
-use zip::write::{FileOptions, ZipWriter};
-use sha1::{Sha1, Digest as Sha1Digest};
-use sha2::{Sha512, Digest as Sha512Digest};
-use std::io::Cursor;
 use walkdir::WalkDir;
+use zip::write::{FileOptions, ZipWriter};
+use zip::ZipArchive;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MrpackManifest {
@@ -65,11 +65,10 @@ pub struct MrpackCompatibility {
 }
 
 pub fn read_mrpack_manifest(mrpack_path: &Path) -> Result<MrpackManifest, String> {
-    let file = fs::File::open(mrpack_path)
-        .map_err(|e| format!("Failed to open .mrpack file: {}", e))?;
+    let file =
+        fs::File::open(mrpack_path).map_err(|e| format!("Failed to open .mrpack file: {}", e))?;
 
-    let mut archive =
-        ZipArchive::new(file).map_err(|e| format!("Invalid .mrpack file: {}", e))?;
+    let mut archive = ZipArchive::new(file).map_err(|e| format!("Invalid .mrpack file: {}", e))?;
 
     let mut manifest_file = archive
         .by_name("modrinth.index.json")
@@ -94,10 +93,7 @@ pub fn validate_mrpack_file(mrpack_path: String) -> Result<MrpackManifest, Strin
         return Err("File does not exist".to_string());
     }
 
-    if !path
-        .extension()
-        .map_or(false, |ext| ext == "mrpack")
-    {
+    if !path.extension().map_or(false, |ext| ext == "mrpack") {
         return Err("File is not a .mrpack file".to_string());
     }
 
@@ -105,9 +101,7 @@ pub fn validate_mrpack_file(mrpack_path: String) -> Result<MrpackManifest, Strin
 }
 
 #[tauri::command]
-pub fn check_mrpack_compatibility(
-    manifest: MrpackManifest,
-) -> Result<MrpackCompatibility, String> {
+pub fn check_mrpack_compatibility(manifest: MrpackManifest) -> Result<MrpackCompatibility, String> {
     let mut warnings = Vec::new();
     let mut errors = Vec::new();
 
@@ -136,7 +130,11 @@ pub fn check_mrpack_compatibility(
     if loader != "forge" && loader != "vanilla" {
         errors.push(format!(
             "Solo se admite Forge actualmente. {}, Quilt y NeoForge no están soportados todavía.",
-            if loader == "fabric" { "Fabric" } else { &loader }
+            if loader == "fabric" {
+                "Fabric"
+            } else {
+                &loader
+            }
         ));
     }
 
@@ -171,15 +169,14 @@ pub fn check_mrpack_compatibility(
 
 /// Extract overrides from .mrpack to instance directory
 pub fn extract_mrpack_overrides(mrpack_path: &Path, instance_dir: &Path) -> Result<(), String> {
-    let file = fs::File::open(mrpack_path)
-        .map_err(|e| format!("Failed to open .mrpack file: {}", e))?;
+    let file =
+        fs::File::open(mrpack_path).map_err(|e| format!("Failed to open .mrpack file: {}", e))?;
 
-    let mut archive =
-        ZipArchive::new(file).map_err(|e| format!("Invalid .mrpack file: {}", e))?;
+    let mut archive = ZipArchive::new(file).map_err(|e| format!("Invalid .mrpack file: {}", e))?;
 
     // Extract to minecraft/ subdirectory to match standard instance structure
     let minecraft_dir = instance_dir.join("minecraft");
-    
+
     // Extract all files from "overrides/" directory
     for i in 0..archive.len() {
         let mut file = archive
@@ -225,10 +222,7 @@ pub fn extract_mrpack_overrides(mrpack_path: &Path, instance_dir: &Path) -> Resu
 }
 
 /// Download a single mod file from Modrinth
-async fn download_mod_file(
-    mod_file: &MrpackFile,
-    mods_dir: &Path,
-) -> Result<(), String> {
+async fn download_mod_file(mod_file: &MrpackFile, mods_dir: &Path) -> Result<(), String> {
     // Create mods directory if it doesn't exist
     fs::create_dir_all(mods_dir).map_err(|e| format!("Failed to create mods directory: {}", e))?;
 
@@ -242,13 +236,16 @@ async fn download_mod_file(
     // Skip if file already exists with correct hash
     if output_path.exists() {
         if let Ok(existing_content) = fs::read(&output_path) {
-            use sha1::{Sha1, Digest};
+            use sha1::{Digest, Sha1};
             let mut hasher = Sha1::new();
             hasher.update(&existing_content);
             let existing_hash = format!("{:x}", hasher.finalize());
-            
+
             if existing_hash == mod_file.hashes.sha1 {
-                log::info!("File {} already exists with correct hash, skipping", file_name);
+                log::info!(
+                    "File {} already exists with correct hash, skipping",
+                    file_name
+                );
                 return Ok(());
             }
         }
@@ -323,7 +320,9 @@ pub async fn download_mrpack_mods(
             // - client is "required"
             // - client is not "unsupported"
             f.env.as_ref().map_or(true, |env| {
-                env.client.as_ref().map_or(true, |c| c == "required" || c == "optional")
+                env.client
+                    .as_ref()
+                    .map_or(true, |c| c == "required" || c == "optional")
             })
         })
         .collect();
@@ -344,21 +343,17 @@ pub async fn download_mrpack_mods(
 
 /// Calculate SHA1 hash of a file
 fn calculate_sha1(path: &Path) -> Result<String, String> {
-    let mut file = fs::File::open(path)
-        .map_err(|e| format!("Failed to open file: {}", e))?;
+    let mut file = fs::File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
     let mut hasher = Sha1::new();
-    std::io::copy(&mut file, &mut hasher)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+    std::io::copy(&mut file, &mut hasher).map_err(|e| format!("Failed to read file: {}", e))?;
     Ok(format!("{:x}", hasher.finalize()))
 }
 
 /// Calculate SHA512 hash of a file
 fn calculate_sha512(path: &Path) -> Result<String, String> {
-    let mut file = fs::File::open(path)
-        .map_err(|e| format!("Failed to open file: {}", e))?;
+    let mut file = fs::File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
     let mut hasher = Sha512::new();
-    std::io::copy(&mut file, &mut hasher)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+    std::io::copy(&mut file, &mut hasher).map_err(|e| format!("Failed to read file: {}", e))?;
     Ok(format!("{:x}", hasher.finalize()))
 }
 
@@ -372,13 +367,14 @@ pub async fn export_instance_to_mrpack(
     use crate::core::minecraft_instance::MinecraftInstance;
     use crate::core::tasks_manager;
 
-    log::info!("Starting export of instance {} to {}", instance_id, output_path);
+    log::info!(
+        "Starting export of instance {} to {}",
+        instance_id,
+        output_path
+    );
 
     // Create task for progress tracking
-    let task_id = tasks_manager::add_task(
-        "Exportando instancia a .mrpack",
-        None,
-    );
+    let task_id = tasks_manager::add_task("Exportando instancia a .mrpack", None);
 
     // Get instance
     let instance = MinecraftInstance::from_instance_id(&instance_id)
@@ -405,7 +401,23 @@ pub async fn export_instance_to_mrpack(
     );
 
     // Get minecraft directory
-    let instance_dir = PathBuf::from(instance.instanceDirectory.as_ref().unwrap());
+    let instance_dir = Path::new(instance.instanceDirectory.as_ref().unwrap());
+
+    // Verify instance directory exists
+    if !instance_dir.exists() {
+        tasks_manager::update_task(
+            &task_id,
+            tasks_manager::TaskStatus::Failed,
+            0.0,
+            "Directorio de instancia no encontrado",
+            None,
+        );
+        return Err(format!(
+            "Instance directory does not exist: {}",
+            instance_dir.display()
+        ));
+    }
+
     let minecraft_dir = instance_dir.join("minecraft");
 
     if !minecraft_dir.exists() {
@@ -430,22 +442,20 @@ pub async fn export_instance_to_mrpack(
     // Collect all files from the minecraft directory (only essential directories)
     let mut files_to_include = Vec::new();
     let walker = WalkDir::new(&minecraft_dir).into_iter();
-    
+
     // Essential directories to include
     let essential_dirs = [
         "mods",
-        "config", 
+        "config",
         "resourcepacks",
         "shaderpacks",
         "datapacks",
-        "saves"
+        "saves",
     ];
-    
+
     // Essential files in root minecraft directory
-    let essential_root_files = [
-        "options.txt"
-    ];
-    
+    let essential_root_files = ["options.txt"];
+
     for entry in walker.filter_map(|e| e.ok()) {
         let path = entry.path();
         if path.is_file() {
@@ -453,13 +463,15 @@ pub async fn export_instance_to_mrpack(
                 // Check if file is in an essential directory or is an essential root file
                 let should_include = if let Some(parent) = relative_path.parent() {
                     let parent_str = parent.to_string_lossy();
-                    essential_dirs.iter().any(|dir| parent_str.starts_with(dir) || parent_str == *dir)
+                    essential_dirs
+                        .iter()
+                        .any(|dir| parent_str.starts_with(dir) || parent_str == *dir)
                 } else {
                     // Check if it's an essential file in root directory
                     let file_name = relative_path.to_string_lossy();
                     essential_root_files.contains(&file_name.as_ref())
                 };
-                
+
                 if should_include {
                     files_to_include.push(relative_path.to_path_buf());
                 }
@@ -483,7 +495,7 @@ pub async fn export_instance_to_mrpack(
 
     // Create manifest
     let version_id = format!("local-export-{}", chrono::Utc::now().timestamp());
-    
+
     let dependencies = MrpackDependencies {
         minecraft: instance.minecraftVersion.clone(),
         forge: instance.forgeVersion.clone(),
@@ -521,7 +533,7 @@ pub async fn export_instance_to_mrpack(
     // Write manifest
     let manifest_json = serde_json::to_string_pretty(&manifest)
         .map_err(|e| format!("Failed to serialize manifest: {}", e))?;
-    
+
     zip.start_file("modrinth.index.json", options)
         .map_err(|e| format!("Failed to start manifest file: {}", e))?;
     zip.write_all(manifest_json.as_bytes())
@@ -531,31 +543,41 @@ pub async fn export_instance_to_mrpack(
         &task_id,
         tasks_manager::TaskStatus::Running,
         80.0,
-        &format!("Agregando {} archivos al paquete...", files_to_include.len()),
+        &format!(
+            "Agregando {} archivos al paquete...",
+            files_to_include.len()
+        ),
         None,
     );
 
     // Add all files to overrides/
     for (index, relative_path) in files_to_include.iter().enumerate() {
         let full_path = minecraft_dir.join(relative_path);
-        let zip_path = format!("overrides/{}", relative_path.to_string_lossy().replace("\\", "/"));
-        
+        let zip_path = format!(
+            "overrides/{}",
+            relative_path.to_string_lossy().replace("\\", "/")
+        );
+
         let progress = 80.0 + ((index as f32 / files_to_include.len() as f32) * 15.0);
         if index % 10 == 0 {
             tasks_manager::update_task(
                 &task_id,
                 tasks_manager::TaskStatus::Running,
                 progress,
-                &format!("Empaquetando archivo {}/{}", index + 1, files_to_include.len()),
+                &format!(
+                    "Empaquetando archivo {}/{}",
+                    index + 1,
+                    files_to_include.len()
+                ),
                 None,
             );
         }
 
         zip.start_file(&zip_path, options)
             .map_err(|e| format!("Failed to start file in zip: {}", e))?;
-        
-        let file_content = fs::read(&full_path)
-            .map_err(|e| format!("Failed to read file: {}", e))?;
+
+        let file_content =
+            fs::read(&full_path).map_err(|e| format!("Failed to read file: {}", e))?;
         zip.write_all(&file_content)
             .map_err(|e| format!("Failed to write file to zip: {}", e))?;
     }

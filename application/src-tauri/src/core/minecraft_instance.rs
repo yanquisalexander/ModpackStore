@@ -158,11 +158,10 @@ impl MinecraftInstance {
                                 if instance.instanceId == instance_id {
                                     // Make sure instanceDirectory is set
                                     if instance.instanceDirectory.is_none() {
+                                        // Use the native path without normalization to forward slashes
+                                        // PathBuf will handle the conversion properly
                                         let native_path_str = path.to_string_lossy().to_string();
-                                        let normalized_to_forward_slash =
-                                            native_path_str.replace("\\", "/"); // Reemplazar \ con /
-                                        instance.instanceDirectory =
-                                            Some(normalized_to_forward_slash);
+                                        instance.instanceDirectory = Some(native_path_str);
                                     }
                                     println!("Found instance: {}", instance.instanceName);
                                     return Some(instance);
@@ -194,9 +193,9 @@ impl MinecraftInstance {
                         // Aseguramos que instanceDirectory sea una ruta válida
                         // y que no esté vacía
                         if instance.instanceDirectory.is_none() {
+                            // Use the native path without normalization to forward slashes
                             let native_path_str = directory.to_string_lossy().to_string();
-                            let normalized_to_forward_slash = native_path_str.replace("\\", "/"); // Reemplazar \ con /
-                            instance.instanceDirectory = Some(normalized_to_forward_slash);
+                            instance.instanceDirectory = Some(native_path_str);
                         }
                         // Verificamos si la ruta de la instancia es válida
                         if instance.instanceDirectory.is_none() {
@@ -287,7 +286,9 @@ pub fn get_instances_by_modpack_id(modpack_id: String) -> Vec<MinecraftInstance>
                 let config_file = path.join("instance.json");
                 if config_file.exists() {
                     if let Ok(content) = fs::read_to_string(&config_file) {
-                        if let Ok(mut instance) = serde_json::from_str::<MinecraftInstance>(&content) {
+                        if let Ok(mut instance) =
+                            serde_json::from_str::<MinecraftInstance>(&content)
+                        {
                             // Migrate legacy fields
                             instance.migrate_legacy_fields();
 

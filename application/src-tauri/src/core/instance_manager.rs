@@ -4,9 +4,9 @@ use crate::config::get_config_manager;
 use crate::core::auth::storage;
 use crate::core::bootstrap_error::BootstrapError;
 use crate::core::instance_bootstrap::InstanceBootstrap;
+use crate::core::minecraft::MinecraftPaths;
 use crate::core::minecraft_instance::{self, MinecraftInstance, ModLoaderType};
 use crate::core::modpack_file_manager::ModpackManifest;
-use crate::core::minecraft::MinecraftPaths;
 
 use crate::core::tasks_manager::{
     add_task, add_task_with_auto_start, remove_task, update_task, update_task_with_bootstrap_error,
@@ -202,7 +202,6 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
         }
     }
 
-    
     // Proceed with normal launch
     instance
         .launch()
@@ -288,7 +287,10 @@ async fn handle_latest_version_update(
 
         // Wait for the update task to complete before proceeding with launch
         // Use a timeout of 30 minutes (1800 seconds) for the update to complete
-        eprintln!("Esperando a que se complete la actualización (tarea: {})...", task_id);
+        eprintln!(
+            "Esperando a que se complete la actualización (tarea: {})...",
+            task_id
+        );
         crate::core::tasks_manager::wait_for_task_completion(&task_id, 1800)
             .await
             .map_err(|e| format!("Error esperando la actualización: {}", e))?;
@@ -530,7 +532,7 @@ pub async fn create_local_instance(
     let mut instance = MinecraftInstance::new();
     instance.instanceName = instance_name.clone();
     instance.minecraftVersion = mc_version;
-    
+
     // Handle new loader system with backward compatibility
     if let Some(loader_type_str) = loader_type {
         instance.loaderType = match loader_type_str.to_lowercase().as_str() {
@@ -541,7 +543,7 @@ pub async fn create_local_instance(
             _ => ModLoaderType::Vanilla,
         };
         instance.loaderVersion = loader_version.clone();
-        
+
         // Keep forgeVersion for backward compatibility
         if matches!(instance.loaderType, ModLoaderType::Forge) {
             instance.forgeVersion = loader_version.clone();
@@ -555,7 +557,7 @@ pub async fn create_local_instance(
         instance.loaderType = ModLoaderType::Vanilla;
         instance.loaderVersion = None;
     }
-    
+
     instance.instanceId = instance_id.clone();
 
     // Configurar ícono por defecto
@@ -568,7 +570,7 @@ pub async fn create_local_instance(
         .to_string(),
     );
 
-    let instance_dir = instances_dir.join(&instance.instanceName);
+    let instance_dir = instances_dir.join(&instance_id);
     let minecraft_path = instance_dir.join("minecraft");
 
     instance.minecraftPath = normalize_path(&minecraft_path);
@@ -1368,10 +1370,10 @@ async fn create_modpack_instance_struct(
     instance.modpackId = Some(modpack_id.clone());
     instance.modpackVersionId = Some(final_version_id);
     instance.minecraftVersion = manifest.mc_version;
-    
+
     // Handle new loader system with backward compatibility
     use crate::core::minecraft_instance::ModLoaderType;
-    
+
     if let Some(loader_type_str) = manifest.loader_type {
         instance.loaderType = match loader_type_str.to_lowercase().as_str() {
             "forge" => ModLoaderType::Forge,
@@ -1381,7 +1383,7 @@ async fn create_modpack_instance_struct(
             _ => ModLoaderType::Vanilla,
         };
         instance.loaderVersion = manifest.loader_version.clone();
-        
+
         // Keep forgeVersion for backward compatibility
         if matches!(instance.loaderType, ModLoaderType::Forge) {
             instance.forgeVersion = manifest.loader_version;
@@ -1395,7 +1397,7 @@ async fn create_modpack_instance_struct(
         instance.loaderType = ModLoaderType::Vanilla;
         instance.loaderVersion = None;
     }
-    
+
     instance.favorite = true;
 
     println!("{}", modpack_info.to_string());
@@ -1453,7 +1455,7 @@ async fn fetch_latest_version(modpack_id: &str) -> Result<String, String> {
     let url = format!("{}/explore/modpacks/{}/latest", *API_ENDPOINT, modpack_id);
 
     let mut request = client.get(&url);
-    
+
     // Agregar token de autenticación si está disponible
     if let Ok(Some(token)) = get_access_token().await {
         request = request.bearer_auth(token);
@@ -1484,7 +1486,7 @@ async fn fetch_modpack_info(modpack_id: &str) -> Result<serde_json::Value, Strin
     let url = format!("{}/explore/modpacks/{}", *API_ENDPOINT, modpack_id);
 
     let mut request = client.get(&url);
-    
+
     // Agregar token de autenticación si está disponible
     if let Ok(Some(token)) = get_access_token().await {
         request = request.bearer_auth(token);
@@ -1516,7 +1518,7 @@ pub async fn fetch_modpack_manifest(
     );
 
     let mut request = client.get(&url);
-    
+
     // Agregar token de autenticación si está disponible
     if let Ok(Some(token)) = get_access_token().await {
         request = request.bearer_auth(token);
@@ -1592,12 +1594,10 @@ pub async fn validate_modpack_password(
         modpack_id
     );
 
-    let mut request = client
-        .post(&url)
-        .json(&serde_json::json!({
-            "password": password
-        }));
-    
+    let mut request = client.post(&url).json(&serde_json::json!({
+        "password": password
+    }));
+
     // Agregar token de autenticación si está disponible
     if let Ok(Some(token)) = get_access_token().await {
         request = request.bearer_auth(token);
@@ -1689,13 +1689,12 @@ pub fn get_favorite_instances() -> Result<Vec<MinecraftInstance>, String> {
 /// Función helper para obtener el token de acceso
 pub async fn get_access_token() -> Result<Option<String>, String> {
     let app_handle = {
-        let guard = crate::GLOBAL_APP_HANDLE.lock()
+        let guard = crate::GLOBAL_APP_HANDLE
+            .lock()
             .map_err(|_| "Failed to lock app handle")?;
-        guard.as_ref()
-            .ok_or("App handle not initialized")?
-            .clone()
+        guard.as_ref().ok_or("App handle not initialized")?.clone()
     };
-    
+
     match storage::load_tokens(&app_handle).await {
         Ok(Some(tokens)) => Ok(Some(tokens.access_token)),
         Ok(None) => Ok(None),
@@ -1706,9 +1705,9 @@ pub async fn get_access_token() -> Result<Option<String>, String> {
 /// Función helper para obtener el token de acceso de forma síncrona
 pub fn get_access_token_sync(app_handle: &tauri::AppHandle) -> Result<Option<String>, String> {
     // Create a runtime to run the async function synchronously
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| format!("Failed to create runtime: {}", e))?;
-    
+    let rt =
+        tokio::runtime::Runtime::new().map_err(|e| format!("Failed to create runtime: {}", e))?;
+
     rt.block_on(async {
         match storage::load_tokens(app_handle).await {
             Ok(Some(tokens)) => Ok(Some(tokens.access_token)),
@@ -1724,7 +1723,9 @@ pub async fn create_instance_from_mrpack(
     mrpack_path: String,
     instance_name: String,
 ) -> Result<String, String> {
-    use crate::core::mrpack_handler::{read_mrpack_manifest, extract_mrpack_overrides, download_mrpack_mods};
+    use crate::core::mrpack_handler::{
+        download_mrpack_mods, extract_mrpack_overrides, read_mrpack_manifest,
+    };
 
     let path = Path::new(&mrpack_path);
     let manifest = read_mrpack_manifest(path)?;
@@ -1826,7 +1827,11 @@ pub async fn create_instance_from_mrpack(
         minecraftVersion: manifest.dependencies.minecraft.clone(),
         instanceDirectory: Some(instance_dir.to_string_lossy().to_string()),
         forgeVersion: manifest.dependencies.forge.clone(),
-        loaderType: if manifest.dependencies.forge.is_some() { ModLoaderType::Forge } else { ModLoaderType::Vanilla },
+        loaderType: if manifest.dependencies.forge.is_some() {
+            ModLoaderType::Forge
+        } else {
+            ModLoaderType::Vanilla
+        },
         loaderVersion: manifest.dependencies.forge.clone(),
         javaPath: None,
         favorite: true,
@@ -1834,18 +1839,16 @@ pub async fn create_instance_from_mrpack(
         ms_nickname: None,
     };
 
-    instance
-        .save()
-        .map_err(|e| {
-            update_task(
-                &task_id,
-                TaskStatus::Failed,
-                0.0,
-                &format!("Error guardando configuración: {}", e),
-                None,
-            );
-            format!("Failed to save instance: {}", e)
-        })?;
+    instance.save().map_err(|e| {
+        update_task(
+            &task_id,
+            TaskStatus::Failed,
+            0.0,
+            &format!("Error guardando configuración: {}", e),
+            None,
+        );
+        format!("Failed to save instance: {}", e)
+    })?;
 
     log::info!("Instance metadata created, starting bootstrap process...");
 
@@ -1863,23 +1866,26 @@ pub async fn create_instance_from_mrpack(
 }
 
 /// Función helper para obtener el argumento de authlib-injector de forma síncrona
-pub fn get_authlib_injector_arg_sync(instance: &MinecraftInstance, paths: &MinecraftPaths) -> Result<String, String> {
+pub fn get_authlib_injector_arg_sync(
+    instance: &MinecraftInstance,
+    paths: &MinecraftPaths,
+) -> Result<String, String> {
     // Create a runtime to run the async function synchronously
-    let rt = tokio::runtime::Runtime::new()
-        .map_err(|e| format!("Failed to create runtime: {}", e))?;
-    
+    let rt =
+        tokio::runtime::Runtime::new().map_err(|e| format!("Failed to create runtime: {}", e))?;
+
     rt.block_on(async {
         let api_endpoint = crate::API_ENDPOINT.to_string();
         let ms_auth = crate::core::modpackstore_auth::ModpackStoreAuth::new(api_endpoint.clone());
 
         // Get Minecraft directory from paths
-        let minecraft_dir = paths.game_dir().parent()
+        let minecraft_dir = paths
+            .game_dir()
+            .parent()
             .ok_or_else(|| "Failed to get Minecraft directory".to_string())?;
 
         // Download authlib-injector if necessary
-        let jar_path = ms_auth
-            .get_authlib_injector_path(minecraft_dir)
-            .await?;
+        let jar_path = ms_auth.get_authlib_injector_path(minecraft_dir).await?;
 
         // Build the JVM argument
         Ok(ms_auth.build_authlib_injector_arg(&jar_path))
