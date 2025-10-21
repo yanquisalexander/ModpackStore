@@ -130,31 +130,48 @@ impl<'a> ClasspathBuilder<'a> {
     // --- El resto de funciones auxiliares (get_library_artifact_path, get_native_library_paths, etc.) permanecen igual ---
 
     fn get_library_artifact_path(&self, lib: &Value) -> Option<PathBuf> {
-        lib.get("downloads")
+        // First, try to get the path from downloads.artifact (modern format, 1.13+)
+        if let Some(path) = lib.get("downloads")
             .and_then(|d| d.get("artifact"))
             .and_then(|a| a.get("path"))
             .and_then(Value::as_str)
-            .map(|p| {
+        {
+            return Some(
                 self.paths
                     .libraries_dir()
-                    .join(p.replace('/', &MAIN_SEPARATOR.to_string()))
-            })
-            // If there is no explicit downloads.artifact path, avoid blindly
-            // constructing a path from the `name` field unless that file actually
-            // exists on disk. Some entries (for example `*-platform` libraries)
-            // only provide classifier natives and do not have a main artifact
-            // JAR; treating the constructed path as required leads to false
-            // "missing library" errors.
-            .or_else(|| {
-                lib.get("name").and_then(Value::as_str).and_then(|n| {
-                    let candidate = self.construct_library_path_from_name(n, None);
-                    if candidate.exists() {
-                        Some(candidate)
-                    } else {
-                        None
-                    }
-                })
-            })
+                    .join(path.replace('/', &MAIN_SEPARATOR.to_string()))
+            );
+        }
+
+        // For older versions (pre-1.13) or libraries without downloads section,
+        // construct the path from the library name.
+        // Note: Some libraries (like *-platform libraries) only have natives and
+        // no main artifact. We'll handle this by checking if the library has
+        // the "natives" field - if it does AND has no downloads.artifact,
+        // it probably doesn't have a main JAR.
+        if let Some(name) = lib.get("name").and_then(Value::as_str) {
+            // Check if this is a natives-only library
+            let has_natives = lib.get("natives").is_some();
+            let has_classifiers = lib.get("downloads")
+                .and_then(|d| d.get("classifiers"))
+                .is_some();
+            
+            // If it has natives/classifiers but no artifact section, it's natives-only
+            if (has_natives || has_classifiers) && 
+               lib.get("downloads").and_then(|d| d.get("artifact")).is_none() {
+                log::debug!(
+                    "Library {} appears to be natives-only (no artifact), skipping main JAR",
+                    name
+                );
+                return None;
+            }
+            
+            // Otherwise, construct the path from the name
+            // This is essential for pre-1.13 versions like 1.12.2
+            return Some(self.construct_library_path_from_name(name, None));
+        }
+
+        None
     }
 
     fn get_native_library_paths(&self, lib: &Value) -> Option<Vec<PathBuf>> {
