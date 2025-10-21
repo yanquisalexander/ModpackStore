@@ -23,6 +23,7 @@ flate2 = "1.1.1"
 futures = "0.3.31"
 futures-util = "0.3.31"
 hyper = {version = "0.14", features = ["server", "http1", "tcp"] }
+itertools = "0.14.0"
 lazy_static = "1.4"
 log = "0.4"
 md-5 = "0.10.6"
