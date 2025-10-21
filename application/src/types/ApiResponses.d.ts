@@ -19,6 +19,7 @@ export interface ModpackDataOverview {
     bannerUrl?: string;
     trailerUrl?: string;
     visibility?: string;
+    status?: 'draft' | 'published' | 'archived' | 'deleted';
     showUserAsPublisher?: boolean;
     creatorUserId?: string;
     createdAt?: Date;

@@ -681,6 +681,20 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                             </div>
                         </motion.div>
 
+                        {/* Draft modpack banner */}
+                        {modpackData.status === 'draft' && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.6, delay: 0.15 }}
+                                className="bg-yellow-500/20 border border-yellow-500/50 backdrop-blur-md rounded-lg p-4"
+                            >
+                                <p className="text-yellow-200 text-center font-medium">
+                                    Estás previsualizando un modpack no disponible al público general.
+                                </p>
+                            </motion.div>
+                        )}
+
                         {/* Tabs */}
                         <motion.div
                             initial={{ opacity: 0, y: 20 }}

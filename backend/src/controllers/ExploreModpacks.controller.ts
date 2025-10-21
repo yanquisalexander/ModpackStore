@@ -70,7 +70,24 @@ export class ExploreModpacksController {
         }
 
         try {
-            const modpacks = await searchModpacks(q); // Service should handle toString() or type checking
+            // Check if query matches mpack:{ID} pattern
+            const mpackPattern = /^mpack:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+            const match = q.match(mpackPattern);
+            
+            if (match) {
+                // Extract the modpack ID from the pattern
+                const modpackId = match[1];
+                
+                // Get the authenticated user if available
+                const user = c.get('user') as User | undefined;
+                
+                // Search by ID with permission checks
+                const modpack = await searchModpacks(modpackId, 25, user);
+                return c.json(serializeCollection('modpack', modpack ? [modpack] : []), 200);
+            }
+            
+            // Regular text search
+            const modpacks = await searchModpacks(q);
             return c.json(serializeCollection('modpack', modpacks), 200);
         } catch (error: any) {
             console.error("[CONTROLLER_EXPLORE] Error in search:", error);

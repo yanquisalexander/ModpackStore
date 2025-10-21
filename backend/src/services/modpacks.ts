@@ -148,8 +148,98 @@ export const getExploreModpacks = async (): Promise<GroupedModpackResult[]> => {
     }
 };
 
-export const searchModpacks = async (query: string, limit = 25): Promise<ModpackForExplore[]> => {
+export const searchModpacks = async (query: string, limit = 25, user?: any): Promise<ModpackForExplore[]> => {
     console.log(`[SERVICE_MODPACKS] Searching modpacks with query: "${query}"`);
+    
+    // Check if query is a UUID (direct ID search)
+    const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const isUUID = uuidPattern.test(query);
+    
+    if (isUUID) {
+        // Direct ID search with permission handling
+        try {
+            const modpack = await Modpack.findOne({
+                where: { id: query },
+                relations: ["creatorUser", "publisher", "categories", "categories.category"],
+            });
+            
+            if (!modpack) {
+                console.log(`[SERVICE_MODPACKS] Modpack with ID ${query} not found.`);
+                return [];
+            }
+            
+            // Permission checks based on modpack status and visibility
+            if (modpack.status === ModpackStatus.DRAFT) {
+                // Draft: only accessible to creator, admins, or team members
+                if (!user) {
+                    console.log(`[SERVICE_MODPACKS] Draft modpack ${query} requires authentication.`);
+                    return [];
+                }
+                
+                // Check if user is creator
+                if (modpack.creatorUserId === user.id) {
+                    console.log(`[SERVICE_MODPACKS] User is creator of draft modpack ${query}.`);
+                } else {
+                    // Check if user is admin
+                    const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+                    if (!isAdmin) {
+                        // Check if user is team member with access
+                        const hasTeamAccess = await user.getRoleInPublisher(modpack.publisherId);
+                        if (!hasTeamAccess) {
+                            console.log(`[SERVICE_MODPACKS] User does not have access to draft modpack ${query}.`);
+                            return [];
+                        }
+                    }
+                }
+            } else if (modpack.status === ModpackStatus.PUBLISHED) {
+                // Published modpack with private visibility: accessible to anyone with the ID
+                if (modpack.visibility === ModpackVisibility.PRIVATE) {
+                    console.log(`[SERVICE_MODPACKS] Private published modpack ${query} accessible via ID.`);
+                } else if (modpack.visibility !== ModpackVisibility.PUBLIC) {
+                    // Other visibility restrictions still apply (e.g., PATREON)
+                    console.log(`[SERVICE_MODPACKS] Modpack ${query} has visibility: ${modpack.visibility}.`);
+                }
+            } else {
+                // Archived or deleted modpacks not accessible via search
+                console.log(`[SERVICE_MODPACKS] Modpack ${query} has status: ${modpack.status} and is not searchable.`);
+                return [];
+            }
+            
+            // Return the modpack
+            return [{
+                id: modpack.id,
+                name: modpack.name,
+                shortDescription: modpack.shortDescription,
+                description: modpack.description,
+                slug: modpack.slug,
+                iconUrl: modpack.iconUrl,
+                bannerUrl: modpack.bannerUrl,
+                trailerUrl: modpack.trailerUrl,
+                visibility: modpack.visibility,
+                status: modpack.status,
+                featured: modpack.featured,
+                createdAt: modpack.createdAt,
+                updatedAt: modpack.updatedAt,
+                showUserAsPublisher: modpack.showUserAsPublisher,
+                creatorUser: modpack.creatorUser ? {
+                    username: modpack.creatorUser.username,
+                    avatarUrl: modpack.creatorUser.avatarUrl ?? null
+                } : null,
+                publisher: modpack.publisher ? {
+                    id: modpack.publisher.id,
+                    publisherName: modpack.publisher.publisherName,
+                    verified: modpack.publisher.verified,
+                    partnered: modpack.publisher.partnered,
+                    isHostingPartner: modpack.publisher.isHostingPartner
+                } : null,
+            }];
+        } catch (error: any) {
+            console.error(`[SERVICE_MODPACKS] Error in ID-based search for query "${query}":`, error);
+            throw new Error(`Failed to search modpack by ID: ${error.message}`);
+        }
+    }
+    
+    // Regular text search (existing logic)
     try {
         const modpacks = await Modpack.search(query, limit);
 
