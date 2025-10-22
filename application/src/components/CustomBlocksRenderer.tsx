@@ -204,6 +204,40 @@ const useDynamicContent = (content: string, userSession?: any, instance?: Minecr
                     }
                 }
 
+                // Process $onlineUsers(HOST[:PORT]) or $onlineUsers(HOST, PORT)
+                // Uses https://api.mcsrvstat.us/2/<host[:port]> and returns players.online or 0 on error
+                const onlinePattern = /\$onlineUsers\(\s*([^,\)\s]+?)(?:\s*,\s*([0-9]+))?\s*\)/g;
+                const onlineMatches = [...processed.matchAll(onlinePattern)];
+                for (const match of onlineMatches) {
+                    const [fullMatch, hostPart, portPart] = match;
+                    try {
+                        let host = hostPart.trim();
+                        let port: string | undefined = portPart ? portPart.trim() : undefined;
+
+                        // If host contains a colon, split host:port
+                        if (host.includes(':')) {
+                            const parts = host.split(':');
+                            host = parts[0];
+                            if (!port) port = parts[1];
+                        }
+
+                        const serverPath = port ? `${host}:${port}` : host;
+                        const apiUrl = `https://api.mcsrvstat.us/2/${encodeURIComponent(serverPath)}`;
+
+                        const resp = await fetch(apiUrl, { method: 'GET', headers: { Accept: 'application/json' } });
+                        if (!resp.ok) {
+                            processed = processed.replace(fullMatch, '0');
+                            continue;
+                        }
+                        const json = await resp.json();
+                        const online = (json && json.players && typeof json.players.online === 'number') ? json.players.online : 0;
+                        processed = processed.replace(fullMatch, String(online));
+                    } catch (e) {
+                        console.warn('Failed to fetch online users for', hostPart, e);
+                        processed = processed.replace(fullMatch, '0');
+                    }
+                }
+
                 // Process $counter(NAME, START) patterns - START is now optional
                 const counterPattern = /\$counter\(([^,]+)(?:,\s*([^)]+))?\)/g;
                 const counters: Record<string, number> = {};
