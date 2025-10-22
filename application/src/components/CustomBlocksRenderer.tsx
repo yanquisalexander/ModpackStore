@@ -332,15 +332,40 @@ const CustomBlocksRenderer: React.FC<CustomBlocksRendererProps> = ({ blocks, ins
 
     return (
         <>
-            {blocks.map((block, index) => (
-                <CustomBlockComponent
-                    key={`custom-block-${index}`}
-                    block={block}
-                    index={index}
-                    userSession={session}
-                    instance={instance}
-                />
-            ))}
+            {blocks.map((block, index) => {
+                // Generate a stable key: prefer explicit id/uuid/key from block, fallback to a deterministic JSON-based key
+                const computeStableKey = () => {
+                    if ((block as any).id) return String((block as any).id);
+                    if ((block as any).uuid) return String((block as any).uuid);
+                    if ((block as any).key) return String((block as any).key);
+                    try {
+                        // Use a subset of fields to avoid huge keys
+                        const subset = {
+                            content: block.content,
+                            renderType: block.renderType,
+                            tagName: block.tagName,
+                            position: block.position,
+                            className: block.className,
+                        };
+                        return `generated-${index}-${btoa(unescape(encodeURIComponent(JSON.stringify(subset))))}`;
+                    } catch (e) {
+                        return `custom-block-${index}`;
+                    }
+                };
+
+                const blockKey = computeStableKey();
+
+                return (
+                    <CustomBlockComponent
+                        key={blockKey}
+                        blockKey={blockKey}
+                        block={block}
+                        index={index}
+                        userSession={session}
+                        instance={instance}
+                    />
+                );
+            })}
         </>
     );
 };
@@ -351,6 +376,7 @@ interface CustomBlockComponentProps {
     index: number;
     parentKey?: string;
     userSession?: any;
+    blockKey?: string;
     instance?: MinecraftInstance;
 }
 
@@ -359,7 +385,8 @@ const CustomBlockComponent: React.FC<CustomBlockComponentProps> = ({
     index,
     parentKey,
     userSession,
-    instance
+    instance,
+    blockKey
 }) => {
     const tagName = getDefaultTagName(block);
     const { processedContent, loading } = useDynamicContent(block.content || '', userSession, instance);
@@ -410,24 +437,27 @@ const CustomBlockComponent: React.FC<CustomBlockComponentProps> = ({
         }
     }
 
-    const key = parentKey ? `${parentKey}-${index}` : `custom-block-${index}`;
+    // Use explicit blockKey when provided. This keeps keys stable across re-renders
+    // and prevents React from reusing DOM nodes in ways that create overlays.
+    const elementKey = blockKey ?? (parentKey ? `${parentKey}-${index}` : `custom-block-${index}`);
 
     // Render children if they exist
-    const childrenElements = block.children?.map((child, childIndex) =>
+    const childrenElements = block.children?.map((child, childIndex) => (
         <CustomBlockComponent
-            key={`${key}-child-${childIndex}`}
+            key={`${elementKey}-child-${childIndex}`}
+            blockKey={`${elementKey}-child-${childIndex}`}
             block={child}
             index={childIndex}
-            parentKey={key}
+            parentKey={elementKey}
             userSession={userSession}
             instance={instance}
         />
-    );
+    ));
 
     return React.createElement(
         tagName,
         {
-            key,
+            key: elementKey,
             className: combinedClassName,
             style: combinedStyle,
             ...(content ? { dangerouslySetInnerHTML: { __html: content } } : {})
