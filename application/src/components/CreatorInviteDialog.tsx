@@ -40,7 +40,7 @@ const CREATOR_CONTENT = `
 export const CreatorInviteDialog: React.FC<CreatorInviteDialogProps> = ({ isOpen, onClose }) => {
     const handleJoinDiscord = () => {
         // Open Discord invite link
-        open('https://discord.gg/bcxeTy2q8d');
+        open('https://discord.gg/yuXABT9dZs');
         onClose();
     };
 

@@ -6,54 +6,6 @@ use serde_json::Value;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf, MAIN_SEPARATOR};
 
-/// A utility for working with Java classpaths
-#[derive(Debug, Clone, PartialEq, Default)]
-pub struct Classpath {
-    entries: Vec<String>,
-}
-
-impl Classpath {
-    /// Create a new empty classpath
-    pub fn new() -> Self {
-        Self {
-            entries: Vec::new(),
-        }
-    }
-
-    /// Appends a string to the end of the classpath
-    pub fn add(&mut self, string: &str) {
-        self.entries.push(string.to_string());
-    }
-
-    /// Converts a path to a string and appends it to the classpath
-    pub fn add_path(&mut self, path: &Path) -> Result<(), String> {
-        if !path.exists() {
-            return Err(format!("not found: {}", path.display()));
-        }
-        self.add(&path.to_string_lossy());
-        Ok(())
-    }
-
-    /// Obtain the classpath as a string
-    pub fn get_str(&self) -> String {
-        self.entries.join(self.classpath_separator())
-    }
-
-    /// Deduplicates entries in the classpath
-    pub fn deduplicate(&mut self) {
-        let mut seen = HashSet::new();
-        self.entries.retain(|e| seen.insert(e.clone()));
-    }
-
-    fn classpath_separator(&self) -> &str {
-        if cfg!(windows) {
-            ";"
-        } else {
-            ":"
-        }
-    }
-}
-
 pub struct ClasspathBuilder<'a> {
     manifest: &'a Value,
     paths: &'a MinecraftPaths,
@@ -65,7 +17,8 @@ impl<'a> ClasspathBuilder<'a> {
     }
 
     pub fn build(&self) -> Result<String, String> {
-        let mut classpath = Classpath::new();
+        let mut entries = Vec::new();
+        let mut seen = HashSet::new();
         let mut missing_libraries = Vec::new();
 
         log::debug!("Building classpath for Minecraft launcher");
@@ -73,16 +26,15 @@ impl<'a> ClasspathBuilder<'a> {
         // Añadir el JAR del cliente
         let client_path = self.paths.client_jar();
         if client_path.exists() {
-            if let Err(e) = classpath.add_path(&client_path) {
-                return Err(e);
-            }
+            self.add_entry(
+                client_path.to_string_lossy().to_string(),
+                &mut entries,
+                &mut seen,
+            );
             log::debug!("Added client JAR to classpath: {}", client_path.display());
         } else {
             return Err(format!("Client JAR not found: {}", client_path.display()));
         }
-
-        // Procesar las librerías y recolectar las incluidas
-        let mut included_libraries = Vec::new();
 
         // Procesar las librerías
         let libraries = self
@@ -106,55 +58,29 @@ impl<'a> ClasspathBuilder<'a> {
             if self.should_include_library(lib) {
                 // --- LOG MODIFICADO ---
                 log::info!("✅ Añadida: {}", lib_name);
-                included_libraries.push(lib.clone());
+
+                // Intenta añadir el artefacto principal definido en "downloads.artifact".
+                if let Some(artifact_path) = self.get_library_artifact_path(lib) {
+                    if let Err(e) =
+                        self.add_library_if_exists(&artifact_path, &mut entries, &mut seen)
+                    {
+                        missing_libraries.push(format!("{}: {}", lib_name, e));
+                    }
+                }
+
+                // Para compatibilidad con formatos antiguos...
+                if let Some(native_paths) = self.get_native_library_paths(lib) {
+                    for native_path in native_paths {
+                        if let Err(e) =
+                            self.add_library_if_exists(&native_path, &mut entries, &mut seen)
+                        {
+                            missing_libraries.push(format!("{} (native): {}", lib_name, e));
+                        }
+                    }
+                }
             } else {
                 // --- LOG MODIFICADO ---
                 log::info!("🚫 Omitida: {} (no cumple las reglas para tu SO)", lib_name);
-            }
-        }
-
-        // Deduplicar por group:artifact, quedándose con la versión más nueva
-        let mut deduplicated = std::collections::HashMap::new();
-        for lib in included_libraries {
-            if let Some(name) = lib.get("name").and_then(|n| n.as_str()) {
-                let parts: Vec<&str> = name.split(':').collect();
-                if parts.len() >= 2 {
-                    let ga = format!("{}:{}", parts[0], parts[1]);
-                    let version = parts.get(2).unwrap_or(&"").to_string();
-                    let entry = deduplicated
-                        .entry(ga.clone())
-                        .or_insert((version.clone(), lib.clone()));
-                    if Self::is_version_newer(&version, &entry.0) {
-                        *entry = (version, lib.clone());
-                    }
-                }
-            }
-        }
-
-        // Ahora añadir las deduplicadas al classpath
-        for (_ga, (_version, lib)) in deduplicated {
-            let lib_name = lib
-                .get("name")
-                .and_then(|v| v.as_str())
-                .unwrap_or("unknown");
-
-            // Intenta añadir el artefacto principal definido en "downloads.artifact".
-            if let Some(artifact_path) = self.get_library_artifact_path(&lib) {
-                if let Err(e) = self.add_library_to_classpath(&artifact_path, &mut classpath) {
-                    missing_libraries.push(format!("{}: {}", lib_name, e));
-                }
-            }
-
-            // Nota: Las librerías nativas (natives) no se añaden al classpath.
-            // Se deben extraer por separado y añadir al java.library.path.
-            // Aquí solo manejamos los JARs de clases Java.
-            if let Some(native_paths) = self.get_native_library_paths(&lib) {
-                log::debug!(
-                    "Native libraries found for {}: {:?}",
-                    lib_name,
-                    native_paths
-                );
-                // No añadir al classpath - las natives se manejan en el launcher
             }
         }
 
@@ -165,15 +91,14 @@ impl<'a> ClasspathBuilder<'a> {
             ));
         }
 
-        classpath.deduplicate();
-        let classpath_str = classpath.get_str();
+        let classpath = entries.join(self.classpath_separator());
         log::info!(
             "Classpath construido exitosamente con {} entradas.",
-            classpath.entries.len()
+            entries.len()
         );
-        log::trace!("Full classpath: {}", classpath_str);
+        log::trace!("Full classpath: {}", classpath);
 
-        Ok(classpath_str)
+        Ok(classpath)
     }
     /// Determina si una biblioteca debe ser incluida evaluando su sección "rules".
     fn should_include_library(&self, lib: &Value) -> bool {
@@ -202,65 +127,34 @@ impl<'a> ClasspathBuilder<'a> {
         allowed
     }
 
-    fn add_library_to_classpath(
-        &self,
-        path: &Path,
-        classpath: &mut Classpath,
-    ) -> Result<(), String> {
-        classpath.add_path(path)
-    }
-
     // --- El resto de funciones auxiliares (get_library_artifact_path, get_native_library_paths, etc.) permanecen igual ---
 
     fn get_library_artifact_path(&self, lib: &Value) -> Option<PathBuf> {
-        // First, try to get the path from downloads.artifact (modern format, 1.13+)
-        if let Some(path) = lib
-            .get("downloads")
+        lib.get("downloads")
             .and_then(|d| d.get("artifact"))
             .and_then(|a| a.get("path"))
             .and_then(Value::as_str)
-        {
-            return Some(
+            .map(|p| {
                 self.paths
                     .libraries_dir()
-                    .join(path.replace('/', &MAIN_SEPARATOR.to_string())),
-            );
-        }
-
-        // For older versions (pre-1.13) or libraries without downloads section,
-        // construct the path from the library name.
-        // Note: Some libraries (like *-platform libraries) only have natives and
-        // no main artifact. We'll handle this by checking if the library has
-        // the "natives" field - if it does AND has no downloads.artifact,
-        // it probably doesn't have a main JAR.
-        if let Some(name) = lib.get("name").and_then(Value::as_str) {
-            // Check if this is a natives-only library
-            let has_natives = lib.get("natives").is_some();
-            let has_classifiers = lib
-                .get("downloads")
-                .and_then(|d| d.get("classifiers"))
-                .is_some();
-
-            // If it has natives/classifiers but no artifact section, it's natives-only
-            if (has_natives || has_classifiers)
-                && lib
-                    .get("downloads")
-                    .and_then(|d| d.get("artifact"))
-                    .is_none()
-            {
-                log::debug!(
-                    "Library {} appears to be natives-only (no artifact), skipping main JAR",
-                    name
-                );
-                return None;
-            }
-
-            // Otherwise, construct the path from the name
-            // This is essential for pre-1.13 versions like 1.12.2
-            return Some(self.construct_library_path_from_name(name, None));
-        }
-
-        None
+                    .join(p.replace('/', &MAIN_SEPARATOR.to_string()))
+            })
+            // If there is no explicit downloads.artifact path, avoid blindly
+            // constructing a path from the `name` field unless that file actually
+            // exists on disk. Some entries (for example `*-platform` libraries)
+            // only provide classifier natives and do not have a main artifact
+            // JAR; treating the constructed path as required leads to false
+            // "missing library" errors.
+            .or_else(|| {
+                lib.get("name").and_then(Value::as_str).and_then(|n| {
+                    let candidate = self.construct_library_path_from_name(n, None);
+                    if candidate.exists() {
+                        Some(candidate)
+                    } else {
+                        None
+                    }
+                })
+            })
     }
 
     fn get_native_library_paths(&self, lib: &Value) -> Option<Vec<PathBuf>> {
@@ -370,8 +264,7 @@ impl<'a> ClasspathBuilder<'a> {
         seen: &mut HashSet<String>,
     ) -> Result<(), String> {
         if !path.exists() {
-            log::warn!("Library not found, skipping: {}", path.display());
-            return Ok(());
+            return Err(format!("not found: {}", path.display()));
         }
         self.add_entry(path.to_string_lossy().to_string(), entries, seen);
         Ok(())
@@ -389,25 +282,5 @@ impl<'a> ClasspathBuilder<'a> {
         } else {
             ":"
         }
-    }
-
-    fn is_version_newer(new_version: &str, old_version: &str) -> bool {
-        let new_parts: Vec<u32> = new_version
-            .split('.')
-            .filter_map(|p| p.parse().ok())
-            .collect();
-        let old_parts: Vec<u32> = old_version
-            .split('.')
-            .filter_map(|p| p.parse().ok())
-            .collect();
-
-        for (new, old) in new_parts.iter().zip(old_parts.iter()) {
-            if new > old {
-                return true;
-            } else if new < old {
-                return false;
-            }
-        }
-        new_parts.len() > old_parts.len()
     }
 }
