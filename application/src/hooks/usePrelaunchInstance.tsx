@@ -291,7 +291,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
             .setDetails(state.instance.instanceName)
             .setTimestamps(new Timestamps(Date.now()))
             .setAssets(new Assets()
-                .setLargeImage(state.instance.modpackId ? `https://cdn-mstore.saltouruguayserver.com/modpacks/${state.instance.modpackId}/icon` : "explore")
+                .setLargeImage(state.instance.modpackId ? `https://cdn-mstore.saltouruguayserver.com/modpacks/${state.instance.modpackId}/icon?t=${new Date().getTime()}` : "explore")
                 .setLargeText(state.instance.instanceName)
                 .setSmallImage("exploring")
                 .setSmallText(isPlaying ? "Minecraft" : "Modpack Store")
