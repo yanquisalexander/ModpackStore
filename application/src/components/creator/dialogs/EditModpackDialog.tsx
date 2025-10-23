@@ -428,6 +428,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
         const editorRef = useRef<HTMLDivElement>(null);
         const viewRef = useRef<EditorView | null>(null);
         const initialValueRef = useRef(value);
+        const isUpdatingFromProp = useRef(false);
 
         useEffect(() => {
             if (!editorRef.current) return;
@@ -440,7 +441,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                     json(),
                     oneDark,
                     EditorView.updateListener.of((update) => {
-                        if (update.docChanged) {
+                        if (update.docChanged && !isUpdatingFromProp.current) {
                             onChange(update.state.doc.toString());
                         }
                     }),
@@ -471,9 +472,11 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
         // Actualizar el contenido cuando cambia el value prop
         useEffect(() => {
             if (viewRef.current && viewRef.current.state.doc.toString() !== value) {
+                isUpdatingFromProp.current = true;
                 viewRef.current.dispatch({
                     changes: { from: 0, to: viewRef.current.state.doc.length, insert: value }
                 });
+                isUpdatingFromProp.current = false;
             }
         }, [value]);
 
