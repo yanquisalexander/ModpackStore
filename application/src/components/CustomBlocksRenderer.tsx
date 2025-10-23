@@ -324,23 +324,23 @@ const useDynamicContent = (content: string, userSession?: any, instance?: Minecr
 
 // Helper functions
 const renderContent = (block: CustomBlock, processedContent: string): { type: 'html' | 'markdown' | 'text', content: string } => {
-    if (!processedContent) return { type: 'text', content: '' };
-
     switch (block.renderType) {
         case 'html':
-            return { type: 'html', content: DOMPurify.sanitize(processedContent) };
+            return { type: 'html', content: processedContent ? DOMPurify.sanitize(processedContent) : '' };
         case 'markdown':
-            return { type: 'markdown', content: processedContent };
+            return { type: 'markdown', content: processedContent || '' };
         case 'text':
-            return { type: 'text', content: DOMPurify.sanitize(processedContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')) };
+            return { type: 'text', content: processedContent ? DOMPurify.sanitize(processedContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')) : '' };
         case 'auto':
         default:
             // Auto-detect: if it contains markdown-like syntax, treat as markdown
-            const hasMarkdownSyntax = /[*_`~\[\]()#]/.test(processedContent);
-            if (hasMarkdownSyntax) {
-                return { type: 'markdown', content: processedContent };
+            if (processedContent) {
+                const hasMarkdownSyntax = /[*_`~\[\]()#]/.test(processedContent);
+                if (hasMarkdownSyntax) {
+                    return { type: 'markdown', content: processedContent };
+                }
             }
-            return { type: 'text', content: DOMPurify.sanitize(processedContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')) };
+            return { type: 'text', content: processedContent ? DOMPurify.sanitize(processedContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')) : '' };
     }
 };
 
@@ -348,7 +348,7 @@ const getDefaultTagName = (block: CustomBlock): string => {
     if (block.tagName) return block.tagName;
 
     // Default tag based on content type
-    if (block.renderType === 'markdown' || block.content?.includes('\n')) {
+    if (block.renderType === 'markdown' || block.renderType === 'html' || block.content?.includes('\n')) {
         return 'div';
     }
     return 'p';
@@ -517,6 +517,7 @@ const CustomBlockComponent: React.FC<CustomBlockComponentProps> = ({
         );
     }
 
+    // For text content or when content is empty but has children
     return React.createElement(
         tagName,
         {
@@ -524,7 +525,8 @@ const CustomBlockComponent: React.FC<CustomBlockComponentProps> = ({
             className: combinedClassName,
             style: combinedStyle,
         },
-        ...(content.type === 'text' ? [] : childrenElements || [])
+        ...(content.type === 'text' && content.content ? [content.content] : []),
+        ...(childrenElements || [])
     );
 };
 
