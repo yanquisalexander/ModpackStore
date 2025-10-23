@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import DOMPurify from 'dompurify';
-import snarkdown from 'snarkdown';
 import { CustomBlock } from '@/types/PreLaunchAppeareance';
 import { MinecraftInstance } from '@/types/TauriCommandReturns';
 import { useAuthentication } from '@/stores/AuthContext';
+import { ExternalLinkHandler, HtmlWithExternalLinks } from './ExternalLinkHandler';
 
 // Configure DOMPurify to allow common HTML tags
 DOMPurify.setConfig({
@@ -204,9 +204,9 @@ const useDynamicContent = (content: string, userSession?: any, instance?: Minecr
                     }
                 }
 
-                // Process $onlineUsers(HOST[:PORT]) or $onlineUsers(HOST, PORT)
+                // Process $onlinePlayers(HOST[:PORT]) or $onlinePlayers(HOST, PORT)
                 // Uses https://api.mcsrvstat.us/2/<host[:port]> and returns players.online or 0 on error
-                const onlinePattern = /\$onlineUsers\(\s*([^,\)\s]+?)(?:\s*,\s*([0-9]+))?\s*\)/g;
+                const onlinePattern = /\$onlinePlayers\(\s*([^,\)\s]+?)(?:\s*,\s*([0-9]+))?\s*\)/g;
                 const onlineMatches = [...processed.matchAll(onlinePattern)];
                 for (const match of onlineMatches) {
                     const [fullMatch, hostPart, portPart] = match;
@@ -323,24 +323,24 @@ const useDynamicContent = (content: string, userSession?: any, instance?: Minecr
 };
 
 // Helper functions
-const renderContent = (block: CustomBlock, processedContent: string): string => {
-    if (!processedContent) return '';
+const renderContent = (block: CustomBlock, processedContent: string): { type: 'html' | 'markdown' | 'text', content: string } => {
+    if (!processedContent) return { type: 'text', content: '' };
 
     switch (block.renderType) {
         case 'html':
-            return DOMPurify.sanitize(processedContent);
+            return { type: 'html', content: DOMPurify.sanitize(processedContent) };
         case 'markdown':
-            return DOMPurify.sanitize(snarkdown(processedContent));
+            return { type: 'markdown', content: processedContent };
         case 'text':
-            return DOMPurify.sanitize(processedContent.replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+            return { type: 'text', content: DOMPurify.sanitize(processedContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')) };
         case 'auto':
         default:
             // Auto-detect: if it contains markdown-like syntax, treat as markdown
             const hasMarkdownSyntax = /[*_`~\[\]()#]/.test(processedContent);
             if (hasMarkdownSyntax) {
-                return DOMPurify.sanitize(snarkdown(processedContent));
+                return { type: 'markdown', content: processedContent };
             }
-            return DOMPurify.sanitize(processedContent.replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+            return { type: 'text', content: DOMPurify.sanitize(processedContent.replace(/</g, '&lt;').replace(/>/g, '&gt;')) };
     }
 };
 
@@ -488,15 +488,43 @@ const CustomBlockComponent: React.FC<CustomBlockComponentProps> = ({
         />
     ));
 
+    // Handle different content types
+    if (content.type === 'markdown') {
+        return React.createElement(
+            tagName,
+            {
+                key: elementKey,
+                className: combinedClassName,
+                style: combinedStyle,
+            },
+            <ExternalLinkHandler className="prose prose-sm dark:prose-invert max-w-none">
+                {content.content}
+            </ExternalLinkHandler>,
+            ...(childrenElements || [])
+        );
+    }
+
+    if (content.type === 'html') {
+        return React.createElement(
+            tagName,
+            {
+                key: elementKey,
+                className: combinedClassName,
+                style: combinedStyle,
+            },
+            <HtmlWithExternalLinks html={content.content} />,
+            ...(childrenElements || [])
+        );
+    }
+
     return React.createElement(
         tagName,
         {
             key: elementKey,
             className: combinedClassName,
             style: combinedStyle,
-            ...(content ? { dangerouslySetInnerHTML: { __html: content } } : {})
         },
-        ...(content ? [] : childrenElements || [])
+        ...(content.type === 'text' ? [] : childrenElements || [])
     );
 };
 

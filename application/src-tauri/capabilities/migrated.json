@@ -66,6 +66,8 @@
     "store:default",
     "log:default",
     "notification:default",
+    "opener:allow-open-url",
+    "opener:allow-default-urls",
     {
       "identifier": "opener:allow-open-path",
       "allow": [

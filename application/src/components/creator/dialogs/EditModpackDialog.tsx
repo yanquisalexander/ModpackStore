@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,12 +9,10 @@ import { useAuthentication } from '@/stores/AuthContext';
 import { toast } from 'sonner';
 import { Modpack } from '@/types/modpacks';
 import { UploadCloud } from 'lucide-react';
-import { basicSetup } from 'codemirror';
-import { EditorView, keymap } from '@codemirror/view';
-import { EditorState } from '@codemirror/state';
+import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { indentWithTab } from '@codemirror/commands';
+import { basicSetup } from 'codemirror';
 import { CategorySelector } from '@/components/CategorySelector';
 import { ModpackCategoryDisplay } from '@/components/ModpackCategoryDisplay';
 import { ModpackStatusManager } from '@/components/creator/ModpackStatusManager';
@@ -414,73 +412,6 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
         } finally {
             setLoading(false);
         }
-    };
-
-    // --- Componente CodeMirror personalizado para evitar conflictos ---
-    interface CodeMirrorEditorProps {
-        value: string;
-        onChange: (value: string) => void;
-        height?: string;
-        className?: string;
-    }
-
-    const CodeMirrorEditor: React.FC<CodeMirrorEditorProps> = ({ value, onChange, height = "300px", className = "" }) => {
-        const editorRef = useRef<HTMLDivElement>(null);
-        const viewRef = useRef<EditorView | null>(null);
-        const initialValueRef = useRef(value);
-        const isUpdatingFromProp = useRef(false);
-
-        useEffect(() => {
-            if (!editorRef.current) return;
-
-            const startState = EditorState.create({
-                doc: initialValueRef.current,
-                extensions: [
-                    basicSetup,
-                    keymap.of([indentWithTab]),
-                    json(),
-                    oneDark,
-                    EditorView.updateListener.of((update) => {
-                        if (update.docChanged && !isUpdatingFromProp.current) {
-                            onChange(update.state.doc.toString());
-                        }
-                    }),
-                    EditorView.theme({
-                        "&": {
-                            height,
-                            fontSize: "14px"
-                        },
-                        ".cm-scroller": {
-                            fontFamily: "var(--font-mono, 'Fira Code', monospace)"
-                        }
-                    })
-                ],
-            });
-
-            const view = new EditorView({
-                state: startState,
-                parent: editorRef.current,
-            });
-
-            viewRef.current = view;
-
-            return () => {
-                view.destroy();
-            };
-        }, []);
-
-        // Actualizar el contenido cuando cambia el value prop
-        useEffect(() => {
-            if (viewRef.current && viewRef.current.state.doc.toString() !== value) {
-                isUpdatingFromProp.current = true;
-                viewRef.current.dispatch({
-                    changes: { from: 0, to: viewRef.current.state.doc.length, insert: value }
-                });
-                isUpdatingFromProp.current = false;
-            }
-        }, [value]);
-
-        return <div ref={editorRef} className={`border rounded-md overflow-hidden ${className}`} />;
     };
 
     return (
@@ -896,10 +827,13 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                             </div>
                         </div>
                         <div className={`border rounded-md overflow-hidden ${!isJsonValid ? 'border-red-500' : 'border-zinc-700'}`}>
-                            <CodeMirrorEditor
+                            <CodeMirror
                                 value={prelaunchAppearanceJson}
                                 onChange={setPrelaunchAppearanceJson}
                                 height="300px"
+                                extensions={[basicSetup, json(), oneDark]}
+                                theme={oneDark}
+                                className="text-sm"
                             />
                         </div>
                         {!isJsonValid && (

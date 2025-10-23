@@ -18,6 +18,7 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion, useScroll, useTransform } from "motion/react";
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
+import { ExternalLinkHandler } from '@/components/ExternalLinkHandler';
 import { invoke } from "@tauri-apps/api/core";
 import { InstallButton } from "../components/install-modpacks/ModpackInstallButton";
 import { TwitchRequirements } from "@/components/TwitchRequirements";
@@ -711,9 +712,12 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
 
                                 <TabsContent value="overview" className="mt-6">
                                     <h2 className="text-xl font-semibold text-white">Descripción</h2>
-                                    <p className="text-white/80 mt-2">
-                                        {modpackData.description ?? "Este modpack aún no tiene una descripción."}
-                                    </p>
+                                    <ExternalLinkHandler className="prose prose-sm dark:prose-invert max-w-none space-y-1
+                                        prose-h2:text-sm prose-h2:uppercase prose-h2:font-bold prose-h2:text-indigo-400
+                                        prose-hr:border-gray-700
+                                        prose-p:text-gray-200 prose-li:text-gray-200 mt-2">
+                                        {modpackData.description || "Este modpack aún no tiene una descripción."}
+                                    </ExternalLinkHandler>
                                 </TabsContent>
 
                                 <TabsContent value="files" className="mt-6">
@@ -837,11 +841,12 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                             {/* Full changelog */}
                                                             <div className="bg-black/20 rounded-lg p-4 border border-white/10">
                                                                 <h4 className="text-white font-medium mb-3">Changelog Completo</h4>
-                                                                <div className="prose prose-invert max-w-none">
-                                                                    <pre className="whitespace-pre-wrap text-sm text-white/80 bg-black/30 p-4 rounded border border-white/10 overflow-x-auto">
-                                                                        {selectedVersion.changelog || "No hay changelog para esta versión."}
-                                                                    </pre>
-                                                                </div>
+                                                                <ExternalLinkHandler className="prose prose-sm dark:prose-invert max-w-none space-y-1
+                                                                    prose-h2:text-sm prose-h2:uppercase prose-h2:font-bold prose-h2:text-indigo-400
+                                                                    prose-hr:border-gray-700
+                                                                    prose-p:text-gray-200 prose-li:text-gray-200">
+                                                                    {selectedVersion.changelog || "No hay changelog para esta versión."}
+                                                                </ExternalLinkHandler>
                                                             </div>
                                                         </div>
                                                     )
