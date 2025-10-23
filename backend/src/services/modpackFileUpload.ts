@@ -8,8 +8,11 @@ import { sendProgressUpdate, sendCompletionUpdate, sendErrorUpdate } from "./rea
 import JSZip from 'jszip';
 import crypto from 'crypto';
 import { batchUploadToR2 } from './r2UploadService';
+import { path7x } from '7zip-bin';
+import { execSync } from 'child_process';
 
 export const ALLOWED_FILE_TYPES = ['mods', 'resourcepacks', 'config', 'shaderpacks', 'datapacks', 'extras'];
+export const ALLOWED_ARCHIVE_EXTENSIONS = ['.zip', '.rar', '.7z'];
 
 const TEMP_UPLOAD_DIR = path.join(__dirname, "../../tmp/uploads");
 if (!fs.existsSync(TEMP_UPLOAD_DIR)) fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true });
@@ -60,6 +63,85 @@ const determineBasePath = (zip: JSZip, fileType: string): string => {
   return '';
 };
 
+/**
+ * Detecta el tipo de archivo basado en la extensión del nombre del archivo.
+ * @param filename - El nombre del archivo.
+ * @returns El tipo de archivo ('zip', 'rar', '7z') o null si no es soportado.
+ */
+const detectArchiveType = (filename: string): 'zip' | 'rar' | '7z' | null => {
+  const ext = path.extname(filename).toLowerCase();
+  switch (ext) {
+    case '.zip':
+      return 'zip';
+    case '.rar':
+      return 'rar';
+    case '.7z':
+      return '7z';
+    default:
+      return null;
+  }
+};
+
+/**
+ * Extrae archivos de un archivo comprimido (ZIP, RAR, 7z) a un directorio temporal.
+ * @param archivePath - Ruta al archivo comprimido.
+ * @param extractDir - Directorio donde extraer los archivos.
+ * @param archiveType - Tipo de archivo ('zip', 'rar', '7z').
+ * @returns Array de objetos con información de los archivos extraídos.
+ */
+const extractArchive = async (
+  archivePath: string,
+  extractDir: string,
+  archiveType: 'zip' | 'rar' | '7z'
+): Promise<{ name: string; buffer: Buffer }[]> => {
+  if (archiveType === 'zip') {
+    // Usar JSZip para ZIP
+    const buffer = fs.readFileSync(archivePath);
+    const zip = await JSZip.loadAsync(buffer);
+    const files: { name: string; buffer: Buffer }[] = [];
+
+    for (const [name, file] of Object.entries(zip.files)) {
+      if (!file.dir) {
+        const buffer = await file.async('nodebuffer');
+        files.push({ name, buffer });
+      }
+    }
+
+    return files;
+  } else {
+    // Usar 7zip para RAR y 7z
+    const sevenZipPath = path7x;
+    const extractCommand = `"${sevenZipPath}" x "${archivePath}" -o"${extractDir}" -y`;
+
+    try {
+      execSync(extractCommand, { stdio: 'pipe' });
+    } catch (error) {
+      throw new Error(`Error extracting ${archiveType} file: ${error instanceof Error ? error.message : String(error)}`);
+    }
+
+    // Leer todos los archivos extraídos
+    const files: { name: string; buffer: Buffer }[] = [];
+    const walkDir = (dir: string, basePath: string = '') => {
+      const items = fs.readdirSync(dir);
+      for (const item of items) {
+        const fullPath = path.join(dir, item);
+        const relativePath = path.join(basePath, item).replace(/\\/g, '/');
+        const stat = fs.statSync(fullPath);
+
+        if (stat.isDirectory()) {
+          walkDir(fullPath, relativePath);
+        } else {
+          const buffer = fs.readFileSync(fullPath);
+          files.push({ name: relativePath, buffer });
+        }
+      }
+    };
+
+    walkDir(extractDir);
+    return files;
+  }
+};
+
 
 export const processModpackFileUpload = async (
   source: UploadSource,
@@ -80,6 +162,7 @@ export const processModpackFileUpload = async (
         : (() => { throw new Error("El tipo de 'source' no es soportado."); })();
 
   const tempPath = path.join(TEMP_UPLOAD_DIR, `${Date.now()}-${filename}`);
+  const extractDir = path.join(TEMP_UPLOAD_DIR, `extract-${Date.now()}`);
   fs.writeFileSync(tempPath, buffer);
   console.log(`Archivo guardado temporalmente: ${tempPath}`);
 
@@ -92,20 +175,51 @@ export const processModpackFileUpload = async (
       await ModpackVersionFile.delete({ modpackVersionId: versionId, fileType: fileType as ModpackFileType });
       sendProgressUpdate(modpackId, versionId, `Limpiando registros antiguos`, { category: fileType, percent: 5 });
 
-      const zip = await JSZip.loadAsync(buffer);
+      // Detectar y extraer archivos según el tipo de archivo (ZIP, RAR, 7z)
+      const archiveType = detectArchiveType(filename);
+      if (!archiveType) {
+        throw new Error(`Tipo de archivo no soportado para la extracción: ${filename}`);
+      }
 
-      // Determinar si hay que eliminar un directorio base (ej. una carpeta 'mods' dentro de mods.zip)
-      const basePathToStrip = determineBasePath(zip, fileType);
+      // Crear directorio temporal para extracción
+      if (!fs.existsSync(extractDir)) fs.mkdirSync(extractDir, { recursive: true });
+
+      // Usar la función de extracción para obtener los archivos en un buffer
+      const extractedFiles = await extractArchive(tempPath, extractDir, archiveType);
+
+      // Determinar si hay que eliminar un directorio base (solo para ZIP)
+      let basePathToStrip = '';
+      if (archiveType === 'zip') {
+        // Para ZIP, usar la lógica existente con JSZip
+        const zipBuffer = fs.readFileSync(tempPath);
+        const zip = await JSZip.loadAsync(zipBuffer);
+        basePathToStrip = determineBasePath(zip, fileType);
+      } else {
+        // Para RAR/7z, lógica simplificada: si todos los archivos están en un directorio que coincide con fileType, eliminarlo
+        const rootDirs = new Set<string>();
+        extractedFiles.forEach(file => {
+          const parts = file.name.split('/');
+          if (parts.length > 1) {
+            rootDirs.add(parts[0]);
+          }
+        });
+
+        if (rootDirs.size === 1) {
+          const singleRootDir = rootDirs.values().next().value;
+          if (singleRootDir?.toLowerCase() === fileType.toLowerCase()) {
+            basePathToStrip = `${singleRootDir}/`;
+          }
+        }
+      }
 
       const fileDbEntries: { path: string; hash: string; size: number }[] = [];
       const uniqueUploads = new Map<string, { key: string; body: Buffer; contentType: string }>();
 
-      sendProgressUpdate(modpackId, versionId, `Procesando archivos desde ZIP`, { category: fileType, percent: 10 });
+      sendProgressUpdate(modpackId, versionId, `Procesando archivos desde ${archiveType.toUpperCase()}`, { category: fileType, percent: 10 });
 
-      const filesToProcess = Object.values(zip.files).filter(file => !file.dir);
-
-      for (const file of filesToProcess) {
-        const fileBuffer = await file.async('nodebuffer');
+      // Procesar cada archivo extraído
+      for (const file of extractedFiles) {
+        const fileBuffer = file.buffer;
 
         // OPTIMIZACIÓN: Calcular hash directamente desde el buffer en memoria
         const hash = crypto.createHash('sha1').update(fileBuffer).digest('hex');
@@ -191,10 +305,14 @@ export const processModpackFileUpload = async (
       console.error(`Error procesando ${fileType} para modpack ${modpackId}:`, error);
       sendErrorUpdate(modpackId, versionId, `Error procesando ${fileType}: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
-      // Limpiar el archivo ZIP temporal inicial
+      // Limpiar el archivo temporal inicial y el directorio de extracción
       if (fs.existsSync(tempPath)) {
         fs.unlinkSync(tempPath);
         console.log(`Archivo temporal eliminado: ${tempPath}`);
+      }
+      if (fs.existsSync(extractDir)) {
+        fs.rmSync(extractDir, { recursive: true, force: true });
+        console.log(`Directorio de extracción eliminado: ${extractDir}`);
       }
     }
   };

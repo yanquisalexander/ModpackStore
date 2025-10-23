@@ -450,8 +450,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     const handleFileUpload = async (file: File, type: string) => {
         if (!file) return;
 
-        if (!file.name.toLowerCase().endsWith('.zip')) {
-            toast.error('Solo se permiten archivos ZIP');
+        if (!file.name.toLowerCase().endsWith('.zip') && !file.name.toLowerCase().endsWith('.rar') && !file.name.toLowerCase().endsWith('.7z')) {
+            toast.error('Solo se permiten archivos ZIP, RAR o 7z');
             return;
         }
 
@@ -476,7 +476,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 },
                 onError: (error) => {
                     let message = error.message || 'Error al subir el archivo';
-                    
+
                     // Try to parse error message if it contains API error details
                     try {
                         const errorData = JSON.parse(error.message);
@@ -486,7 +486,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     } catch (e) {
                         // Keep original message if parsing fails
                     }
-                    
+
                     toast.error(message);
                 }
             });
@@ -659,7 +659,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     !currentlySelected.some(f =>
                         f.versionId === ff.versionId &&
                         f.fileHash === ff.fileHash &&
-                        f.path === ff.path
+                        f.path === f.path
                     )
                 )];
 
@@ -1099,7 +1099,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                                 <Input
                                     type="file"
-                                    accept=".zip"
+                                    accept=".zip,.rar,.7z"
                                     onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
