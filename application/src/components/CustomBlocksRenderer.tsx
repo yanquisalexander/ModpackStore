@@ -27,7 +27,97 @@ DOMPurify.setConfig({
 
 // Custom hook for dynamic content processing
 const useDynamicContent = (content: string, userSession?: any, instance?: MinecraftInstance) => {
-    const [processedContent, setProcessedContent] = useState(content);
+    const [processedContent, setProcessedContent] = useState(() => {
+        // Initialize with default values for dynamic placeholders
+        if (!content) return content;
+        let initialContent = content;
+
+        // Replace dynamic placeholders with default values immediately
+        initialContent = initialContent.replace(/\$fetch\(([^,]+)(?:,\s*([^)]+))?\)/g, (_, url, defaultValue) => {
+            return defaultValue ? defaultValue.trim().replace(/['"]/g, '') : 'loading...';
+        });
+
+        initialContent = initialContent.replace(/\$onlinePlayers\([^)]+\)/g, '0');
+        initialContent = initialContent.replace(/\$mcAccountName\(([^)]+)\)/g, (_, defaultValue) => {
+            return defaultValue ? defaultValue.trim().replace(/['"]/g, '') : 'Loading...';
+        });
+
+        initialContent = initialContent.replace(/\$username\(([^)]+)\)/g, (_, defaultValue) => {
+            return defaultValue ? defaultValue.trim().replace(/['"]/g, '') : 'Anonymous';
+        });
+
+        // Replace time/date patterns with current values immediately
+        initialContent = initialContent.replace(/\$date\(([^)]+)?\)/g, () => {
+            try {
+                const now = new Date();
+                return now.toLocaleDateString('es-ES', { dateStyle: 'medium' });
+            } catch {
+                return new Date().toLocaleDateString();
+            }
+        });
+
+        initialContent = initialContent.replace(/\$time\(([^)]+)?\)/g, () => {
+            try {
+                const now = new Date();
+                return now.toLocaleTimeString('es-ES');
+            } catch {
+                return new Date().toLocaleTimeString();
+            }
+        });
+
+        // Replace random and other patterns immediately
+        initialContent = initialContent.replace(/\$random\((\d+)(?:,\s*(\d+))?\)/g, (_, minStr, maxStr) => {
+            try {
+                const min = parseInt(minStr, 10);
+                const max = maxStr ? parseInt(maxStr, 10) : min + 100;
+                return Math.floor(Math.random() * (max - min + 1) + min).toString();
+            } catch {
+                return '0';
+            }
+        });
+
+        initialContent = initialContent.replace(/\$len\(([^)]+)\)/g, (_, text) => {
+            try {
+                return text.trim().replace(/['"]/g, '').length.toString();
+            } catch {
+                return '0';
+            }
+        });
+
+        initialContent = initialContent.replace(/\$counter\(([^,]+)(?:,\s*([^)]+))?\)/g, (_, name, start) => {
+            try {
+                const startValue = start ? parseInt(start.trim(), 10) : 0;
+                return startValue.toString();
+            } catch {
+                return '0';
+            }
+        });
+
+        initialContent = initialContent.replace(/\$format\(([^,]+)(?:,\s*([^)]+))?\)/g, (_, number) => {
+            try {
+                const num = parseFloat(number.trim());
+                return num.toLocaleString('es-ES');
+            } catch {
+                return number.trim();
+            }
+        });
+
+        initialContent = initialContent.replace(/\$if\(([^,]+)(?:,\s*([^,]+))?(?:,\s*([^)]+))?\)/g, (_, condition, trueValue, falseValue) => {
+            try {
+                const cond = condition.trim().replace(/['"]/g, '');
+                const isTrue = cond === 'true' || cond === '1' || cond.length > 0;
+                if (isTrue) {
+                    return trueValue ? trueValue.trim().replace(/['"]/g, '') : 'true';
+                } else {
+                    return falseValue ? falseValue.trim().replace(/['"]/g, '') : 'false';
+                }
+            } catch {
+                return falseValue ? falseValue.trim().replace(/['"]/g, '') : 'false';
+            }
+        });
+
+        return initialContent;
+    });
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
