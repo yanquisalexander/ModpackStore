@@ -192,11 +192,11 @@ const FileTreeNode = ({ name, node, expandedFolders, setExpandedFolders, path }:
             <div>
                 <div onClick={toggleExpand} className="flex items-center cursor-pointer hover:bg-white/5 p-1 rounded transition-colors">
                     {isExpanded
-                        ? <LucideChevronDown className="size-4 mr-2 text-white/70 flex-shrink-0" />
-                        : <LucideChevronRight className="size-4 mr-2 text-white/70 flex-shrink-0" />
+                        ? <LucideChevronDown className="size-4 mr-2 text-[var(--muted-foreground)] flex-shrink-0" />
+                        : <LucideChevronRight className="size-4 mr-2 text-[var(--muted-foreground)] flex-shrink-0" />
                     }
                     <LucideFolder className="size-4 mr-2 text-sky-400 flex-shrink-0" />
-                    <span className="text-white/90">{name}</span>
+                    <span className="text-[var(--foreground)]">{name}</span>
                 </div>
                 {isExpanded && (
                     <div className="pl-6 border-l border-white/10 ml-2">
@@ -228,7 +228,7 @@ const FileTreeNode = ({ name, node, expandedFolders, setExpandedFolders, path }:
         <div className="flex items-center p-1 ml-4">
             <div className='w-4 mr-2'></div> {/* Indent spacer */}
             {getFileIcon(name)}
-            <span className="text-white/80">{name}</span>
+            <span className="text-[var(--muted-foreground)]">{name}</span>
         </div>
     );
 };
@@ -462,14 +462,14 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     if (pageState.loading) {
         return (
             <div className="flex items-center justify-center min-h-screen w-full">
-                <LucideLoader className="size-10 animate-spin text-white" />
+                <LucideLoader className="size-10 animate-spin text-[var(--foreground)]" />
             </div>
         );
     }
 
     if (pageState.error) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen w-full text-red-500">
+            <div className="flex flex-col items-center justify-center min-h-screen w-full text-[var(--destructive)]">
                 <p className="text-lg font-semibold">Error:</p>
                 <p>{pageState.errorMessage}</p>
             </div>
@@ -478,7 +478,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
 
     if (!pageState.modpackData) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen w-full text-red-500">
+            <div className="flex flex-col items-center justify-center min-h-screen w-full text-[var(--destructive)]">
                 <p className="text-lg font-semibold">Error:</p>
                 <p>Modpack no encontrado.</p>
             </div>
@@ -585,8 +585,8 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                     className="w-20 h-20 rounded-2xl shadow-md"
                                 />
                                 <div>
-                                    <h1 className="text-4xl font-bold text-white">{modpackData.name}</h1>
-                                    <div className="flex items-center gap-2 text-white/90 text-sm">
+                                    <h1 className="text-4xl font-bold text-[var(--foreground)]">{modpackData.name}</h1>
+                                    <div className="flex items-center gap-2 text-[var(--foreground)] text-sm">
                                         <span>{displayPublisher.publisherName}</span>
 
                                         {/* Mostramos el verificado solo si no estamos mostrando el usuario como publisher */}
@@ -681,11 +681,11 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 </TabsList>
 
                                 <TabsContent value="overview" className="mt-6">
-                                    <h2 className="text-xl font-semibold text-white">Descripción</h2>
+                                    <h2 className="text-xl font-semibold text-[var(--foreground)]">Descripción</h2>
                                     <ExternalLinkHandler className="prose prose-sm dark:prose-invert max-w-none space-y-1
                                         prose-h2:text-sm prose-h2:uppercase prose-h2:font-bold prose-h2:text-indigo-400
                                         prose-hr:border-gray-700
-                                        prose-p:text-gray-200 prose-li:text-gray-200 mt-2">
+                                        prose-p:text-[var(--foreground)] prose-li:text-[var(--foreground)] mt-2">
                                         {modpackData.description || "Este modpack aún no tiene una descripción."}
                                     </ExternalLinkHandler>
                                 </TabsContent>
@@ -712,7 +712,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                 ))}
                                         </div>
                                     ) : (
-                                        <p className="text-white/80">No hay archivos disponibles para esta versión.</p>
+                                        <p className="text-[var(--muted-foreground)]">No hay archivos disponibles para esta versión.</p>
                                     )}
                                 </TabsContent>
 
@@ -721,7 +721,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                     <div className="space-y-4">
                                         {/* Version selector */}
                                         <div className="flex items-center gap-4">
-                                            <label className="text-white text-sm font-medium">Versión:</label>
+                                            <label className="text-[var(--foreground)] text-sm font-medium">Versión:</label>
                                             <Select
                                                 value={selectedVersionId}
                                                 onValueChange={setSelectedVersionId}
@@ -749,15 +749,15 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
 
                                         {versionsLoading ? (
                                             <div className="flex items-center justify-center py-8">
-                                                <LucideLoader className="size-6 animate-spin text-white" />
-                                                <span className="ml-2 text-white/80">Cargando changelog...</span>
+                                                <LucideLoader className="size-6 animate-spin text-[var(--foreground)]" />
+                                                <span className="ml-2 text-[var(--muted-foreground)]">Cargando changelog...</span>
                                             </div>
                                         ) : (
                                             <>
                                                 {(() => {
                                                     if (!selectedVersion) {
                                                         return (
-                                                            <p className="text-white/80">No hay changelog disponible para esta versión.</p>
+                                                            <p className="text-[var(--muted-foreground)]">No hay changelog disponible para esta versión.</p>
                                                         )
                                                     }
 
@@ -768,15 +768,15 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                             <div className="bg-black/20 rounded-lg p-4 border border-white/10">
                                                                 <div className="flex items-center justify-between">
                                                                     <div>
-                                                                        <h3 className="text-lg font-semibold text-white">
+                                                                        <h3 className="text-lg font-semibold text-[var(--foreground)]">
                                                                             {selectedVersion.version}
                                                                         </h3>
-                                                                        <p className="text-white/60 text-sm">
+                                                                        <p className="text-[var(--muted-foreground)] text-sm">
                                                                             Minecraft {selectedVersion.mcVersion} • {formatLoaderInfo(selectedVersion)}
                                                                         </p>
                                                                     </div>
                                                                     <div className="text-right">
-                                                                        <p className="text-white/60 text-sm">
+                                                                        <p className="text-[var(--muted-foreground)] text-sm">
                                                                             {selectedVersion.releaseDate
                                                                                 ? new Date(selectedVersion.releaseDate).toLocaleDateString()
                                                                                 : 'Fecha no disponible'
@@ -793,11 +793,11 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
 
                                                             {/* Full changelog */}
                                                             <div className="bg-black/20 rounded-lg p-4 border border-white/10">
-                                                                <h4 className="text-white font-medium mb-3">Changelog Completo</h4>
+                                                                <h4 className="text-[var(--foreground)] font-medium mb-3">Changelog Completo</h4>
                                                                 <ExternalLinkHandler className="prose prose-sm dark:prose-invert max-w-none space-y-1
                                                                     prose-h2:text-sm prose-h2:uppercase prose-h2:font-bold prose-h2:text-indigo-400
                                                                     prose-hr:border-gray-700
-                                                                    prose-p:text-gray-200 prose-li:text-gray-200">
+                                                                    prose-p:text-[var(--foreground)] prose-li:text-[var(--foreground)]">
                                                                     {selectedVersion.changelog || "No hay changelog para esta versión."}
                                                                 </ExternalLinkHandler>
                                                             </div>
@@ -812,20 +812,20 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 <TabsContent value="versions" className="mt-6">
                                     <div className="space-y-4">
                                         <div className="flex items-center justify-between">
-                                            <h2 className="text-xl font-semibold text-white">Versiones Disponibles</h2>
-                                            <span className="text-white/60 text-sm">
+                                            <h2 className="text-xl font-semibold text-[var(--foreground)]">Versiones Disponibles</h2>
+                                            <span className="text-[var(--muted-foreground)] text-sm">
                                                 {versions.length} versión{versions.length !== 1 ? 'es' : ''} disponible{versions.length !== 1 ? 's' : ''}
                                             </span>
                                         </div>
 
                                         {versionsLoading ? (
                                             <div className="flex items-center justify-center py-8">
-                                                <LucideLoader className="size-6 animate-spin text-white" />
-                                                <span className="ml-2 text-white/80">Cargando versiones...</span>
+                                                <LucideLoader className="size-6 animate-spin text-[var(--foreground)]" />
+                                                <span className="ml-2 text-[var(--muted-foreground)]">Cargando versiones...</span>
                                             </div>
                                         ) : versions.length === 0 ? (
                                             <div className="text-center py-8">
-                                                <p className="text-white/80">No hay versiones disponibles para este modpack.</p>
+                                                <p className="text-[var(--muted-foreground)]">No hay versiones disponibles para este modpack.</p>
                                             </div>
                                         ) : (
                                             <div className="space-y-3">
@@ -853,7 +853,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                                 <div className="flex items-start justify-between">
                                                                     <div className="flex-1">
                                                                         <div className="flex items-center gap-3 mb-2">
-                                                                            <h3 className="text-lg font-semibold text-white">
+                                                                            <h3 className="text-lg font-semibold text-[var(--foreground)]">
                                                                                 {version.version}
                                                                             </h3>
                                                                             {isLatest && (
@@ -877,22 +877,22 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                                             }
                                                                         </div>
 
-                                                                        <div className="grid grid-cols-2 gap-4 text-sm text-white/80 mb-3">
+                                                                        <div className="grid grid-cols-2 gap-4 text-sm text-[var(--muted-foreground)] mb-3">
                                                                             <div>
-                                                                                <span className="text-white/60">Minecraft:</span> {version.mcVersion}
+                                                                                <span className="text-[var(--muted-foreground)]">Minecraft:</span> {version.mcVersion}
                                                                             </div>
                                                                             <div>
-                                                                                <span className="text-white/60">Loader:</span> {formatLoaderInfo(version)}
+                                                                                <span className="text-[var(--muted-foreground)]">Loader:</span> {formatLoaderInfo(version)}
                                                                             </div>
                                                                             <div>
-                                                                                <span className="text-white/60">Publicado:</span> {
+                                                                                <span className="text-[var(--muted-foreground)]">Publicado:</span> {
                                                                                     version.releaseDate
                                                                                         ? new Date(version.releaseDate).toLocaleDateString()
                                                                                         : 'Fecha no disponible'
                                                                                 }
                                                                             </div>
                                                                             <div>
-                                                                                <span className="text-white/60">Estado:</span> {
+                                                                                <span className="text-[var(--muted-foreground)]">Estado:</span> {
                                                                                     version.status === 'published' ? 'Publicado' : version.status
                                                                                 }
                                                                             </div>
