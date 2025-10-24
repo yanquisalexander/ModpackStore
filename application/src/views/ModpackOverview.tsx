@@ -318,36 +318,6 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
         setExpandedFolders(initialExpansionState);
     }, [fileTree]);
 
-    const extractImportantFixes = (changelog: string): string[] => {
-        // Extract items that look like fixes from the changelog
-        const lines = changelog?.split('\n') || [];
-        const fixes: string[] = [];
-
-        for (const line of lines) {
-            const trimmed = line.trim();
-            // Look for lines that start with - or * and contain fix-related keywords
-            if ((trimmed.startsWith('-') || trimmed.startsWith('*')) &&
-                (trimmed.toLowerCase().includes('fix') ||
-                    trimmed.toLowerCase().includes('corregido') ||
-                    trimmed.toLowerCase().includes('solucionado') ||
-                    trimmed.toLowerCase().includes('arreglo'))) {
-                fixes.push(trimmed.replace(/^[-*]\s*/, ''));
-            }
-        }
-
-        // If no specific fixes found, look for general improvement items
-        if (fixes.length === 0) {
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if ((trimmed.startsWith('-') || trimmed.startsWith('*')) && trimmed.length > 10) {
-                    fixes.push(trimmed.replace(/^[-*]\s*/, ''));
-                    if (fixes.length >= 3) break; // Limit to 3 items
-                }
-            }
-        }
-
-        return fixes.slice(0, 5); // Limit to 5 most important fixes
-    };
 
     useEffect(() => {
         setTitleBarState({
@@ -791,7 +761,6 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                         )
                                                     }
 
-                                                    const importantFixes = extractImportantFixes(selectedVersion.changelog)
 
                                                     return (
                                                         <div className="space-y-6">
@@ -820,23 +789,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                                 </div>
                                                             </div>
 
-                                                            {/* Important fixes section */}
-                                                            {importantFixes.length > 0 && (
-                                                                <div className="bg-blue-900/20 rounded-lg p-4 border border-blue-500/20">
-                                                                    <h4 className="text-white font-medium mb-3 flex items-center gap-2">
-                                                                        <span className="w-2 h-2 bg-blue-400 rounded-full"></span>
-                                                                        Arreglos Importantes
-                                                                    </h4>
-                                                                    <ul className="space-y-2">
-                                                                        {importantFixes.map((fix, index) => (
-                                                                            <li key={index} className="text-white/80 text-sm flex items-start gap-2">
-                                                                                <span className="text-blue-400 mt-1">•</span>
-                                                                                <span>{fix}</span>
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                </div>
-                                                            )}
+
 
                                                             {/* Full changelog */}
                                                             <div className="bg-black/20 rounded-lg p-4 border border-white/10">
@@ -887,7 +840,6 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                         const isLatest = getLatestVersion(versions)?.id === version.id
                                                         const isSelected = selectedVersionId === version.id ||
                                                             (selectedVersionId === "latest" && isLatest)
-                                                        const importantFixes = extractImportantFixes(version.changelog)
 
                                                         return (
                                                             <div
@@ -946,25 +898,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                                                             </div>
                                                                         </div>
 
-                                                                        {/* Show important fixes if available */}
-                                                                        {importantFixes.length > 0 && (
-                                                                            <div className="mt-3">
-                                                                                <h4 className="text-white/80 text-sm font-medium mb-2">Arreglos principales:</h4>
-                                                                                <ul className="space-y-1">
-                                                                                    {importantFixes.slice(0, 3).map((fix, index) => (
-                                                                                        <li key={index} className="text-white/60 text-sm flex items-start gap-2">
-                                                                                            <span className="text-blue-400 mt-1 text-xs">•</span>
-                                                                                            <span className="line-clamp-1">{fix}</span>
-                                                                                        </li>
-                                                                                    ))}
-                                                                                    {importantFixes.length > 3 && (
-                                                                                        <li className="text-white/40 text-xs italic">
-                                                                                            +{importantFixes.length - 3} arreglos más...
-                                                                                        </li>
-                                                                                    )}
-                                                                                </ul>
-                                                                            </div>
-                                                                        )}
+
                                                                     </div>
                                                                 </div>
                                                             </div>
