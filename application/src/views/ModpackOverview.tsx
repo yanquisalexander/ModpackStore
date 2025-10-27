@@ -629,26 +629,28 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 )}
 
                                 {/* Botón de instalación */}
-                                <div className="w-full md:w-auto">
-                                    <InstallButton
-                                        modpackId={modpackId}
-                                        modpackName={modpackData.name!}
-                                        localInstances={localInstancesOfModpack}
-                                        acquisitionMethod={modpackData.acquisitionMethod ||
-                                            (modpackData.isPasswordProtected ? 'password' :
-                                                modpackData.requiresTwitchSubscription ? 'twitch_sub' :
-                                                    modpackData.isPaid ? 'paid' : 'free')
-                                        }
-                                        isPasswordProtected={modpackData.isPasswordProtected}
-                                        isPaid={modpackData.isPaid}
-                                        isFree={modpackData.isFree}
-                                        price={modpackData.price}
-                                        requiresTwitchSubscription={modpackData.requiresTwitchSubscription}
-                                        requiredTwitchChannels={modpackData.requiredTwitchChannels}
-                                        selectedVersionId={selectedVersionId}
-                                        disabled={modpackData.requiresTwitchSubscription && !accessLoading && !userCanAccess}
-                                    />
-                                </div>
+                                {versions.length > 0 && (
+                                    <div className="w-full md:w-auto">
+                                        <InstallButton
+                                            modpackId={modpackId}
+                                            modpackName={modpackData.name!}
+                                            localInstances={localInstancesOfModpack}
+                                            acquisitionMethod={modpackData.acquisitionMethod ||
+                                                (modpackData.isPasswordProtected ? 'password' :
+                                                    modpackData.requiresTwitchSubscription ? 'twitch_sub' :
+                                                        modpackData.isPaid ? 'paid' : 'free')
+                                            }
+                                            isPasswordProtected={modpackData.isPasswordProtected}
+                                            isPaid={modpackData.isPaid}
+                                            isFree={modpackData.isFree}
+                                            price={modpackData.price}
+                                            requiresTwitchSubscription={modpackData.requiresTwitchSubscription}
+                                            requiredTwitchChannels={modpackData.requiredTwitchChannels}
+                                            selectedVersionId={selectedVersionId}
+                                            disabled={modpackData.requiresTwitchSubscription && !accessLoading && !userCanAccess}
+                                        />
+                                    </div>
+                                )}
                             </div>
                         </motion.div>
 
