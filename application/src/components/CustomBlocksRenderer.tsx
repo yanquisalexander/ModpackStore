@@ -459,9 +459,8 @@ const CustomBlocksRenderer: React.FC<CustomBlocksRendererProps> = ({ blocks, ins
             {blocks.map((block, index) => {
                 // Generate a stable key: prefer explicit id/uuid/key from block, fallback to a deterministic JSON-based key
                 const computeStableKey = () => {
-                    if ((block as any).id) return String((block as any).id);
-                    if ((block as any).uuid) return String((block as any).uuid);
-                    if ((block as any).key) return String((block as any).key);
+                    const idPart = (block as any).id || (block as any).uuid || (block as any).key;
+                    if (idPart) return `${idPart}-${index}`;
                     try {
                         // Use a subset of fields to avoid huge keys
                         const subset = {
