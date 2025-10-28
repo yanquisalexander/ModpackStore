@@ -1,9 +1,11 @@
 {
     "upload": {
         "type": "yaml",
-        "files": "application/src-tauri/resources/i18n/en.yml"
+        "files": "application/src-tauri/resources/i18n/en.yml",
+        "deprecate": "project"
     },
     "download": {
-        "files": "application/src-tauri/resources/i18n/${lang}.yml"
+        "files": "application/src-tauri/resources/i18n/${lang}.yml",
+        "includeSourceLang": true
     }
 }

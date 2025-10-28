@@ -1,274 +1,155 @@
-# Base language file for Modpack Store
-# LANG_CODE: pt-BR
-appName: "Modpack Store"
+---
+_base:
+  actions:
+    cancel: "Cancel"
+    close: "Close"
+    confirm: "Confirm"
+    create: "Create"
+    delete: "Delete"
+    edit: "Edit"
+    refresh: "Refresh"
+    save: "Save"
+    search: "Search"
+  results:
+    error: "Error"
+    success: "Success"
+    warning: "Warning"
+  states:
+    loading: "Loading..."
+    saving: "Saving..."
+app:
+  name: "Modpack Store"
+auth:
+  authenticating: "Authenticating..."
+  connecting: "Connecting..."
+  providers:
+    discord: "Login with Discord"
+    patreon: "Login with Patreon"
+    twitch: "Login with Twitch"
+common:
+  about: "About"
+  accounts: "Accounts"
+  actions: "actions"
+  explore: "Explore"
+  filter: "Filter"
+  help: "Help"
+  info: "Information"
+  instances: "Instances"
+  library: "Library"
+  name: "Name"
+  results: "results"
+  settings: "Settings"
+  sort: "Sort"
+  status: "Status"
+  type: "Type"
+config:
+  actions:
+    <<: "actions"
+    restoreDefaults: "Restore defaults for {section}"
+    saveChanges: "Save changes"
+  advancedOptions:
+    comingSoon: "More advanced options coming soon"
+    description: "Additional options for authenticated users"
+    title: "Advanced Options"
+  description: "Customize launcher settings according to your preferences"
+  language:
+    select: "Select language"
+    title: "Language"
+    useSystem: "Use system language"
+  results:
+    <<: "results"
+    directorySelectError: "Error selecting directory"
+    loadError: "Error loading configuration"
+    restoreDefaultsSuccess: "Default values restored for {section}"
+    saveErrorDescription: "Could not save configuration. Please try again."
+    saveSuccess: "Configuration saved"
+    saveSuccessDescription: "Changes have been saved successfully."
+  sections:
+    account:
+      description: "Account and authentication settings"
+      title: "Account"
+    appearance:
+      description: "Customize launcher appearance"
+      title: "Appearance"
+    gameplay:
+      description: "Gameplay-related settings"
+      title: "Gameplay"
+    general:
+      description: "General launcher settings"
+      title: "General"
+    minecraft:
+      description: "Minecraft-specific settings"
+      title: "Minecraft"
+  states:
+    <<: "states"
+    loadingConfig: "Loading configuration..."
+  themes:
+    description: "Customize the application appearance with themes"
+    title: "Themes"
+  title: "Configuration"
+instances:
+  fields:
+    gameArgs: "Game Arguments"
+    javaArgs: "Java Arguments"
+    memory: "Memory"
+    modpack: "Modpack"
+  title: "Instances"
+  types:
+    custom: "Custom"
+    fabric: "Fabric"
+    forge: "Forge"
+    vanilla: "Vanilla"
 languages:
   en: "English"
-  es-419: "Spanish (Latin America)"
-  pt-BR: "Portuguese (Brazil)"
-
-# Common UI elements
-common:
-  explore: "Explorar"
-  library: "Biblioteca"
-  instances: "Instâncias"
-  accounts: "Contas"
-  settings: "Configurações"
-  help: "Ajuda"
-  about: "Sobre"
-  close: "Fechar"
-  cancel: "Cancelar"
-  confirm: "Confirmar"
-  save: "Salvar"
-  loading: "Carregando..."
-  error: "Erro"
-  success: "Sucesso"
-  warning: "Aviso"
-  info: "Informação"
-  search: "Buscar"
-  filter: "Filtrar"
-  sort: "Ordenar"
-  refresh: "Atualizar"
-  create: "Criar"
-  edit: "Editar"
-  delete: "Excluir"
-  name: "Nome"
-  type: "Tipo"
-  status: "Status"
-  description: "Descrição"
-  version: "Versão"
-  author: "Autor"
-  size: "Tamanho"
-  modified: "Modificado"
-
-# Navigation
-nav:
-  home: "Início"
-  back: "Voltar"
-  next: "Próximo"
-  previous: "Anterior"
-
-# Authentication
-auth:
-  signIn: "Entrar"
-  signUp: "Cadastrar"
-  signOut: "Sair"
-  username: "Nome de usuário"
-  password: "Senha"
-  email: "E-mail"
-  rememberMe: "Lembrar-me"
-  forgotPassword: "Esqueceu a senha?"
-  createAccount: "Criar conta"
-  noAccount: "Não tem uma conta?"
-  haveAccount: "Já tem uma conta?"
-  loginWithDiscord: "Entrar com Discord"
-  loginWithTwitch: "Entrar com Twitch"
-  loginWithPatreon: "Entrar com Patreon"
-  connecting: "Conectando..."
-  authenticating: "Autenticando..."
-
-# Modpacks
+  es: "Spanish"
+  pt_BR: "Portuguese (Brazil)"
 modpacks:
+  actions:
+    install: "Install"
+    installed: "Installed"
+    launch: "Launch"
+    update: "Update"
+  fields:
+    categories: "Categories"
+    changelog: "Changelog"
+    downloads: "Downloads"
+    lastUpdated: "Last Updated"
+    minecraftVersion: "Minecraft Version"
+    modloader: "Mod Loader"
+    tags: "Tags"
+  noResults: "No modpacks found"
+  searchPlaceholder: "Search modpacks..."
   title: "Modpacks"
-  searchPlaceholder: "Buscar modpacks..."
-  noResults: "Nenhum modpack encontrado"
-  install: "Instalar"
-  installed: "Instalado"
-  update: "Atualizar"
-  launch: "Iniciar"
-  downloads: "Downloads"
-  rating: "Avaliação"
-  tags: "Tags"
-  categories: "Categorias"
-  minecraftVersion: "Versão do Minecraft"
-  forgeVersion: "Versão do Forge"
-  modloader: "Carregador de Mods"
-  fileSize: "Tamanho do Arquivo"
-  lastUpdated: "Última Atualização"
-  changelog: "Registro de Mudanças"
-  requirements: "Requisitos"
-  dependencies: "Dependências"
-
-# Instances
-instances:
-  title: "Instâncias"
-  vanilla: "Vanilla"
-  forge: "Forge"
-  fabric: "Fabric"
-  modpack: "Modpack"
-  custom: "Personalizado"
-  memory: "Memória"
-  javaArgs: "Argumentos Java"
-  gameArgs: "Argumentos do Jogo"
-
-# Settings
 settings:
-  title: "Configurações"
-  general: "Geral"
-  appearance: "Aparência"
-  gameplay: "Jogabilidade"
-  advanced: "Avançado"
-  language: "Idioma"
-  theme: "Tema"
-  light: "Claro"
-  dark: "Escuro"
-  system: "Sistema"
-  instancesDir: "Diretório de Instâncias"
-  javaDir: "Diretório do Java"
-  ramAllocation: "Alocação de RAM"
-  closeOnLaunch: "Fechar launcher ao iniciar jogo"
-  showSnapshots: "Mostrar versões snapshot"
-  checkUpdates: "Verificar atualizações na inicialização"
-  downloadConcurrency: "Concorrência de download"
-  reset: "Restaurar padrões"
-  resetConfirm: "Tem certeza de que deseja restaurar todas as configurações para os padrões?"
-
-# Status messages
-status:
-  online: "Online"
-  offline: "Offline"
-  connecting: "Conectando..."
-  syncing: "Sincronizando..."
-  downloading: "Baixando..."
-  installing: "Instalando..."
-  updating: "Atualizando..."
-  launching: "Iniciando..."
-  running: "Executando"
-  stopped: "Parado"
-
-# Errors
-errors:
-  generic: "Ocorreu um erro"
-  network: "Erro de rede"
-  auth: "Erro de autenticação"
-  permission: "Permissão negada"
-  notFound: "Não encontrado"
-  validation: "Erro de validação"
-  fileNotFound: "Arquivo não encontrado"
-  directoryNotFound: "Diretório não encontrado"
-  insufficientSpace: "Espaço insuficiente no disco"
-  corruptedFile: "Arquivo corrompido"
-  incompatibleVersion: "Versão incompatível"
-  modConflict: "Conflito de mods detectado"
-  javaNotFound: "Java não encontrado"
-  minecraftNotFound: "Minecraft não encontrado"
-
-# Success messages
-success:
-  login: "Login realizado com sucesso"
-  logout: "Logout realizado com sucesso"
-  install: "Instalado com sucesso"
-  update: "Atualizado com sucesso"
-  delete: "Excluído com sucesso"
-  save: "Salvo com sucesso"
-  create: "Criado com sucesso"
-
-# Confirmations
-confirm:
-  delete: "Tem certeza de que deseja excluir este item?"
-  logout: "Tem certeza de que deseja sair?"
-  close: "Tem certeza de que deseja fechar a aplicação?"
-  reset: "Tem certeza de que deseja restaurar as configurações?"
-
-# Tooltips
+  actions:
+    reset: "Reset to defaults"
+    resetConfirm: "Are you sure you want to reset all settings to defaults?"
+  categories:
+    advanced: "Advanced"
+    appearance: "Appearance"
+    gameplay: "Gameplay"
+    general: "General"
+    system: "System"
+  fields:
+    checkUpdates: "Check for updates on startup"
+    closeOnLaunch: "Close launcher on game launch"
+    downloadConcurrency: "Download concurrency"
+    instancesDir: "Instances Directory"
+    javaDir: "Java Directory"
+    language: "Language"
+    ramAllocation: "RAM Allocation"
+    showSnapshots: "Show snapshot versions"
+    theme: "Theme"
+  title: "Settings"
 tooltips:
-  favorite: "Marcar como favorito"
-  unfavorite: "Remover dos favoritos"
-  search: "Buscar"
-  filter: "Filtrar"
-  sort: "Ordenar"
-  settings: "Configurações"
-  help: "Ajuda"
-  info: "Informação"
-
-# File operations
-files:
-  select: "Selecionar arquivo"
-  selectDir: "Selecionar diretório"
-  browse: "Navegar..."
-  open: "Abrir"
-  overwrite: "Sobrescrever"
-  skip: "Pular"
-  retry: "Tentar novamente"
-
-# Units
-units:
-  bytes: "B"
-  kilobytes: "KB"
-  megabytes: "MB"
-  gigabytes: "GB"
-  milliseconds: "ms"
-  seconds: "s"
-  minutes: "m"
-  hours: "h"
-  days: "d"
-
-# Time
-time:
-  now: "agora"
-  ago: "atrás"
-  justNow: "agora mesmo"
-  minute: "minuto"
-  hour: "hora"
-  day: "dia"
-  week: "semana"
-  month: "mês"
-  year: "ano"
-  minutes: "minutos"
-  hours: "horas"
-  days: "dias"
-  weeks: "semanas"
-  months: "meses"
-  years: "anos"
-
-# User menu
+  favorite: "Mark as favorite"
+  unfavorite: "Remove from favorites"
 user:
-  currentUser: "Usuário atual"
-  viewProfile: "Ver perfil"
-  settings: "Configurações"
-  creatorsCenter: "Centro de criadores"
-  adminPanel: "Painel de administração"
-  reloadApp: "Recarregar aplicativo"
-  becomeCreator: "Torne-se um criador"
-  logout: "Sair"
-
-# Configuration dialog
-config:
-  title: "Configuração"
-  loading: "Carregando configuração..."
-  description: "Personalize as configurações do launcher de acordo com suas preferências"
-  saveSuccess: "Configuração salva"
-  saveSuccessDescription: "As alterações foram salvas com sucesso."
-  saveError: "Erro ao salvar"
-  saveErrorDescription: "Não foi possível salvar a configuração. Tente novamente."
-  loadError: "Erro ao carregar configuração"
-  directorySelectError: "Erro ao selecionar diretório"
-  saving: "Salvando..."
-  save: "Salvar alterações"
-  cancel: "Cancelar"
-  browse: "Navegar"
-  languageSelect: "Selecionar idioma"
-  useSystemLanguage: "Usar idioma do sistema"
-  detected: "Detectado"
-  advancedOptions: "Opções Avançadas"
-  advancedOptionsDescription: "Opções adicionais para usuários autenticados"
-  comingSoon: "Mais opções avançadas em breve"
-  themes: "Temas"
-  themesDescription: "Personalize a aparência da aplicação com temas"
-  sections:
-    general:
-      title: "Geral"
-      description: "Configurações gerais do launcher"
-    gameplay:
-      title: "Jogabilidade"
-      description: "Configurações relacionadas ao gameplay"
-    minecraft:
-      title: "Minecraft"
-      description: "Configurações específicas do Minecraft"
-    account:
-      title: "Conta"
-      description: "Configurações de conta e autenticação"
-    appearance:
-      title: "Aparência"
-      description: "Personalize a aparência do launcher"
-  restoreDefaults: "Restaurar padrões para {section}"
-  restoreDefaultsSuccess: "Valores padrão restaurados para {section}"
+  adminPanel: "Admin Panel"
+  becomeCreator: "Become a creator"
+  creatorsCenter: "Creators Center"
+  currentUser: "Current user"
+  logout: "Logout"
+  reloadApp: "Reload application"
+  settings: "Settings"
+  viewProfile: "View profile"

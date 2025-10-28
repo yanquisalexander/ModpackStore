@@ -1,0 +1,155 @@
+---
+_base:
+  actions:
+    cancel: "Cancel"
+    close: "Close"
+    confirm: "Confirm"
+    create: "Create"
+    delete: "Delete"
+    edit: "Edit"
+    refresh: "Refresh"
+    save: "Save"
+    search: "Search"
+  results:
+    error: "Error"
+    success: "Success"
+    warning: "Warning"
+  states:
+    loading: "Loading..."
+    saving: "Saving..."
+app:
+  name: "Modpack Store"
+auth:
+  authenticating: "Autenticando..."
+  connecting: "Conectando..."
+  providers:
+    discord: "Conectar con Discord"
+    patreon: "Iniciar sesión con Patreon"
+    twitch: "Iniciar sesión con Twitch"
+common:
+  about: "Acerca de"
+  accounts: "Cuentas"
+  actions: "actions"
+  explore: "Explorar"
+  filter: "Filtrar"
+  help: "Ayuda"
+  info: "Información"
+  instances: "Instancias"
+  library: "Biblioteca"
+  name: "Nombre"
+  results: "results"
+  settings: "Configuración"
+  sort: "Ordenar"
+  status: "Estado"
+  type: "Tipo"
+config:
+  actions:
+    <<: "actions"
+    restoreDefaults: "Restaurar valores predeterminados para {section}"
+    saveChanges: "Save changes"
+  advancedOptions:
+    comingSoon: "Próximamente habrá opciones más avanzadas"
+    description: "Opciones adicionales para usuarios autenticados"
+    title: "Opciones avanzadas"
+  description: "Personaliza la configuración del iniciador según tus preferencias"
+  language:
+    select: "Seleccionar idioma"
+    title: "Idioma"
+    useSystem: "Utilizar el lenguaje del sistema"
+  results:
+    <<: "results"
+    directorySelectError: "Error al seleccionar el directorio"
+    loadError: "Error al cargar la configuración"
+    restoreDefaultsSuccess: "Valores predeterminados restaurados para {section}"
+    saveErrorDescription: "No se pudo guardar la configuración. Inténtalo de nuevo."
+    saveSuccess: "Configuración guardada"
+    saveSuccessDescription: "Los cambios se han guardado correctamente."
+  sections:
+    account:
+      description: "Configuración de cuenta y autenticación"
+      title: "Cuenta"
+    appearance:
+      description: "Personalizar la apariencia del lanzador"
+      title: "Apariencia"
+    gameplay:
+      description: "Configuraciones relacionadas con el juego"
+      title: "Jugabilidad"
+    general:
+      description: "Configuración general del iniciador"
+      title: "General"
+    minecraft:
+      description: "Configuraciones específicas de Minecraft"
+      title: "Minecraft"
+  states:
+    <<: "states"
+    loadingConfig: "Loading configuration..."
+  themes:
+    description: "Personaliza la apariencia de la aplicación con temas"
+    title: "Temas"
+  title: "Configuración"
+instances:
+  fields:
+    gameArgs: "Argumentos del juego"
+    javaArgs: "Argumentos de Java"
+    memory: "Memoria"
+    modpack: "Modpack"
+  title: "Instancias"
+  types:
+    custom: "Personalizado"
+    fabric: "Fabric"
+    forge: "Forge"
+    vanilla: "Vanilla"
+languages:
+  en: "Inglés"
+  es: "Español"
+  pt_BR: "Portugués (Brasil)"
+modpacks:
+  actions:
+    install: "Instalar"
+    installed: "Instalado"
+    launch: "Lanzamiento"
+    update: "Actualizar"
+  fields:
+    categories: "Categorías"
+    changelog: "Registro de cambios"
+    downloads: "Descargas"
+    lastUpdated: "Última actualización"
+    minecraftVersion: "Versión de Minecraft"
+    modloader: "Cargador de mods"
+    tags: "Etiquetas"
+  noResults: "No se encontraron modpacks"
+  searchPlaceholder: "Buscar modpacks..."
+  title: "Modpacks"
+settings:
+  actions:
+    reset: "Reset to defaults"
+    resetConfirm: "Are you sure you want to reset all settings to defaults?"
+  categories:
+    advanced: "Avanzado"
+    appearance: "Apariencia"
+    gameplay: "Jugabilidad"
+    general: "General"
+    system: "Sistema"
+  fields:
+    checkUpdates: "Buscar actualizaciones al iniciar"
+    closeOnLaunch: "Close launcher on game launch"
+    downloadConcurrency: "Download concurrency"
+    instancesDir: "Directorio de instancias"
+    javaDir: "Directorio de Java"
+    language: "Idioma"
+    ramAllocation: "Asignación de RAM"
+    showSnapshots: "Show snapshot versions"
+    theme: "Tema"
+  title: "Configuración"
+tooltips:
+  favorite: "Marcar como favorito"
+  unfavorite: "Eliminar de favoritos"
+user:
+  adminPanel: "Panel de administración"
+  becomeCreator: "Conviértete en creador"
+  creatorsCenter: "Centro de creadores"
+  currentUser: "Usuario actual"
+  logout: "Cerrar sesión"
+  reloadApp: "Recargar aplicación"
+  settings: "Configuración"
+  viewProfile: "Ver perfil"
