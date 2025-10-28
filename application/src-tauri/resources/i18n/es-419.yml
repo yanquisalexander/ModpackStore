@@ -224,3 +224,13 @@ time:
   weeks: "weeks"
   months: "months"
   years: "years"
+# User Menu
+user:
+  currentUser: "Usuario actual"
+  viewProfile: "Ver perfil"
+  settings: "Configuración"
+  creatorsCenter: "Centro de creadores"
+  adminPanel: "Panel de administración"
+  reloadApp: "Recargar aplicación"
+  becomeCreator: "Conviértete en creador"
+  logout: "Cerrar sesión"
