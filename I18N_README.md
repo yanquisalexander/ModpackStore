@@ -178,15 +178,15 @@ useEffect(() => {
 
 El idioma se guarda automáticamente en la configuración del usuario. Cuando cambias el idioma en settings, se actualiza automáticamente en toda la aplicación.
 
-## Crowdin
+## Localazy
 
-Para traducciones colaborativas, usa el archivo `crowdin.yml` en la raíz del proyecto. Las traducciones se sincronizan automáticamente con Crowdin.
+Para traducciones colaborativas, usa Localazy. La configuración está en `localazy.json` y las claves sensibles en `localazy.keys.json` (ignorado por git).
 
 ### Agregar un nuevo idioma
 
-1. Crear archivo `xx.yml` en `resources/i18n/`
+1. Crear archivo `xx.yml` en `application/src-tauri/resources/i18n/`
 2. Copiar estructura del archivo `en.yml`
-3. Actualizar `crowdin.yml` con el nuevo idioma
+3. Configurar en Localazy el nuevo idioma
 4. Traducir las cadenas
 
 ## Mejores prácticas

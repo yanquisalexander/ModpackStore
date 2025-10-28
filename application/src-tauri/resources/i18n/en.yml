@@ -1,5 +1,4 @@
 # Base language file for Modpack Store
-# This is the source file for Crowdin translations
 
 # LANG_CODE: en
 
@@ -8,6 +7,8 @@ languages:
   en: "English"
   es-419: "Spanish (Latin America)"
   pt-BR: "Portuguese (Brazil)"
+
+# Common UI elements
 common:
   explore: "Explore"
   library: "Library"
@@ -25,6 +26,21 @@ common:
   success: "Success"
   warning: "Warning"
   info: "Information"
+  search: "Search"
+  filter: "Filter"
+  sort: "Sort"
+  refresh: "Refresh"
+  create: "Create"
+  edit: "Edit"
+  delete: "Delete"
+  name: "Name"
+  type: "Type"
+  status: "Status"
+  description: "Description"
+  version: "Version"
+  author: "Author"
+  size: "Size"
+  modified: "Modified"
 
 # Navigation
 nav:
@@ -35,8 +51,6 @@ nav:
 
 # Authentication
 auth:
-  login: "Login"
-  logout: "Logout"
   signIn: "Sign In"
   signUp: "Sign Up"
   signOut: "Sign Out"
@@ -57,22 +71,12 @@ auth:
 # Modpacks
 modpacks:
   title: "Modpacks"
-  search: "Search modpacks..."
+  searchPlaceholder: "Search modpacks..."
   noResults: "No modpacks found"
-  loading: "Loading modpacks..."
   install: "Install"
   installed: "Installed"
   update: "Update"
-  updating: "Updating..."
   launch: "Launch"
-  launching: "Launching..."
-  delete: "Delete"
-  deleting: "Deleting..."
-  create: "Create Modpack"
-  edit: "Edit Modpack"
-  description: "Description"
-  version: "Version"
-  author: "Author"
   downloads: "Downloads"
   rating: "Rating"
   tags: "Tags"
@@ -89,19 +93,6 @@ modpacks:
 # Instances
 instances:
   title: "Instances"
-  create: "Create Instance"
-  edit: "Edit Instance"
-  delete: "Delete Instance"
-  launch: "Launch"
-  stop: "Stop"
-  settings: "Settings"
-  name: "Name"
-  type: "Type"
-  status: "Status"
-  running: "Running"
-  stopped: "Stopped"
-  launching: "Launching..."
-  stopping: "Stopping..."
   vanilla: "Vanilla"
   forge: "Forge"
   fabric: "Fabric"
@@ -132,6 +123,19 @@ settings:
   downloadConcurrency: "Download concurrency"
   reset: "Reset to defaults"
   resetConfirm: "Are you sure you want to reset all settings to defaults?"
+
+# Status messages
+status:
+  online: "Online"
+  offline: "Offline"
+  connecting: "Connecting..."
+  syncing: "Syncing..."
+  downloading: "Downloading..."
+  installing: "Installing..."
+  updating: "Updating..."
+  launching: "Launching..."
+  running: "Running"
+  stopped: "Stopped"
 
 # Errors
 errors:
@@ -171,7 +175,6 @@ confirm:
 tooltips:
   favorite: "Mark as favorite"
   unfavorite: "Remove from favorites"
-  refresh: "Refresh"
   search: "Search"
   filter: "Filter"
   sort: "Sort"
@@ -179,36 +182,15 @@ tooltips:
   help: "Help"
   info: "Information"
 
-# Status
-status:
-  online: "Online"
-  offline: "Offline"
-  connecting: "Connecting..."
-  syncing: "Syncing..."
-  downloading: "Downloading..."
-  installing: "Installing..."
-  updating: "Updating..."
-  launching: "Launching..."
-  running: "Running"
-  stopped: "Stopped"
-  error: "Error"
-  warning: "Warning"
-  success: "Success"
-
 # File operations
 files:
   select: "Select file"
   selectDir: "Select directory"
   browse: "Browse..."
   open: "Open"
-  save: "Save"
-  cancel: "Cancel"
   overwrite: "Overwrite"
   skip: "Skip"
   retry: "Retry"
-  size: "Size"
-  modified: "Modified"
-  type: "Type"
 
 # Units
 units:
@@ -250,3 +232,45 @@ user:
   reloadApp: "Reload application"
   becomeCreator: "Become a creator"
   logout: "Logout"
+
+# Configuration dialog
+config:
+  title: "Configuration"
+  loading: "Loading configuration..."
+  description: "Customize launcher settings according to your preferences"
+  saveSuccess: "Configuration saved"
+  saveSuccessDescription: "Changes have been saved successfully."
+  saveError: "Save error"
+  saveErrorDescription: "Could not save configuration. Please try again."
+  loadError: "Error loading configuration"
+  directorySelectError: "Error selecting directory"
+  saving: "Saving..."
+  save: "Save changes"
+  cancel: "Cancel"
+  browse: "Browse"
+  languageSelect: "Select language"
+  useSystemLanguage: "Use system language"
+  detected: "Detected"
+  advancedOptions: "Advanced Options"
+  advancedOptionsDescription: "Additional options for authenticated users"
+  comingSoon: "More advanced options coming soon"
+  themes: "Themes"
+  themesDescription: "Customize the application appearance with themes"
+  sections:
+    general:
+      title: "General"
+      description: "General launcher settings"
+    gameplay:
+      title: "Gameplay"
+      description: "Gameplay-related settings"
+    minecraft:
+      title: "Minecraft"
+      description: "Minecraft-specific settings"
+    account:
+      title: "Account"
+      description: "Account and authentication settings"
+    appearance:
+      title: "Appearance"
+      description: "Customize launcher appearance"
+  restoreDefaults: "Restore defaults for {section}"
+  restoreDefaultsSuccess: "Default values restored for {section}"

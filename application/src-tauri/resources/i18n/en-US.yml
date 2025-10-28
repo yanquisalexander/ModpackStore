@@ -1,6 +1,6 @@
 # Base language file for Modpack Store
-# This is the source file for Crowdin translations
-# LANG_CODE: en
+
+# LANG_CODE: en-US
 appName: "Modpack Store"
 languages:
   en: "English"

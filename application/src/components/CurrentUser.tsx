@@ -6,6 +6,7 @@ import { useConfigDialog } from "@/stores/ConfigDialogContext";
 import { useReloadApp } from "@/stores/ReloadContext"; // Importar el nuevo hook
 import { useConnection } from "@/utils/ConnectionContext";
 import { CreatorInviteDialog } from "@/components/CreatorInviteDialog";
+import { useI18n } from "@/hooks/useI18n";
 
 export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) => {
     const { session, logout, isAuthenticated } = useAuthentication();
@@ -16,6 +17,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const [showMoreOptions, setShowMoreOptions] = useState(false);
     const [isCreatorDialogOpen, setIsCreatorDialogOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const { t } = useI18n();
 
     const toggleMenu = (event: React.MouseEvent) => {
         const isOpening = !openMenu;
@@ -104,7 +106,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
             <div
                 onClick={toggleMenu}
                 className={`${baseClasses} !rounded-none !hover:bg-white/5 !transition-none ${titleBarOpaque ? darkMode : lightMode}`}
-                title="Usuario actual"
+                title={t('user.currentUser')}
             >
                 <img draggable={false} src={session?.avatarUrl} alt="Avatar" className="size-5 rounded-md object-cover" />
                 <span className="text-sm font-medium whitespace-nowrap">{session?.username}</span>
@@ -127,7 +129,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-[var(--accent)] rounded whitespace-nowrap font-medium"
                     >
                         <LucideSquareUserRound size={16} />
-                        Ver perfil
+                        {t('user.viewProfile')}
                     </Link>
 
                     <button
@@ -135,7 +137,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-[var(--accent)] rounded text-left cursor-pointer whitespace-nowrap font-medium"
                     >
                         <LucideSettings2 size={16} />
-                        Configuración
+                        {t('user.settings')}
                     </button>
 
 
@@ -146,7 +148,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                             className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-[var(--accent)] rounded whitespace-nowrap font-medium"
                         >
                             <LucidePackageOpen size={16} />
-                            Centro de creadores
+                            {t('user.creatorsCenter')}
                         </Link>
                     )}
 
@@ -158,7 +160,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                             className="w-full shrink-0 flex gap-x-3 items-center py-2 px-2 hover:bg-[var(--accent)] rounded whitespace-nowrap font-medium"
                         >
                             <LucideSettings2 size={16} />
-                            Panel de administración
+                            {t('user.adminPanel')}
                         </Link>
                     )}
 
@@ -172,7 +174,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                                 className="cursor-pointer w-full flex gap-x-2 items-center py-1 px-2 hover:bg-[var(--accent)] rounded whitespace-nowrap"
                             >
                                 <LucideAppWindowMac size={16} />
-                                Recargar aplicación
+                                {t('user.reloadApp')}
                             </button>
                         </>
                     )}
@@ -184,7 +186,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                             className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-purple-600/30 rounded text-left cursor-pointer whitespace-nowrap font-medium text-purple-100"
                         >
                             <LucidePackageOpen size={16} />
-                            Conviértete en creador
+                            {t('user.becomeCreator')}
                         </button>
                     )}
 
@@ -193,7 +195,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                         className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-red-600/30 rounded text-left cursor-pointer whitespace-nowrap font-medium text-red-100"
                     >
                         <LucideLogOut size={16} />
-                        Cerrar sesión
+                        {t('user.logout')}
                     </button>
                 </ul>
             </div>

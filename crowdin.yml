@@ -1,3 +1,0 @@
-files:
-  - source: /application/src-tauri/resources/i18n/en.yml
-    translation: /application/src-tauri/resources/i18n/%locale%.yml

@@ -94,8 +94,8 @@ export function useI18n(): UseI18nReturn {
             if (value && typeof value === 'object' && k in value) {
                 value = value[k];
             } else {
-                // Key not found, return the key itself
-                return key;
+                // Key not found, return
+                return "[Missing Translation for key " + key + "]";
             }
         }
 

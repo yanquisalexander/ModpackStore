@@ -40,6 +40,7 @@ import { TranslatedText } from "@/providers/I18nProvider";
 export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProps) => {
     const { isAuthenticated } = useAuthentication();
     const { availableLanguages, detectedSystemLanguage, resetToSystemLanguage } = useI18n();
+    const { t } = useI18n();
 
     // Estado consolidado
     const [config, setConfig] = useState<ConfigState>({
@@ -83,7 +84,7 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
 
         } catch (error) {
             console.error("Failed to load config:", error);
-            toast.error("Error al cargar la configuración");
+            toast.error(t('config.loadError'));
             setConfig(prev => ({ ...prev, loading: false }));
         }
     }, []);
@@ -177,8 +178,8 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                 )
             );
 
-            toast.success("Configuración guardada", {
-                description: "Los cambios han sido guardados correctamente.",
+            toast.success(t('config.saveSuccess'), {
+                description: t('config.saveSuccessDescription'),
                 richColors: true,
             });
 
@@ -186,8 +187,8 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
             onClose();
         } catch (error) {
             console.error("Error al guardar configuración:", error);
-            toast.error("Error al guardar", {
-                description: "No se pudo guardar la configuración. Intenta nuevamente.",
+            toast.error(t('config.saveError'), {
+                description: t('config.saveErrorDescription'),
             });
             setConfig(prev => ({ ...prev, saving: false }));
         }
