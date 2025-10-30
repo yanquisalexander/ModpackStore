@@ -1,6 +1,6 @@
 <template>
   <v-app>
-    <v-app-bar color="primary" prominent>
+    <v-app-bar v-show="store.showAppBar" color="primary" prominent>
       <v-app-bar-title>
         <v-icon icon="mdi-rocket-launch" class="mr-2"></v-icon>
         Prelaunch Designer
@@ -20,8 +20,10 @@
 
 <script setup lang="ts">
 import { useTheme } from 'vuetify'
+import { useAppearanceStore } from '@/store/appearance'
 
 const theme = useTheme()
+const store = useAppearanceStore()
 
 const toggleTheme = () => {
   theme.global.name.value = theme.global.name.value === 'dark' ? 'light' : 'dark'

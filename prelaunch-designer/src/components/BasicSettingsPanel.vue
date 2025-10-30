@@ -58,6 +58,51 @@
 
     <v-divider class="my-4"></v-divider>
 
+    <h3 class="text-subtitle-1 mb-2">Audio</h3>
+    <v-text-field
+      v-model="audioUrl"
+      label="URL del Audio"
+      variant="outlined"
+      density="comfortable"
+      placeholder="https://ejemplo.com/audio.mp3"
+      @update:model-value="updateAudio"
+    ></v-text-field>
+
+    <div class="audio-volume-control">
+      <v-row align="center" class="mb-2">
+        <v-col cols="12" sm="8">
+          <v-slider
+            v-model="audioVolumeDisplay"
+            label="Volumen del Audio"
+            min="0"
+            max="100"
+            step="5"
+            thumb-label
+            color="primary"
+            show-ticks="always"
+            tick-size="4"
+            @update:model-value="updateAudio"
+          ></v-slider>
+        </v-col>
+        <v-col cols="12" sm="4">
+          <v-text-field
+            v-model="audioVolumeDisplay"
+            label="Volumen (%)"
+            type="number"
+            min="0"
+            max="100"
+            step="5"
+            density="comfortable"
+            variant="outlined"
+            suffix="%"
+            @update:model-value="updateAudio"
+          ></v-text-field>
+        </v-col>
+      </v-row>
+    </div>
+
+    <v-divider class="my-4"></v-divider>
+
     <h3 class="text-subtitle-1 mb-2">Botón de Jugar</h3>
     <v-text-field
       v-model="playButtonText"
@@ -116,6 +161,8 @@ const logoUrl = ref(appearance.value.logo?.url || '')
 const logoHeight = ref(appearance.value.logo?.height || '56px')
 const backgroundImageUrl = ref(appearance.value.background?.imageUrl || '')
 const backgroundVideoUrl = ref(appearance.value.background?.videoUrl as string || '')
+const audioUrl = ref(appearance.value.audio?.url || '')
+const audioVolumeDisplay = ref(Math.round((appearance.value.audio?.volume || 0.5) * 100))
 const playButtonText = ref(appearance.value.playButton?.text || 'Jugar ahora')
 const playButtonBgColor = ref(appearance.value.playButton?.backgroundColor || '#00a63e')
 const playButtonTextColor = ref(appearance.value.playButton?.textColor || '#ffffff')
@@ -127,6 +174,8 @@ watch(appearance, (newVal) => {
   logoHeight.value = newVal.logo?.height || '56px'
   backgroundImageUrl.value = newVal.background?.imageUrl || ''
   backgroundVideoUrl.value = newVal.background?.videoUrl as string || ''
+  audioUrl.value = newVal.audio?.url || ''
+  audioVolumeDisplay.value = Math.round((newVal.audio?.volume || 0.5) * 100)
   playButtonText.value = newVal.playButton?.text || 'Jugar ahora'
   playButtonBgColor.value = newVal.playButton?.backgroundColor || '#00a63e'
   playButtonTextColor.value = newVal.playButton?.textColor || '#ffffff'
@@ -164,6 +213,15 @@ const updateBackground = () => {
   })
 }
 
+const updateAudio = () => {
+  store.updateAppearance({
+    audio: {
+      url: audioUrl.value || undefined,
+      volume: audioVolumeDisplay.value / 100
+    }
+  })
+}
+
 const updatePlayButton = () => {
   store.updateAppearance({
     playButton: {
@@ -181,3 +239,18 @@ const updateFooter = () => {
   })
 }
 </script>
+
+<style scoped>
+.audio-volume-control {
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.audio-volume-control .v-slider {
+  margin-bottom: 0.5rem;
+}
+
+.audio-volume-control .v-text-field {
+  margin-top: 0;
+}
+</style>

@@ -27,6 +27,14 @@
           <v-icon>mdi-cellphone</v-icon>
           <v-tooltip activator="parent">Móvil</v-tooltip>
         </v-btn>
+        <v-btn
+          v-if="appearance.audio?.url"
+          :icon="audioMuted ? 'mdi-volume-off' : 'mdi-volume-high'"
+          :variant="audioMuted ? 'tonal' : 'text'"
+          @click="toggleAudioMute"
+        >
+          <v-tooltip activator="parent">{{ audioMuted ? 'Activar audio' : 'Silenciar audio' }}</v-tooltip>
+        </v-btn>
       </v-btn-group>
     </v-card-title>
 
@@ -45,12 +53,36 @@
             />
           </div>
           <div v-else-if="appearance.background?.videoUrl" class="preview-background">
-            <div class="background-placeholder">
-              <v-icon size="64">mdi-video</v-icon>
-              <p>Video Background</p>
-            </div>
+            <video
+              ref="videoElement"
+              autoplay
+              loop
+              muted
+              playsinline
+              class="background-video"
+            >
+              <source
+                v-for="(videoSrc, index) in videoSources"
+                :key="index"
+                :src="videoSrc"
+                type="video/mp4"
+              />
+              Tu navegador no soporta el elemento de video.
+            </video>
           </div>
           <div v-else class="preview-background default-background"></div>
+
+          <!-- Audio -->
+          <audio
+            v-if="appearance.audio?.url"
+            ref="audioElement"
+            :src="appearance.audio.url"
+            :volume="audioVolume"
+            loop
+            autoplay
+            :muted="audioMuted"
+            class="preview-audio"
+          ></audio>
 
           <!-- Logo -->
           <div 
@@ -96,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useAppearanceStore } from '@/store/appearance'
 import { storeToRefs } from 'pinia'
 import type { CustomBlock } from '@/types/PreLaunchAppearance'
@@ -107,6 +139,9 @@ const store = useAppearanceStore()
 const { appearance } = storeToRefs(store)
 
 const previewMode = ref<'desktop' | 'tablet' | 'mobile'>('desktop')
+const audioElement = ref<HTMLAudioElement | null>(null)
+const videoElement = ref<HTMLVideoElement | null>(null)
+const audioMuted = ref(false)
 
 const previewModeClass = computed(() => {
   switch (previewMode.value) {
@@ -145,6 +180,16 @@ const playButtonStyle = computed(() => {
   }
 })
 
+const audioVolume = computed(() => {
+  return appearance.value.audio?.volume ?? 0.5
+})
+
+const videoSources = computed(() => {
+  const videoUrl = appearance.value.background?.videoUrl
+  if (!videoUrl) return []
+  return Array.isArray(videoUrl) ? videoUrl : [videoUrl]
+})
+
 const getBlockStyle = (block: CustomBlock) => {
   const style: Record<string, any> = {}
 
@@ -174,6 +219,34 @@ const getBlockStyle = (block: CustomBlock) => {
 
   return style
 }
+
+// Toggle audio mute
+const toggleAudioMute = () => {
+  audioMuted.value = !audioMuted.value
+}
+
+// Watch for audio changes to restart playback
+watch(() => appearance.value.audio, (newAudio, oldAudio) => {
+  if (audioElement.value) {
+    if (newAudio?.url !== oldAudio?.url) {
+      // URL changed, restart audio
+      audioElement.value.load()
+      audioElement.value.play().catch(console.error)
+    } else if (newAudio?.volume !== oldAudio?.volume) {
+      // Volume changed, update volume
+      audioElement.value.volume = newAudio?.volume ?? 0.5
+    }
+  }
+}, { deep: true })
+
+// Watch for video changes to restart playback
+watch(() => appearance.value.background?.videoUrl, (newVideoUrl, oldVideoUrl) => {
+  if (videoElement.value && newVideoUrl !== oldVideoUrl) {
+    // Video URL changed, restart video
+    videoElement.value.load()
+    videoElement.value.play().catch(console.error)
+  }
+}, { deep: true })
 
 const renderBlockContent = (block: CustomBlock): string => {
   if (!block.content) return ''
@@ -256,6 +329,15 @@ const renderBlockContent = (block: CustomBlock): string => {
   object-fit: cover;
 }
 
+.background-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
 .background-placeholder {
   width: 100%;
   height: 100%;
@@ -269,6 +351,13 @@ const renderBlockContent = (block: CustomBlock): string => {
 
 .default-background {
   background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+}
+
+.preview-audio {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
 }
 
 .preview-logo {

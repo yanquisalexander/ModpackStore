@@ -11,7 +11,8 @@ export const useAppearanceStore = defineStore('appearance', {
     selectedBlock: null as CustomBlock | null,
     editMode: 'visual' as 'visual' | 'advanced',
     history: [] as PreLaunchAppearance[],
-    historyIndex: -1
+    historyIndex: -1,
+    showAppBar: true
   }),
 
   getters: {
@@ -70,6 +71,10 @@ export const useAppearanceStore = defineStore('appearance', {
 
     setEditMode(mode: 'visual' | 'advanced') {
       this.editMode = mode
+    },
+
+    setShowAppBar(show: boolean) {
+      this.showAppBar = show
     },
 
     importFromJSON(jsonString: string) {
