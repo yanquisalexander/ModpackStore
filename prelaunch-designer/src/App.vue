@@ -5,14 +5,15 @@
         <v-icon icon="mdi-rocket-launch" class="mr-2"></v-icon>
         Prelaunch Designer
       </v-app-bar-title>
-      
+
       <v-spacer></v-spacer>
-      
+
       <v-btn icon="mdi-theme-light-dark" @click="toggleTheme"></v-btn>
-      <v-btn icon="mdi-help-circle-outline" href="https://github.com/yanquisalexander/ModpackStore" target="_blank"></v-btn>
+      <v-btn icon="mdi-help-circle-outline" href="https://github.com/yanquisalexander/ModpackStore"
+        target="_blank"></v-btn>
     </v-app-bar>
 
-    <v-main>
+    <v-main :class="{ 'pa-0': !store.showAppBar }">
       <router-view />
     </v-main>
   </v-app>
@@ -30,5 +31,4 @@ const toggleTheme = () => {
 }
 </script>
 
-<style scoped>
-</style>
+<style scoped></style>

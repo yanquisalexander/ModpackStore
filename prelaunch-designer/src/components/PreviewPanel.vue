@@ -3,116 +3,62 @@
     <v-card-title class="d-flex justify-space-between align-center">
       <span>Vista Previa</span>
       <v-btn-group density="compact">
-        <v-btn
-          icon="mdi-monitor"
-          :variant="previewMode === 'desktop' ? 'tonal' : 'text'"
-          @click="previewMode = 'desktop'"
-        >
+        <v-btn icon="mdi-monitor" :variant="previewMode === 'desktop' ? 'tonal' : 'text'"
+          @click="previewMode = 'desktop'">
           <v-icon>mdi-monitor</v-icon>
           <v-tooltip activator="parent">Escritorio</v-tooltip>
         </v-btn>
-        <v-btn
-          icon="mdi-tablet"
-          :variant="previewMode === 'tablet' ? 'tonal' : 'text'"
-          @click="previewMode = 'tablet'"
-        >
+        <v-btn icon="mdi-tablet" :variant="previewMode === 'tablet' ? 'tonal' : 'text'" @click="previewMode = 'tablet'">
           <v-icon>mdi-tablet</v-icon>
           <v-tooltip activator="parent">Tablet</v-tooltip>
         </v-btn>
-        <v-btn
-          icon="mdi-cellphone"
-          :variant="previewMode === 'mobile' ? 'tonal' : 'text'"
-          @click="previewMode = 'mobile'"
-        >
+        <v-btn icon="mdi-cellphone" :variant="previewMode === 'mobile' ? 'tonal' : 'text'"
+          @click="previewMode = 'mobile'">
           <v-icon>mdi-cellphone</v-icon>
           <v-tooltip activator="parent">Móvil</v-tooltip>
         </v-btn>
-        <v-btn
-          v-if="appearance.audio?.url"
-          :icon="audioMuted ? 'mdi-volume-off' : 'mdi-volume-high'"
-          :variant="audioMuted ? 'tonal' : 'text'"
-          @click="toggleAudioMute"
-        >
+        <v-btn v-if="appearance.audio?.url" icon :variant="audioMuted ? 'tonal' : 'text'" @click="toggleAudioMute">
+          <v-icon>
+            {{ audioMuted ? 'mdi-volume-off' : 'mdi-volume-high' }}
+          </v-icon>
           <v-tooltip activator="parent">{{ audioMuted ? 'Activar audio' : 'Silenciar audio' }}</v-tooltip>
         </v-btn>
       </v-btn-group>
     </v-card-title>
 
     <v-card-text class="pa-0 preview-wrapper">
-      <div 
-        class="preview-frame"
-        :class="previewModeClass"
-      >
+      <div class="preview-frame" :class="previewModeClass">
         <div class="preview-content">
           <!-- Background -->
           <div v-if="appearance.background?.imageUrl" class="preview-background">
-            <img 
-              :src="appearance.background.imageUrl" 
-              alt="Background"
-              class="background-image"
-            />
+            <img :src="appearance.background.imageUrl" alt="Background" class="background-image" />
           </div>
           <div v-else-if="appearance.background?.videoUrl" class="preview-background">
-            <video
-              ref="videoElement"
-              autoplay
-              loop
-              muted
-              playsinline
-              class="background-video"
-            >
-              <source
-                v-for="(videoSrc, index) in videoSources"
-                :key="index"
-                :src="videoSrc"
-                type="video/mp4"
-              />
+            <video ref="videoElement" autoplay loop muted playsinline class="background-video">
+              <source v-for="(videoSrc, index) in videoSources" :key="index" :src="videoSrc" type="video/mp4" />
               Tu navegador no soporta el elemento de video.
             </video>
           </div>
           <div v-else class="preview-background default-background"></div>
 
           <!-- Audio -->
-          <audio
-            v-if="appearance.audio?.url"
-            ref="audioElement"
-            :src="appearance.audio.url"
-            :volume="audioVolume"
-            loop
-            autoplay
-            :muted="audioMuted"
-            class="preview-audio"
-          ></audio>
+          <audio v-if="appearance.audio?.url" ref="audioElement" :src="appearance.audio.url" :volume="audioVolume" loop
+            autoplay :muted="audioMuted" class="preview-audio"></audio>
 
           <!-- Logo -->
-          <div 
-            v-if="appearance.logo?.url"
-            class="preview-logo"
-            :style="logoStyle"
-          >
+          <div v-if="appearance.logo?.url" class="preview-logo" :style="logoStyle">
             <img :src="appearance.logo.url" alt="Logo" />
           </div>
 
           <!-- Custom Blocks -->
-          <div
-            v-for="(block, index) in appearance.customBlocks"
-            :key="index"
-            class="preview-block"
-            :class="block.className"
-            :style="getBlockStyle(block)"
-          >
-            <component
-              :is="block.tagName || 'div'"
-              v-html="renderBlockContent(block)"
-            ></component>
+          <div v-for="(block, index) in appearance.customBlocks" :key="index" class="preview-block"
+            :class="block.className" :style="getBlockStyle(block)">
+            <component :is="block.tagName || 'div'" v-html="renderBlockContent(block)"></component>
           </div>
 
           <!-- Play Button -->
           <div class="preview-footer">
-            <button
-              class="preview-play-button"
-              :style="playButtonStyle"
-            >
+            <button class="preview-play-button" :style="playButtonStyle">
               {{ appearance.playButton?.text || 'Jugar ahora' }}
             </button>
 

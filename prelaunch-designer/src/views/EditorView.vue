@@ -2,16 +2,13 @@
   <v-container fluid class="pa-0" :class="containerClass">
     <v-row no-gutters class="fill-height">
       <!-- Left Panel - Editor Controls -->
-      <v-col :cols="leftPanelCols.cols" :md="leftPanelCols.md" class="border-e" v-show="!leftPanelCollapsed && !fullscreenPreview">
+      <v-col :cols="leftPanelCols.cols" :md="leftPanelCols.md" class="border-e"
+        v-show="!leftPanelCollapsed && !fullscreenPreview">
         <v-card flat tile height="100%">
           <v-card-title class="d-flex align-center justify-space-between">
             <span>Controles del Editor</span>
-            <v-btn
-              icon="mdi-chevron-left"
-              size="small"
-              variant="text"
-              @click="leftPanelCollapsed = !leftPanelCollapsed"
-            >
+            <v-btn icon="mdi-chevron-left" size="small" variant="text"
+              @click="leftPanelCollapsed = !leftPanelCollapsed">
               <v-tooltip activator="parent">Colapsar panel izquierdo</v-tooltip>
             </v-btn>
           </v-card-title>
@@ -45,16 +42,13 @@
       </v-col>
 
       <!-- Right Panel - Properties -->
-      <v-col :cols="rightPanelCols.cols" :md="rightPanelCols.md" class="border-s" v-show="!rightPanelCollapsed && !fullscreenPreview">
+      <v-col :cols="rightPanelCols.cols" :md="rightPanelCols.md" class="border-s"
+        v-show="!rightPanelCollapsed && !fullscreenPreview">
         <v-card flat tile height="100%">
           <v-card-title class="d-flex align-center justify-space-between">
             <span>Propiedades</span>
-            <v-btn
-              icon="mdi-chevron-right"
-              size="small"
-              variant="text"
-              @click="rightPanelCollapsed = !rightPanelCollapsed"
-            >
+            <v-btn icon="mdi-chevron-right" size="small" variant="text"
+              @click="rightPanelCollapsed = !rightPanelCollapsed">
               <v-tooltip activator="parent">Colapsar panel derecho</v-tooltip>
             </v-btn>
           </v-card-title>
@@ -64,86 +58,41 @@
     </v-row>
 
     <!-- Action Buttons -->
-    <v-fab
-      size="large"
-      app
-      fixed
-      icon
-      color="primary"
-      v-show="!fullscreenPreview"
-    >
-    <v-icon>{{ open ? 'mdi-close' : 'mdi-menu' }}</v-icon>
-      <v-speed-dial
-        v-model="open"
-        transition="slide-y-reverse-transition"
-        activator="parent"
-      >
-        <v-btn
-          key="download"
-          icon="mdi-download"
-          color="success"
-          @click="exportJSON"
-        >
+    <v-fab size="large" app fixed icon color="primary" v-show="!fullscreenPreview">
+      <v-icon>{{ open ? 'mdi-close' : 'mdi-menu' }}</v-icon>
+      <v-speed-dial v-model="open" transition="slide-y-reverse-transition" activator="parent">
+        <v-btn key="download" icon="mdi-download" color="success" @click="exportJSON">
           <v-icon>mdi-download</v-icon>
           <v-tooltip activator="parent" location="start">Exportar JSON</v-tooltip>
         </v-btn>
 
-        <v-btn
-          key="upload"
-          icon="mdi-upload"
-          color="info"
-          @click="showImportDialog = true"
-        >
+        <v-btn key="upload" icon="mdi-upload" color="info" @click="showImportDialog = true">
           <v-icon>mdi-upload</v-icon>
           <v-tooltip activator="parent" location="start">Importar JSON</v-tooltip>
         </v-btn>
 
-        <v-btn
-          key="undo"
-          icon="mdi-undo"
-          color="warning"
-          :disabled="!store.canUndo"
-          @click="store.undo()"
-        >
+        <v-btn key="undo" icon="mdi-undo" color="warning" :disabled="!store.canUndo" @click="store.undo()">
           <v-icon>mdi-undo</v-icon>
           <v-tooltip activator="parent" location="start">Deshacer</v-tooltip>
         </v-btn>
 
-        <v-btn
-          key="redo"
-          icon="mdi-redo"
-          color="warning"
-          :disabled="!store.canRedo"
-          @click="store.redo()"
-        >
+        <v-btn key="redo" icon="mdi-redo" color="warning" :disabled="!store.canRedo" @click="store.redo()">
           <v-icon>mdi-redo</v-icon>
           <v-tooltip activator="parent" location="start">Rehacer</v-tooltip>
         </v-btn>
 
-        <v-btn
-          key="fullscreen"
-          icon="mdi-fullscreen"
-          color="secondary"
-          @click="toggleFullscreen"
-        >
+        <v-btn key="fullscreen" icon="mdi-fullscreen" color="secondary" @click="toggleFullscreen">
           <v-icon>{{ fullscreenPreview ? 'mdi-fullscreen-exit' : 'mdi-fullscreen' }}</v-icon>
-          <v-tooltip activator="parent" location="start">{{ fullscreenPreview ? 'Salir de pantalla completa' : 'Vista previa en pantalla completa' }}</v-tooltip>
+          <v-tooltip activator="parent" location="start">
+            {{ fullscreenPreview ? 'Salir de pantalla completa' : 'Vista previa en pantalla completa' }}
+          </v-tooltip>
         </v-btn>
       </v-speed-dial>
     </v-fab>
 
     <!-- Fullscreen Exit Button -->
-    <v-btn
-      v-show="fullscreenPreview"
-      fab
-      size="small"
-      color="secondary"
-      fixed
-      top
-      right
-      @click="toggleFullscreen"
-      class="ma-4"
-    >
+    <v-btn v-show="fullscreenPreview" fab size="small" color="secondary" fixed top right @click="toggleFullscreen"
+      class="ma-4">
       <v-icon>mdi-fullscreen-exit</v-icon>
       <v-tooltip activator="parent">Salir de pantalla completa</v-tooltip>
     </v-btn>
@@ -215,14 +164,14 @@ const centerPanelCols = computed(() => {
       md: 12
     }
   }
-  
+
   const leftCollapsed = leftPanelCollapsed.value
   const rightCollapsed = rightPanelCollapsed.value
-  
+
   let md = 6
   if (leftCollapsed && rightCollapsed) md = 12
   else if (leftCollapsed || rightCollapsed) md = 9
-  
+
   return {
     cols: 12,
     md
@@ -236,9 +185,7 @@ const rightPanelCols = computed(() => ({
 
 const containerClass = computed(() => ({
   'fill-height': true,
-  'fill-height-no-appbar': !store.showAppBar,
-  'pt-0': !store.showAppBar,
-  'pt-4': store.showAppBar
+  'fill-height-no-appbar': !store.showAppBar
 }))
 
 const exportJSON = () => {
@@ -316,6 +263,4 @@ const toggleFullscreen = () => {
 .v-col {
   transition: all 0.3s ease-in-out;
 }
-
-
 </style>

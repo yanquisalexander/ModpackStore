@@ -1,0 +1,35 @@
+@import "@fontsource-variable/jost";
+
+@font-face {
+  font-family: "Monocraft";
+  src: url("./assets/fonts/Monocraft.ttf") format("truetype");
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: "Monocraft";
+  src: url("./assets/fonts/Monocraft-SemiBold.ttf") format("truetype");
+  font-weight: 600;
+}
+
+@font-face {
+  font-family: "Minecraft Five";
+  src: url("./assets/fonts/MinecraftFive-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Minecraft Ten";
+  src: url("./assets/fonts/MinecraftTen.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+
+@theme {
+  --font-jost: "Jost Variable", sans-serif;
+  --font-monocraft: "Monocraft", sans-serif;
+  --font-minecraft-ten: "Minecraft Ten", sans-serif;
+  --font-minecraft-five: "Minecraft Five", sans-serif;
+  --default-font-family: var(--font-jost);
+}
