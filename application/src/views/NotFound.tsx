@@ -2,15 +2,32 @@ import { Link } from "react-router-dom"
 import { LucideFrown, LucideHome, LucideArrowLeft } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { getSpecialFlags } from "@/utils/SPECIAL_DATES"
+import { StreamlineUltimateHalloweenCandy } from "@/icons/StreamlineUltimateHalloweenCandy"
+
+// Aqui debemos mapear los íconos especiales según la fecha
+
+const NOT_FOUND_ICON: React.FC<React.SVGProps<SVGSVGElement>> = (props) => {
+    const { halloween } = getSpecialFlags();
+    if (halloween) {
+        return <StreamlineUltimateHalloweenCandy {...props} />
+    }
+
+    return <LucideFrown {...props} />
+}
+
+
 
 export const NotFound = () => {
+
     return (
         <div className="h-[calc(100dvh-2.25rem)] flex items-center justify-center p-4">
             <Card className="max-w-md w-full">
                 <CardContent className="p-8 text-center">
                     {/* Ícono principal */}
                     <div className="flex justify-center mb-6">
-                        <LucideFrown className="w-16 h-16 text-muted-foreground" />
+
+                        <NOT_FOUND_ICON className="w-16 h-16 text-muted-foreground" />
                     </div>
 
                     {/* Título */}

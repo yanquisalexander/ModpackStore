@@ -2,11 +2,14 @@ import { check, Update } from '@tauri-apps/plugin-updater';
 import { invoke } from '@tauri-apps/api/core';
 import { error, info } from "@tauri-apps/plugin-log";
 import { getVersion } from "@tauri-apps/api/app";
+import { playSound } from "./utils/sounds";
+import { isHalloween } from "./utils/SPECIAL_DATES";
 
 const h1 = document.getElementById('splash-status')!;
 const progressBar = document.getElementById('splash-progressbar')!;
 const progress = document.getElementById('splash-progress')!;
 const loader = document.querySelector('.loader')! as HTMLElement;
+
 
 let finished = false;
 const splashStart = Date.now();
@@ -101,6 +104,11 @@ async function handleDownload(update: Update) {
 async function runUpdateFlow() {
     h1.textContent = 'Comprobando actualizaciones...';
     hideProgress();
+
+    // Si es Halloween, reproducimos un sonido temático
+    if (isHalloween()) {
+        playSound("LAUNCHER_HALLOWEEN", 0.5);
+    }
 
     try {
         const update = await check();

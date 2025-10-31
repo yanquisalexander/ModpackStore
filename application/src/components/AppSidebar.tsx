@@ -16,6 +16,8 @@ import type { MinecraftInstance } from "@/types/TauriCommandReturns";
 import { useConnection } from "@/utils/ConnectionContext";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import GridIcon from "@/icons/GridIcon";
+import { isHalloween } from "@/utils/SPECIAL_DATES";
+import { MdiHalloween } from "@/icons/MdiHalloween";
 
 
 export const AppSidebar: React.FC = memo(() => {
@@ -169,6 +171,29 @@ export const AppSidebar: React.FC = memo(() => {
         <aside className="h-full scrollbar-hide flex flex-col overflow-y-auto bg-[var(--sidebar)]" style={{ gridArea: 'sidebar' }}>
             {/* Navegación principal */}
             <div className="flex flex-col items-center py-2 space-y-1.5">
+                {
+                    isHalloween() && (
+                        <Tooltip>
+                            <TooltipTrigger>
+                                <Link
+                                    to="/seasons/halloween"
+                                    className="group relative flex size-12 items-center justify-center p-2.5 rounded-md transition-all duration-200 ease-in-out cursor-pointer text-[var(--sidebar-foreground)] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
+                                >
+                                    <motion.div
+                                        initial={{ rotate: 0 }}
+                                        animate={{ rotate: [0, 15, -15, 0] }}
+                                        transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                                    >
+                                        <MdiHalloween className="size-5 transition-all duration-200 group-hover:scale-110 group-hover:text-orange-500" />
+                                    </motion.div>
+                                </Link>
+                            </TooltipTrigger>
+                            <TooltipContent side="right">
+                                Feliz Halloween!
+                            </TooltipContent>
+                        </Tooltip>
+                    )
+                }
                 {NAV_ITEMS.map((item) => {
                     const isActive = location.pathname === item.path;
                     return (
