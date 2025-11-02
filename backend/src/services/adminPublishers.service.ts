@@ -56,9 +56,17 @@ export interface AddMemberData {
 }
 
 export class AdminPublishersService {
-    private static publisherRepository = AppDataSource.getRepository(Publisher);
-    private static memberRepository = AppDataSource.getRepository(PublisherMember);
-    private static userRepository = AppDataSource.getRepository(User);
+    private static getPublisherRepository() {
+        return AppDataSource.getRepository(Publisher);
+    }
+
+    private static getMemberRepository() {
+        return AppDataSource.getRepository(PublisherMember);
+    }
+
+    private static getUserRepository() {
+        return AppDataSource.getRepository(User);
+    }
 
     /**
      * Get all publishers with pagination and filtering
@@ -74,7 +82,7 @@ export class AdminPublishersService {
             sortOrder = 'DESC'
         } = options;
 
-        const query = this.publisherRepository.createQueryBuilder('publisher')
+        const query = this.getPublisherRepository().createQueryBuilder('publisher')
             .leftJoinAndSelect('publisher.members', 'members')
             .leftJoinAndSelect('members.user', 'user')
             .leftJoinAndSelect('publisher.modpacks', 'modpacks');
@@ -116,7 +124,7 @@ export class AdminPublishersService {
      * Get publisher details with members and modpacks
      */
     static async getPublisherDetails(publisherId: string): Promise<Publisher | null> {
-        return await this.publisherRepository.findOne({
+        return await this.getPublisherRepository().findOne({
             where: { id: publisherId },
             relations: ['members', 'members.user', 'modpacks', 'teamScopes', 'wallets']
         });
@@ -132,7 +140,7 @@ export class AdminPublishersService {
 
         try {
             // Check if publisher name already exists
-            const existingPublisher = await this.publisherRepository.findOne({
+            const existingPublisher = await this.getPublisherRepository().findOne({
                 where: { publisherName: data.publisherName }
             });
 
@@ -141,7 +149,7 @@ export class AdminPublishersService {
             }
 
             // Create the publisher
-            const publisher = this.publisherRepository.create({
+            const publisher = this.getPublisherRepository().create({
                 ...data,
                 verified: false,
                 partnered: false,
@@ -152,7 +160,7 @@ export class AdminPublishersService {
             const savedPublisher = await queryRunner.manager.save(publisher);
 
             // Add creator as owner
-            const creatorMember = this.memberRepository.create({
+            const creatorMember = this.getMemberRepository().create({
                 publisherId: savedPublisher.id,
                 userId: createdBy,
                 role: PublisherMemberRole.OWNER
@@ -183,7 +191,7 @@ export class AdminPublishersService {
      * Update a publisher
      */
     static async updatePublisher(publisherId: string, data: UpdatePublisherData, updatedBy: string): Promise<Publisher> {
-        const publisher = await this.publisherRepository.findOne({
+        const publisher = await this.getPublisherRepository().findOne({
             where: { id: publisherId }
         });
 
@@ -193,7 +201,7 @@ export class AdminPublishersService {
 
         // Check for duplicate publisher name if updating name
         if (data.publisherName && data.publisherName !== publisher.publisherName) {
-            const existingPublisher = await this.publisherRepository.findOne({
+            const existingPublisher = await this.getPublisherRepository().findOne({
                 where: { publisherName: data.publisherName }
             });
 
@@ -204,7 +212,7 @@ export class AdminPublishersService {
 
         // Update the publisher
         Object.assign(publisher, data);
-        const updatedPublisher = await this.publisherRepository.save(publisher);
+        const updatedPublisher = await this.getPublisherRepository().save(publisher);
 
         // Log the action
         await AuditService.createLog({
@@ -226,7 +234,7 @@ export class AdminPublishersService {
         await queryRunner.startTransaction();
 
         try {
-            const publisher = await this.publisherRepository.findOne({
+            const publisher = await this.getPublisherRepository().findOne({
                 where: { id: publisherId },
                 relations: ['modpacks']
             });
@@ -268,7 +276,7 @@ export class AdminPublishersService {
      * Get publisher members with pagination
      */
     static async getPublisherMembers(publisherId: string, page = 1, limit = 20): Promise<{ members: PublisherMember[], total: number }> {
-        const [members, total] = await this.memberRepository.findAndCount({
+        const [members, total] = await this.getMemberRepository().findAndCount({
             where: { publisherId },
             relations: ['user'],
             order: { createdAt: 'DESC' },
@@ -284,7 +292,7 @@ export class AdminPublishersService {
      */
     static async addMember(publisherId: string, data: AddMemberData, addedBy: string): Promise<PublisherMember> {
         // Check if publisher exists
-        const publisher = await this.publisherRepository.findOne({
+        const publisher = await this.getPublisherRepository().findOne({
             where: { id: publisherId }
         });
 
@@ -293,7 +301,7 @@ export class AdminPublishersService {
         }
 
         // Check if user exists
-        const user = await this.userRepository.findOne({
+        const user = await this.getUserRepository().findOne({
             where: { id: data.userId }
         });
 
@@ -302,7 +310,7 @@ export class AdminPublishersService {
         }
 
         // Check if user is already a member
-        const existingMember = await this.memberRepository.findOne({
+        const existingMember = await this.getMemberRepository().findOne({
             where: { publisherId, userId: data.userId }
         });
 
@@ -311,13 +319,13 @@ export class AdminPublishersService {
         }
 
         // Create the member
-        const member = this.memberRepository.create({
+        const member = this.getMemberRepository().create({
             publisherId,
             userId: data.userId,
             role: data.role
         });
 
-        const savedMember = await this.memberRepository.save(member);
+        const savedMember = await this.getMemberRepository().save(member);
 
         // Log the action
         await AuditService.createLog({
@@ -334,7 +342,7 @@ export class AdminPublishersService {
      * Remove a member from a publisher
      */
     static async removeMember(publisherId: string, userId: string, removedBy: string): Promise<void> {
-        const member = await this.memberRepository.findOne({
+        const member = await this.getMemberRepository().findOne({
             where: { publisherId, userId },
             relations: ['user']
         });
@@ -345,7 +353,7 @@ export class AdminPublishersService {
 
         // Cannot remove the last owner
         if (member.role === PublisherMemberRole.OWNER) {
-            const ownerCount = await this.memberRepository.count({
+            const ownerCount = await this.getMemberRepository().count({
                 where: { publisherId, role: PublisherMemberRole.OWNER }
             });
 
@@ -354,7 +362,7 @@ export class AdminPublishersService {
             }
         }
 
-        await this.memberRepository.remove(member);
+        await this.getMemberRepository().remove(member);
 
         // Log the action
         await AuditService.createLog({
@@ -369,7 +377,7 @@ export class AdminPublishersService {
      * Update member role
      */
     static async updateMemberRole(publisherId: string, userId: string, newRole: PublisherMemberRole, updatedBy: string): Promise<PublisherMember> {
-        const member = await this.memberRepository.findOne({
+        const member = await this.getMemberRepository().findOne({
             where: { publisherId, userId },
             relations: ['user']
         });
@@ -382,7 +390,7 @@ export class AdminPublishersService {
 
         // If changing from owner, ensure there's at least one owner remaining
         if (oldRole === PublisherMemberRole.OWNER && newRole !== PublisherMemberRole.OWNER) {
-            const ownerCount = await this.memberRepository.count({
+            const ownerCount = await this.getMemberRepository().count({
                 where: { publisherId, role: PublisherMemberRole.OWNER }
             });
 
@@ -392,7 +400,7 @@ export class AdminPublishersService {
         }
 
         member.role = newRole;
-        const updatedMember = await this.memberRepository.save(member);
+        const updatedMember = await this.getMemberRepository().save(member);
 
         // Log the action
         await AuditService.createLog({

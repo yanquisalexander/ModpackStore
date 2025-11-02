@@ -3,6 +3,7 @@ import { ModpackCard } from '@/components/ModpackCard';
 import { Sparkles, TrendingUp, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthentication } from '@/stores/AuthContext';
+import { API_ENDPOINT } from "@/consts";
 
 interface Modpack {
     id: string;
@@ -51,7 +52,7 @@ export const RecommendedModpacks: React.FC<RecommendedModpacksProps> = ({
                     return;
                 }
 
-                const response = await fetch(`/api/v1/recommendations/for-you?limit=${limit}`, {
+                const response = await fetch(`${API_ENDPOINT}/recommendations/for-you?limit=${limit}`, {
                     headers: {
                         'Authorization': `Bearer ${sessionTokens.accessToken}`
                     }
@@ -62,13 +63,13 @@ export const RecommendedModpacks: React.FC<RecommendedModpacksProps> = ({
                 }
 
                 const data = await response.json();
-                
+
                 // Extract modpacks from JSON:API format
                 const modpacksData = data.data?.map((item: any) => ({
                     id: item.id,
                     ...item.attributes
                 })) || [];
-                
+
                 setModpacks(modpacksData);
                 setIsFallback(data.meta?.isFallback || false);
                 setAlgorithm(data.meta?.algorithm || null);
@@ -88,13 +89,13 @@ export const RecommendedModpacks: React.FC<RecommendedModpacksProps> = ({
 
     const getTitle = () => {
         if (title) return title;
-        
+
         if (algorithm === 'popular') {
             return showFallbackLabel ? 'Quizá te guste...' : 'Popular Modpacks';
         } else if (algorithm === 'new') {
             return showFallbackLabel ? 'Quizá te guste...' : 'New Modpacks';
         }
-        
+
         return 'Recomendado para ti';
     };
 
@@ -142,7 +143,7 @@ export const RecommendedModpacks: React.FC<RecommendedModpacksProps> = ({
                     </span>
                 )}
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                 {modpacks.map((modpack) => (
                     <ModpackCard

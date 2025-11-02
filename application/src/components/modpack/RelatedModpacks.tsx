@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { ModpackCard } from '@/components/ModpackCard';
 import { Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { API_ENDPOINT } from "@/consts";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 interface Modpack {
     id: string;
@@ -37,20 +39,20 @@ export const RelatedModpacks: React.FC<RelatedModpacksProps> = ({
                 setIsLoading(true);
                 setError(null);
 
-                const response = await fetch(`/api/v1/recommendations/related-to/${modpackId}?limit=${limit}`);
+                const response = await fetchWithAuth(`${API_ENDPOINT}/recommendations/related-to/${modpackId}?limit=${limit}`, {});
 
                 if (!response.ok) {
                     throw new Error('Failed to fetch related modpacks');
                 }
 
                 const data = await response.json();
-                
-                // Extract modpacks from JSON:API format
-                const modpacksData = data.data?.map((item: any) => ({
+
+                // Extract modpacks from API response: data.data is always an array
+                const modpacksData = (data.data?.data || []).map((item: any) => ({
                     id: item.id,
                     ...item.attributes
-                })) || [];
-                
+                }));
+
                 setModpacks(modpacksData);
 
             } catch (err) {
@@ -82,8 +84,28 @@ export const RelatedModpacks: React.FC<RelatedModpacksProps> = ({
         );
     }
 
-    if (error || modpacks.length === 0) {
-        return null; // Don't show anything if there's an error or no related modpacks
+    if (error) {
+        return (
+            <div className={cn("space-y-4", className)}>
+                <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-red-500" />
+                    <h3 className="text-xl font-semibold text-red-500">Error loading related modpacks</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">{error}</p>
+            </div>
+        );
+    }
+
+    if (modpacks.length === 0) {
+        return (
+            <div className={cn("space-y-4", className)}>
+                <div className="flex items-center gap-2">
+                    <Users className="h-5 w-5 text-muted-foreground" />
+                    <h3 className="text-xl font-semibold text-muted-foreground">No related modpacks found</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">We couldn't find any similar modpacks at this time.</p>
+            </div>
+        );
     }
 
     return (
@@ -92,7 +114,7 @@ export const RelatedModpacks: React.FC<RelatedModpacksProps> = ({
                 <Users className="h-5 w-5" />
                 <h3 className="text-xl font-semibold">Los usuarios que les gustó este modpack también disfrutaron de...</h3>
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {modpacks.map((modpack) => (
                     <ModpackCard

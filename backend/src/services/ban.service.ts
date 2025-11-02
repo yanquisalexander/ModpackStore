@@ -5,13 +5,15 @@ import { User } from "../entities/User";
 import { AppDataSource } from "../db/data-source";
 
 export class BanService {
-    private static banRepository: Repository<Ban> = AppDataSource.getRepository(Ban);
+    private static getBanRepository(): Repository<Ban> {
+        return AppDataSource.getRepository(Ban);
+    }
 
     /**
      * Get active ban for a user
      */
     static async getActiveBan(userId: string): Promise<Ban | null> {
-        return await this.banRepository.findOne({
+        return await this.getBanRepository().findOne({
             where: { userId, unbanDate: IsNull() },
             relations: ["admin"],
             order: { banDate: "DESC" }
@@ -30,7 +32,7 @@ export class BanService {
      * Get ban history for a user
      */
     static async getBanHistory(userId: string): Promise<Ban[]> {
-        return await this.banRepository.find({
+        return await this.getBanRepository().find({
             where: { userId },
             relations: ["admin", "unbannedBy"],
             order: { banDate: "DESC" }

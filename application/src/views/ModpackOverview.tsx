@@ -29,40 +29,21 @@ import { getModpackVersions, ModpackVersionPublic, getLatestVersion, getNonArchi
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthentication } from "@/stores/AuthContext";
 import { getModpackById } from "@/services/getModpacks";
+import { getVoteCounts, getUserVotes, VoteCounts } from "@/services/votes";
 import { API_ENDPOINT } from "@/consts";
 
 // Función helper para formatear la información del modloader
 const formatLoaderInfo = (version: ModpackVersionPublic): string => {
-    const loaderType = version.loaderType || 'vanilla';
-    const loaderVersion = version.loaderVersion;
+    const loaderType = version.loaderType || version.modLoader || "unknown";
+    const loaderVersion = version.loaderVersion || "desconocida";
 
-    if (loaderType === 'vanilla') {
-        return 'Vanilla';
-    }
-
-    if (loaderType === 'forge') {
-        // Para compatibilidad backward, usar forgeVersion si loaderVersion no está disponible
-        const forgeVer = loaderVersion || version.forgeVersion;
-        return forgeVer ? `Forge ${forgeVer}` : 'Forge';
-    }
-
-    if (loaderType === 'fabric') {
-        return loaderVersion ? `Fabric ${loaderVersion}` : 'Fabric';
-    }
-
-    if (loaderType === 'neoforge') {
-        return loaderVersion ? `NeoForge ${loaderVersion}` : 'NeoForge';
-    }
-
-    if (loaderType === 'quilt') {
-        return loaderVersion ? `Quilt ${loaderVersion}` : 'Quilt';
-    }
-
-    // Fallback para tipos desconocidos
-    return loaderVersion ? `${loaderType} ${loaderVersion}` : loaderType;
+    // Retornamos un string formateado según el tipo de loader
+    return `${loaderType} ${loaderVersion}`;
 };
 
-// Hook personalizado para verificar el acceso del usuario a un modpack
+// --- Hook para acceso a modpack ---
+
+// Estado y lógica para verificar el acceso del usuario a un modpack específico
 const useModpackAccess = (modpackId: string, requiresTwitchSubscription: boolean) => {
     const [accessState, setAccessState] = useState<{
         canAccess: boolean;
@@ -70,7 +51,7 @@ const useModpackAccess = (modpackId: string, requiresTwitchSubscription: boolean
         reason?: string;
         requiredChannels?: string[];
     }>({
-        canAccess: false,
+        canAccess: true,
         loading: true
     });
     const { session, sessionTokens } = useAuthentication();
@@ -259,6 +240,11 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     const [selectedVersionId, setSelectedVersionId] = useState<string>("latest");
     const [versionsLoading, setVersionsLoading] = useState(true);
 
+    // Vote state
+    const [voteCounts, setVoteCounts] = useState<VoteCounts | null>(null);
+    const [userVote, setUserVote] = useState<'like' | 'dislike' | 'none'>('none');
+    const [votesLoading, setVotesLoading] = useState(true);
+
     // State for the file tree view
     const [expandedFolders, setExpandedFolders] = useState<{ [key: string]: boolean }>({});
 
@@ -427,6 +413,37 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
         fetchModpack();
         fetchVersions();
     }, [modpackId]);
+
+    // Load votes after modpack is loaded
+    useEffect(() => {
+        const fetchVotes = async () => {
+            if (!pageState.modpackData) return;
+
+            try {
+                setVotesLoading(true);
+
+                // Load vote counts
+                const counts = await getVoteCounts(modpackId);
+                setVoteCounts(counts);
+
+                // Load user vote if authenticated
+                if (session) {
+                    const userVotes = await getUserVotes();
+                    const userVoteForModpack = userVotes.votes[modpackId] || 'none';
+                    setUserVote(userVoteForModpack);
+                }
+            } catch (error) {
+                console.error('Failed to load votes:', error);
+                // Set defaults
+                setVoteCounts({ modpackId, likes: 0, dislikes: 0, total: 0 });
+                setUserVote('none');
+            } finally {
+                setVotesLoading(false);
+            }
+        };
+
+        fetchVotes();
+    }, [pageState.modpackData, modpackId, session]);
 
     const toggleMute = () => {
         if (videoRef.current) {
@@ -630,9 +647,21 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                     </div>
                                 )}
 
-                                {/* Botón de instalación */}
-                                {versions.length > 0 && (
-                                    <div className="w-full md:w-auto">
+                                {/* Vote Buttons and Install Button aligned */}
+                                <div className="flex items-center gap-3 w-full md:w-auto">
+                                    <motion.div
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ duration: 0.6, delay: 0.15 }}
+                                    >
+                                        <VoteButtons
+                                            modpackId={modpackId}
+                                            showCounts={true}
+                                        />
+                                    </motion.div>
+
+                                    {/* Botón de instalación */}
+                                    {versions.length > 0 && (
                                         <InstallButton
                                             modpackId={modpackId}
                                             modpackName={modpackData.name!}
@@ -651,22 +680,9 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                             selectedVersionId={selectedVersionId}
                                             disabled={modpackData.requiresTwitchSubscription && !accessLoading && !userCanAccess}
                                         />
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                             </div>
-
-                            {/* Vote Buttons */}
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.6, delay: 0.15 }}
-                                className="mt-4"
-                            >
-                                <VoteButtons
-                                    modpackId={modpackId}
-                                    showCounts={true}
-                                />
-                            </motion.div>
                         </motion.div>
 
                         {/* Draft modpack banner */}
