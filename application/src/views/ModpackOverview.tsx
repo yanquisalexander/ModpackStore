@@ -657,6 +657,8 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                         <VoteButtons
                                             modpackId={modpackId}
                                             showCounts={true}
+                                            initialCounts={voteCounts || undefined}
+                                            initialVote={userVote || 'none'}
                                         />
                                     </motion.div>
 
