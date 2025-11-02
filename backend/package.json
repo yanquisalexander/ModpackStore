@@ -13,6 +13,7 @@
         "db:migrate-filetype": "tsx ./src/db/migrate-filetype.ts",
         "db:migrate-loader-types": "tsx ./src/db/migrate-loader-types.ts",
         "test:filetype-migration": "tsx ./test/filetype-migration.test.ts",
+        "test:vote-recommendation": "tsx ./test/vote-recommendation.test.ts",
         "job:generate-recommendations": "tsx ./src/jobs/generate-recommendations.ts"
     },
     "pnpm": {
