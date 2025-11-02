@@ -22,6 +22,8 @@ import { ExternalLinkHandler } from '@/components/ExternalLinkHandler';
 import { invoke } from "@tauri-apps/api/core";
 import { InstallButton } from "../components/install-modpacks/ModpackInstallButton";
 import { TwitchRequirements } from "@/components/TwitchRequirements";
+import { VoteButtons } from "@/components/modpack/VoteButtons";
+import { RelatedModpacks } from "@/components/modpack/RelatedModpacks";
 import { ModpackDataOverview } from "@/types/ApiResponses";
 import { getModpackVersions, ModpackVersionPublic, getLatestVersion, getNonArchivedVersions } from "@/services/getModpackVersions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -652,6 +654,19 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                     </div>
                                 )}
                             </div>
+
+                            {/* Vote Buttons */}
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.6, delay: 0.15 }}
+                                className="mt-4"
+                            >
+                                <VoteButtons
+                                    modpackId={modpackId}
+                                    showCounts={true}
+                                />
+                            </motion.div>
                         </motion.div>
 
                         {/* Draft modpack banner */}
@@ -680,6 +695,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                     <TabsTrigger value="files">Archivos de Modpack</TabsTrigger>
                                     <TabsTrigger value="changelog">Changelog</TabsTrigger>
                                     <TabsTrigger value="versions">Versiones</TabsTrigger>
+                                    <TabsTrigger value="recommended">Recomendados</TabsTrigger>
                                 </TabsList>
 
                                 <TabsContent value="overview" className="mt-6">
@@ -910,6 +926,10 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                             </div>
                                         )}
                                     </div>
+                                </TabsContent>
+
+                                <TabsContent value="recommended" className="mt-6">
+                                    <RelatedModpacks modpackId={modpackId} limit={12} />
                                 </TabsContent>
                             </Tabs>
                         </motion.div>

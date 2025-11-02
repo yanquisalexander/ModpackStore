@@ -15,6 +15,8 @@ import { Friendship } from "./Friendship";
 import { GameInvitation } from "./GameInvitation";
 import { UserActivity } from "./UserActivity";
 import { Ban } from "./Ban";
+import { ModpackVote } from "./ModpackVote";
+import { UserRecommendation } from "./UserRecommendation";
 import { JWT_ACCESS_TOKEN_EXPIRES_IN, JWT_REFRESH_TOKEN_EXPIRES_IN } from "@/services/auth.service";
 
 @Entity({ name: "users" })
@@ -142,6 +144,12 @@ export class User extends BaseEntity {
 
     @OneToMany(() => UserActivity, activity => activity.user)
     activities: UserActivity[];
+
+    @OneToMany(() => ModpackVote, vote => vote.user)
+    votes: ModpackVote[];
+
+    @OneToMany(() => UserRecommendation, recommendation => recommendation.user)
+    recommendations: UserRecommendation[];
 
     async getPublishers(): Promise<Publisher[]> {
         const memberships = await PublisherMember.find({ where: { user: { id: this.id } }, relations: ["publisher"] });
