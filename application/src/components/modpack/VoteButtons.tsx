@@ -3,6 +3,7 @@ import { ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useAuthentication } from '@/stores/AuthContext';
 
 export type VoteType = 'like' | 'dislike' | 'none';
 
@@ -29,6 +30,7 @@ export const VoteButtons: React.FC<VoteButtonsProps> = ({
     const [currentVote, setCurrentVote] = useState<VoteType>(initialVote);
     const [counts, setCounts] = useState(initialCounts);
     const [isLoading, setIsLoading] = useState(false);
+    const { sessionTokens } = useAuthentication();
 
     useEffect(() => {
         setCurrentVote(initialVote);
@@ -70,11 +72,16 @@ export const VoteButtons: React.FC<VoteButtonsProps> = ({
         try {
             setIsLoading(true);
             
+            if (!sessionTokens?.accessToken) {
+                toast.error('You must be logged in to vote');
+                return;
+            }
+            
             const response = await fetch(`/api/v1/votes/modpacks/${modpackId}/vote`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+                    'Authorization': `Bearer ${sessionTokens.accessToken}`
                 },
                 body: JSON.stringify({ vote: newVote })
             });

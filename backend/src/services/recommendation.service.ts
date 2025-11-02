@@ -21,6 +21,13 @@ export class RecommendationService {
     private static readonly MIN_COMMON_VOTES = 3; // Minimum common votes for similarity calculation
     private static readonly RECOMMENDATIONS_PER_USER = 20; // Number of recommendations to generate per user
     private static readonly MIN_SCORE_THRESHOLD = 0.1; // Minimum score to include in recommendations
+    
+    // Fallback scoring constants
+    private static readonly POPULAR_BASE_SCORE = 1.0;
+    private static readonly POPULAR_DECAY_RATE = 0.05;
+    private static readonly NEW_BASE_SCORE = 0.7;
+    private static readonly NEW_DECAY_RATE = 0.03;
+    private static readonly EMPTY_UUID = '00000000-0000-0000-0000-000000000000'; // Placeholder for empty arrays in SQL queries
 
     /**
      * Generate recommendations for all users (batch job)
@@ -266,7 +273,7 @@ export class RecommendationService {
             recommendations.push({
                 userId,
                 modpackId: modpack.id,
-                score: 1.0 - (index * 0.05), // Decreasing score
+                score: this.POPULAR_BASE_SCORE - (index * this.POPULAR_DECAY_RATE), // Decreasing score
                 algorithm: "popular"
             });
         });
@@ -279,7 +286,7 @@ export class RecommendationService {
             recommendations.push({
                 userId,
                 modpackId: modpack.id,
-                score: 0.7 - (index * 0.03),
+                score: this.NEW_BASE_SCORE - (index * this.NEW_DECAY_RATE),
                 algorithm: "new"
             });
         });
@@ -304,7 +311,9 @@ export class RecommendationService {
         const voteCounts = await ModpackVote.createQueryBuilder("vote")
             .select("vote.modpackId", "modpackId")
             .addSelect("SUM(CASE WHEN vote.vote = 1 THEN 1 ELSE 0 END)", "likes")
-            .where("vote.modpackId NOT IN (:...excludeIds)", { excludeIds: excludeIds.length > 0 ? excludeIds : ['00000000-0000-0000-0000-000000000000'] })
+            .where("vote.modpackId NOT IN (:...excludeIds)", { 
+                excludeIds: excludeIds.length > 0 ? excludeIds : [this.EMPTY_UUID] 
+            })
             .groupBy("vote.modpackId")
             .orderBy("likes", "DESC")
             .limit(limit)

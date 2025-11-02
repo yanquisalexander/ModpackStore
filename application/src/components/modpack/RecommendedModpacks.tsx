@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { ModpackCard } from '@/components/ModpackCard';
 import { Sparkles, TrendingUp, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuthentication } from '@/stores/AuthContext';
 
 interface Modpack {
     id: string;
@@ -36,6 +37,7 @@ export const RecommendedModpacks: React.FC<RecommendedModpacksProps> = ({
     const [isFallback, setIsFallback] = useState(false);
     const [algorithm, setAlgorithm] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const { sessionTokens } = useAuthentication();
 
     useEffect(() => {
         const fetchRecommendations = async () => {
@@ -43,8 +45,7 @@ export const RecommendedModpacks: React.FC<RecommendedModpacksProps> = ({
                 setIsLoading(true);
                 setError(null);
 
-                const authToken = localStorage.getItem('authToken');
-                if (!authToken) {
+                if (!sessionTokens?.accessToken) {
                     setError('Authentication required');
                     setIsLoading(false);
                     return;
@@ -52,7 +53,7 @@ export const RecommendedModpacks: React.FC<RecommendedModpacksProps> = ({
 
                 const response = await fetch(`/api/v1/recommendations/for-you?limit=${limit}`, {
                     headers: {
-                        'Authorization': `Bearer ${authToken}`
+                        'Authorization': `Bearer ${sessionTokens.accessToken}`
                     }
                 });
 
@@ -80,8 +81,10 @@ export const RecommendedModpacks: React.FC<RecommendedModpacksProps> = ({
             }
         };
 
-        fetchRecommendations();
-    }, [userId, limit]);
+        if (sessionTokens?.accessToken) {
+            fetchRecommendations();
+        }
+    }, [userId, limit, sessionTokens]);
 
     const getTitle = () => {
         if (title) return title;
