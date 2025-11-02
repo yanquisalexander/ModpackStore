@@ -158,6 +158,23 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceUpda
         <LucideHardDrive className="h-4 w-auto" />
     );
 
+    const formatLoaderName = (loaderType: string) => {
+        switch (loaderType.toLowerCase()) {
+            case 'vanilla':
+                return 'Vanilla';
+            case 'forge':
+                return 'Forge';
+            case 'fabric':
+                return 'Fabric';
+            case 'neoforge':
+                return 'NeoForge';
+            case 'quilt':
+                return 'Quilt';
+            default:
+                return loaderType.charAt(0).toUpperCase() + loaderType.slice(1);
+        }
+    };
+
     return (
         <>
             <ContextMenu onOpenChange={setIsOpen} modal={false}>
@@ -226,7 +243,14 @@ export const InstanceCard = ({ instance, className = "", running, onInstanceUpda
                                             Minecraft {instance.minecraftVersion}
                                         </p>
                                         {
-                                            instance.forgeVersion && (
+                                            (instance.loaderType && instance.loaderVersion && instance.loaderType.toLowerCase() !== 'vanilla') && (
+                                                <p className="text-xs text-gray-400">
+                                                    {formatLoaderName(instance.loaderType)} {instance.loaderVersion}
+                                                </p>
+                                            )
+                                        }
+                                        {
+                                            (!instance.loaderType || !instance.loaderVersion) && instance.forgeVersion && (
                                                 <p className="text-xs text-gray-400">
                                                     Forge {instance.forgeVersion}
                                                 </p>
