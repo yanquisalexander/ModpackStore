@@ -12,6 +12,7 @@ import { trackSectionView } from "@/lib/analytics"
 import { motion } from "motion/react"
 import { FeaturedSlideshow } from "@/components/FeaturedSlideshow"
 import { JavaStatusBanner } from "@/components/JavaStatusBanner"
+import { RecommendedModpacks } from "@/components/modpack/RecommendedModpacks"
 import { useOnboarding } from "@/hooks/useOnboarding"
 import { useAuthentication } from "@/stores/AuthContext"
 import { useTour, defaultTourSteps } from '@/tour';
@@ -327,6 +328,20 @@ export const ExploreSection = () => {
                         initial="hidden"
                         animate="visible"
                     >
+                        {/* Recommendations section - show only for authenticated users */}
+                        {session && (
+                            <motion.div
+                                variants={itemVariants}
+                                className="mb-8"
+                            >
+                                <RecommendedModpacks 
+                                    userId={session.id} 
+                                    limit={10}
+                                    showFallbackLabel={true}
+                                />
+                            </motion.div>
+                        )}
+
                         {modpackCategories.map((category: any, index) => (
                             <motion.div
                                 key={category.id}

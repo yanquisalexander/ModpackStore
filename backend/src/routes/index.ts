@@ -12,6 +12,8 @@ import publisherPermissionsRoutes from './v1/publisher-permissions.route';
 import webhooksRoutes from './webhooks.routes';
 import { socialRoutes } from './v1/social.routes';
 import yggdrasilRoutes from './v1/yggdrasil.routes';
+import votesRoutes from './v1/votes.routes';
+import recommendationsRoutes from './v1/recommendations.routes';
 
 const rootRouter = new Hono();
 
@@ -27,6 +29,8 @@ rootRouter.route('/tickets', ticketRoutes);
 rootRouter.route('/publishers', publisherPermissionsRoutes);
 rootRouter.route('/social', socialRoutes); // Mount social routes
 rootRouter.route('/yggdrasil', yggdrasilRoutes); // Mount Yggdrasil routes
+rootRouter.route('/votes', votesRoutes); // Mount votes routes
+rootRouter.route('/recommendations', recommendationsRoutes); // Mount recommendations routes
 
 // Webhook routes (separate from API versioning)
 rootRouter.route('/webhooks', webhooksRoutes);

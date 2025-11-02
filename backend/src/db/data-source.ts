@@ -24,6 +24,8 @@ import { GameInvitation } from "../entities/GameInvitation";
 import { UserActivity } from "../entities/UserActivity";
 import { Ban } from "../entities/Ban";
 import { GameSession } from "../entities/GameSession";
+import { ModpackVote } from "../entities/ModpackVote";
+import { UserRecommendation } from "../entities/UserRecommendation";
 
 export const AppDataSource = new DataSource({
     type: "postgres",
@@ -66,5 +68,7 @@ export const AppDataSource = new DataSource({
         UserActivity,
         Ban,
         GameSession,
+        ModpackVote,
+        UserRecommendation,
     ],
 });

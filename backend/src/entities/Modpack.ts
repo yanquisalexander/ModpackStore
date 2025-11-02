@@ -8,6 +8,8 @@ import { UserPurchase } from "./UserPurchase";
 import { WalletTransaction } from "./WalletTransaction";
 import { ModpackVisibility, ModpackStatus, AcquisitionMethod } from "../types/enums";
 import { ModpackAcquisition } from "./ModpackAcquisition";
+import { ModpackVote } from "./ModpackVote";
+import { UserRecommendation } from "./UserRecommendation";
 
 @Entity({ name: "modpacks" })
 @Index(["visibility", "status"])
@@ -202,6 +204,12 @@ export class Modpack extends BaseEntity {
 
     @OneToMany(() => ModpackAcquisition, acquisition => acquisition.modpack, { cascade: true })
     acquisitions: ModpackAcquisition[];
+
+    @OneToMany(() => ModpackVote, vote => vote.modpack, { cascade: true })
+    votes: ModpackVote[];
+
+    @OneToMany(() => UserRecommendation, recommendation => recommendation.modpack, { cascade: true })
+    recommendations: UserRecommendation[];
 
     // Métodos de búsqueda y consulta
     static async search(query: string, limit: number = 25): Promise<Modpack[]> {
