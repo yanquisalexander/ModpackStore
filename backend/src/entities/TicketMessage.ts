@@ -22,6 +22,9 @@ export class TicketMessage extends BaseEntity {
     @Column({ name: "is_read_by_staff", type: "boolean", default: false })
     isReadByStaff: boolean;
 
+    @Column({ name: "is_read_by_user", type: "boolean", default: false })
+    isReadByUser: boolean;
+
     @CreateDateColumn({ name: "created_at" })
     createdAt: Date;
 
@@ -47,6 +50,13 @@ export class TicketMessage extends BaseEntity {
         await TicketMessage.update(
             { ticketId, isStaffMessage: false },
             { isReadByStaff: true }
+        );
+    }
+
+    static async markUserMessagesAsRead(ticketId: string): Promise<void> {
+        await TicketMessage.update(
+            { ticketId, isStaffMessage: true },
+            { isReadByUser: true }
         );
     }
 

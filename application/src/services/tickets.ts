@@ -199,3 +199,28 @@ export const markMessagesAsRead = async (ticketId: string, token: string): Promi
     throw new Error(`Failed to mark messages as read: ${response.statusText}`);
   }
 };
+
+export const getUnreadCount = async (token: string): Promise<number> => {
+  const response = await fetch(`${API_ENDPOINT}/tickets/unread-count`, {
+    method: 'GET',
+    headers: getAuthHeaders(token)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch unread count: ${response.statusText}`);
+  }
+
+  const json = await response.json();
+  return json.data.attributes.count;
+};
+
+export const markMessagesAsReadByUser = async (ticketId: string, token: string): Promise<void> => {
+  const response = await fetch(`${API_ENDPOINT}/tickets/${ticketId}/mark-read-user`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(token)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to mark messages as read: ${response.statusText}`);
+  }
+};
