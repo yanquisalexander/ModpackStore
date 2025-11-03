@@ -107,8 +107,10 @@ export const TicketsSection: React.FC = () => {
       setSelectedTicket(ticket);
       setView('ticket');
       
-      // Mark messages as read when opening the ticket
-      await TicketsService.markMessagesAsReadByUser(ticketId, sessionTokens.accessToken);
+      // Mark messages as read when opening the ticket (only for regular users, not staff)
+      if (!session?.isStaff?.()) {
+        await TicketsService.markMessagesAsReadByUser(ticketId, sessionTokens.accessToken);
+      }
     } catch (error) {
       toast({
         title: 'Error',

@@ -27,7 +27,7 @@ export const TicketNotificationButton = () => {
       onClick={handleClick}
       title={`${unreadCount} ticket${unreadCount > 1 ? 's' : ''} sin leer`}
       className="cursor-pointer relative flex size-9 aspect-square items-center justify-center hover:bg-[var(--sidebar-accent)] transition-colors"
-      aria-label={`${unreadCount} unread tickets`}
+      aria-label={`${unreadCount} ticket${unreadCount > 1 ? 's' : ''} sin leer`}
     >
       <LucideMessageSquare className="size-4 text-[var(--sidebar-foreground)]" />
       {/* Badge with count */}

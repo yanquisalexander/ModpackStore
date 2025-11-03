@@ -25,35 +25,29 @@ export const useTicketNotifications = () => {
     if (!sessionTokens?.accessToken) return;
 
     try {
-      // Use the new backend endpoint for more accurate count
+      // Use the new backend endpoint for accurate count
       const count = await TicketsService.getUnreadCount(sessionTokens.accessToken);
       setUnreadCount(count);
       
-      // Optionally fetch ticket list to populate unread set
-      const tickets = session?.isStaff?.()
-        ? await TicketsService.getAllTickets(sessionTokens.accessToken)
-        : await TicketsService.getUserTickets(sessionTokens.accessToken);
-      
-      // Build unread set based on tickets (simplified - in production would need better tracking)
-      const unreadSet = new Set<string>();
-      tickets.slice(0, count).forEach(ticket => unreadSet.add(ticket.id));
-      setUnreadTickets(unreadSet);
+      // We can't reliably determine which specific tickets are unread without more API data
+      // For now, just clear the unread set and let WebSocket events repopulate it
+      // In production, we would need an endpoint that returns the actual unread ticket IDs
+      setUnreadTickets(new Set());
     } catch (error) {
       console.error('Error fetching unread ticket count:', error);
     }
-  }, [session, sessionTokens]);
+  }, [sessionTokens]);
 
   // Mark a ticket as read
   const markTicketAsRead = useCallback((ticketId: string) => {
     setUnreadTickets(prev => {
       const newSet = new Set(prev);
       newSet.delete(ticketId);
-      setUnreadCount(newSet.size);
       return newSet;
     });
-    // Refresh count from backend to stay in sync
-    fetchUnreadCount();
-  }, [fetchUnreadCount]);
+    // Decrement count locally instead of fetching from backend
+    setUnreadCount(prev => Math.max(0, prev - 1));
+  }, []);
 
   // Listen to new_ticket event (staff only)
   useEffect(() => {
