@@ -6,6 +6,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { trackSectionView } from "@/lib/analytics";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useI18n } from '@/hooks/useI18n';
+import { getVersion } from '@tauri-apps/api/app';
+
 
 // Lucide Icons
 import {
@@ -52,6 +54,15 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
         gitHash: 'Loading...'
     });
 
+    // Sección seleccionada para la vista tipo Discord
+    const [selectedSection, setSelectedSection] = useState<string | null>(null);
+
+    // búsqueda simple para la sidebar (opcional)
+    const [sidebarSearch, setSidebarSearch] = useState<string>('');
+
+    // Versión de la aplicación
+    const [appVersion, setAppVersion] = useState<string>('Loading...');
+
     // Cargar configuración optimizada
     const loadConfig = useCallback(async () => {
         try {
@@ -81,6 +92,17 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                 saving: false,
                 gitHash
             });
+
+            // seleccionar la primera sección por defecto
+            setSelectedSection(sections[0] ?? null);
+
+            // obtener versión de la app (tauri)
+            try {
+                const v = await getVersion();
+                setAppVersion(v || 'Unknown');
+            } catch (err) {
+                setAppVersion('Unknown');
+            }
 
         } catch (error) {
             console.error("Failed to load config:", error);
@@ -347,162 +369,171 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
     return (
         <AnimatePresence>
             <motion.div
-                className="fixed inset-0 z-[999] py-6  flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-hidden"
+                className="fixed left-0 right-0 top-[var(--app-top-bar-height)] bottom-0 z-[999] bg-black/60 backdrop-blur-sm overflow-hidden"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
+                transition={{ duration: 0.18 }}
             >
                 <motion.div
-                    className="w-full h-[calc(100%-36px)] max-w-3xl flex flex-col overflow-hidden mx-4"
-                    initial={{ y: 20, opacity: 0 }}
+                    className="absolute inset-0 flex flex-col"
+                    initial={{ y: 8, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: 20, opacity: 0 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    exit={{ y: 8, opacity: 0 }}
+                    transition={{ type: "spring", stiffness: 300, damping: 28 }}
                 >
-                    {/* Header */}
-                    <header className="bg-card border-b p-4 flex justify-between items-center rounded-t-xl">
-                        <div className="flex items-center gap-2">
-                            <LucideSettings className="h-5 w-5 text-primary" />
-                            <h2 className="text-xl font-semibold">Configuración</h2>
-                        </div>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={onClose}
-                            className="rounded-full"
-                        >
-                            <LucideX className="h-5 w-5" />
-                        </Button>
-                    </header>
-
-                    {/* Content */}
-                    <main className="flex-1 overflow-y-auto bg-background p-6">
-                        {config.loading ? (
-                            <div className="flex items-center justify-center h-full">
-                                <div className="flex flex-col items-center gap-2">
-                                    <LucideLoader className="h-8 w-8 animate-spin text-primary" />
-                                    <p className="text-lg">Cargando configuración...</p>
+                    {/* Fullscreen container */}
+                    <div className="flex-1 flex overflow-hidden">
+                        {/* Sidebar (Discord-like) */}
+                        <aside className="w-64 min-w-[200px] bg-card border-r p-4 flex flex-col gap-4">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <LucideSettings className="h-5 w-5 text-primary" />
+                                    <h3 className="text-lg font-semibold">Configuración</h3>
                                 </div>
+                                <Button variant="ghost" size="icon" onClick={onClose}>
+                                    <LucideX className="h-4 w-4" />
+                                </Button>
                             </div>
-                        ) : (
-                            <div className="space-y-6">
-                                {/* Header Card */}
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-2xl font-semibold">
-                                            Configuración
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Personaliza los ajustes del launcher según tus preferencias
-                                        </CardDescription>
-                                    </CardHeader>
-                                </Card>
 
-                                {/* Configuration Sections */}
-                                {config.sections.length > 0 && config.sections.map((section) => {
-                                    const sectionConfigs = getConfigsForSection(section);
-                                    const getSectionDescription = (sectionName: string) => {
-                                        switch (sectionName) {
-                                            case 'general':
-                                                return 'Configuraciones generales del launcher';
-                                            case 'gameplay':
-                                                return 'Configuraciones relacionadas con el gameplay';
-                                            case 'minecraft':
-                                                return 'Configuraciones específicas de Minecraft';
-                                            case 'account':
-                                                return 'Configuraciones de cuenta y autenticación';
-                                            case 'appearance':
-                                                return 'Personaliza la apariencia del launcher';
-                                            default:
-                                                return `Configuraciones de ${sectionName}`;
-                                        }
-                                    };
+                            <Input
+                                placeholder="Buscar secciones..."
+                                value={sidebarSearch}
+                                onChange={(e) => setSidebarSearch(e.target.value)}
+                                className="bg-background border-input"
+                            />
 
-                                    return (
-                                        <ConfigSection
-                                            key={section}
-                                            title={section}
-                                            description={getSectionDescription(section)}
-                                            configs={sectionConfigs}
-                                            values={config.values}
-                                            onConfigChange={handleConfigChange}
-                                            onRestoreDefaults={() => handleRestoreDefaults(section)}
-                                            renderConfigControl={renderConfigControl}
-                                        />
-                                    );
-                                })}
+                            <nav className="flex-1 overflow-y-auto">
+                                <ul className="space-y-1">
+                                    {config.sections
+                                        .filter(s => s.toLowerCase().includes(sidebarSearch.toLowerCase()))
+                                        .map((section) => {
+                                            const active = selectedSection === section;
+                                            return (
+                                                <li key={section}>
+                                                    <button
+                                                        onClick={() => setSelectedSection(section)}
+                                                        className={`w-full text-left px-3 py-2 rounded-md flex items-center justify-between ${active ? 'bg-primary text-primary-foreground' : 'hover:bg-muted/60'}`}
+                                                    >
+                                                        <span className="capitalize">{section}</span>
+                                                        {active && <span className="text-xs text-muted-foreground">Seleccionado</span>}
+                                                    </button>
+                                                </li>
+                                            );
+                                        })}
+                                </ul>
+                            </nav>
 
-                                {/* Theme Selector */}
-                                <Card>
-                                    <CardHeader>
-                                        <CardTitle className="text-lg font-semibold">
-                                            Temas
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Personaliza la apariencia de la aplicación con temas
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <ThemeSelector />
-                                    </CardContent>
-                                </Card>
+                            <div className="text-xs text-muted-foreground">
+                                Commit: {config.gitHash} · v{appVersion}
+                            </div>
+                        </aside>
 
-                                {/* Advanced options for authenticated users */}
-                                {isAuthenticated && (
+                        {/* Main panel */}
+                        <main className="flex-1 overflow-y-auto p-6 bg-background">
+                            {config.loading ? (
+                                <div className="flex items-center justify-center h-full">
+                                    <div className="flex flex-col items-center gap-2">
+                                        <LucideLoader className="h-8 w-8 animate-spin text-primary" />
+                                        <p className="text-lg">Cargando configuración...</p>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-6">
                                     <Card>
                                         <CardHeader>
-                                            <CardTitle className="text-lg font-semibold">
-                                                Opciones Avanzadas
-                                            </CardTitle>
+                                            <CardTitle className="text-2xl font-semibold">{selectedSection ? selectedSection.charAt(0).toUpperCase() + selectedSection.slice(1) : 'Configuración'}</CardTitle>
                                             <CardDescription>
-                                                Opciones adicionales para usuarios autenticados
+                                                {selectedSection ? `Opciones de ${selectedSection}` : 'Personaliza los ajustes del launcher'}
                                             </CardDescription>
                                         </CardHeader>
-                                        <CardContent>
-                                            <div className="h-32 flex items-center justify-center rounded-md border border-dashed border-muted bg-muted/50">
-                                                <p className="text-sm text-muted-foreground">
-                                                    Próximamente disponibles más opciones avanzadas
-                                                </p>
-                                            </div>
-                                        </CardContent>
                                     </Card>
-                                )}
-                            </div>
-                        )}
-                    </main>
 
-                    {/* Footer */}
-                    <footer className="bg-card border-t p-4 flex justify-between items-center rounded-b-xl">
-                        <div className="text-xs text-muted-foreground">
-                            Commit: {config.gitHash}
-                        </div>
-                        <div className="flex gap-2">
-                            <Button
-                                variant="outline"
-                                onClick={onClose}
-                                disabled={config.saving}
-                            >
-                                Cancelar
-                            </Button>
-                            <Button
-                                onClick={handleSaveConfig}
-                                disabled={config.loading || config.saving}
-                            >
-                                {config.saving ? (
-                                    <>
-                                        <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
-                                        Guardando...
-                                    </>
-                                ) : (
-                                    <>
-                                        <LucideSave className="h-4 w-4 mr-2" />
-                                        Guardar cambios
-                                    </>
-                                )}
-                            </Button>
-                        </div>
-                    </footer>
+                                    {/* Only render the selected section */}
+                                    {selectedSection ? (() => {
+                                        const section = selectedSection;
+                                        const sectionConfigs = getConfigsForSection(section);
+                                        const getSectionDescription = (sectionName: string) => {
+                                            switch (sectionName) {
+                                                case 'general':
+                                                    return 'Configuraciones generales del launcher';
+                                                case 'gameplay':
+                                                    return 'Configuraciones relacionadas con el gameplay';
+                                                case 'minecraft':
+                                                    return 'Configuraciones específicas de Minecraft';
+                                                case 'account':
+                                                    return 'Configuraciones de cuenta y autenticación';
+                                                case 'appearance':
+                                                    return 'Personaliza la apariencia del launcher';
+                                                default:
+                                                    return `Configuraciones de ${sectionName}`;
+                                            }
+                                        };
+
+                                        return (
+                                            <ConfigSection
+                                                key={section}
+                                                title={section}
+                                                description={getSectionDescription(section)}
+                                                configs={sectionConfigs}
+                                                values={config.values}
+                                                onConfigChange={handleConfigChange}
+                                                onRestoreDefaults={() => handleRestoreDefaults(section)}
+                                                renderConfigControl={renderConfigControl}
+                                            />
+                                        );
+                                    })() : (
+                                        // If no section selected, show overview and themes
+                                        <>
+                                            <Card>
+                                                <CardHeader>
+                                                    <CardTitle className="text-lg font-semibold">Temas</CardTitle>
+                                                    <CardDescription>Personaliza la apariencia de la aplicación con temas</CardDescription>
+                                                </CardHeader>
+                                                <CardContent>
+                                                    <ThemeSelector />
+                                                </CardContent>
+                                            </Card>
+
+                                            {isAuthenticated && (
+                                                <Card>
+                                                    <CardHeader>
+                                                        <CardTitle className="text-lg font-semibold">Opciones Avanzadas</CardTitle>
+                                                        <CardDescription>Opciones adicionales para usuarios autenticados</CardDescription>
+                                                    </CardHeader>
+                                                    <CardContent>
+                                                        <div className="h-32 flex items-center justify-center rounded-md border border-dashed border-muted bg-muted/50">
+                                                            <p className="text-sm text-muted-foreground">Próximamente disponibles más opciones avanzadas</p>
+                                                        </div>
+                                                    </CardContent>
+                                                </Card>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            )}
+                        </main>
+                    </div>
+
+                    {/* Footer actions floating at bottom-right */}
+                    <div className="absolute right-6 bottom-6 flex gap-2">
+                        <Button variant="outline" onClick={onClose} disabled={config.saving}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleSaveConfig} disabled={config.loading || config.saving}>
+                            {config.saving ? (
+                                <>
+                                    <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
+                                    Guardando...
+                                </>
+                            ) : (
+                                <>
+                                    <LucideSave className="h-4 w-4 mr-2" />
+                                    Guardar cambios
+                                </>
+                            )}
+                        </Button>
+                    </div>
                 </motion.div>
             </motion.div>
         </AnimatePresence>
