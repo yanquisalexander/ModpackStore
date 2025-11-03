@@ -213,3 +213,14 @@ export const getUnreadCount = async (token: string): Promise<number> => {
   const json = await response.json();
   return json.data.attributes.count;
 };
+
+export const markMessagesAsReadByUser = async (ticketId: string, token: string): Promise<void> => {
+  const response = await fetch(`${API_ENDPOINT}/tickets/${ticketId}/mark-read-user`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(token)
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to mark messages as read: ${response.statusText}`);
+  }
+};

@@ -269,4 +269,29 @@ ticketRoutes.patch('/:id/status', requireAuth, TicketsController.updateTicketSta
  */
 ticketRoutes.patch('/:id/mark-read', requireAuth, TicketsController.markMessagesAsRead);
 
+/**
+ * @openapi
+ * /tickets/{id}/mark-read-user:
+ *   patch:
+ *     summary: Mark staff messages as read by user
+ *     tags: [Tickets]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Ticket ID
+ *     responses:
+ *       200:
+ *         description: Messages marked as read
+ *       403:
+ *         description: Access denied - not your ticket
+ *       404:
+ *         description: Ticket not found
+ */
+ticketRoutes.patch('/:id/mark-read-user', requireAuth, TicketsController.markMessagesAsReadByUser);
+
 export default ticketRoutes;

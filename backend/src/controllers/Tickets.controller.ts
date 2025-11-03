@@ -345,6 +345,39 @@ export class TicketsController {
     }
 
     /**
+     * Mark messages as read by user
+     */
+    static async markMessagesAsReadByUser(c: Context<{ Variables: AuthVariables }>) {
+        const user = c.get('user');
+        if (!user) {
+            throw new APIError(401, 'Authentication required', 'USER_NOT_AUTHENTICATED');
+        }
+
+        const ticketId = c.req.param('id');
+        const ticket = await Ticket.findOne({ where: { id: ticketId } });
+
+        if (!ticket) {
+            throw new APIError(404, 'Ticket not found', 'TICKET_NOT_FOUND');
+        }
+
+        // Users can only mark their own tickets as read
+        if (ticket.userId !== user.id) {
+            throw new APIError(403, 'Access denied', 'ACCESS_DENIED');
+        }
+
+        await TicketMessage.markUserMessagesAsRead(ticketId);
+
+        return c.json({
+            data: {
+                type: 'success',
+                attributes: {
+                    message: 'Messages marked as read'
+                }
+            }
+        });
+    }
+
+    /**
      * Get count of unread tickets
      */
     static async getUnreadCount(c: Context<{ Variables: AuthVariables }>) {
@@ -367,21 +400,17 @@ export class TicketsController {
             const uniqueTicketIds = new Set(tickets.map(t => t.id));
             unreadCount = uniqueTicketIds.size;
         } else {
-            // For users: count their tickets with unread staff messages
-            // We need to add a field to track this - for now, use a simpler approach
-            // Count tickets where the last message is from staff and ticket was recently updated
-            const userTickets = await Ticket.findUserTickets(user.id);
-            
-            for (const ticket of userTickets) {
-                const messages = await TicketMessage.findTicketMessages(ticket.id);
-                if (messages.length > 0) {
-                    const lastMessage = messages[messages.length - 1];
-                    // If last message is from staff, consider it unread
-                    if (lastMessage.isStaffMessage) {
-                        unreadCount++;
-                    }
-                }
-            }
+            // For users: count their tickets with unread staff messages (isReadByUser = false)
+            const tickets = await Ticket.createQueryBuilder('ticket')
+                .leftJoinAndSelect('ticket.messages', 'messages')
+                .where('ticket.userId = :userId', { userId: user.id })
+                .andWhere('messages.isStaffMessage = :isStaffMessage', { isStaffMessage: true })
+                .andWhere('messages.isReadByUser = :isReadByUser', { isReadByUser: false })
+                .getMany();
+
+            // Count unique tickets
+            const uniqueTicketIds = new Set(tickets.map(t => t.id));
+            unreadCount = uniqueTicketIds.size;
         }
 
         return c.json({

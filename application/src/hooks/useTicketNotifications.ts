@@ -51,7 +51,9 @@ export const useTicketNotifications = () => {
       setUnreadCount(newSet.size);
       return newSet;
     });
-  }, []);
+    // Refresh count from backend to stay in sync
+    fetchUnreadCount();
+  }, [fetchUnreadCount]);
 
   // Listen to new_ticket event (staff only)
   useEffect(() => {

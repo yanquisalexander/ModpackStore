@@ -106,6 +106,9 @@ export const TicketsSection: React.FC = () => {
       const ticket = await TicketsService.getTicket(ticketId, sessionTokens.accessToken);
       setSelectedTicket(ticket);
       setView('ticket');
+      
+      // Mark messages as read when opening the ticket
+      await TicketsService.markMessagesAsReadByUser(ticketId, sessionTokens.accessToken);
     } catch (error) {
       toast({
         title: 'Error',
