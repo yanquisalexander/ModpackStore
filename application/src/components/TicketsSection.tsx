@@ -38,6 +38,7 @@ export const TicketsSection: React.FC = () => {
   const [newTicketForm, setNewTicketForm] = useState({ subject: '', content: '' });
   const [newMessage, setNewMessage] = useState('');
   const [sendingMessage, setSendingMessage] = useState(false);
+  const [isCreatingTicket, setIsCreatingTicket] = useState(false); // Anti-duplication state
 
   // Real-time updates
   const { sendTyping } = useTicketRealtime({
@@ -124,6 +125,12 @@ export const TicketsSection: React.FC = () => {
       return;
     }
 
+    // Prevent duplicate submissions
+    if (isCreatingTicket) {
+      return;
+    }
+
+    setIsCreatingTicket(true);
     try {
       const ticket = await TicketsService.createTicket(newTicketForm, sessionTokens.accessToken);
       setTickets(prev => [ticket, ...prev]);
@@ -139,6 +146,8 @@ export const TicketsSection: React.FC = () => {
         description: 'No se pudo crear el ticket',
         variant: 'destructive'
       });
+    } finally {
+      setIsCreatingTicket(false);
     }
   };
 
@@ -225,11 +234,11 @@ export const TicketsSection: React.FC = () => {
             />
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setView('list')}>
+            <Button variant="outline" onClick={() => setView('list')} disabled={isCreatingTicket}>
               Cancelar
             </Button>
-            <Button onClick={createTicket}>
-              Crear Ticket
+            <Button onClick={createTicket} disabled={isCreatingTicket}>
+              {isCreatingTicket ? 'Creando...' : 'Crear Ticket'}
             </Button>
           </div>
         </CardContent>
