@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { ModpackCard } from '@/components/ModpackCard';
 import { Users } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { API_ENDPOINT } from "@/consts";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
@@ -115,12 +115,27 @@ export const RelatedModpacks: React.FC<RelatedModpacksProps> = ({
                 <h3 className="text-xl font-semibold">Los usuarios que les gustó este modpack también disfrutaron de...</h3>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                 {modpacks.map((modpack) => (
-                    <ModpackCard
+                    <Link
                         key={modpack.id}
-                        modpack={modpack}
-                    />
+                        to={`/modpack/${modpack.slug}`}
+                        className="flex flex-col items-center gap-2 p-3 rounded-lg bg-card hover:shadow-lg hover:scale-[1.02] transition-transform duration-150"
+                        title={modpack.name}
+                    >
+                        <div className="w-20 h-20 rounded-full overflow-hidden flex items-center justify-center bg-muted">
+                            {modpack.iconUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={modpack.iconUrl} alt={modpack.name} className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="text-2xl">🎮</div>
+                            )}
+                        </div>
+                        <div className="text-center">
+                            <div className="font-medium text-sm truncate max-w-[6rem]">{modpack.name}</div>
+                            {modpack.publisher && <div className="text-xs text-muted-foreground">{modpack.publisher.name}</div>}
+                        </div>
+                    </Link>
                 ))}
             </div>
         </div>

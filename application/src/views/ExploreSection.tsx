@@ -334,8 +334,8 @@ export const ExploreSection = () => {
                                 variants={itemVariants}
                                 className="mb-8"
                             >
-                                <RecommendedModpacks 
-                                    userId={session.id} 
+                                <RecommendedModpacks
+                                    userId={session.id}
                                     limit={10}
                                     showFallbackLabel={true}
                                 />
