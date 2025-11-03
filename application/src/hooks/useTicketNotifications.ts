@@ -25,36 +25,19 @@ export const useTicketNotifications = () => {
     if (!sessionTokens?.accessToken) return;
 
     try {
-      // Get tickets based on user role
+      // Use the new backend endpoint for more accurate count
+      const count = await TicketsService.getUnreadCount(sessionTokens.accessToken);
+      setUnreadCount(count);
+      
+      // Optionally fetch ticket list to populate unread set
       const tickets = session?.isStaff?.()
         ? await TicketsService.getAllTickets(sessionTokens.accessToken)
         : await TicketsService.getUserTickets(sessionTokens.accessToken);
-
-      // For staff: count tickets with unread messages from users
-      // For users: count tickets with unread messages from staff
-      if (session?.isStaff?.()) {
-        // Staff sees tickets with new user messages (not read by staff)
-        // This would require backend support to track read status per message
-        // For now, we'll use a simpler approach: tickets updated recently
-        const recentlyUpdated = tickets.filter(ticket => {
-          const updatedAt = new Date(ticket.updatedAt).getTime();
-          const now = Date.now();
-          // Consider tickets updated in last 24 hours as potentially unread
-          return now - updatedAt < 24 * 60 * 60 * 1000;
-        });
-        setUnreadCount(recentlyUpdated.length);
-        setUnreadTickets(new Set(recentlyUpdated.map(t => t.id)));
-      } else {
-        // Users see tickets with new staff responses
-        // Similar approach - tickets updated recently
-        const recentlyUpdated = tickets.filter(ticket => {
-          const updatedAt = new Date(ticket.updatedAt).getTime();
-          const now = Date.now();
-          return now - updatedAt < 24 * 60 * 60 * 1000;
-        });
-        setUnreadCount(recentlyUpdated.length);
-        setUnreadTickets(new Set(recentlyUpdated.map(t => t.id)));
-      }
+      
+      // Build unread set based on tickets (simplified - in production would need better tracking)
+      const unreadSet = new Set<string>();
+      tickets.slice(0, count).forEach(ticket => unreadSet.add(ticket.id));
+      setUnreadTickets(unreadSet);
     } catch (error) {
       console.error('Error fetching unread ticket count:', error);
     }

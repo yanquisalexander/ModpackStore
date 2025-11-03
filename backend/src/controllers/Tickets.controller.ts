@@ -343,4 +343,54 @@ export class TicketsController {
             }
         });
     }
+
+    /**
+     * Get count of unread tickets
+     */
+    static async getUnreadCount(c: Context<{ Variables: AuthVariables }>) {
+        const user = c.get('user');
+        if (!user) {
+            throw new APIError(401, 'Authentication required', 'USER_NOT_AUTHENTICATED');
+        }
+
+        let unreadCount = 0;
+
+        if (user.isStaff()) {
+            // For staff: count tickets with unread messages from users (isReadByStaff = false)
+            const tickets = await Ticket.createQueryBuilder('ticket')
+                .leftJoinAndSelect('ticket.messages', 'messages')
+                .where('messages.isStaffMessage = :isStaffMessage', { isStaffMessage: false })
+                .andWhere('messages.isReadByStaff = :isReadByStaff', { isReadByStaff: false })
+                .getMany();
+
+            // Count unique tickets
+            const uniqueTicketIds = new Set(tickets.map(t => t.id));
+            unreadCount = uniqueTicketIds.size;
+        } else {
+            // For users: count their tickets with unread staff messages
+            // We need to add a field to track this - for now, use a simpler approach
+            // Count tickets where the last message is from staff and ticket was recently updated
+            const userTickets = await Ticket.findUserTickets(user.id);
+            
+            for (const ticket of userTickets) {
+                const messages = await TicketMessage.findTicketMessages(ticket.id);
+                if (messages.length > 0) {
+                    const lastMessage = messages[messages.length - 1];
+                    // If last message is from staff, consider it unread
+                    if (lastMessage.isStaffMessage) {
+                        unreadCount++;
+                    }
+                }
+            }
+        }
+
+        return c.json({
+            data: {
+                type: 'unread_count',
+                attributes: {
+                    count: unreadCount
+                }
+            }
+        });
+    }
 }

@@ -113,6 +113,38 @@ ticketRoutes.get('/', requireAuth, TicketsController.getUserTickets);
 
 /**
  * @openapi
+ * /tickets/unread-count:
+ *   get:
+ *     summary: Get count of unread tickets
+ *     tags: [Tickets]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Unread ticket count
+ *         content:
+ *           application/vnd.api+json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     type:
+ *                       type: string
+ *                       example: unread_count
+ *                     attributes:
+ *                       type: object
+ *                       properties:
+ *                         count:
+ *                           type: number
+ *       401:
+ *         description: Authentication required
+ */
+ticketRoutes.get('/unread-count', requireAuth, TicketsController.getUnreadCount);
+
+/**
+ * @openapi
  * /tickets/{id}:
  *   get:
  *     summary: Get ticket by ID with messages
