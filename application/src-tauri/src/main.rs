@@ -134,9 +134,14 @@ pub fn main() {
             *app_handle = Some(app.handle().clone());
 
             // Initialize i18n system
+            if let Err(e) = crate::core::i18n::init_i18n_manager(app.handle().clone()) {
+                log::error!("Failed to initialize i18n manager: {}", e);
+                return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)));
+            }
+
             let app_handle_clone = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                // Preload common languages
+                // Preload common languages first
                 if let Err(e) = crate::core::i18n::get_i18n_manager()
                     .preload_common_languages()
                     .await
@@ -144,7 +149,10 @@ pub fn main() {
                     log::warn!("Failed to preload languages: {}", e);
                 }
 
-                // Load current language from config or detect system language
+                // Now detect system language (after languages are preloaded)
+                let detected_lang = crate::core::i18n::get_i18n_manager().detect_system_language();
+
+                // Load current language from config or use detected system language
                 let current_lang = {
                     match crate::config::get_config_manager().lock() {
                         Ok(config_result) => match &*config_result {
@@ -152,19 +160,10 @@ pub fn main() {
                                 .get("language")
                                 .and_then(|v| v.as_str())
                                 .map(|s| s.to_string())
-                                .unwrap_or_else(|| {
-                                    // No language in config, use system detection
-                                    crate::core::i18n::get_i18n_manager().detect_system_language()
-                                }),
-                            Err(_) => {
-                                // Config error, use system detection
-                                crate::core::i18n::get_i18n_manager().detect_system_language()
-                            }
+                                .unwrap_or_else(|| detected_lang.clone()),
+                            Err(_) => detected_lang.clone(),
                         },
-                        Err(_) => {
-                            // Lock error, use system detection
-                            crate::core::i18n::get_i18n_manager().detect_system_language()
-                        }
+                        Err(_) => detected_lang.clone(),
                     }
                 };
 

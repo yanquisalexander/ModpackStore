@@ -1,15 +1,42 @@
 // src/core/i18n.rs
 // Internationalization system for Modpack Store
 
-use crate::{API_ENDPOINT, GLOBAL_APP_HANDLE};
+use crate::GLOBAL_APP_HANDLE; // Asumo que aún lo necesitas para `init`
+use locale_config::Locale;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
-use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::Emitter;
+use tauri::{path::BaseDirectory, AppHandle, Manager, Emitter};
+use thiserror::Error;
+use tokio::fs;
 use tokio::sync::RwLock;
+
+#[derive(Error, Debug)]
+pub enum I18nError {
+    #[error("I18nManager ya estaba inicializado")]
+    AlreadyInitialized,
+
+    #[error("No se pudo resolver la ruta del recurso: {0}")]
+    ResourcePath(String),
+
+    #[error("Error de I/O: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("Error al parsear YAML: {0}")]
+    ParseYaml(#[from] serde_yaml::Error),
+
+    #[error("Error al resolver ruta de Tauri: {0}")]
+    TauriPath(#[from] tauri::Error),
+}
+
+// Convertimos el error personalizado a String para los comandos de Tauri
+impl From<I18nError> for String {
+    fn from(error: I18nError) -> Self {
+        error.to_string()
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct I18nData {
@@ -21,35 +48,21 @@ pub struct I18nData {
 pub struct I18nManager {
     translations: RwLock<HashMap<String, I18nData>>,
     current_language: RwLock<String>,
-    i18n_dir: PathBuf,
+    app_handle: AppHandle,
 }
 
 impl I18nManager {
-    pub fn new() -> Result<Self, String> {
-        let i18n_dir = PathBuf::from("resources").join("i18n");
-
-        let manager = Self {
+    pub fn new(app_handle: AppHandle) -> Self {
+        Self {
             translations: RwLock::new(HashMap::new()),
-            current_language: RwLock::new("en".to_string()), // Temporary default
-            i18n_dir,
-        };
-
-        // Detect system language and set as current
-        let detected_language = manager.detect_system_language();
-        {
-            let mut current = manager
-                .current_language
-                .try_write()
-                .map_err(|_| "Failed to acquire write lock")?;
-            *current = detected_language;
+            current_language: RwLock::new("en".to_string()), // Default temporal
+            app_handle,
         }
-
-        Ok(manager)
     }
 
-    /// Load a language file and cache it
-    pub async fn load_language(&self, language: &str) -> Result<I18nData, String> {
-        // Check if already loaded
+    /// Carga un archivo de idioma y lo cachea
+    pub async fn load_language(&self, language: &str) -> Result<I18nData, I18nError> {
+        // 1. Revisar si ya está en caché
         {
             let translations = self.translations.read().await;
             if let Some(data) = translations.get(language) {
@@ -57,25 +70,46 @@ impl I18nManager {
             }
         }
 
-        // Load from file
-        let file_path = self.i18n_dir.join(format!("{}.yml", language));
-        if !file_path.exists() {
-            return Err(format!("Language file not found: {}", file_path.display()));
-        }
+        // 2. Cargar el archivo
+        let resource_path = format!("resources/i18n/{}.yml", language);
+        
+        let content = 'block: {
+            // En desarrollo (debug), intentamos leer desde el sistema de archivos para hot-reload
+            #[cfg(debug_assertions)]
+            {
+                let dev_path1 = PathBuf::from(&resource_path);
+                if dev_path1.exists() {
+                    if let Ok(content) = fs::read_to_string(dev_path1).await {
+                        break 'block Ok(content);
+                    }
+                }
+                let dev_path2 = PathBuf::from("application").join("src-tauri").join(&resource_path);
+                if dev_path2.exists() {
+                    if let Ok(content) = fs::read_to_string(dev_path2).await {
+                        break 'block Ok(content);
+                    }
+                }
+            }
+            
+            // En producción (release) o como fallback en debug, leemos desde los recursos de Tauri
+            let file_path = self
+                .app_handle
+                .path()
+                .resolve(&resource_path, BaseDirectory::Resource)?;
+            
+            fs::read_to_string(&file_path).await
+        }?;
 
-        let content = fs::read_to_string(&file_path)
-            .map_err(|e| format!("Failed to read language file: {}", e))?;
 
-        // Parse YAML to JSON
-        let messages: HashMap<String, Value> =
-            serde_yaml::from_str(&content).map_err(|e| format!("Failed to parse YAML: {}", e))?;
+        // 3. Parsear YAML
+        let messages: HashMap<String, Value> = serde_yaml::from_str(&content)?;
 
         let data = I18nData {
             language: language.to_string(),
             messages,
         };
 
-        // Cache the translation
+        // 4. Cachear la traducción
         {
             let mut translations = self.translations.write().await;
             translations.insert(language.to_string(), data.clone());
@@ -84,86 +118,75 @@ impl I18nManager {
         Ok(data)
     }
 
-    /// Get current language data
-    pub async fn get_current_language_data(&self) -> Result<I18nData, String> {
+    /// Obtiene los datos del idioma actual
+    pub async fn get_current_language_data(&self) -> Result<I18nData, I18nError> {
         let current_lang = self.current_language.read().await.clone();
         self.load_language(&current_lang).await
     }
 
-    /// Set current language and emit change event
-    pub async fn set_language(&self, language: &str) -> Result<(), String> {
-        // Load the language to ensure it exists
+    /// Establece el idioma actual y emite un evento de cambio
+    pub async fn set_language(&self, language: &str) -> Result<(), I18nError> {
+        // Asegurarse que el idioma existe y está cargado
         let data = self.load_language(language).await?;
 
-        // Update current language
+        // Actualizar el idioma actual
         {
             let mut current = self.current_language.write().await;
             *current = language.to_string();
         }
 
-        // Emit language change event to frontend
-        if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
-            if let Some(app_handle) = guard.as_ref() {
-                let _ = app_handle.emit(
-                    "language-changed",
-                    json!({
-                        "language": language,
-                        "messages": data.messages
-                    }),
-                );
-            }
-        }
+        // Emitir evento al frontend usando el app_handle del manager
+        let _ = self.app_handle.emit(
+            "language-changed",
+            json!({
+                "language": language,
+                "messages": data.messages
+            }),
+        );
 
         Ok(())
     }
 
-    /// Reset to system-detected language
-    pub async fn reset_to_system_language(&self) -> Result<(), String> {
+    /// Reinicia al idioma detectado del sistema
+    pub async fn reset_to_system_language(&self) -> Result<(), I18nError> {
         let detected_lang = self.detect_system_language();
         self.set_language(&detected_lang).await
     }
 
-    /// Get current language code
+    /// Obtiene el código del idioma actual
     pub async fn get_current_language(&self) -> String {
         self.current_language.read().await.clone()
     }
 
-    /// Get available languages by scanning i18n directory
-    pub fn get_available_languages(&self) -> Result<Vec<String>, String> {
-        if !self.i18n_dir.exists() {
-            return Ok(vec!["en".to_string()]); // fallback
-        }
-
+    /// Obtiene los idiomas disponibles escaneando el directorio i18n
+    pub fn get_available_languages(&self) -> Result<Vec<String>, I18nError> {
         let mut languages = Vec::new();
-        let entries = fs::read_dir(&self.i18n_dir)
-            .map_err(|e| format!("Failed to read i18n directory: {}", e))?;
 
-        for entry in entries {
-            let entry = entry.map_err(|e| format!("Failed to read entry: {}", e))?;
-            let path = entry.path();
+        // Lista de idiomas comunes a verificar
+        let common_languages = ["en", "es", "es-419", "pt-BR", "fr", "de", "it", "ja", "ko", "zh-CN", "zh-TW"];
 
-            if path.extension().and_then(|s| s.to_str()) == Some("yml") {
-                if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
-                    languages.push(stem.to_string());
-                }
+        for lang in &common_languages {
+            if self.language_file_exists(lang) {
+                languages.push(lang.to_string());
             }
         }
+        
+        // Asegurarse que "en" esté si existe
+        if !languages.contains(&"en".to_string()) && self.language_file_exists("en") {
+             languages.push("en".to_string());
+        }
 
-        // Ensure English is always first
+        // Ordenar con "en" primero, luego alfabéticamente
         languages.sort_by(|a, b| {
-            if a == "en" {
-                std::cmp::Ordering::Less
-            } else if b == "en" {
-                std::cmp::Ordering::Greater
-            } else {
-                a.cmp(b)
-            }
+            if a == "en" { std::cmp::Ordering::Less }
+            else if b == "en" { std::cmp::Ordering::Greater }
+            else { a.cmp(b) }
         });
 
         Ok(languages)
     }
 
-    /// Get translated message with fallback
+    /// Obtiene un mensaje traducido con fallback a la clave
     pub async fn get_message(&self, key: &str) -> String {
         if let Ok(data) = self.get_current_language_data().await {
             if let Some(value) = get_nested_value(&data.messages, key) {
@@ -172,12 +195,11 @@ impl I18nManager {
                 }
             }
         }
-
-        // Fallback to key if translation not found
+        // Fallback a la clave si no se encuentra traducción
         key.to_string()
     }
 
-    /// Get translated message with parameters
+    /// Obtiene un mensaje traducido con parámetros
     pub async fn get_message_with_params(
         &self,
         key: &str,
@@ -192,187 +214,111 @@ impl I18nManager {
         message
     }
 
-    /// Preload common languages during app initialization
-    pub async fn preload_common_languages(&self) -> Result<(), String> {
+    /// Precarga idiomas comunes durante la inicialización
+    pub async fn preload_common_languages(&self) -> Result<(), I18nError> {
         let mut languages_to_preload = vec!["en".to_string()];
 
-        // Always preload the detected system language
         let detected_lang = self.detect_system_language();
         if !languages_to_preload.contains(&detected_lang) {
             languages_to_preload.push(detected_lang);
         }
 
-        // Preload other common languages if available
-        let available_langs = self.get_available_languages().unwrap_or_default();
-        for lang in &["es-419"] {
-            if available_langs.contains(&lang.to_string())
-                && !languages_to_preload.contains(&lang.to_string())
-            {
-                languages_to_preload.push(lang.to_string());
-            }
+        // Precargar otros idiomas si están disponibles
+        if let Ok(available_langs) = self.get_available_languages() {
+             for lang in &["es-419", "pt-BR"] { // Añadir otros comunes si se desea
+                 if available_langs.contains(&lang.to_string())
+                    && !languages_to_preload.contains(&lang.to_string())
+                 {
+                     languages_to_preload.push(lang.to_string());
+                 }
+             }
         }
+       
 
         for lang in languages_to_preload {
             if let Err(e) = self.load_language(&lang).await {
-                log::warn!("Failed to preload language {}: {}", lang, e);
+                log::warn!("Fallo al precargar idioma {}: {}", lang, e);
             }
         }
 
         Ok(())
     }
 
-    /// Detect system language and return the best matching available language
+    /// Detecta el idioma del sistema y devuelve el mejor idioma disponible
     pub fn detect_system_language(&self) -> String {
-        // First try to get available languages
-        let available_languages = match self.get_available_languages() {
-            Ok(langs) => langs,
-            Err(_) => vec!["en".to_string()],
-        };
-
-        // Detect system locale
-        let system_locale = self.get_system_locale();
-
-        // Map system locale to best available language
-        let mapped_language =
-            self.map_locale_to_available_language(&system_locale, &available_languages);
-
-        // Ensure the mapped language is actually available (double check)
-        if available_languages.contains(&mapped_language) {
-            mapped_language
-        } else {
-            "en".to_string()
-        }
+        let available_languages = self.get_available_languages().unwrap_or_else(|_| vec!["en".to_string()]);
+        
+        // 1. Usar locale_config para obtener el locale del sistema
+        let system_locale = Locale::current();
+        let system_lang = system_locale.to_string();
+        
+        // 2. Mapear el locale detectado al mejor idioma disponible
+        self.map_locale_to_available_language(&system_lang, &available_languages)
     }
 
-    /// Get system locale from environment variables
-    fn get_system_locale(&self) -> String {
-        // Try different environment variables for locale detection
-        let locale_vars = ["LANG", "LC_ALL", "LC_MESSAGES", "LANGUAGE"];
-
-        for var in &locale_vars {
-            if let Ok(locale) = std::env::var(var) {
-                if !locale.is_empty() && locale != "C" && locale != "POSIX" {
-                    // Extract language code from locale (e.g., "es_ES.UTF-8" -> "es")
-                    let lang_code = locale
-                        .split('.')
-                        .next()
-                        .and_then(|s| s.split('_').next())
-                        .unwrap_or("en");
-                    return lang_code.to_lowercase();
-                }
-            }
-        }
-
-        // Fallback to English
-        "en".to_string()
-    }
-
-    /// Map a detected locale to the best available language
+    /// Mapea un locale detectado al mejor idioma disponible
     fn map_locale_to_available_language(
         &self,
         system_locale: &str,
         available_languages: &[String],
     ) -> String {
-        // Direct match
-        if available_languages.contains(&system_locale.to_string()) {
-            return system_locale.to_string();
+        let lang_str = system_locale.replace('_', "-"); // Normalizar a "es-419"
+
+        // 1. Intento de Coincidencia Exacta
+        // Si el sistema pide "es-419" y tenemos "es-419", usarlo.
+        if available_languages.contains(&lang_str) {
+            return lang_str;
         }
 
-        // Language family mapping
-        let language_mappings = [
-            // Spanish variants -> es-419
-            ("es", "es-419"),
-            ("es-es", "es-419"),
-            ("es-mx", "es-419"),
-            ("es-ar", "es-419"),
-            ("es-co", "es-419"),
-            ("es-pe", "es-419"),
-            ("es-ve", "es-419"),
-            ("es-cl", "es-419"),
-            ("es-ec", "es-419"),
-            ("es-uy", "es-419"),
-            ("es-py", "es-419"),
-            ("es-bo", "es-419"),
-            ("es-sv", "es-419"),
-            ("es-hn", "es-419"),
-            ("es-ni", "es-419"),
-            ("es-cr", "es-419"),
-            ("es-pa", "es-419"),
-            ("es-gt", "es-419"),
-            ("es-do", "es-419"),
-            ("es-pr", "es-419"),
-            ("es-cu", "es-419"),
-            // Portuguese variants -> pt (if available, otherwise en)
-            ("pt", "pt"),
-            ("pt-br", "pt"),
-            ("pt-pt", "pt"),
-            // French variants -> fr (if available, otherwise en)
-            ("fr", "fr"),
-            ("fr-fr", "fr"),
-            ("fr-ca", "fr"),
-            ("fr-be", "fr"),
-            // German variants -> de (if available, otherwise en)
-            ("de", "de"),
-            ("de-de", "de"),
-            ("de-at", "de"),
-            ("de-ch", "de"),
-            // Chinese variants -> zh (if available, otherwise en)
-            ("zh", "zh"),
-            ("zh-cn", "zh"),
-            ("zh-tw", "zh"),
-            ("zh-hk", "zh"),
-            // Japanese -> ja (if available, otherwise en)
-            ("ja", "ja"),
-            ("ja-jp", "ja"),
-            // Korean -> ko (if available, otherwise en)
-            ("ko", "ko"),
-            ("ko-kr", "ko"),
-            // Russian -> ru (if available, otherwise en)
-            ("ru", "ru"),
-            ("ru-ru", "ru"),
-            // Italian -> it (if available, otherwise en)
-            ("it", "it"),
-            ("it-it", "it"),
-            // Dutch -> nl (if available, otherwise en)
-            ("nl", "nl"),
-            ("nl-nl", "nl"),
-            ("nl-be", "nl"),
-        ];
+        // 2. Intento de Mapeo (ej. "es-*" -> "es-419")
+        let prefix = lang_str.split('-').next().unwrap_or("");
+        
+        let mapped_lang = match prefix {
+            "es" => "es-419", // Mapear cualquier español a es-419 (Latam)
+            "pt" => "pt-BR", // Mapear cualquier portugués a pt-BR
+            "zh" => "zh-CN", // Mapear cualquier chino a zh-CN (Simplificado)
+            _ => "",
+        };
 
-        // Check for exact matches in mappings
-        for (detected, mapped) in &language_mappings {
-            if system_locale == *detected {
-                if available_languages.contains(&mapped.to_string()) {
-                    return mapped.to_string();
-                }
-            }
+        if !mapped_lang.is_empty() && available_languages.contains(&mapped_lang.to_string()) {
+            return mapped_lang.to_string();
         }
 
-        // Check for language prefix matches (e.g., "es-MX" -> "es")
-        if let Some(prefix) = system_locale.split('-').next() {
-            for (detected, mapped) in &language_mappings {
-                if prefix == *detected {
-                    if available_languages.contains(&mapped.to_string()) {
-                        return mapped.to_string();
-                    }
-                }
-            }
-
-            // If prefix matches an available language directly
-            if available_languages.contains(&prefix.to_string()) {
-                return prefix.to_string();
-            }
+        // 3. Intento de Prefijo (ej. "es-MX" -> "es")
+        if available_languages.contains(&prefix.to_string()) {
+            return prefix.to_string();
         }
 
-        // If no match found, return English as fallback
+        // 4. Fallback a inglés
         "en".to_string()
+    }
+
+    /// Verifica si un archivo de idioma existe sin cargarlo
+    fn language_file_exists(&self, language: &str) -> bool {
+        let resource_path = format!("resources/i18n/{}.yml", language);
+
+        // En debug, verificar los paths de desarrollo primero
+        #[cfg(debug_assertions)]
+        {
+            if PathBuf::from(&resource_path).exists() {
+                return true;
+            }
+            if PathBuf::from("application").join("src-tauri").join(&resource_path).exists() {
+                return true;
+            }
+        }
+
+        // En producción o como fallback, verificar los recursos compilados
+        self.app_handle
+            .path()
+            .resolve(&resource_path, BaseDirectory::Resource)
+            .map_or(false, |path| path.exists())
     }
 }
 
-/// Helper function to get nested values from JSON
+/// Helper para obtener valores anidados de un JSON/YAML
 fn get_nested_value<'a>(data: &'a HashMap<String, Value>, key: &str) -> Option<&'a Value> {
     let parts: Vec<&str> = key.split('.').collect();
-
     let mut current = data.get(parts[0])?;
 
     for part in &parts[1..] {
@@ -383,19 +329,30 @@ fn get_nested_value<'a>(data: &'a HashMap<String, Value>, key: &str) -> Option<&
             _ => return None,
         }
     }
-
     Some(current)
 }
 
-// Singleton for global access
+// --- Singleton y Comandos de Tauri ---
+
 use once_cell::sync::OnceCell;
 static I18N_MANAGER: OnceCell<Arc<I18nManager>> = OnceCell::new();
 
-pub fn get_i18n_manager() -> &'static Arc<I18nManager> {
-    I18N_MANAGER.get_or_init(|| Arc::new(I18nManager::new().expect("Failed to create I18nManager")))
+/// Inicializa el gestor i18n con un AppHandle
+pub fn init_i18n_manager(app_handle: AppHandle) -> Result<(), I18nError> {
+    let manager = I18nManager::new(app_handle);
+    I18N_MANAGER
+        .set(Arc::new(manager))
+        .map_err(|_| I18nError::AlreadyInitialized)?;
+    Ok(())
 }
 
-// Tauri commands
+pub fn get_i18n_manager() -> &'static Arc<I18nManager> {
+    I18N_MANAGER.get().expect("I18nManager no inicializado. Llamar a init_i18n_manager primero.")
+}
+
+// --- Comandos de Tauri ---
+// Nota: Los comandos de Tauri devuelven Result<..., String> para el frontend.
+// Hacemos .map_err(|e| e.to_string()) en la frontera.
 
 #[tauri::command]
 pub async fn get_current_language() -> Result<String, String> {
@@ -404,18 +361,18 @@ pub async fn get_current_language() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn set_language(language: String) -> Result<(), String> {
-    get_i18n_manager().set_language(&language).await
+    get_i18n_manager().set_language(&language).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn get_available_languages() -> Result<Vec<String>, String> {
-    get_i18n_manager().get_available_languages()
+    get_i18n_manager().get_available_languages().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn get_translations(language: Option<String>) -> Result<Value, String> {
     let lang = language.unwrap_or_else(|| "en".to_string());
-    let data = get_i18n_manager().load_language(&lang).await?;
+    let data = get_i18n_manager().load_language(&lang).await.map_err(|e| e.to_string())?;
     Ok(json!({
         "language": data.language,
         "messages": data.messages
@@ -444,5 +401,5 @@ pub async fn get_detected_system_language() -> Result<String, String> {
 
 #[tauri::command]
 pub async fn reset_to_system_language() -> Result<(), String> {
-    get_i18n_manager().reset_to_system_language().await
+    get_i18n_manager().reset_to_system_language().await.map_err(|e| e.to_string())
 }
