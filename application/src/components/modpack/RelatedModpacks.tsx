@@ -119,7 +119,7 @@ export const RelatedModpacks: React.FC<RelatedModpacksProps> = ({
                 {modpacks.map((modpack) => (
                     <Link
                         key={modpack.id}
-                        to={`/modpack/${modpack.slug}`}
+                        to={`/modpack/${modpack.id}`}
                         className="flex flex-col items-center gap-2 p-3 rounded-lg bg-card hover:shadow-lg hover:scale-[1.02] transition-transform duration-150"
                         title={modpack.name}
                     >

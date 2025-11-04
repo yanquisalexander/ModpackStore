@@ -5,10 +5,10 @@ import { invoke } from '@tauri-apps/api/core';
 import ReactMarkdown from 'react-markdown';
 
 // Versión actual del changelog
-const CHANGELOG_ID = 7;
+const CHANGELOG_ID = 8;
 
 // DIA MES AÑO (DD/MM/YYYY)
-const PATCH_NOTES_RELEASE_DATE = '13/10/2025';
+const PATCH_NOTES_RELEASE_DATE = '03/11/2025';
 
 const PATCH_NOTES_DATE_STRING = (() => {
   const [day, month, year] = PATCH_NOTES_RELEASE_DATE.split('/').map(Number);
@@ -21,25 +21,58 @@ const PATCH_NOTES_DATE_STRING = (() => {
   }).format(date);
 })();
 
-const CHANGELOG_CONTENT = `## 🎨 Personalizá tu launcher — Nuevo sistema de temas (BETA)
+const CHANGELOG_CONTENT = `## 🚀 ¡Modpack Store 1.0 ya está aquí! — Fin de la Beta 🎉
 
-- 🖌️ **Sistema de temas activado (BETA)**  
-  Ahora podés cambiar el aspecto de Modpack Store con un par de clics. Probá los **3 temas gratuitos** incluidos y dale estilo a tu experiencia.
-
-- 🌟 **Preparando Modpack Store+**  
-  Se empieza a integrar nuestro sistema de suscripción para quienes quieren ir más allá:
-  - Todos los temas desbloqueados  
-  - Acceso anticipado a funciones experimentales  
-  - Soporte prioritario y rol especial en Discord  
-  - Velocidades de descarga mejoradas en modpacks
-
-- ⚙️ **Optimización de carga**  
-  Seguimos mejorando el rendimiento general de la app para que todo responda más rápido, incluso tus clics impulsivos.
+Después de meses en beta (y muchas tazas de café), **Modpack Store** alcanza su **primera versión oficial**.  
+Y sí, esto viene cargado de mejoras, estabilidad y un toque de magia ✨
 
 ---
 
-Gracias por seguir usando Modpack Store. Cada actualización te da más control, más estilo y más poder. 💚
-`;
+### 🧵 Soporte estable para Fabric  
+Ya podés disfrutar de tus modpacks favoritos con **Fabric** sin miedo a crasheos raros.  
+Más compatibilidad, más estabilidad, más diversión.
+
+---
+
+### 💚 Recomendaciones y modpacks similares  
+¿Te gustó un modpack? Ahora te sugerimos otros que podrían encantarte 💫  
+El sistema aprende de tus likes y te muestra lo mejor del universo Modpack Store.
+
+---
+
+### ⚡ Más rápido que nunca  
+Actualizamos la infraestructura para que **todo cargue más fluido**.  
+Desde el inicio hasta las descargas, cada clic ahora se siente instantáneo. ⚙️💨
+
+---
+
+### 💬 Tickets en tiempo real  
+El sistema de soporte ahora **te notifica en vivo** cuando hay nuevas respuestas o mensajes.  
+Y sí, también hay un **contador de notificaciones no leídas** — porque a quién no le gusta ver numeritos rojos.
+
+---
+
+### 🌐 Próximamente: funciones sociales  
+Durante las próximas semanas iremos activando gradualmente:
+- 🕹️ **Play Together** — conectate con tus amigos directamente desde el launcher.  
+- 🤝 **Instance Sharing** — compartí tus instancias personalizadas con un clic.  
+
+El multijugador nunca se sintió tan fácil. 👀
+
+---
+
+### 🧑‍💻 Creadores, esto es para ustedes  
+- Ahora pueden usar **Markdown** en sus changelogs y descripciones.  
+  ¡Sí! **Imágenes, gifs de gatos, memes y todo lo demás** 🐱✨  
+- Si usás **Prelaunch Appearance**, ahora podés aprovechar **variables dinámicas**, como:  
+  \`Hola $mcAccountName\` 👋  
+  Hacelo sentir personal, único y especial.
+
+---
+
+Gracias por acompañarnos hasta acá 💚  
+Esto recién empieza, y lo mejor aún está por venir.  
+**— El equipo de Modpack Store**`;
 
 export const Changelog: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
