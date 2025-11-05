@@ -1,6 +1,7 @@
 import { Publisher } from '../entities/Publisher';
 import { PublisherMember } from '../entities/PublisherMember';
 import { User } from '../entities/User';
+import { Scope } from '../entities/Scope';
 import { PublisherMemberRole } from '../types/enums';
 import { AuditService } from './audit.service';
 import { AuditAction } from '../entities/AuditLog';
@@ -248,7 +249,11 @@ export class AdminPublishersService {
                 throw new Error('Cannot delete publisher with existing modpacks');
             }
 
-            // Delete all members first
+            // Delete all members first (including their scopes)
+            const members = await queryRunner.manager.find(PublisherMember, { where: { publisherId } });
+            for (const member of members) {
+                await queryRunner.manager.delete(Scope, { publisherMemberId: member.id });
+            }
             await queryRunner.manager.delete(PublisherMember, { publisherId });
 
             // Delete the publisher
@@ -300,18 +305,38 @@ export class AdminPublishersService {
             throw new Error('Publisher not found');
         }
 
-        // Check if user exists
-        const user = await this.getUserRepository().findOne({
-            where: { id: data.userId }
-        });
+        // Helper function to check if string is a valid UUID
+        const isValidUUID = (str: string): boolean => {
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            return uuidRegex.test(str);
+        };
+
+        // Clean the user identifier (remove @ prefix if present)
+        const userIdentifier = data.userId.startsWith('@') ? data.userId.substring(1) : data.userId;
+
+        let user;
+
+        // Try to find user by ID first if it's a valid UUID
+        if (isValidUUID(userIdentifier)) {
+            user = await this.getUserRepository().findOne({
+                where: { id: userIdentifier }
+            });
+        }
+
+        // If not found by ID or not a UUID, try to find by username
+        if (!user) {
+            user = await this.getUserRepository().findOne({
+                where: { username: userIdentifier }
+            });
+        }
 
         if (!user) {
-            throw new Error('User not found');
+            throw new Error(`User not found: ${userIdentifier}`);
         }
 
         // Check if user is already a member
         const existingMember = await this.getMemberRepository().findOne({
-            where: { publisherId, userId: data.userId }
+            where: { publisherId, userId: user.id }
         });
 
         if (existingMember) {
@@ -321,7 +346,7 @@ export class AdminPublishersService {
         // Create the member
         const member = this.getMemberRepository().create({
             publisherId,
-            userId: data.userId,
+            userId: user.id,
             role: data.role
         });
 
@@ -332,7 +357,7 @@ export class AdminPublishersService {
             action: AuditAction.PUBLISHER_MEMBER_ADDED,
             userId: addedBy,
             targetResourceId: publisherId,
-            details: { targetUserId: data.userId, role: data.role, username: user.username }
+            details: { targetUserId: user.id, role: data.role, username: user.username, identifierUsed: userIdentifier }
         });
 
         return savedMember;
@@ -342,35 +367,51 @@ export class AdminPublishersService {
      * Remove a member from a publisher
      */
     static async removeMember(publisherId: string, userId: string, removedBy: string): Promise<void> {
-        const member = await this.getMemberRepository().findOne({
-            where: { publisherId, userId },
-            relations: ['user']
-        });
+        const queryRunner = AppDataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
 
-        if (!member) {
-            throw new Error('Member not found');
-        }
-
-        // Cannot remove the last owner
-        if (member.role === PublisherMemberRole.OWNER) {
-            const ownerCount = await this.getMemberRepository().count({
-                where: { publisherId, role: PublisherMemberRole.OWNER }
+        try {
+            const member = await this.getMemberRepository().findOne({
+                where: { publisherId, userId },
+                relations: ['user', 'scopes']
             });
 
-            if (ownerCount <= 1) {
-                throw new Error('Cannot remove the last owner from publisher');
+            if (!member) {
+                throw new Error('Member not found');
             }
+
+            // Cannot remove the last owner
+            if (member.role === PublisherMemberRole.OWNER) {
+                const ownerCount = await this.getMemberRepository().count({
+                    where: { publisherId, role: PublisherMemberRole.OWNER }
+                });
+
+                if (ownerCount <= 1) {
+                    throw new Error('Cannot remove the last owner from publisher');
+                }
+            }
+
+            // Delete associated scopes first to avoid foreign key constraint violation
+            await AppDataSource.getRepository(Scope).delete({ publisherMemberId: member.id });
+
+            await this.getMemberRepository().remove(member);
+
+            // Log the action
+            await AuditService.createLog({
+                action: AuditAction.PUBLISHER_MEMBER_REMOVED,
+                userId: removedBy,
+                targetResourceId: publisherId,
+                details: { targetUserId: userId, role: member.role, username: member.user?.username }
+            });
+
+            await queryRunner.commitTransaction();
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw error;
+        } finally {
+            await queryRunner.release();
         }
-
-        await this.getMemberRepository().remove(member);
-
-        // Log the action
-        await AuditService.createLog({
-            action: AuditAction.PUBLISHER_MEMBER_REMOVED,
-            userId: removedBy,
-            targetResourceId: publisherId,
-            details: { targetUserId: userId, role: member.role, username: member.user?.username }
-        });
     }
 
     /**

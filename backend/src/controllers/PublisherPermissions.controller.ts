@@ -395,4 +395,84 @@ export class PublisherPermissionsController {
             }), { status: 500 });
         }
     }
+
+    /**
+     * Remove a member from a publisher
+     */
+    static async removeMember(c: Context): Promise<Response> {
+        try {
+            const user = c.get('user') as { id: string } | undefined;
+            if (!user?.id) {
+                throw new APIError(401, 'Authentication required.');
+            }
+
+            const publisherId = c.req.param('publisherId');
+            const userId = c.req.param('userId');
+
+            if (!publisherId) {
+                throw new APIError(400, 'Publisher ID is required.');
+            }
+
+            if (!userId) {
+                throw new APIError(400, 'User ID is required.');
+            }
+
+            // Check if user has permission to manage members
+            const canManageMembers = await PublisherPermissionsController.getPublisherService().hasUserPermission(
+                publisherId,
+                user.id,
+                'manage_members'
+            );
+
+            if (!canManageMembers) {
+                throw new APIError(403, 'You do not have permission to manage members.');
+            }
+
+            // Check if trying to remove themselves (prevent self-removal)
+            if (user.id === userId) {
+                throw new APIError(400, 'You cannot remove yourself from the publisher.');
+            }
+
+            // Check if the target user is the owner (owners cannot be removed)
+            const targetMember = await PublisherPermissionsController.getPublisherService().getMember(publisherId, userId);
+            if (!targetMember) {
+                throw new APIError(404, 'Member not found.');
+            }
+
+            if (targetMember.role === 'owner') {
+                throw new APIError(400, 'Cannot remove the owner of the publisher.');
+            }
+
+            // Check if requesting user can remove this member (owners can only be removed by other owners)
+            if (targetMember.role === PublisherMemberRole.ADMIN) {
+                const canManageAdmins = await PublisherPermissionsController.getPublisherService().canManageRole(
+                    publisherId,
+                    user.id,
+                    PublisherMemberRole.ADMIN
+                );
+                if (!canManageAdmins) {
+                    throw new APIError(403, 'You do not have permission to remove administrators.');
+                }
+            }
+
+            await PublisherPermissionsController.getPublisherService().removeMember(publisherId, userId);
+
+            return c.body(null, { status: 204 });
+
+        } catch (error) {
+            console.error('Error removing member:', error);
+            if (error instanceof APIError) {
+                return c.json(serializeError({
+                    status: error.statusCode.toString(),
+                    title: 'Error',
+                    detail: error.message
+                }), { status: error.statusCode as any });
+            }
+            return c.json(serializeError({
+                status: '500',
+                title: 'Internal Server Error',
+                detail: 'An unexpected error occurred.'
+            }), { status: 500 });
+        }
+    }
 }

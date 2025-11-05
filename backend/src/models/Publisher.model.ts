@@ -42,7 +42,7 @@ export const publisherUpdateSchema = newPublisherSchema.partial();
 
 export const publisherMemberSchema = z.object({
     publisherId: z.string().uuid(),
-    userId: z.string().uuid(),
+    userId: z.string().min(1).max(100), // Allow both UUID and username
     role: z.nativeEnum(PublisherRole),
 });
 
@@ -371,7 +371,39 @@ export class Publisher {
         }
     }
 
-    async addMember(userId: string, role: PublisherRole): Promise<void> {
+    async addMember(userIdentifier: string, role: PublisherRole): Promise<void> {
+        // Helper function to check if string is a valid UUID
+        const isValidUUID = (str: string): boolean => {
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            return uuidRegex.test(str);
+        };
+
+        // Clean the user identifier (remove @ prefix if present)
+        const cleanIdentifier = userIdentifier.startsWith('@') ? userIdentifier.substring(1) : userIdentifier;
+
+        let userId = cleanIdentifier;
+
+        // If it's not a valid UUID, try to find the user by username
+        if (!isValidUUID(cleanIdentifier)) {
+            const user = await db.select().from(UsersTable).where(eq(UsersTable.username, cleanIdentifier)).limit(1);
+            if (user.length === 0) {
+                throw new Error(`User not found: ${cleanIdentifier}`);
+            }
+            userId = user[0].id;
+        }
+
+        // Check if user is already a member
+        const existingMember = await db.select().from(PublisherMembersTable).where(
+            and(
+                eq(PublisherMembersTable.publisherId, this.id),
+                eq(PublisherMembersTable.userId, userId)
+            )
+        ).limit(1);
+
+        if (existingMember.length > 0) {
+            throw new Error('User is already a member of this publisher');
+        }
+
         const memberData = publisherMemberSchema.safeParse({
             publisherId: this.id,
             userId: userId,

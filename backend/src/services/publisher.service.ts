@@ -77,7 +77,36 @@ export class PublisherService {
         }
     }
 
-    async addMember(publisherId: string, userId: string, role: PublisherMemberRole): Promise<PublisherMember> {
+    async addMember(publisherId: string, userIdentifier: string, role: PublisherMemberRole): Promise<PublisherMember> {
+        // Helper function to check if string is a valid UUID
+        const isValidUUID = (str: string): boolean => {
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+            return uuidRegex.test(str);
+        };
+
+        // Clean the user identifier (remove @ prefix if present)
+        const cleanIdentifier = userIdentifier.startsWith('@') ? userIdentifier.substring(1) : userIdentifier;
+
+        let userId = cleanIdentifier;
+
+        // If it's not a valid UUID, try to find the user by username
+        if (!isValidUUID(cleanIdentifier)) {
+            const user = await this.userRepository.findOne({ where: { username: cleanIdentifier } });
+            if (!user) {
+                throw new Error(`User not found: ${cleanIdentifier}`);
+            }
+            userId = user.id;
+        }
+
+        // Check if user is already a member
+        const existingMember = await this.memberRepository.findOne({
+            where: { publisherId, userId }
+        });
+
+        if (existingMember) {
+            throw new Error('User is already a member of this publisher');
+        }
+
         const member = this.memberRepository.create({
             publisherId,
             userId,
@@ -96,6 +125,16 @@ export class PublisherService {
     }
 
     async removeMember(publisherId: string, userId: string): Promise<void> {
+        // First, find the member to get its ID for scope deletion
+        const member = await this.memberRepository.findOne({ where: { publisherId, userId } });
+        if (!member) {
+            throw new Error('Member not found');
+        }
+
+        // Delete associated scopes first to avoid foreign key constraint violation
+        await this.scopeRepository.delete({ publisherMemberId: member.id });
+
+        // Then delete the member
         await this.memberRepository.delete({ publisherId, userId });
     }
 

@@ -20,7 +20,7 @@ export const publisherUpdateSchema = newPublisherSchema.partial();
 
 export const publisherMemberSchema = z.object({
     publisherId: z.string().uuid(),
-    userId: z.string().uuid(),
+    userId: z.string().min(1).max(100), // Allow both UUID and username
     role: z.nativeEnum(PublisherMemberRole),
 });
 

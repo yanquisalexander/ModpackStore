@@ -34,7 +34,7 @@ const updatePublisherSchema = z.object({
 });
 
 const addMemberSchema = z.object({
-    userId: z.string().uuid(),
+    userId: z.string().min(1).max(100), // Allow both UUID and username
     role: z.nativeEnum(PublisherMemberRole)
 });
 

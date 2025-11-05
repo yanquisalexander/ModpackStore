@@ -34,6 +34,7 @@ import {
     PublisherMemberWithPermissions
 } from '@/services/publisherPermissions.service';
 import { MemberPermissionsDialog } from '@/components/publisher/MemberPermissionsDialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
 // Add Member Dialog Component
 const AddMemberDialog: React.FC<{
@@ -89,12 +90,12 @@ const AddMemberDialog: React.FC<{
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <Label htmlFor="userId">ID de usuario</Label>
+                        <Label htmlFor="userId">ID de usuario o Username de Discord</Label>
                         <Input
                             id="userId"
                             value={userId}
                             onChange={(e) => setUserId(e.target.value)}
-                            placeholder="Introduce el ID del usuario"
+                            placeholder="Introduce el ID del usuario o @username de Discord"
                             required
                         />
                     </div>
@@ -136,6 +137,8 @@ export const PublisherTeamView: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [selectedMemberForPermissions, setSelectedMemberForPermissions] = useState<PublisherMemberWithPermissions | null>(null);
     const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
+    const [memberToRemove, setMemberToRemove] = useState<PublisherMemberWithPermissions | null>(null);
+    const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
 
     // Get user role in this publisher
     const publisherMembership = session?.publisherMemberships?.find(
@@ -169,11 +172,16 @@ export const PublisherTeamView: React.FC = () => {
 
     // Remove member
     const handleRemoveMember = async (member: PublisherMemberWithPermissions) => {
-        if (!publisherId || !sessionTokens?.accessToken) return;
-        if (!confirm(`¿Estás seguro de que quieres eliminar a ${member.user.username} del equipo?`)) return;
+        setMemberToRemove(member);
+        setRemoveDialogOpen(true);
+    };
+
+    // Confirm remove member
+    const confirmRemoveMember = async () => {
+        if (!memberToRemove || !publisherId || !sessionTokens?.accessToken) return;
 
         try {
-            await PublisherPermissionsAPI.removeMember(publisherId, member.userId, sessionTokens.accessToken);
+            await PublisherPermissionsAPI.removeMember(publisherId, memberToRemove.userId, sessionTokens.accessToken);
             toast({
                 title: "Éxito",
                 description: "Miembro eliminado correctamente",
@@ -185,6 +193,9 @@ export const PublisherTeamView: React.FC = () => {
                 description: `Error al eliminar miembro: ${error instanceof Error ? error.message : 'Error desconocido'}`,
                 variant: "destructive",
             });
+        } finally {
+            setRemoveDialogOpen(false);
+            setMemberToRemove(null);
         }
     };
 
@@ -392,6 +403,30 @@ export const PublisherTeamView: React.FC = () => {
                     currentUserRole={userRole as 'owner' | 'admin' | 'member'}
                 />
             )}
+
+            {/* Remove member confirmation dialog */}
+            <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar miembro del equipo?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            ¿Estás seguro de que quieres eliminar a {memberToRemove?.user?.username} del equipo?
+                            Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => {
+                            setRemoveDialogOpen(false);
+                            setMemberToRemove(null);
+                        }}>
+                            Cancelar
+                        </AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmRemoveMember}>
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };

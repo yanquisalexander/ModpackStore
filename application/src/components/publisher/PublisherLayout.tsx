@@ -30,7 +30,7 @@ interface PublisherLayoutProps {
 // Navigation items for publisher sidebar
 const getPublisherNavItems = (publisherId: string) => [
     {
-        path: `/publisher/${publisherId}/modpacks`,
+        path: `/publisher/${publisherId}`,
         label: 'Gestión de Modpacks',
         icon: LucidePackage,
         description: 'Administrar modpacks y versiones'

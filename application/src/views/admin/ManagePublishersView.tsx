@@ -22,11 +22,11 @@ import {
     LucideX,
     LucidePlus,
     LucideUserMinus,
-    LucideUserCheck,
     LucideCrown
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from "@/consts";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 
 // Types
 interface Publisher {
@@ -394,6 +394,8 @@ const PublisherDetails: React.FC<{
     const [selectedMember, setSelectedMember] = useState<PublisherMember | null>(null);
     const [addMemberForm, setAddMemberForm] = useState({ userId: '', role: 'member' });
     const [operationLoading, setOperationLoading] = useState(false);
+    const [showRemoveMemberAlert, setShowRemoveMemberAlert] = useState(false);
+    const [memberToRemove, setMemberToRemove] = useState<PublisherMember | null>(null);
     const { sessionTokens } = useAuthentication();
     const { toast } = useToast();
 
@@ -449,23 +451,14 @@ const PublisherDetails: React.FC<{
         }
     };
 
-    const handleRemoveMember = async (member: PublisherMember) => {
-        if (!confirm(`¿Estás seguro de que quieres remover a ${member.user?.username} del publisher?`)) {
-            return;
-        }
-
-        if (!sessionTokens?.accessToken) {
-            toast({
-                title: 'Error',
-                description: 'No access token available',
-                variant: 'destructive'
-            });
+    const confirmRemoveMember = async () => {
+        if (!memberToRemove || !sessionTokens?.accessToken) {
             return;
         }
 
         setOperationLoading(true);
         try {
-            await AdminPublishersAPI.removeMember(publisher.id, member.userId, sessionTokens.accessToken);
+            await AdminPublishersAPI.removeMember(publisher.id, memberToRemove.userId, sessionTokens.accessToken);
             toast({
                 title: "Éxito",
                 description: "Miembro removido exitosamente",
@@ -479,6 +472,8 @@ const PublisherDetails: React.FC<{
             });
         } finally {
             setOperationLoading(false);
+            setShowRemoveMemberAlert(false);
+            setMemberToRemove(null);
         }
     };
 
@@ -655,7 +650,10 @@ const PublisherDetails: React.FC<{
                                                         <Button
                                                             variant="destructive"
                                                             size="sm"
-                                                            onClick={() => handleRemoveMember(member)}
+                                                            onClick={() => {
+                                                                setMemberToRemove(member);
+                                                                setShowRemoveMemberAlert(true);
+                                                            }}
                                                         >
                                                             <LucideUserMinus className="h-4 w-4 mr-2" />
                                                             Remover
@@ -768,11 +766,11 @@ const PublisherDetails: React.FC<{
                     </DialogHeader>
                     <div className="space-y-4">
                         <div>
-                            <label className="block text-sm font-medium mb-2">ID de Usuario</label>
+                            <label className="block text-sm font-medium mb-2">ID de usuario o Username de Discord</label>
                             <Input
                                 value={addMemberForm.userId}
                                 onChange={(e) => setAddMemberForm({ ...addMemberForm, userId: e.target.value })}
-                                placeholder="Ingrese el ID del usuario"
+                                placeholder="Introduce el ID del usuario o @username de Discord"
                                 required
                             />
                         </div>
@@ -861,6 +859,34 @@ const PublisherDetails: React.FC<{
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Remove Member Alert Dialog */}
+            <AlertDialog open={showRemoveMemberAlert} onOpenChange={setShowRemoveMemberAlert}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Remover Miembro</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            ¿Estás seguro de que quieres remover a {memberToRemove?.user?.username} del publisher?
+                            Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => {
+                            setShowRemoveMemberAlert(false);
+                            setMemberToRemove(null);
+                        }}>
+                            Cancelar
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmRemoveMember}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            {operationLoading && <LucideLoader className="mr-2 h-4 w-4 animate-spin" />}
+                            Remover Miembro
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };
@@ -880,6 +906,8 @@ export const ManagePublishersView: React.FC = () => {
     const [showEditDialog, setShowEditDialog] = useState(false);
     const [showDetailsDialog, setShowDetailsDialog] = useState(false);
     const [operationLoading, setOperationLoading] = useState(false);
+    const [showDeletePublisherAlert, setShowDeletePublisherAlert] = useState(false);
+    const [publisherToDelete, setPublisherToDelete] = useState<Publisher | null>(null);
 
     // Filter states
     const [search, setSearch] = useState('');
@@ -999,21 +1027,17 @@ export const ManagePublishersView: React.FC = () => {
     };
 
     const handleDeletePublisher = async (publisher: Publisher) => {
-        if (!confirm(`¿Estás seguro de que quieres eliminar el publisher "${publisher.publisherName}"?`)) {
-            return;
-        }
+        setPublisherToDelete(publisher);
+        setShowDeletePublisherAlert(true);
+    };
 
-        if (!sessionTokens?.accessToken) {
-            toast({
-                title: 'Error',
-                description: 'No access token available',
-                variant: 'destructive'
-            });
+    const confirmDeletePublisher = async () => {
+        if (!publisherToDelete || !sessionTokens?.accessToken) {
             return;
         }
 
         try {
-            await AdminPublishersAPI.deletePublisher(publisher.id, sessionTokens.accessToken);
+            await AdminPublishersAPI.deletePublisher(publisherToDelete.id, sessionTokens.accessToken);
             toast({
                 title: "Éxito",
                 description: "Publisher eliminado exitosamente",
@@ -1025,6 +1049,9 @@ export const ManagePublishersView: React.FC = () => {
                 description: "Error al eliminar publisher: " + err.message,
                 variant: "destructive",
             });
+        } finally {
+            setShowDeletePublisherAlert(false);
+            setPublisherToDelete(null);
         }
     };
 
@@ -1191,7 +1218,10 @@ export const ManagePublishersView: React.FC = () => {
                                                         alt={publisher.publisherName}
                                                         className="w-8 h-8 rounded"
                                                         onError={(e) => {
-                                                            e.currentTarget.src = '/placeholder-logo.png';
+                                                            // Evitar loop infinito verificando si ya es UI Avatar
+                                                            if (!e.currentTarget.src.includes('ui-avatars.com')) {
+                                                                e.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(publisher.publisherName)}&size=32&background=random`;
+                                                            }
                                                         }}
                                                     />
                                                     <div>
@@ -1241,7 +1271,10 @@ export const ManagePublishersView: React.FC = () => {
                                                     <Button
                                                         variant="destructive"
                                                         size="sm"
-                                                        onClick={() => handleDeletePublisher(publisher)}
+                                                        onClick={() => {
+                                                            setPublisherToDelete(publisher);
+                                                            setShowDeletePublisherAlert(true);
+                                                        }}
                                                     >
                                                         <LucideTrash className="h-4 w-4" />
                                                     </Button>
@@ -1323,6 +1356,33 @@ export const ManagePublishersView: React.FC = () => {
                     )}
                 </DialogContent>
             </Dialog>
+
+            {/* Delete Publisher Alert Dialog */}
+            <AlertDialog open={showDeletePublisherAlert} onOpenChange={setShowDeletePublisherAlert}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Eliminar Publisher</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            ¿Estás seguro de que quieres eliminar el publisher "{publisherToDelete?.publisherName}"?
+                            Esta acción no se puede deshacer y eliminará permanentemente el publisher y toda su información.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel onClick={() => {
+                            setShowDeletePublisherAlert(false);
+                            setPublisherToDelete(null);
+                        }}>
+                            Cancelar
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={confirmDeletePublisher}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            Eliminar Publisher
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };

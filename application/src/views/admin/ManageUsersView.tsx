@@ -23,6 +23,7 @@ import { useAuthentication } from '@/stores/AuthContext';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { API_ENDPOINT } from "@/consts";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 
 // Types
 interface User {
@@ -786,88 +787,105 @@ export const ManageUsersView: React.FC = () => {
                                         const isAdmin = user.role === 'admin' || user.role === 'superadmin';
 
                                         return (
-                                            <TableRow key={user.id}>
-                                                <TableCell className="font-medium">
-                                                    <div className="flex items-center gap-2">
-                                                        {user.avatarUrl && (
-                                                            <img
-                                                                src={user.avatarUrl}
-                                                                alt={user.username}
-                                                                className="w-6 h-6 rounded-full"
-                                                            />
-                                                        )}
-                                                        {user.username}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>{user.email}</TableCell>
-                                                <TableCell>
-                                                    <RoleBadge role={user.role} />
-                                                </TableCell>
-                                                <TableCell>
-                                                    {isBanned ? (
-                                                        <Badge variant="destructive">BANEADO</Badge>
-                                                    ) : (
-                                                        <Badge variant="secondary">ACTIVO</Badge>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {new Date(user.createdAt).toLocaleDateString()}
-                                                </TableCell>
-                                                <TableCell className="text-right">
-                                                    <div className="flex justify-end gap-2">
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            disabled={user.username === "system"}
-                                                            onClick={() => setEditingUser(user)}
-                                                            title="Editar usuario"
-                                                        >
-                                                            <LucideEdit className="h-3 w-3" />
-                                                        </Button>
+                                            <ContextMenu key={user.id}>
+                                                <ContextMenuTrigger asChild>
+                                                    <TableRow>
+                                                        <TableCell className="font-medium">
+                                                            <div className="flex items-center gap-2">
+                                                                {user.avatarUrl && (
+                                                                    <img
+                                                                        src={user.avatarUrl}
+                                                                        alt={user.username}
+                                                                        className="w-6 h-6 rounded-full"
+                                                                    />
+                                                                )}
+                                                                {user.username}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell>{user.email}</TableCell>
+                                                        <TableCell>
+                                                            <RoleBadge role={user.role} />
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {isBanned ? (
+                                                                <Badge variant="destructive">BANEADO</Badge>
+                                                            ) : (
+                                                                <Badge variant="secondary">ACTIVO</Badge>
+                                                            )}
+                                                        </TableCell>
+                                                        <TableCell>
+                                                            {new Date(user.createdAt).toLocaleDateString()}
+                                                        </TableCell>
+                                                        <TableCell className="text-right">
+                                                            <div className="flex justify-end gap-2">
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    disabled={user.username === "system"}
+                                                                    onClick={() => setEditingUser(user)}
+                                                                    title="Editar usuario"
+                                                                >
+                                                                    <LucideEdit className="h-3 w-3" />
+                                                                </Button>
 
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => setViewingBanHistory(user)}
-                                                            title="Ver historial de bans"
-                                                        >
-                                                            <LucideHistory className="h-3 w-3" />
-                                                        </Button>
+                                                                <Button
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    onClick={() => setViewingBanHistory(user)}
+                                                                    title="Ver historial de bans"
+                                                                >
+                                                                    <LucideHistory className="h-3 w-3" />
+                                                                </Button>
 
-                                                        {isBanned ? (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() => handleUnbanUser(user)}
-                                                                disabled={user.username === "system"}
-                                                                title="Desbanear usuario"
-                                                            >
-                                                                <LucideShieldCheck className="h-3 w-3 text-green-500" />
-                                                            </Button>
-                                                        ) : (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() => setBanningUser(user)}
-                                                                disabled={isAdmin || user.username === "system"}
-                                                                title={isAdmin ? "No se pueden banear administradores" : "Banear usuario"}
-                                                            >
-                                                                <LucideBan className="h-3 w-3 text-red-500" />
-                                                            </Button>
-                                                        )}
+                                                                {isBanned ? (
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() => handleUnbanUser(user)}
+                                                                        disabled={user.username === "system"}
+                                                                        title="Desbanear usuario"
+                                                                    >
+                                                                        <LucideShieldCheck className="h-3 w-3 text-green-500" />
+                                                                    </Button>
+                                                                ) : (
+                                                                    <Button
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        onClick={() => setBanningUser(user)}
+                                                                        disabled={isAdmin || user.username === "system"}
+                                                                        title={isAdmin ? "No se pueden banear administradores" : "Banear usuario"}
+                                                                    >
+                                                                        <LucideBan className="h-3 w-3 text-red-500" />
+                                                                    </Button>
+                                                                )}
 
-                                                        <Button
-                                                            variant="destructive"
-                                                            size="sm"
-                                                            onClick={() => handleDeleteUser(user)}
-                                                            disabled={user.id === session?.id || user.username === "system"}
-                                                            title="Eliminar usuario"
-                                                        >
-                                                            <LucideTrash className="h-3 w-3" />
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
+                                                                <Button
+                                                                    variant="destructive"
+                                                                    size="sm"
+                                                                    onClick={() => handleDeleteUser(user)}
+                                                                    disabled={user.id === session?.id || user.username === "system"}
+                                                                    title="Eliminar usuario"
+                                                                >
+                                                                    <LucideTrash className="h-3 w-3" />
+                                                                </Button>
+                                                            </div>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                </ContextMenuTrigger>
+                                                <ContextMenuContent>
+                                                    <ContextMenuItem
+                                                        onClick={() => {
+                                                            navigator.clipboard.writeText(user.id);
+                                                            toast({
+                                                                title: 'Copiado',
+                                                                description: 'ID de usuario copiado al portapapeles'
+                                                            });
+                                                        }}
+                                                    >
+                                                        Copiar ID de usuario
+                                                    </ContextMenuItem>
+                                                </ContextMenuContent>
+                                            </ContextMenu>
                                         );
                                     })
                                 )}

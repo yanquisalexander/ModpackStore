@@ -187,12 +187,12 @@ const AddMemberDialog: React.FC<{
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <Label htmlFor="userId">ID de Usuario</Label>
+                        <Label htmlFor="userId">ID de usuario o Username de Discord</Label>
                         <Input
                             id="userId"
                             value={userId}
                             onChange={(e) => setUserId(e.target.value)}
-                            placeholder="Ingresa el ID del usuario"
+                            placeholder="Introduce el ID del usuario o @username de Discord"
                             required
                         />
                     </div>

@@ -31,7 +31,7 @@ const ROLE_HIERARCHY: Record<PublisherRole, number> = {
 // Validation schemas
 export const newPublisherMemberSchema = z.object({
     publisherId: z.string().uuid(),
-    userId: z.string().uuid(),
+    userId: z.string().min(1).max(100), // Allow both UUID and username
     role: z.nativeEnum(PublisherRole),
 });
 
