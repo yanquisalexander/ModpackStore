@@ -2,23 +2,24 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useState, useEffect } from "react"
+import { Loader as LucideLoader } from 'lucide-react'
 
 interface CreateInstanceDialogProps {
     isOpen: boolean;
     onClose: () => void;
-    modpackId: string;
     modpackName: string;
-    onConfirmCreate: (instanceName: string) => void;
+    // Puede devolver una promesa para operaciones async
+    onConfirmCreate: (instanceName: string) => void | Promise<void>;
 }
 
 export const CreateInstanceDialog = ({
     isOpen,
     onClose,
-    modpackId,
     modpackName,
     onConfirmCreate,
 }: CreateInstanceDialogProps) => {
     const [instanceName, setInstanceName] = useState<string>("")
+    const [isCreating, setIsCreating] = useState<boolean>(false)
 
     // Establecer nombre por defecto cuando se abre el diálogo
     useEffect(() => {
@@ -42,6 +43,7 @@ export const CreateInstanceDialog = ({
                         onChange={(e) => setInstanceName(e.target.value)}
                         placeholder="Nombre de la instancia"
                         className="bg-zinc-800 border-zinc-700 text-white"
+                        disabled={isCreating}
                     />
                 </div>
                 <DialogFooter>
@@ -55,10 +57,28 @@ export const CreateInstanceDialog = ({
                     <Button
                         variant="default"
                         className="bg-indigo-600 hover:bg-indigo-700"
-                        onClick={() => onConfirmCreate(instanceName)}
-                        disabled={!instanceName.trim()}
+                        onClick={async () => {
+                            if (!instanceName.trim() || isCreating) return
+                            try {
+                                setIsCreating(true)
+                                await onConfirmCreate(instanceName)
+                            } catch (err) {
+                                // Dejar que el padre maneje errores visuales; aquí solo restauramos estado
+                                console.error('Error creating instance:', err)
+                            } finally {
+                                setIsCreating(false)
+                            }
+                        }}
+                        disabled={!instanceName.trim() || isCreating}
                     >
-                        Crear
+                        {isCreating ? (
+                            <>
+                                <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
+                                Creando...
+                            </>
+                        ) : (
+                            'Crear'
+                        )}
                     </Button>
                 </DialogFooter>
             </DialogContent>
