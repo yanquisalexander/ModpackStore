@@ -6,7 +6,6 @@ import { toast } from 'sonner';
 import { LucideLoader, LucideFileText, LucideX } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { exit } from '@tauri-apps/plugin-process';
-import { invoke } from '@tauri-apps/api/core';
 
 interface TermsAndConditionsDialogProps {
     open: boolean;
@@ -26,7 +25,7 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
     const [canAccept, setCanAccept] = useState(false);
     const [isAccepting, setIsAccepting] = useState(false);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const timerRef = useRef<number | null>(null);
 
     // Check if user has scrolled to bottom
     const handleScroll = () => {
@@ -50,14 +49,14 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
         let counter = 5;
         setTimeRemaining(counter);
 
-        timerRef.current = setInterval(() => {
+        timerRef.current = window.setInterval(() => {
             counter--;
             setTimeRemaining(counter);
 
             if (counter <= 0) {
                 setCanAccept(true);
                 if (timerRef.current) {
-                    clearInterval(timerRef.current);
+                    window.clearInterval(timerRef.current);
                     timerRef.current = null;
                 }
             }
@@ -74,7 +73,7 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
 
             // Clear any existing timer
             if (timerRef.current) {
-                clearInterval(timerRef.current);
+                window.clearInterval(timerRef.current);
                 timerRef.current = null;
             }
         }
@@ -126,7 +125,7 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
     return (
         <Dialog open={open} onOpenChange={() => { }} modal>
             <DialogContent
-                className="fixed inset-0 border-none ring-0 z-50 top-9 !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !w-screen !h-[calc(100%-36px)] !max-w-none !rounded-none m-0 p-0 flex flex-col bg-background"
+                className="fixed inset-0 border-none ring-0 z-[2000] top-[var(--app-top-bar-height)] !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !w-screen !h-[calc(100%-36px)] !max-w-none !rounded-none m-0 p-0 flex flex-col bg-background"
             >
                 {/* Header */}
                 <DialogHeader className="border-b px-6 py-4 flex-shrink-0">
