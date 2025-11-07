@@ -1,0 +1,115 @@
+# ModpackStore Plus Benefits Configuration
+# This file defines the benefits flags that can be assigned to Patreon tiers
+# Each benefit has a key, validator type, and friendly name
+
+benefits:
+  # Instance limits
+  max_instances_allowed:
+    type: number
+    name: "Maximum Instances Allowed"
+    description: "Maximum number of modpack instances a user can have"
+    default: 10
+    validator: positive_integer
+
+  # Upload limits
+  max_modpack_size_mb:
+    type: number
+    name: "Maximum Modpack Size (MB)"
+    description: "Maximum size of a modpack upload in megabytes"
+    default: 100
+    validator: positive_integer
+
+  # Feature flags
+  can_upload_cover_image:
+    type: boolean
+    name: "Can Upload Custom Cover Image"
+    description: "Allow user to upload custom profile cover images"
+    default: false
+    validator: boolean
+
+  can_create_private_modpacks:
+    type: boolean
+    name: "Can Create Private Modpacks"
+    description: "Allow user to create private modpacks"
+    default: false
+    validator: boolean
+
+  can_create_patreon_exclusive:
+    type: boolean
+    name: "Can Create Patreon-Exclusive Modpacks"
+    description: "Allow user to create modpacks restricted to Patreon supporters"
+    default: false
+    validator: boolean
+
+  priority_support:
+    type: boolean
+    name: "Priority Support"
+    description: "User receives priority support in tickets"
+    default: false
+    validator: boolean
+
+  early_access_features:
+    type: boolean
+    name: "Early Access to Features"
+    description: "User gets early access to beta features"
+    default: false
+    validator: boolean
+
+  custom_badges:
+    type: boolean
+    name: "Custom Profile Badges"
+    description: "User can display custom badges on their profile"
+    default: false
+    validator: boolean
+
+  # Storage limits
+  max_storage_gb:
+    type: number
+    name: "Maximum Storage (GB)"
+    description: "Maximum total storage for user's modpacks in gigabytes"
+    default: 5
+    validator: positive_integer
+
+  # Publishing limits
+  max_publishers:
+    type: number
+    name: "Maximum Publishers"
+    description: "Maximum number of publishers user can own or manage"
+    default: 1
+    validator: positive_integer
+
+  max_modpacks_per_publisher:
+    type: number
+    name: "Maximum Modpacks per Publisher"
+    description: "Maximum number of modpacks per publisher"
+    default: 10
+    validator: positive_integer
+
+  # Analytics
+  advanced_analytics:
+    type: boolean
+    name: "Advanced Analytics"
+    description: "Access to advanced analytics and statistics"
+    default: false
+    validator: boolean
+
+  # API access
+  api_rate_limit_multiplier:
+    type: number
+    name: "API Rate Limit Multiplier"
+    description: "Multiplier for API rate limits (1.0 = standard, 2.0 = double)"
+    default: 1.0
+    validator: positive_number
+
+validators:
+  positive_integer:
+    description: "Must be a positive integer"
+    min: 1
+
+  positive_number:
+    description: "Must be a positive number"
+    min: 0.1
+
+  boolean:
+    description: "Must be true or false"
+    values: [true, false]

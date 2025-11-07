@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, BaseEntity, IsNull } from "typeorm";
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne, JoinColumn, BaseEntity, IsNull } from "typeorm";
 import { Session } from "./Session";
 import { PublisherMember } from "./PublisherMember";
 import { Modpack } from "./Modpack";
@@ -17,6 +17,7 @@ import { UserActivity } from "./UserActivity";
 import { Ban } from "./Ban";
 import { ModpackVote } from "./ModpackVote";
 import { UserRecommendation } from "./UserRecommendation";
+import { PatreonTier } from "./PatreonTier";
 import { JWT_ACCESS_TOKEN_EXPIRES_IN, JWT_REFRESH_TOKEN_EXPIRES_IN } from "@/services/auth.service";
 
 @Entity({ name: "users" })
@@ -50,11 +51,17 @@ export class User extends BaseEntity {
     @Column({ name: "patreon_id", type: "text", nullable: true })
     patreonId?: string | null;
 
+    @Column({ name: "patreon_user_id", type: "text", nullable: true, unique: true })
+    patreonUserId?: string | null;
+
     @Column({ name: "patreon_access_token", type: "text", nullable: true })
     patreonAccessToken?: string | null;
 
     @Column({ name: "patreon_refresh_token", type: "text", nullable: true })
     patreonRefreshToken?: string | null;
+
+    @Column({ name: "patreon_tier_id", type: "text", nullable: true })
+    patreonTierId?: string | null;
 
     @Column({ name: "patreon_tier", type: "varchar", length: 20, nullable: true, default: "none" })
     patreonTier?: string | null;
@@ -150,6 +157,10 @@ export class User extends BaseEntity {
 
     @OneToMany(() => UserRecommendation, recommendation => recommendation.user)
     recommendations: UserRecommendation[];
+
+    @ManyToOne(() => PatreonTier, tier => tier.users, { nullable: true })
+    @JoinColumn({ name: "patreon_tier_id" })
+    patreonTierRelation?: PatreonTier | null;
 
     async getPublishers(): Promise<Publisher[]> {
         const memberships = await PublisherMember.find({ where: { user: { id: this.id } }, relations: ["publisher"] });
