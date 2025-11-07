@@ -136,7 +136,7 @@ export class SocialProfileController {
         const userId = c.get('userId');
 
         const patreonStatus = await PatreonIntegrationService.verifyPatreonStatus(userId);
-        const tierDescription = await PatreonIntegrationService.getTierDescription(patreonStatus.tier, userId);
+        const tierDescription = await PatreonIntegrationService.getTierDescription(patreonStatus.tierId || 'free', userId);
         const canUploadCoverImage = await PatreonIntegrationService.canUploadCoverImage(userId);
 
         return c.json({
