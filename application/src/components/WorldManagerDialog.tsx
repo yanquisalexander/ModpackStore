@@ -254,20 +254,31 @@ export function WorldManagerDialog({ open, onOpenChange, instanceId }: WorldMana
                   key={world.path}
                   className="flex items-center gap-4 p-4 border rounded-lg hover:bg-accent/50 transition"
                 >
-                  {world.icon_path ? (
-                    <img
-                      src={`file://${world.icon_path}`}
-                      alt={world.name}
-                      className="size-16 rounded object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/images/default-world-icon.png";
-                      }}
-                    />
-                  ) : (
-                    <div className="size-16 rounded bg-accent flex items-center justify-center">
-                      <LucideFolderOpen className="size-8 text-muted-foreground" />
-                    </div>
-                  )}
+                  <div className="size-16 rounded flex-shrink-0 relative">
+                    {world.icon_path ? (
+                      <>
+                        <img
+                          src={`file://${world.icon_path}`}
+                          alt={world.name}
+                          className="size-16 rounded object-cover"
+                          onError={(e) => {
+                            // Hide the image on error
+                            (e.target as HTMLImageElement).style.display = "none";
+                            // Show the fallback div
+                            const fallback = (e.target as HTMLImageElement).nextElementSibling;
+                            if (fallback) (fallback as HTMLElement).style.display = "flex";
+                          }}
+                        />
+                        <div className="hidden size-16 rounded bg-accent items-center justify-center absolute inset-0">
+                          <LucideFolderOpen className="size-8 text-muted-foreground" />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="size-16 rounded bg-accent flex items-center justify-center">
+                        <LucideFolderOpen className="size-8 text-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
 
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold truncate">

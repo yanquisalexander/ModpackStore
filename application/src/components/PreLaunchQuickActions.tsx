@@ -262,7 +262,6 @@ const PreLaunchQuickActions = ({
                 instanceId={instanceId}
             />
         </div>
-        </div>
     );
 };
 
