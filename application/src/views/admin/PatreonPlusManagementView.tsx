@@ -61,6 +61,7 @@ export const PatreonPlusManagementView: React.FC = () => {
     const [metadataForm, setMetadataForm] = useState<MetadataFormData>({});
     const [tierMembers, setTierMembers] = useState<PatreonMemberData[]>([]);
     const [loadingMembers, setLoadingMembers] = useState(false);
+    const [newFieldName, setNewFieldName] = useState('');
 
     // Load tiers and statistics
     const loadData = async () => {
@@ -128,6 +129,7 @@ export const PatreonPlusManagementView: React.FC = () => {
             ...prev,
             [key]: defaultValue
         }));
+        setNewFieldName(''); // Clear the input
     };
 
     // Remove metadata field
@@ -400,43 +402,26 @@ export const PatreonPlusManagementView: React.FC = () => {
                             <Label>Añadir Nuevo Beneficio</Label>
                             <div className="flex gap-2">
                                 <Input
-                                    id="new-key"
                                     placeholder="nombre_del_beneficio"
                                     className="flex-1"
+                                    value={newFieldName}
+                                    onChange={(e) => setNewFieldName(e.target.value)}
                                 />
                                 <Button
                                     variant="outline"
-                                    onClick={() => {
-                                        const input = document.getElementById('new-key') as HTMLInputElement;
-                                        if (input.value) {
-                                            addMetadataField(input.value, 'boolean');
-                                            input.value = '';
-                                        }
-                                    }}
+                                    onClick={() => addMetadataField(newFieldName, 'boolean')}
                                 >
                                     Boolean
                                 </Button>
                                 <Button
                                     variant="outline"
-                                    onClick={() => {
-                                        const input = document.getElementById('new-key') as HTMLInputElement;
-                                        if (input.value) {
-                                            addMetadataField(input.value, 'number');
-                                            input.value = '';
-                                        }
-                                    }}
+                                    onClick={() => addMetadataField(newFieldName, 'number')}
                                 >
                                     Number
                                 </Button>
                                 <Button
                                     variant="outline"
-                                    onClick={() => {
-                                        const input = document.getElementById('new-key') as HTMLInputElement;
-                                        if (input.value) {
-                                            addMetadataField(input.value, 'string');
-                                            input.value = '';
-                                        }
-                                    }}
+                                    onClick={() => addMetadataField(newFieldName, 'string')}
                                 >
                                     String
                                 </Button>

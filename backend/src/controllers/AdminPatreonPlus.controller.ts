@@ -188,7 +188,7 @@ export class PatreonPlusController {
 
             // Merge existing metadata with new values (PATCH behavior)
             tier.metadata = {
-                ...tier.metadata,
+                ...(tier.metadata || {}),
                 ...validation.data
             };
 
