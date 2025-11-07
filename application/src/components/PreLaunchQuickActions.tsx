@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { LucideFolderOpen, LucideLoaderCircle, LucideSettings, LucideShieldCheck } from "lucide-react";
+import { LucideFolderOpen, LucideLoaderCircle, LucideSettings, LucideShieldCheck, LucideGlobe } from "lucide-react";
 import { toast } from "sonner";
 import { EditInstanceInfo } from "@/components/EditInstanceInfo";
+import { WorldManagerDialog } from "@/components/WorldManagerDialog";
 
 const PreLaunchQuickActions = ({
     instanceId,
@@ -19,6 +20,7 @@ const PreLaunchQuickActions = ({
     defaultShowEditInfo?: boolean;
 }) => {
     const [quickActionsOpen, setQuickActionsOpen] = useState(false);
+    const [worldManagerOpen, setWorldManagerOpen] = useState(false);
     const quickActionsRef = useRef<HTMLDivElement>(null);
 
     // Click outside handler for quick actions menu
@@ -49,6 +51,11 @@ const PreLaunchQuickActions = ({
                 dismissible: true,
             });
         }
+    };
+
+    const openWorldManager = () => {
+        setQuickActionsOpen(false);
+        setWorldManagerOpen(true);
     };
 
     const notAvailable = () => {
@@ -208,6 +215,14 @@ const PreLaunchQuickActions = ({
                             Abrir .minecraft
                         </button>
 
+                        <button
+                            onClick={openWorldManager}
+                            className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
+                        >
+                            <LucideGlobe className="size-4 text-white" />
+                            Administrar mundos
+                        </button>
+
                         <EditInstanceInfo
                             instanceId={instanceId}
                             onUpdate={onReloadInfo}
@@ -239,6 +254,14 @@ const PreLaunchQuickActions = ({
                     </div>
                 </div>
             </div>
+
+            {/* World Manager Dialog */}
+            <WorldManagerDialog
+                open={worldManagerOpen}
+                onOpenChange={setWorldManagerOpen}
+                instanceId={instanceId}
+            />
+        </div>
         </div>
     );
 };
