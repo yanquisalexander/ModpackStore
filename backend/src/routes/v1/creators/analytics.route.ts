@@ -8,6 +8,7 @@ import { ModpackDownload } from "@/entities/ModpackDownload";
 import { ModpackAcquisition } from "@/entities/ModpackAcquisition";
 import { User } from "@/entities/User";
 import { Context } from "hono";
+import { ModpackVersionStatus } from "@/types/enums";
 
 export const AnalyticsRoute = new Hono();
 
@@ -91,7 +92,7 @@ AnalyticsRoute.get(
             version = await ModpackVersion.findOne({
                 where: {
                     modpackId,
-                    status: 'published' // Only consider published versions
+                    status: ModpackVersionStatus.PUBLISHED
                 },
                 order: { releaseDate: 'DESC' } // Most recent first
             });
@@ -275,7 +276,7 @@ AnalyticsRoute.post(
             version = await ModpackVersion.findOne({
                 where: {
                     modpackId,
-                    status: 'published' // Only consider published versions
+                    status: ModpackVersionStatus.PUBLISHED
                 },
                 order: { releaseDate: 'DESC' } // Most recent first
             });
