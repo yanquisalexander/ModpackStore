@@ -199,11 +199,14 @@ export class PatreonSyncService {
             const data: PatreonMemberResponse = await response.json();
             const activePatreonUserIds = new Set<string>();
 
+            console.log('[PATREON_SYNC] Fetched members from Patreon:', data.data.length);
+
             let membersUpdated = 0;
 
             // Process each member from Patreon
             for (const memberData of data.data) {
                 const patreonUserId = memberData.relationships.user.data.id;
+                console.log('[PATREON_SYNC] Processing member with Patreon user ID:', patreonUserId);
                 activePatreonUserIds.add(patreonUserId);
 
                 // Find user by patreon_user_id
