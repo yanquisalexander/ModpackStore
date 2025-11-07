@@ -13,7 +13,8 @@ import {
     LucideChevronRight,
     LucideWrench,
     LucideTicket,
-    LucideTag
+    LucideTag,
+    LucideDollarSign
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { ManageUsersView } from '@/views/admin/ManageUsersView';
@@ -23,6 +24,7 @@ import { MaintenanceView } from '@/views/admin/MaintenanceView';
 import { ManageTicketsView } from "@/views/admin/ManageTicketsView";
 import { ManageCategoriesView } from "@/views/admin/ManageCategoriesView";
 import { ManageTermsAndConditionsView } from "@/views/admin/ManageTermsAndConditionsView";
+import { PatreonPlusManagementView } from "@/views/admin/PatreonPlusManagementView";
 
 interface AdminLayoutProps {
     children?: React.ReactNode;
@@ -53,6 +55,12 @@ const adminNavItems = [
         label: 'Gestión de Tickets',
         icon: LucideTicket,
         description: 'Administrar tickets y solicitudes de soporte'
+    },
+    {
+        path: '/admin/patreon-plus',
+        label: 'Patreon Plus',
+        icon: LucideDollarSign,
+        description: 'Configurar beneficios y sincronizar con Patreon'
     },
     {
         path: '/admin/audit',
@@ -205,6 +213,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                             <Route path="/publishers" element={<ManagePublishersView />} />
                             <Route path="/categories" element={<ManageCategoriesView />} />
                             <Route path="/tickets" element={<ManageTicketsView />} />
+                            <Route path="/patreon-plus" element={<PatreonPlusManagementView />} />
                             <Route path="/audit" element={<AuditLogsView />} />
                             <Route path="/maintenance" element={<MaintenanceView />} />
                             <Route path="/settings" element={<ManageTermsAndConditionsView />} />
