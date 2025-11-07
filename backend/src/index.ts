@@ -25,6 +25,7 @@ import { AppDataSource } from "./db/data-source";
 import { generateSystemUser } from "./utils/system";
 import { initRedis, closeRedis } from "./lib/redis";
 import { databaseService } from "./services/database.service";
+import { PatreonCronService } from "./services/patreon-cron.service";
 
 const app = new Hono();
 
@@ -66,6 +67,15 @@ const initializeServices = async (): Promise<void> => {
   // Initialize Redis (optional - system works without it)
   initRedis();
   console.log('Redis initialization attempted.');
+
+  // Initialize Patreon daily sync cron job
+  try {
+    PatreonCronService.startDailySyncJob();
+    console.log('Patreon daily sync cron job started.');
+  } catch (error) {
+    console.error('Error starting Patreon cron job:', error);
+    // Don't fail startup if cron job fails
+  }
 
   // Add any other service initializations here
 };
