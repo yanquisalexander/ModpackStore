@@ -14,6 +14,8 @@
         "db:migrate-loader-types": "tsx ./src/db/migrate-loader-types.ts",
         "test:filetype-migration": "tsx ./test/filetype-migration.test.ts",
         "test:vote-recommendation": "tsx ./test/vote-recommendation.test.ts",
+        "test:patreon-plus": "tsx ./test/patreon-plus.test.ts",
+        "test:patreon-plus-validation": "tsx ./test/patreon-plus-validation.test.ts",
         "job:generate-recommendations": "tsx ./src/jobs/generate-recommendations.ts",
         "job:sync-patreon": "tsx ./src/jobs/sync-patreon.ts"
     },
