@@ -310,7 +310,7 @@ AnalyticsRoute.post(
             const download = await ModpackDownload.trackDownload(
                 user.id,
                 modpackId,
-                versionId,
+                version.id,
                 clientIp,
                 userAgent
             );
