@@ -12,6 +12,7 @@ import { toast } from "sonner"
 import { useNavigate } from "react-router-dom"
 import { useAuthentication } from "@/stores/AuthContext"
 import { API_ENDPOINT } from "@/consts"
+import { trackModpackInstall } from "@/services/analytics"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -235,6 +236,12 @@ export const InstallButton = ({
                 versionId: selectedVersionId,
                 password: null
             });
+
+            // Track the installation for analytics
+            if (sessionTokens?.accessToken && selectedVersionId) {
+                trackModpackInstall(sessionTokens.accessToken, modpackId, selectedVersionId)
+                    .catch(err => console.error('Failed to track installation:', err));
+            }
 
             toast.success("Creando instancia...", {
                 description: `Tu instancia "${instanceName}" del modpack "${modpackName}" está siendo instalada. Verifica el progreso en el Task Manager.`,
