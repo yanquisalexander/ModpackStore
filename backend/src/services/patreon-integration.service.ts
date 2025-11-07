@@ -1,5 +1,7 @@
 import { User } from "@/entities/User";
 import { UserRole } from "@/types/enums";
+import { PatreonSyncService } from "./patreon-sync.service";
+import { PatreonTier as PatreonTierEntity } from "@/entities/PatreonTier";
 
 export interface PatreonUser {
     id: string;
@@ -23,29 +25,40 @@ export interface PatreonMember {
     };
 }
 
-export enum PatreonTier {
-    NONE = 'none',
-    BASIC = 'basic',
-    PREMIUM = 'premium',
-    ELITE = 'elite'
-}
-
 export class PatreonIntegrationService {
     private static readonly PATREON_API_BASE = 'https://www.patreon.com/api/oauth2/v2';
 
-    // Tier thresholds in cents (configure these based on your Patreon tiers)
-    private static readonly TIER_THRESHOLDS = {
-        [PatreonTier.BASIC]: 300, // $3
-        [PatreonTier.PREMIUM]: 500, // $5
-        [PatreonTier.ELITE]: 1000 // $10
-    };
+    /**
+     * Get the highest tier by amount
+     */
+    private static async getHighestTier(): Promise<{ id: string; name: string; amountCents: number; description?: string } | null> {
+        try {
+            const highestTier = await PatreonTierEntity.findOne({
+                where: { active: true },
+                order: { amountCents: 'DESC' }
+            });
+
+            if (highestTier) {
+                return {
+                    id: highestTier.id,
+                    name: highestTier.name,
+                    amountCents: highestTier.amountCents,
+                    description: highestTier.description || undefined
+                };
+            }
+            return null;
+        } catch (error) {
+            console.error('Error getting highest tier:', error);
+            return null;
+        }
+    }
 
     /**
      * Verify if a user is a Patreon supporter and get their tier
      */
     static async verifyPatreonStatus(userId: string): Promise<{
         isPatron: boolean;
-        tier: PatreonTier;
+        tier: string;
         entitledAmount: number;
         isActive: boolean;
         isConnected: boolean;
@@ -55,110 +68,68 @@ export class PatreonIntegrationService {
         if (!user) {
             return {
                 isPatron: false,
-                tier: PatreonTier.NONE,
+                tier: 'free',
                 entitledAmount: 0,
                 isActive: false,
                 isConnected: false
             };
         }
 
-        // Admins and superadmins always have premium access
+        // For admin and superadmin users, always give them the highest tier
         if (user.role === UserRole.ADMIN || user.role === UserRole.SUPERADMIN) {
-            return {
-                isPatron: true,
-                tier: PatreonTier.ELITE,
-                entitledAmount: 1000, // $10 (elite tier)
-                isActive: true,
-                isConnected: true
-            };
-        }
-
-        if (!user.patreonId || !user.patreonAccessToken) {
-            return {
-                isPatron: false,
-                tier: PatreonTier.NONE,
-                entitledAmount: 0,
-                isActive: false,
-                isConnected: false
-            };
-        }
-
-        // Check if we have recent cached data (less than 1 hour old)
-        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-        if (user.patreonLastVerified && user.patreonLastVerified > oneHourAgo) {
-            return {
-                isPatron: (user.patreonIsActive === true) && ((user.patreonEntitledAmount || 0) > 0),
-                tier: (user.patreonTier as PatreonTier) || PatreonTier.NONE,
-                entitledAmount: user.patreonEntitledAmount || 0,
-                isActive: user.patreonIsActive === true,
-                isConnected: true
-            };
-        }
-
-        // No recent cached data, fetch from API
-        try {
-            const member = await this.getPatreonMemberInfo(user.patreonAccessToken);
-
-            if (!member) {
-                // Update cache with no membership data
-                user.patreonTier = PatreonTier.NONE;
-                user.patreonStatus = null;
-                user.patreonEntitledAmount = 0;
-                user.patreonIsActive = false;
-                user.patreonLastVerified = new Date();
-                await user.save();
-
+            const highestTier = await this.getHighestTier();
+            if (highestTier) {
                 return {
-                    isPatron: false,
-                    tier: PatreonTier.NONE,
-                    entitledAmount: 0,
-                    isActive: false,
-                    isConnected: true // Connected but no membership data
+                    isPatron: true,
+                    tier: highestTier.name,
+                    entitledAmount: highestTier.amountCents,
+                    isActive: true,
+                    isConnected: true
                 };
             }
+        }
 
-            const entitledAmount = member.attributes.currently_entitled_amount_cents;
-            const isActive = member.attributes.patron_status === 'active_patron' &&
-                member.attributes.last_charge_status === 'Paid';
+        if (!user.patreonUserId) {
+            return {
+                isPatron: false,
+                tier: 'free',
+                entitledAmount: 0,
+                isActive: false,
+                isConnected: false
+            };
+        }
 
-            const tier = this.determineTier(entitledAmount);
+        // Use synchronized data from PatreonSyncService
+        try {
+            // Get the tier information from the synchronized data
+            let tier = 'free';
+            if (user.patreonTierId) {
+                const patreonTier = await PatreonTierEntity.findOne({ where: { id: user.patreonTierId } });
+                if (patreonTier) {
+                    tier = patreonTier.name.toLowerCase().replace(/\s+/g, '-'); // Convert to slug format
+                }
+            }
 
-            // Update cached data
-            user.patreonTier = tier;
-            user.patreonStatus = member.attributes.patron_status;
-            user.patreonEntitledAmount = entitledAmount;
-            user.patreonIsActive = isActive;
-            user.patreonLastVerified = new Date();
-            await user.save();
+            const isActive = user.patreonIsActive === true;
+            const entitledAmount = user.patreonEntitledAmount || 0;
+            const isPatron = isActive && entitledAmount > 0;
 
             return {
-                isPatron: isActive && entitledAmount > 0,
-                tier: isActive ? tier : PatreonTier.NONE,
+                isPatron,
+                tier: isActive ? tier : 'free',
                 entitledAmount,
                 isActive,
                 isConnected: true
             };
         } catch (error) {
-            console.error('Error verifying Patreon status:', error);
-
-            // If API fails, return cached data if available (even if old)
-            if (user.patreonLastVerified) {
-                return {
-                    isPatron: (user.patreonIsActive === true) && ((user.patreonEntitledAmount || 0) > 0),
-                    tier: (user.patreonTier as PatreonTier) || PatreonTier.NONE,
-                    entitledAmount: user.patreonEntitledAmount || 0,
-                    isActive: user.patreonIsActive === true,
-                    isConnected: true // Connected but error fetching status
-                };
-            }
-
-            // No cached data available
+            console.error('Error verifying Patreon status from sync data:', error);
+            // Fallback to no patron status if sync data is unavailable
             return {
                 isPatron: false,
-                tier: PatreonTier.NONE,
+                tier: 'free',
                 entitledAmount: 0,
                 isActive: false,
-                isConnected: true // Connected but error fetching status
+                isConnected: true // Connected but error reading sync data
             };
         }
     }
@@ -190,7 +161,7 @@ export class PatreonIntegrationService {
         }
 
         const status = await this.verifyPatreonStatus(userId);
-        return status.isPatron && status.isActive && status.tier !== PatreonTier.NONE;
+        return status.isPatron && status.isActive && status.tier !== 'free';
     }
 
     /**
@@ -219,20 +190,6 @@ export class PatreonIntegrationService {
             console.error('Error fetching Patreon member info:', error);
             return null;
         }
-    }
-
-    /**
-     * Determine Patreon tier based on entitled amount
-     */
-    private static determineTier(entitledAmountCents: number): PatreonTier {
-        if (entitledAmountCents >= this.TIER_THRESHOLDS[PatreonTier.ELITE]) {
-            return PatreonTier.ELITE;
-        } else if (entitledAmountCents >= this.TIER_THRESHOLDS[PatreonTier.PREMIUM]) {
-            return PatreonTier.PREMIUM;
-        } else if (entitledAmountCents >= this.TIER_THRESHOLDS[PatreonTier.BASIC]) {
-            return PatreonTier.BASIC;
-        }
-        return PatreonTier.NONE;
     }
 
     /**
@@ -282,12 +239,12 @@ export class PatreonIntegrationService {
             }
 
             // Save Patreon data to user
-            user.patreonId = patreonUser.id;
+            user.patreonUserId = patreonUser.id;
             user.patreonAccessToken = tokenData.access_token;
             user.patreonRefreshToken = tokenData.refresh_token || null;
 
             // Clear any cached Patreon data to force refresh
-            user.patreonTier = PatreonTier.NONE;
+            user.patreonTier = 'free';
             user.patreonStatus = null;
             user.patreonEntitledAmount = 0;
             user.patreonIsActive = false;
@@ -363,32 +320,44 @@ export class PatreonIntegrationService {
     }
 
     /**
-     * Get premium features for a Patreon tier
+     * Get tier description for a Patreon tier
      */
-    static getPremiumFeaturesForTier(tier: PatreonTier): string[] {
-        const features: Record<PatreonTier, string[]> = {
-            [PatreonTier.NONE]: [],
-            [PatreonTier.BASIC]: [
-                'Custom cover image',
-                'Priority support'
-            ],
-            [PatreonTier.PREMIUM]: [
-                'Custom cover image',
-                'Priority support',
-                'Early access',
-                'Exclusive modpacks'
-            ],
-            [PatreonTier.ELITE]: [
-                'Custom cover image',
-                'Priority support',
-                'Early access',
-                'Exclusive modpacks',
-                'Custom badges',
-                'Beta features'
-            ]
-        };
+    static async getTierDescription(tierName: string, userId?: string): Promise<string> {
+        try {
+            // Check if user is admin/superadmin first
+            if (userId) {
+                const user = await User.findOne({ where: { id: userId } });
+                if (user && (user.role === UserRole.ADMIN || user.role === UserRole.SUPERADMIN)) {
+                    const highestTier = await this.getHighestTier();
+                    if (highestTier) {
+                        return highestTier.description || `Plan ${highestTier.name} - Nivel más alto disponible`;
+                    }
+                }
+            }
 
-        return features[tier] || [];
+            // Special case for free tier - return generic description
+            if (tierName === 'free') {
+                return 'Usuario gratuito - Sin beneficios';
+            }
+
+            // Find the tier by name (case insensitive)
+            const tier = await PatreonTierEntity.findOne({
+                where: {
+                    name: tierName,
+                    active: true
+                }
+            });
+
+            if (!tier) {
+                return 'Plan desconocido'; // Default for unknown tiers
+            }
+
+            // Return the description from PatreonTier
+            return tier.description || 'Sin descripción disponible';
+        } catch (error) {
+            console.error('Error getting tier description:', error);
+            return 'Error al cargar la descripción del plan';
+        }
     }
 
     /**
@@ -487,7 +456,7 @@ export class PatreonIntegrationService {
         }
 
         // Find user by Patreon ID
-        const user = await User.findOne({ where: { patreonId: patronId } });
+        const user = await User.findOne({ where: { patreonUserId: patronId } });
         if (!user) {
             console.warn('[PATREON_WEBHOOK] User not found for Patreon ID:', patronId);
             return;
@@ -518,7 +487,7 @@ export class PatreonIntegrationService {
         }
 
         // Find user by Patreon ID
-        const user = await User.findOne({ where: { patreonId: patronId } });
+        const user = await User.findOne({ where: { patreonUserId: patronId } });
         if (!user) {
             console.warn('[PATREON_WEBHOOK] User not found for Patreon ID:', patronId);
             return;
@@ -533,7 +502,7 @@ export class PatreonIntegrationService {
 
         // For member deletion, clear Patreon data
         if (payload.data?.type === 'members:delete') {
-            user.patreonId = null;
+            user.patreonUserId = null;
             user.patreonAccessToken = null;
             user.patreonRefreshToken = null;
             user.coverImageUrl = null; // Remove premium features
@@ -568,14 +537,14 @@ export class PatreonIntegrationService {
             }
 
             console.log('[PATREON_OAUTH] Successfully processed OAuth callback:', {
-                patreonId: userInfo.id,
+                patreonUserId: userInfo.id,
                 email: userInfo.attributes.email
             });
 
             return {
                 success: true,
                 data: {
-                    patreonId: userInfo.id,
+                    patreonUserId: userInfo.id,
                     tokens: {
                         access_token: tokenResponse.access_token,
                         refresh_token: tokenResponse.refresh_token
@@ -594,7 +563,7 @@ export class PatreonIntegrationService {
      */
     static async linkPatreonAccount(
         userId: string,
-        oauthData: { patreonId: string; tokens: { access_token: string; refresh_token: string }; userInfo: any }
+        oauthData: { patreonUserId: string; tokens: { access_token: string; refresh_token: string }; userInfo: any }
     ): Promise<{ success: boolean; error?: string }> {
         try {
             // Update user with Patreon data
@@ -603,13 +572,12 @@ export class PatreonIntegrationService {
                 return { success: false, error: 'User not found' };
             }
 
-            user.patreonId = oauthData.patreonId;
-            user.patreonUserId = oauthData.patreonId; // Save patreon_user_id for sync
+            user.patreonUserId = oauthData.patreonUserId; // Save patreon_user_id for sync
             user.patreonAccessToken = oauthData.tokens.access_token;
             user.patreonRefreshToken = oauthData.tokens.refresh_token;
 
             // Initialize cached Patreon status (will be updated on first verification)
-            user.patreonTier = PatreonTier.NONE;
+            user.patreonTier = 'free';
             user.patreonStatus = null;
             user.patreonEntitledAmount = 0;
             user.patreonIsActive = false;
@@ -618,8 +586,8 @@ export class PatreonIntegrationService {
             await user.save();
 
             console.log(`[PATREON_LINK] Successfully linked Patreon account for user ${userId}:`, {
-                patreonId: oauthData.patreonId,
-                patreonUserId: oauthData.patreonId,
+                patreonId: oauthData.patreonUserId,
+                patreonUserId: oauthData.patreonUserId,
                 email: oauthData.userInfo.email
             });
 

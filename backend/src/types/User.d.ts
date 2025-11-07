@@ -18,7 +18,7 @@ export interface User {
     discordId: string;
     discordAccessToken: string;
     discordRefreshToken: string;
-    patreonId: string | null;
+    patreonUserId: string | null;
     patreonAccessToken: string | null;
     patreonRefreshToken: string | null;
     session: Session;

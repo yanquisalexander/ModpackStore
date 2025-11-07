@@ -14,7 +14,7 @@ interface PatreonStatus {
   tier: string;
   isActive: boolean;
   entitledAmount: number;
-  availableFeatures: string[];
+  tierDescription: string;
   canUploadCoverImage: boolean;
 }
 
@@ -28,12 +28,6 @@ export const PatreonLinkingComponent = () => {
   const [loading, setLoading] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
   const { sessionTokens } = useAuthentication();
-  const { session } = useAuthentication();
-
-  // Helper function to check if current user is admin/superadmin
-  const isCurrentUserAdmin = () => {
-    return session?.isAdmin?.() || session?.isSuperAdmin?.();
-  };
 
   // Fetch current Patreon status
   const fetchPatreonStatus = async () => {
@@ -103,6 +97,8 @@ export const PatreonLinkingComponent = () => {
       if (response.ok) {
         setPatreonStatus({ connected: false });
         toast.success('Tu cuenta de Patreon ha sido desvinculada con éxito');
+        // Refresh status
+        fetchPatreonStatus();
       } else {
         const errorData = await response.json();
         toast.error(errorData.message || 'No se pudo desvincular la cuenta de Patreon');
@@ -116,28 +112,24 @@ export const PatreonLinkingComponent = () => {
   };
 
   const getTierColor = (tier: string) => {
-    switch (tier.toLowerCase()) {
-      case 'basic':
-        return 'text-blue-400 bg-blue-900/30';
-      case 'premium':
-        return 'text-purple-400 bg-purple-900/30';
-      case 'elite':
-        return 'text-yellow-400 bg-yellow-900/30';
-      default:
-        return 'text-gray-400 bg-gray-900/30';
+    // Handle dynamic tiers from Patreon sync
+    if (tier === 'free') {
+      return 'text-green-400 bg-green-900/30';
     }
+
+    // For dynamic tiers, use a default color or try to determine based on amount
+    // Since we don't have the amount here, use a neutral color for unknown tiers
+    return 'text-blue-400 bg-blue-900/30';
   };
 
   const getTierIcon = (tier: string) => {
-    switch (tier.toLowerCase()) {
-      case 'basic':
-        return <Star className="w-3 h-3" />;
-      case 'premium':
-      case 'elite':
-        return <Crown className="w-3 h-3" />;
-      default:
-        return null;
+    // Handle dynamic tiers from Patreon sync
+    if (tier === 'free') {
+      return <Star className="w-3 h-3" />;
     }
+
+    // For dynamic tiers, use Crown as default
+    return <Crown className="w-3 h-3" />;
   };
 
   useEffect(() => {
@@ -190,20 +182,20 @@ export const PatreonLinkingComponent = () => {
           <h3 className="text-lg font-semibold text-white">Integración de Patreon</h3>
         </div>
 
-        {patreonStatus.connected && patreonStatus.patreonStatus || isCurrentUserAdmin() ? (
+        {patreonStatus.connected && patreonStatus.patreonStatus ? (
           <div>
             <div className="flex items-center space-x-2 mb-4">
               <div className="w-2 h-2 bg-green-400 rounded-full"></div>
               <span className="text-green-400 font-medium">Conectado</span>
-              <span className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${getTierColor(isCurrentUserAdmin() ? 'elite' : (patreonStatus.patreonStatus?.tier || 'none'))}`}>
-                {getTierIcon(isCurrentUserAdmin() ? 'elite' : (patreonStatus.patreonStatus?.tier || 'none'))}
-                {isCurrentUserAdmin() ? 'ADMIN' : (patreonStatus.patreonStatus?.tier || 'none').toUpperCase()}
+              <span className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${getTierColor(patreonStatus.patreonStatus?.tier || 'none')}`}>
+                {getTierIcon(patreonStatus.patreonStatus?.tier || 'none')}
+                {(patreonStatus.patreonStatus?.tier || 'none').toUpperCase()}
               </span>
             </div>
 
             <div className="text-sm text-neutral-400 mb-4">
-              Estado: {isCurrentUserAdmin() || patreonStatus.patreonStatus?.isActive ? 'Activo' : 'Inactivo'}
-              {patreonStatus.patreonStatus?.entitledAmount && patreonStatus.patreonStatus.entitledAmount > 0 && !isCurrentUserAdmin() && (
+              Estado: {patreonStatus.patreonStatus?.isActive ? 'Activo' : 'Inactivo'}
+              {patreonStatus.patreonStatus?.entitledAmount && patreonStatus.patreonStatus.entitledAmount > 0 && (
                 <span className="ml-2">
                   (${(patreonStatus.patreonStatus.entitledAmount / 100).toFixed(2)}/mes)
                 </span>
@@ -211,37 +203,21 @@ export const PatreonLinkingComponent = () => {
             </div>
 
             <p className="text-neutral-300 text-sm mb-4">
-              {isCurrentUserAdmin() || patreonStatus.patreonStatus?.isPatron
-                ? "Tu cuenta de Patreon está conectada. Tienes acceso a las siguientes características premium:"
+              {patreonStatus.patreonStatus?.isPatron
+                ? "Tu cuenta de Patreon está conectada. Los beneficios dependen de tu plan actual:"
                 : "Tu cuenta de Patreon está conectada, pero no tienes un plan activo. Actualiza tu membresía para acceder a características premium:"
               }
             </p>
 
-            {isCurrentUserAdmin() || (patreonStatus.patreonStatus?.availableFeatures && patreonStatus.patreonStatus.availableFeatures.length > 0) ? (
+            {patreonStatus.patreonStatus?.tierDescription ? (
               <div className="mb-4">
-                <div className="text-xs text-neutral-400 mb-2">Características disponibles:</div>
-                <ul className="text-xs text-neutral-300 space-y-1 ml-4">
-                  {isCurrentUserAdmin() ? (
-                    // Show all features for admins
-                    <>
-                      <li>• Imágenes de portada de perfil personalizadas</li>
-                      <li>• Soporte prioritario</li>
-                      <li>• Acceso temprano a nuevas características</li>
-                      <li>• Modpacks exclusivos para patrocinadores</li>
-                      <li>• Insignias personalizadas</li>
-                      <li>• Acceso completo a todas las funciones</li>
-                    </>
-                  ) : (
-                    // Show Patreon features
-                    patreonStatus.patreonStatus!.availableFeatures.map((feature, index) => (
-                      <li key={index}>• {feature}</li>
-                    ))
-                  )}
-                </ul>
+                <div className="text-xs text-neutral-400 mb-2">Descripción del plan:</div>
+                <div className="prose prose-invert text-base text-neutral-300 bg-neutral-800/50 p-2 rounded" dangerouslySetInnerHTML={{ __html: patreonStatus.patreonStatus.tierDescription }}
+                ></div>
               </div>
             ) : (
               <div className="mb-4">
-                <div className="text-xs text-neutral-400 mb-2">Características premium disponibles con membresía:</div>
+                <div className="text-xs text-neutral-400 mb-2">Beneficios disponibles con tu plan actual:</div>
                 <ul className="text-xs text-neutral-300 space-y-1 ml-4">
                   <li>• Imágenes de portada de perfil personalizadas</li>
                   <li>• Soporte prioritario</li>
@@ -251,18 +227,16 @@ export const PatreonLinkingComponent = () => {
               </div>
             )}
 
-            {!isCurrentUserAdmin() && (
-              <Button
-                onClick={handleUnlinkPatreon}
-                disabled={unlinking}
-                variant="destructive"
-                size="sm"
-                className="flex items-center space-x-2"
-              >
-                <LucideUnlink size={16} />
-                <span>{unlinking ? 'Desvinculando...' : 'Desvincular Patreon'}</span>
-              </Button>
-            )}
+            <Button
+              onClick={handleUnlinkPatreon}
+              disabled={unlinking}
+              variant="destructive"
+              size="sm"
+              className="flex items-center space-x-2"
+            >
+              <LucideUnlink size={16} />
+              <span>{unlinking ? 'Desvinculando...' : 'Desvincular Patreon'}</span>
+            </Button>
           </div>
         ) : (
           <div>
@@ -274,17 +248,6 @@ export const PatreonLinkingComponent = () => {
             <p className="text-neutral-300 text-sm mb-4">
               Vincula tu cuenta de Patreon para desbloquear características premium y apoyar el desarrollo del proyecto.
             </p>
-
-            <div className="space-y-2 mb-4">
-              <div className="text-xs text-neutral-400">Beneficios de vincular tu cuenta de Patreon:</div>
-              <ul className="text-xs text-neutral-300 space-y-1 ml-4">
-                <li>• Imágenes de portada de perfil personalizadas</li>
-                <li>• Soporte prioritario</li>
-                <li>• Acceso temprano a nuevas características</li>
-                <li>• Modpacks exclusivos para patrocinadores</li>
-                <li>• Insignias personalizadas (niveles superiores)</li>
-              </ul>
-            </div>
 
             <Button
               onClick={handleLinkPatreon}

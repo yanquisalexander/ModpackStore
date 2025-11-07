@@ -209,7 +209,7 @@ export const PatreonPlusManagementView: React.FC = () => {
                         <div>
                             <CardTitle className="flex items-center gap-2">
                                 <LucideShield className="h-5 w-5" />
-                                Patreon Plus - Gestión de Beneficios
+                                ModpackStore +
                             </CardTitle>
                             <CardDescription>
                                 Configura beneficios por tier y sincroniza con Patreon

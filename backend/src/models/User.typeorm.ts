@@ -17,7 +17,7 @@ type UserType = {
     discordId?: string;
     discordAccessToken?: string;
     discordRefreshToken?: string;
-    patreonId?: string;
+    patreonUserId?: string;
     patreonAccessToken?: string;
     patreonRefreshToken?: string;
     admin: boolean;
@@ -32,7 +32,7 @@ const userUpdateSchema = userSchema.partial().omit({
     createdAt: true,
     updatedAt: true, // Should be set by the update method
     discordId: true, // Discord ID is set during initial link, not arbitrary update
-    patreonId: true, // Patreon ID is set during initial link, not arbitrary update
+    patreonUserId: true, // Patreon ID is set during initial link, not arbitrary update
 }).extend({
     // Explicitly include fields that can be updated, including OAuth tokens
     username: userSchema.shape.username.optional(),
@@ -54,7 +54,7 @@ const partialDiscordDataSchema = z.object({
 type PartialDiscordData = z.infer<typeof partialDiscordDataSchema>;
 
 const partialPatreonDataSchema = z.object({
-    patreonId: userSchema.shape.patreonId.optional(),
+    patreonUserId: userSchema.shape.patreonUserId.optional(),
     accessToken: userSchema.shape.patreonAccessToken.optional(),
     refreshToken: userSchema.shape.patreonRefreshToken.optional(),
 }).partial();
@@ -81,7 +81,7 @@ interface DiscordData extends OAuthTokens {
 }
 
 interface PatreonData extends OAuthTokens {
-    patreonId?: string | null;
+    patreonUserId?: string | null;
 }
 
 export class User {
@@ -118,7 +118,7 @@ export class User {
         };
 
         this._patreonData = {
-            patreonId: data.patreonId,
+            patreonUserId: data.patreonUserId,
             accessToken: data.patreonAccessToken,
             refreshToken: data.patreonRefreshToken,
         };
@@ -129,7 +129,7 @@ export class User {
     get discordAccessToken(): string | null { return this._discordData.accessToken ?? null; }
     get discordRefreshToken(): string | null { return this._discordData.refreshToken ?? null; }
 
-    get patreonId(): string | null { return this._patreonData.patreonId ?? null; }
+    get patreonUserId(): string | null { return this._patreonData.patreonUserId ?? null; }
     get patreonAccessToken(): string | null { return this._patreonData.accessToken ?? null; }
     get patreonRefreshToken(): string | null { return this._patreonData.refreshToken ?? null; }
 
@@ -151,7 +151,7 @@ export class User {
         if (!parsedData.success) {
             throw new Error(`Invalid Patreon data: ${JSON.stringify(parsedData.error.format())}`);
         }
-        if (parsedData.data.patreonId) this._patreonData.patreonId = parsedData.data.patreonId;
+        if (parsedData.data.patreonUserId) this._patreonData.patreonUserId = parsedData.data.patreonUserId;
         if (parsedData.data.accessToken) this._patreonData.accessToken = parsedData.data.accessToken;
         if (parsedData.data.refreshToken) this._patreonData.refreshToken = parsedData.data.refreshToken;
         // Persist changes
@@ -176,7 +176,7 @@ export class User {
             discordId: parsed.data.discordId ?? null,
             discordAccessToken: parsed.data.discordAccessToken ?? null,
             discordRefreshToken: parsed.data.discordRefreshToken ?? null,
-            patreonId: parsed.data.patreonId ?? null,
+            patreonUserId: parsed.data.patreonUserId ?? null,
             patreonAccessToken: parsed.data.patreonAccessToken ?? null,
             patreonRefreshToken: parsed.data.patreonRefreshToken ?? null,
         });
@@ -197,14 +197,14 @@ export class User {
                 discordId: parsed.data.discordId,
                 discordAccessToken: parsed.data.discordAccessToken,
                 discordRefreshToken: parsed.data.discordRefreshToken,
-                patreonId: parsed.data.patreonId,
+                patreonUserId: parsed.data.patreonUserId,
                 patreonAccessToken: parsed.data.patreonAccessToken,
                 patreonRefreshToken: parsed.data.patreonRefreshToken,
                 admin: parsed.data.admin ?? false,
             });
 
             const savedUser = await userEntity.save();
-            
+
             return new User({
                 id: savedUser.id,
                 username: savedUser.username,
@@ -213,7 +213,7 @@ export class User {
                 discordId: savedUser.discordId,
                 discordAccessToken: savedUser.discordAccessToken,
                 discordRefreshToken: savedUser.discordRefreshToken,
-                patreonId: savedUser.patreonId,
+                patreonUserId: savedUser.patreonUserId,
                 patreonAccessToken: savedUser.patreonAccessToken,
                 patreonRefreshToken: savedUser.patreonRefreshToken,
                 admin: savedUser.admin,
@@ -239,7 +239,7 @@ export class User {
                 discordId: userEntity.discordId,
                 discordAccessToken: userEntity.discordAccessToken,
                 discordRefreshToken: userEntity.discordRefreshToken,
-                patreonId: userEntity.patreonId,
+                patreonUserId: userEntity.patreonUserId,
                 patreonAccessToken: userEntity.patreonAccessToken,
                 patreonRefreshToken: userEntity.patreonRefreshToken,
                 admin: userEntity.admin,
@@ -265,7 +265,7 @@ export class User {
                 discordId: userEntity.discordId,
                 discordAccessToken: userEntity.discordAccessToken,
                 discordRefreshToken: userEntity.discordRefreshToken,
-                patreonId: userEntity.patreonId,
+                patreonUserId: userEntity.patreonUserId,
                 patreonAccessToken: userEntity.patreonAccessToken,
                 patreonRefreshToken: userEntity.patreonRefreshToken,
                 admin: userEntity.admin,
@@ -291,7 +291,7 @@ export class User {
                 discordId: userEntity.discordId,
                 discordAccessToken: userEntity.discordAccessToken,
                 discordRefreshToken: userEntity.discordRefreshToken,
-                patreonId: userEntity.patreonId,
+                patreonUserId: userEntity.patreonUserId,
                 patreonAccessToken: userEntity.patreonAccessToken,
                 patreonRefreshToken: userEntity.patreonRefreshToken,
                 admin: userEntity.admin,
@@ -337,7 +337,7 @@ export class User {
                 where: { id },
                 relations: ["publisherMemberships", "publisherMemberships.publisher"]
             });
-            
+
             if (!userEntity) return null;
 
             return {
@@ -348,7 +348,7 @@ export class User {
                 discordId: userEntity.discordId,
                 discordAccessToken: userEntity.discordAccessToken,
                 discordRefreshToken: userEntity.discordRefreshToken,
-                patreonId: userEntity.patreonId,
+                patreonUserId: userEntity.patreonUserId,
                 patreonAccessToken: userEntity.patreonAccessToken,
                 patreonRefreshToken: userEntity.patreonRefreshToken,
                 admin: userEntity.admin,
@@ -377,9 +377,9 @@ export class User {
 
             // Update properties
             Object.assign(userEntity, parsedData.data);
-            
+
             const savedUser = await userEntity.save();
-            
+
             return new User({
                 id: savedUser.id,
                 username: savedUser.username,
@@ -388,7 +388,7 @@ export class User {
                 discordId: savedUser.discordId,
                 discordAccessToken: savedUser.discordAccessToken,
                 discordRefreshToken: savedUser.discordRefreshToken,
-                patreonId: savedUser.patreonId,
+                patreonUserId: savedUser.patreonUserId,
                 patreonAccessToken: savedUser.patreonAccessToken,
                 patreonRefreshToken: savedUser.patreonRefreshToken,
                 admin: savedUser.admin,
@@ -431,7 +431,7 @@ export class User {
 
     // Business logic methods
     async isPatron(): Promise<boolean> {
-        if (!this.patreonId) return false;
+        if (!this.patreonUserId) return false;
         return true;
     }
 
@@ -495,7 +495,7 @@ export class User {
             discordId: this.discordId,
             discordAccessToken: this.discordAccessToken,
             discordRefreshToken: this.discordRefreshToken,
-            patreonId: this.patreonId,
+            patreonUserId: this.patreonUserId,
             patreonAccessToken: this.patreonAccessToken,
             patreonRefreshToken: this.patreonRefreshToken,
         };
@@ -512,7 +512,7 @@ export class User {
             updatedAt: this.updatedAt,
             admin: this.admin,
             discordId: this.discordId,
-            patreonId: this.patreonId,
+            patreonUserId: this.patreonUserId,
         };
     }
 
@@ -522,7 +522,7 @@ export class User {
     }
 
     hasPatreonAuth(): boolean {
-        return !!(this.patreonId && this.patreonAccessToken);
+        return !!(this.patreonUserId && this.patreonAccessToken);
     }
 
     getDisplayName(): string {

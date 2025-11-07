@@ -51,9 +51,6 @@ export class User extends BaseEntity {
     discordRefreshToken?: string | null;
 
     // Patreon fields
-    @Column({ name: "patreon_id", type: "text", nullable: true })
-    patreonId?: string | null;
-
     @Column({ name: "patreon_user_id", type: "text", nullable: true, unique: true })
     patreonUserId?: string | null;
 
@@ -198,7 +195,7 @@ export class User extends BaseEntity {
 
     // Business logic methods
     isPatron(): boolean {
-        return !!(this.patreonId && this.patreonAccessToken);
+        return !!(this.patreonUserId && this.patreonAccessToken);
     }
 
     // Check if user has Twitch linked
@@ -291,7 +288,7 @@ export class User extends BaseEntity {
             createdAt: this.createdAt,
             updatedAt: this.updatedAt,
             discordId: this.discordId,
-            patreonId: this.patreonId,
+            patreonId: this.patreonUserId,
             patreonTier: this.patreonTier,
             patreonIsActive: this.patreonIsActive,
             patreonLastVerified: this.patreonLastVerified,

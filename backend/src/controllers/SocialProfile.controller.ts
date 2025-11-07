@@ -3,6 +3,7 @@ import { User } from '@/entities/User';
 import { PatreonIntegrationService } from '@/services/patreon-integration.service';
 import { APIError } from '@/lib/APIError';
 import { AuthVariables, USER_CONTEXT_KEY } from "@/middlewares/auth.middleware";
+import { UserRole } from "@/types/enums";
 
 type ProfileUpdatePayload = {
     coverImageUrl?: string;
@@ -135,7 +136,7 @@ export class SocialProfileController {
         const userId = c.get('userId');
 
         const patreonStatus = await PatreonIntegrationService.verifyPatreonStatus(userId);
-        const availableFeatures = PatreonIntegrationService.getPremiumFeaturesForTier(patreonStatus.tier);
+        const tierDescription = await PatreonIntegrationService.getTierDescription(patreonStatus.tier, userId);
         const canUploadCoverImage = await PatreonIntegrationService.canUploadCoverImage(userId);
 
         return c.json({
@@ -145,7 +146,7 @@ export class SocialProfileController {
                 tier: patreonStatus.tier,
                 isActive: patreonStatus.isActive,
                 entitledAmount: patreonStatus.entitledAmount,
-                availableFeatures,
+                tierDescription,
                 canUploadCoverImage,
                 isConnected: patreonStatus.isConnected
             }
@@ -190,7 +191,7 @@ export class SocialProfileController {
         }
 
         // Remove Patreon data
-        user.patreonId = null;
+        user.patreonUserId = null;
         user.patreonAccessToken = null;
         user.patreonRefreshToken = null;
 

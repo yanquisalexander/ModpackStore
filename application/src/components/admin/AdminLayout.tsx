@@ -57,8 +57,8 @@ const adminNavItems = [
         description: 'Administrar tickets y solicitudes de soporte'
     },
     {
-        path: '/admin/patreon-plus',
-        label: 'Patreon Plus',
+        path: '/admin/beneficios-plus',
+        label: 'ModpackStore +',
         icon: LucideDollarSign,
         description: 'Configurar beneficios y sincronizar con Patreon'
     },
@@ -213,7 +213,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                             <Route path="/publishers" element={<ManagePublishersView />} />
                             <Route path="/categories" element={<ManageCategoriesView />} />
                             <Route path="/tickets" element={<ManageTicketsView />} />
-                            <Route path="/patreon-plus" element={<PatreonPlusManagementView />} />
+                            <Route path="/beneficios-plus" element={<PatreonPlusManagementView />} />
                             <Route path="/audit" element={<AuditLogsView />} />
                             <Route path="/maintenance" element={<MaintenanceView />} />
                             <Route path="/settings" element={<ManageTermsAndConditionsView />} />

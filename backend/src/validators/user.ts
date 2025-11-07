@@ -13,7 +13,7 @@ export const userSchema = z.object({
     admin: z.boolean().default(false),
 
     // Patreon
-    patreonId: z.string().optional(),
+    patreonUserId: z.string().optional(),
     patreonAccessToken: z.string().optional(),
     patreonRefreshToken: z.string().optional(),
 
