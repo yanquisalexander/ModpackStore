@@ -148,6 +148,9 @@ async function cleanupTestData(data: any) {
     console.log("🧹 Cleaning up test data...");
 
     // Delete in reverse order due to foreign keys
+    // Note: While CASCADE deletes are configured on the entities,
+    // we explicitly delete each entity type for test clarity and to ensure
+    // complete cleanup of all test data we created
     await ModpackDownload.delete({ modpackId: data.modpack1.id });
     await ModpackDownload.delete({ modpackId: data.modpack2.id });
     await ModpackVote.delete({ modpackId: data.modpack1.id });

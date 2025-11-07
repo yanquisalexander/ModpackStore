@@ -93,7 +93,7 @@ export class ModpackDownload extends BaseEntity {
         endDate?: Date
     ): Promise<Array<{ date: string; downloads: number }>> {
         let query = this.createQueryBuilder("download")
-            .select("DATE(download.created_at)", "date")
+            .select("download.created_at::date", "date")
             .addSelect("COUNT(download.id)", "downloads")
             .where("download.modpackId = :modpackId", { modpackId });
 
@@ -106,7 +106,7 @@ export class ModpackDownload extends BaseEntity {
         }
 
         const result = await query
-            .groupBy("DATE(download.created_at)")
+            .groupBy("download.created_at::date")
             .orderBy("date", "ASC")
             .getRawMany();
 

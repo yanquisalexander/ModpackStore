@@ -244,7 +244,7 @@ export class AnalyticsService {
         endDate?: Date
     ): Promise<VotesTimelineData[]> {
         let query = ModpackVote.createQueryBuilder("vote")
-            .select("DATE(vote.created_at)", "date")
+            .select("vote.created_at::date", "date")
             .addSelect("SUM(CASE WHEN vote.vote = 1 THEN 1 ELSE 0 END)", "likes")
             .addSelect("SUM(CASE WHEN vote.vote = -1 THEN 1 ELSE 0 END)", "dislikes")
             .where("vote.modpackId = :modpackId", { modpackId });
@@ -258,7 +258,7 @@ export class AnalyticsService {
         }
 
         const result = await query
-            .groupBy("DATE(vote.created_at)")
+            .groupBy("vote.created_at::date")
             .orderBy("date", "ASC")
             .getRawMany();
 
@@ -279,7 +279,7 @@ export class AnalyticsService {
         endDate?: Date
     ): Promise<VotesTimelineData[]> {
         let query = ModpackVote.createQueryBuilder("vote")
-            .select("DATE(vote.created_at)", "date")
+            .select("vote.created_at::date", "date")
             .addSelect("vote.vote", "vote")
             .where("vote.modpackId = :modpackId", { modpackId });
 

@@ -209,7 +209,12 @@ AnalyticsRoute.get(
 /**
  * POST /creators/track/install/:modpackId/:versionId
  * Track a modpack installation
- * This endpoint is called by the client when a user installs a modpack
+ * 
+ * Note: This endpoint is at the root level (not under /publishers/:publisherId/analytics)
+ * because it's called by the client application when ANY user installs a modpack,
+ * not just when a publisher member views analytics. It only requires user authentication
+ * and verifies the user has access to the modpack being installed.
+ * 
  * Only users with active acquisition/access can track installations
  */
 AnalyticsRoute.post(
