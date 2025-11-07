@@ -20,7 +20,9 @@ export enum AuditAction {
     PUBLISHER_MEMBER_REMOVED = 'publisher_member_removed',
     PUBLISHER_MEMBER_ROLE_UPDATED = 'publisher_member_role_updated',
     ADMIN_ACCESS = 'admin_access',
-    AUDIT_LOG_VIEWED = 'audit_log_viewed'
+    AUDIT_LOG_VIEWED = 'audit_log_viewed',
+    PATREON_TIER_SYNC = 'patreon_tier_sync',
+    PATREON_MEMBER_SYNC = 'patreon_member_sync'
 }
 
 @Entity({ name: "audit_logs" })

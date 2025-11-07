@@ -1,11 +1,24 @@
 import { User } from "@/entities/User";
 import { PatreonTier } from "@/entities/PatreonTier";
-import { AuditLog } from "@/entities/AuditLog";
+import { AuditLog, AuditAction } from "@/entities/AuditLog";
 import { AppDataSource } from "@/db/data-source";
 import { Not } from "typeorm";
+import { SYSTEM_EMAIL } from "@/utils/system";
 
 interface PatreonTierResponse {
     data: Array<{
+        id: string;
+        type: 'campaign';
+        relationships: {
+            tiers: {
+                data: Array<{
+                    id: string;
+                    type: 'tier';
+                }>;
+            };
+        };
+    }>;
+    included: Array<{
         id: string;
         type: 'tier';
         attributes: {
@@ -66,9 +79,9 @@ export class PatreonSyncService {
         try {
             console.log('[PATREON_SYNC] Starting tier synchronization...');
 
-            // Fetch tiers from Patreon API
+            // Fetch campaign with tiers from Patreon API
             const response = await fetch(
-                `${this.PATREON_API_BASE}/campaigns/${this.CAMPAIGN_ID}/tiers`,
+                `${this.PATREON_API_BASE}/campaigns/${this.CAMPAIGN_ID}?include=tiers&fields%5Btier%5D=title,description,amount_cents,published`,
                 {
                     headers: {
                         'Authorization': `Bearer ${this.CREATOR_ACCESS_TOKEN}`,
@@ -86,8 +99,10 @@ export class PatreonSyncService {
             let tiersAdded = 0;
             let tiersUpdated = 0;
 
-            // Process each tier from Patreon
-            for (const tierData of data.data) {
+            // Process each tier from Patreon (now in included array)
+            for (const tierData of data.included || []) {
+                if (tierData.type !== 'tier') continue;
+
                 patreonTierIds.add(tierData.id);
 
                 const existingTier = await PatreonTier.findOne({ where: { id: tierData.id } });
@@ -131,7 +146,7 @@ export class PatreonSyncService {
             }
 
             // Create audit log
-            await this.createAuditLog('patreon_tier_sync', {
+            await this.createAuditLog(AuditAction.PATREON_TIER_SYNC, {
                 tiersAdded,
                 tiersUpdated,
                 tiersDeactivated,
@@ -143,12 +158,12 @@ export class PatreonSyncService {
             return { success: true, tiersAdded, tiersUpdated, tiersDeactivated };
         } catch (error) {
             console.error('[PATREON_SYNC] Error syncing tiers:', error);
-            return { 
-                success: false, 
-                tiersAdded: 0, 
-                tiersUpdated: 0, 
-                tiersDeactivated: 0, 
-                error: error instanceof Error ? error.message : 'Unknown error' 
+            return {
+                success: false,
+                tiersAdded: 0,
+                tiersUpdated: 0,
+                tiersDeactivated: 0,
+                error: error instanceof Error ? error.message : 'Unknown error'
             };
         }
     }
@@ -226,7 +241,7 @@ export class PatreonSyncService {
             }
 
             // Clear tier assignments for users who are no longer members
-            const allPatreonUsers = await User.find({ 
+            const allPatreonUsers = await User.find({
                 where: [
                     { patreonUserId: Not(null) as any }
                 ]
@@ -247,7 +262,7 @@ export class PatreonSyncService {
             }
 
             // Create audit log
-            await this.createAuditLog('patreon_member_sync', {
+            await this.createAuditLog(AuditAction.PATREON_MEMBER_SYNC, {
                 membersUpdated,
                 membersCleared,
                 totalActiveMembers: activePatreonUserIds.size
@@ -258,11 +273,11 @@ export class PatreonSyncService {
             return { success: true, membersUpdated, membersCleared };
         } catch (error) {
             console.error('[PATREON_SYNC] Error syncing members:', error);
-            return { 
-                success: false, 
-                membersUpdated: 0, 
-                membersCleared: 0, 
-                error: error instanceof Error ? error.message : 'Unknown error' 
+            return {
+                success: false,
+                membersUpdated: 0,
+                membersCleared: 0,
+                error: error instanceof Error ? error.message : 'Unknown error'
             };
         }
     }
@@ -304,14 +319,14 @@ export class PatreonSyncService {
 
         return {
             success: true,
-            tiers: { 
-                tiersAdded: tierResult.tiersAdded, 
-                tiersUpdated: tierResult.tiersUpdated, 
-                tiersDeactivated: tierResult.tiersDeactivated 
+            tiers: {
+                tiersAdded: tierResult.tiersAdded,
+                tiersUpdated: tierResult.tiersUpdated,
+                tiersDeactivated: tierResult.tiersDeactivated
             },
-            members: { 
-                membersUpdated: memberResult.membersUpdated, 
-                membersCleared: memberResult.membersCleared 
+            members: {
+                membersUpdated: memberResult.membersUpdated,
+                membersCleared: memberResult.membersCleared
             }
         };
     }
@@ -322,8 +337,8 @@ export class PatreonSyncService {
     static async getLastSyncTimestamp(): Promise<Date | null> {
         const lastAudit = await AuditLog.findOne({
             where: [
-                { action: 'patreon_tier_sync' },
-                { action: 'patreon_member_sync' }
+                { action: AuditAction.PATREON_TIER_SYNC },
+                { action: AuditAction.PATREON_MEMBER_SYNC }
             ],
             order: { createdAt: 'DESC' }
         });
@@ -334,18 +349,19 @@ export class PatreonSyncService {
     /**
      * Create audit log for sync operations
      */
-    private static async createAuditLog(action: string, details: any): Promise<void> {
+    private static async createAuditLog(action: AuditAction, details: any): Promise<void> {
         try {
+            const SYSTEM_USER = await User.findOne({ where: { email: SYSTEM_EMAIL } });
             const auditLog = AuditLog.create({
-                userId: null, // System action
+                user: SYSTEM_USER ?? undefined, // System action (relation)
                 action,
-                targetType: 'patreon_sync',
-                targetId: null,
                 details,
                 ipAddress: null,
                 userAgent: null
             });
+
             await auditLog.save();
+
         } catch (error) {
             console.error('[PATREON_SYNC] Error creating audit log:', error);
         }

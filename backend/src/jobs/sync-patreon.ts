@@ -1,3 +1,5 @@
+import "reflect-metadata";
+import "dotenv/config";
 import { PatreonSyncService } from "@/services/patreon-sync.service";
 import { AppDataSource } from "@/db/data-source";
 
@@ -10,7 +12,7 @@ import { AppDataSource } from "@/db/data-source";
 
 async function runPatreonSync() {
     console.log('[PATREON_CRON] Starting scheduled Patreon synchronization...');
-    
+
     try {
         // Initialize database connection if not already connected
         if (!AppDataSource.isInitialized) {

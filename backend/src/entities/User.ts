@@ -18,7 +18,10 @@ import { Ban } from "./Ban";
 import { ModpackVote } from "./ModpackVote";
 import { UserRecommendation } from "./UserRecommendation";
 import { PatreonTier } from "./PatreonTier";
-import { JWT_ACCESS_TOKEN_EXPIRES_IN, JWT_REFRESH_TOKEN_EXPIRES_IN } from "@/services/auth.service";
+// Avoid importing auth.service here to prevent circular dependency
+// Define JWT expiry constants locally to use when generating tokens.
+const JWT_ACCESS_TOKEN_EXPIRES_IN = 4 * 60 * 60; // 4 hours
+const JWT_REFRESH_TOKEN_EXPIRES_IN = 15 * 24 * 60 * 60; // 15 days
 
 @Entity({ name: "users" })
 export class User extends BaseEntity {
