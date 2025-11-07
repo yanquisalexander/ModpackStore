@@ -61,6 +61,14 @@ interface PatreonMemberResponse {
             email: string;
         };
     }>;
+    meta?: {
+        pagination?: {
+            cursors?: {
+                next?: string;
+            };
+            total?: number;
+        };
+    };
 }
 
 export class PatreonSyncService {
@@ -181,31 +189,18 @@ export class PatreonSyncService {
         try {
             console.log('[PATREON_SYNC] Starting member synchronization...');
 
-            // Fetch members from Patreon API
-            const response = await fetch(
-                `${this.PATREON_API_BASE}/campaigns/${this.CAMPAIGN_ID}/members?include=user,currently_entitled_tiers&fields%5Bmember%5D=patron_status,currently_entitled_amount_cents,last_charge_status&fields%5Buser%5D=email`,
-                {
-                    headers: {
-                        'Authorization': `Bearer ${this.CREATOR_ACCESS_TOKEN}`,
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-
-            if (!response.ok) {
-                throw new Error(`Patreon API error: ${response.status} - ${response.statusText}`);
-            }
-
-            const data: PatreonMemberResponse = await response.json();
+            // Fetch ALL members from Patreon API with pagination
+            const allMemberData = await this.fetchAllMembers();
             const activePatreonUserIds = new Set<string>();
 
-            console.log('[PATREON_SYNC] Fetched members from Patreon:', data.data.length);
+            console.log('[PATREON_SYNC] Processing total members from Patreon:', allMemberData.length);
 
             let membersUpdated = 0;
 
             // Process each member from Patreon
-            for (const memberData of data.data) {
+            for (const memberData of allMemberData) {
                 const patreonUserId = memberData.relationships.user.data.id;
+                const entitledTiers = memberData.relationships.currently_entitled_tiers.data;
                 console.log('[PATREON_SYNC] Processing member with Patreon user ID:', patreonUserId);
                 activePatreonUserIds.add(patreonUserId);
 
@@ -213,12 +208,11 @@ export class PatreonSyncService {
                 const user = await User.findOne({ where: { patreonUserId } });
 
                 if (!user) {
-                    console.log(`[PATREON_SYNC] User not found for Patreon user ID: ${patreonUserId}`);
+                    console.log(`[PATREON_SYNC] User not found for Patreon user ID: ${patreonUserId} (status: ${memberData.attributes.patron_status}, entitled tiers: ${entitledTiers.length})`);
                     continue;
                 }
 
                 // Get the highest entitled tier
-                const entitledTiers = memberData.relationships.currently_entitled_tiers.data;
                 let highestTier: PatreonTier | null = null;
                 let highestAmount = 0;
 
@@ -233,6 +227,8 @@ export class PatreonSyncService {
                 // Update user's Patreon data
                 const isActive = memberData.attributes.patron_status === 'active_patron' &&
                     memberData.attributes.last_charge_status === 'Paid';
+
+                console.log(`[PATREON_SYNC] Processing ${user.username}: status=${memberData.attributes.patron_status}, charge_status=${memberData.attributes.last_charge_status}, isActive=${isActive}, entitled_tiers=${entitledTiers.length}, highest_tier=${highestTier?.name || 'None'}`);
 
                 user.patreonTierId = highestTier?.id || null;
                 user.patreonStatus = memberData.attributes.patron_status;
@@ -270,10 +266,11 @@ export class PatreonSyncService {
             await this.createAuditLog(AuditAction.PATREON_MEMBER_SYNC, {
                 membersUpdated,
                 membersCleared,
-                totalActiveMembers: activePatreonUserIds.size
+                totalActiveMembers: activePatreonUserIds.size,
+                totalMembersFromPatreon: allMemberData.length
             });
 
-            console.log(`[PATREON_SYNC] Member sync completed: ${membersUpdated} updated, ${membersCleared} cleared`);
+            console.log(`[PATREON_SYNC] Member sync completed: ${membersUpdated} updated, ${membersCleared} cleared, ${allMemberData.length} total from Patreon`);
 
             return { success: true, membersUpdated, membersCleared };
         } catch (error) {
@@ -370,5 +367,51 @@ export class PatreonSyncService {
         } catch (error) {
             console.error('[PATREON_SYNC] Error creating audit log:', error);
         }
+    }
+
+    /**
+     * Fetch all members from Patreon API with pagination
+     */
+    private static async fetchAllMembers(): Promise<PatreonMemberResponse['data']> {
+        const allMembers: PatreonMemberResponse['data'] = [];
+        let nextCursor: string | undefined = undefined;
+        let pageCount = 0;
+
+        do {
+            pageCount++;
+            const url = new URL(`${this.PATREON_API_BASE}/campaigns/${this.CAMPAIGN_ID}/members`);
+            url.searchParams.set('include', 'user,currently_entitled_tiers');
+            url.searchParams.set('fields[member]', 'patron_status,currently_entitled_amount_cents,last_charge_status');
+            url.searchParams.set('fields[user]', 'email');
+
+            if (nextCursor) {
+                url.searchParams.set('page[cursor]', nextCursor);
+            }
+
+            console.log(`[PATREON_SYNC] Fetching members page ${pageCount}${nextCursor ? ` (cursor: ${nextCursor})` : ''}`);
+
+            const response = await fetch(url.toString(), {
+                headers: {
+                    'Authorization': `Bearer ${this.CREATOR_ACCESS_TOKEN}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`Patreon API error: ${response.status} - ${response.statusText}`);
+            }
+
+            const data: PatreonMemberResponse = await response.json();
+            allMembers.push(...data.data);
+
+            console.log(`[PATREON_SYNC] Page ${pageCount}: ${data.data.length} members (total so far: ${allMembers.length})`);
+
+            // Check for next page
+            nextCursor = data.meta?.pagination?.cursors?.next;
+
+        } while (nextCursor);
+
+        console.log(`[PATREON_SYNC] Completed fetching all members: ${allMembers.length} total from ${pageCount} pages`);
+        return allMembers;
     }
 }
