@@ -2,6 +2,7 @@ import { User } from "@/entities/User";
 import { PatreonTier } from "@/entities/PatreonTier";
 import { AuditLog } from "@/entities/AuditLog";
 import { AppDataSource } from "@/db/data-source";
+import { Not } from "typeorm";
 
 interface PatreonTierResponse {
     data: Array<{
@@ -82,7 +83,6 @@ export class PatreonSyncService {
 
             const data: PatreonTierResponse = await response.json();
             const patreonTierIds = new Set<string>();
-
             let tiersAdded = 0;
             let tiersUpdated = 0;
 
@@ -351,6 +351,3 @@ export class PatreonSyncService {
         }
     }
 }
-
-// Import Not for TypeORM
-import { Not } from "typeorm";

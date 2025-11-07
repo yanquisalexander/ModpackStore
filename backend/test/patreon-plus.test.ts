@@ -2,6 +2,7 @@ import { AppDataSource } from "@/db/data-source";
 import { PatreonTier } from "@/entities/PatreonTier";
 import { User } from "@/entities/User";
 import { BenefitsService } from "@/services/benefits.service";
+import { Not } from "typeorm";
 
 /**
  * Test script for Patreon Plus integration
@@ -120,9 +121,6 @@ async function testPatreonPlus() {
 
     process.exit(0);
 }
-
-// Import Not for TypeORM
-import { Not } from "typeorm";
 
 // Run the test
 testPatreonPlus().catch(error => {

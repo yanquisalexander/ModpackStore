@@ -28,6 +28,6 @@ export class PatreonTier extends BaseEntity {
     updatedAt: Date;
 
     // Relations
-    @OneToMany(() => User, user => user.patreonTier)
+    @OneToMany(() => User, user => user.patreonTierRelation)
     users: User[];
 }

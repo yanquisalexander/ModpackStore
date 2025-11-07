@@ -2,6 +2,14 @@ import * as fs from "fs";
 import * as path from "path";
 import * as yaml from "yaml";
 
+interface BenefitDefinition {
+    type: 'number' | 'boolean';
+    name: string;
+    description: string;
+    default: number | boolean;
+    validator: string;
+}
+
 /**
  * Simple validation test for Patreon Plus integration
  * Does not require database connection
@@ -38,7 +46,7 @@ async function validatePatreonPlusIntegration() {
 
                 // Test 3: Validate benefit structure
                 console.log('[VALIDATION] Test 3: Validating benefit structure...');
-                for (const [key, benefit] of Object.entries(config.benefits) as [string, any][]) {
+                for (const [key, benefit] of Object.entries(config.benefits) as [string, BenefitDefinition][]) {
                     if (!benefit.type || !benefit.name || benefit.default === undefined || !benefit.validator) {
                         console.error(`[VALIDATION] ✗ Invalid benefit structure for '${key}'`);
                         hasErrors = true;
