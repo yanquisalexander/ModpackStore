@@ -207,6 +207,27 @@ AnalyticsRoute.get(
 );
 
 /**
+ * GET /creators/publishers/:publisherId/analytics/comprehensive
+ * Get comprehensive analytics data including retention, updates, and comparative metrics
+ */
+AnalyticsRoute.get(
+    "/publishers/:publisherId/analytics/comprehensive",
+    isOrganizationMember,
+    async (c: Context<{ Variables: AuthVariables }>) => {
+        const { publisherId } = c.req.param();
+        const period = c.req.query('period') || '30d';
+
+        try {
+            const analytics = await analyticsService.getComprehensiveAnalytics(publisherId, period);
+            return c.json({ success: true, data: analytics });
+        } catch (error) {
+            console.error("Error fetching comprehensive analytics:", error);
+            throw new APIError(500, "Failed to fetch comprehensive analytics");
+        }
+    }
+);
+
+/**
  * POST /creators/track/install/:modpackId/:versionId
  * Track a modpack installation
  * 
@@ -244,10 +265,10 @@ AnalyticsRoute.post(
         // Verify user has access to the modpack
         // Check if user has an active acquisition for this modpack
         const acquisition = await ModpackAcquisition.findActiveUserAcquisition(user.id, modpackId);
-        
+
         // For free modpacks without password, allow tracking without acquisition
         const isFreeModpack = modpack.acquisitionMethod === 'free' && !modpack.password;
-        
+
         if (!isFreeModpack && !acquisition) {
             throw new APIError(403, "User does not have access to this modpack");
         }

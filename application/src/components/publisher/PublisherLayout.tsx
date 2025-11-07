@@ -11,7 +11,8 @@ import {
     LucideBuilding2,
     LucideChevronRight,
     LucideShield,
-    LucideHandCoins
+    LucideHandCoins,
+    LucideBarChart3
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { useTeams } from '@/hooks/creators/useTeams';
@@ -22,6 +23,7 @@ import PublisherModpackVersionDetailView from '@/views/publisher/PublisherModpac
 import { PublisherPaymentsView } from '@/views/publisher/PublisherPaymentsView';
 import { useGlobalContext } from "@/stores/GlobalContext";
 import PublisherModpackVersionWizard from '@/components/publisher/PublisherModpackVersionWizard';
+import { PublisherAnalyticsView } from '@/views/publisher/PublisherAnalyticsView';
 
 interface PublisherLayoutProps {
     children?: React.ReactNode;
@@ -34,6 +36,12 @@ const getPublisherNavItems = (publisherId: string) => [
         label: 'Gestión de Modpacks',
         icon: LucidePackage,
         description: 'Administrar modpacks y versiones'
+    },
+    {
+        path: `/publisher/${publisherId}/analytics`,
+        label: 'Analytics',
+        icon: LucideBarChart3,
+        description: 'Estadísticas y métricas de rendimiento'
     },
     {
         path: `/publisher/${publisherId}/team`,
@@ -280,6 +288,7 @@ export const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) =>
                                 <Route path="/modpacks/:modpackId/versions/:versionId" element={<PublisherModpackVersionDetailView />} />
                                 <Route path="/team" element={<PublisherTeamView />} />
                                 <Route path="/payments" element={<PublisherPaymentsView />} />
+                                <Route path="/analytics" element={<PublisherAnalyticsView />} />
                                 <Route path="*" element={<PublisherModpacksView />} /> {/* Default to modpacks */}
                             </Routes>
                         )}
