@@ -84,9 +84,23 @@ AnalyticsRoute.get(
             throw new APIError(404, "Modpack not found");
         }
 
-        const version = await ModpackVersion.findOne({
-            where: { id: versionId, modpackId }
-        });
+        // Handle "latest" versionId
+        let version;
+        if (versionId === 'latest') {
+            // Find the latest published version
+            version = await ModpackVersion.findOne({
+                where: {
+                    modpackId,
+                    status: 'published' // Only consider published versions
+                },
+                order: { releaseDate: 'DESC' } // Most recent first
+            });
+        } else {
+            // Find specific version by ID
+            version = await ModpackVersion.findOne({
+                where: { id: versionId, modpackId }
+            });
+        }
 
         if (!version) {
             throw new APIError(404, "Version not found");
@@ -254,9 +268,23 @@ AnalyticsRoute.post(
             throw new APIError(404, "Modpack not found");
         }
 
-        const version = await ModpackVersion.findOne({
-            where: { id: versionId, modpackId }
-        });
+        // Handle "latest" versionId
+        let version;
+        if (versionId === 'latest') {
+            // Find the latest published version
+            version = await ModpackVersion.findOne({
+                where: {
+                    modpackId,
+                    status: 'published' // Only consider published versions
+                },
+                order: { releaseDate: 'DESC' } // Most recent first
+            });
+        } else {
+            // Find specific version by ID
+            version = await ModpackVersion.findOne({
+                where: { id: versionId, modpackId }
+            });
+        }
 
         if (!version) {
             throw new APIError(404, "Version not found");
