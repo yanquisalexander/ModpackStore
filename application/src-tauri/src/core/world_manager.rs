@@ -39,6 +39,27 @@ pub struct ImportConflict {
     pub import_version: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum ImportResult {
+    Success,
+    Conflict(ImportConflict),
+}
+
+/// Create a temporary directory for world operations
+fn create_temp_dir(prefix: &str) -> io::Result<PathBuf> {
+    let temp_dir = std::env::temp_dir().join(format!("{}_{}", prefix, uuid::Uuid::new_v4()));
+    fs::create_dir_all(&temp_dir)?;
+    Ok(temp_dir)
+}
+
+/// Clean up a temporary directory, logging any errors
+fn cleanup_temp_dir(path: &Path) {
+    if let Err(e) = fs::remove_dir_all(path) {
+        log::warn!("Failed to clean up temporary directory {}: {}", path.display(), e);
+    }
+}
+
 /// Calculate the total size of a directory
 fn calculate_directory_size(path: &Path) -> io::Result<u64> {
     let mut total_size = 0u64;
@@ -295,8 +316,7 @@ pub fn import_world(
         .map_err(|e| format!("Failed to read ZIP archive: {}", e))?;
 
     // Create a temporary directory for extraction
-    let temp_dir = std::env::temp_dir().join(format!("world_import_{}", uuid::Uuid::new_v4()));
-    fs::create_dir_all(&temp_dir)
+    let temp_dir = create_temp_dir("world_import")
         .map_err(|e| format!("Failed to create temp directory: {}", e))?;
 
     // Extract to temp directory first
@@ -325,8 +345,7 @@ pub fn import_world(
     // Validate that level.dat exists in the extracted files
     let level_dat_path = temp_dir.join("level.dat");
     if !level_dat_path.exists() {
-        // Clean up temp directory
-        let _ = fs::remove_dir_all(&temp_dir);
+        cleanup_temp_dir(&temp_dir);
         return Err("Invalid world: level.dat not found in ZIP".to_string());
     }
 
@@ -353,9 +372,9 @@ pub fn import_world(
 
     // Check for conflicts
     if destination.exists() && !overwrite {
-        // Clean up temp directory
-        let _ = fs::remove_dir_all(&temp_dir);
-        return Err(format!("CONFLICT:World '{}' already exists", world_name));
+        cleanup_temp_dir(&temp_dir);
+        // Return a structured error that the frontend can detect
+        return Err(format!("World '{}' already exists. Use overwrite option to replace it.", world_name));
     }
 
     // If overwrite is true and destination exists, remove it
@@ -401,8 +420,7 @@ pub fn validate_world_import(
     }
 
     // Extract level.dat to temp location to read world name
-    let temp_dir = std::env::temp_dir().join(format!("world_validate_{}", uuid::Uuid::new_v4()));
-    fs::create_dir_all(&temp_dir)
+    let temp_dir = create_temp_dir("world_validate")
         .map_err(|e| format!("Failed to create temp directory: {}", e))?;
 
     // Extract just level.dat
@@ -437,8 +455,7 @@ pub fn validate_world_import(
                 let (_, _, _, _, _, existing_version) = extract_world_info(&existing_nbt);
                 
                 if existing_version != import_version && existing_version.is_some() && import_version.is_some() {
-                    // Clean up temp directory
-                    let _ = fs::remove_dir_all(&temp_dir);
+                    cleanup_temp_dir(&temp_dir);
                     return Ok(Some(ImportConflict {
                         conflict_type: "version_mismatch".to_string(),
                         message: format!(
@@ -453,8 +470,7 @@ pub fn validate_world_import(
                 }
             }
             
-            // Clean up temp directory
-            let _ = fs::remove_dir_all(&temp_dir);
+            cleanup_temp_dir(&temp_dir);
             return Ok(Some(ImportConflict {
                 conflict_type: "name_exists".to_string(),
                 message: format!("A world named '{}' already exists", name),
@@ -466,13 +482,11 @@ pub fn validate_world_import(
         
         name
     } else {
-        // Clean up temp directory
-        let _ = fs::remove_dir_all(&temp_dir);
+        cleanup_temp_dir(&temp_dir);
         return Err("Failed to read level.dat from ZIP".to_string());
     };
 
-    // Clean up temp directory
-    let _ = fs::remove_dir_all(&temp_dir);
+    cleanup_temp_dir(&temp_dir);
 
     Ok(None) // No conflicts
 }

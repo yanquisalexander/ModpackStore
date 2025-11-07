@@ -33,6 +33,28 @@ import { Switch } from "@/components/ui/switch";
 import { World, WorldEditData, ImportConflict, GameType, Difficulty, GAME_TYPE_LABELS, DIFFICULTY_LABELS } from "@/types/world";
 import { LucideDownload, LucideEdit, LucideMoreVertical, LucideTrash2, LucideUpload, LucideLoaderCircle, LucideFolderOpen } from "lucide-react";
 
+// World icon component that handles fallback properly
+function WorldIcon({ iconPath, worldName }: { iconPath: string | null; worldName: string }) {
+  const [hasError, setHasError] = useState(false);
+
+  if (!iconPath || hasError) {
+    return (
+      <div className="size-16 rounded bg-accent flex items-center justify-center flex-shrink-0">
+        <LucideFolderOpen className="size-8 text-muted-foreground" />
+      </div>
+    );
+  }
+
+  return (
+    <img
+      src={`file://${iconPath}`}
+      alt={worldName}
+      className="size-16 rounded object-cover flex-shrink-0"
+      onError={() => setHasError(true)}
+    />
+  );
+}
+
 interface WorldManagerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -254,31 +276,7 @@ export function WorldManagerDialog({ open, onOpenChange, instanceId }: WorldMana
                   key={world.path}
                   className="flex items-center gap-4 p-4 border rounded-lg hover:bg-accent/50 transition"
                 >
-                  <div className="size-16 rounded flex-shrink-0 relative">
-                    {world.icon_path ? (
-                      <>
-                        <img
-                          src={`file://${world.icon_path}`}
-                          alt={world.name}
-                          className="size-16 rounded object-cover"
-                          onError={(e) => {
-                            // Hide the image on error
-                            (e.target as HTMLImageElement).style.display = "none";
-                            // Show the fallback div
-                            const fallback = (e.target as HTMLImageElement).nextElementSibling;
-                            if (fallback) (fallback as HTMLElement).style.display = "flex";
-                          }}
-                        />
-                        <div className="hidden size-16 rounded bg-accent items-center justify-center absolute inset-0">
-                          <LucideFolderOpen className="size-8 text-muted-foreground" />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="size-16 rounded bg-accent flex items-center justify-center">
-                        <LucideFolderOpen className="size-8 text-muted-foreground" />
-                      </div>
-                    )}
-                  </div>
+                  <WorldIcon iconPath={world.icon_path} worldName={world.name} />
 
                   <div className="flex-1 min-w-0">
                     <h3 className="font-semibold truncate">
