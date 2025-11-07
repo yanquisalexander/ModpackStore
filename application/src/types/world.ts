@@ -17,6 +17,7 @@ export interface WorldEditData {
   difficulty: number;
   allow_commands: boolean;
   hardcore: boolean;
+  name: string;
 }
 
 export interface ImportConflict {

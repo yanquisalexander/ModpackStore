@@ -260,7 +260,7 @@ pub fn export_world(instance_id: String, world_name: String, destination_path: S
         .map_err(|e| format!("Failed to create ZIP file: {}", e))?;
     
     let mut zip = ZipWriter::new(file);
-    let options = FileOptions::default()
+    let options: FileOptions<'_, ()> = FileOptions::default()
         .compression_method(CompressionMethod::Deflated)
         .unix_permissions(0o755);
 
@@ -460,8 +460,8 @@ pub fn validate_world_import(
                         conflict_type: "version_mismatch".to_string(),
                         message: format!(
                             "World version mismatch: existing world is version {}, importing world is version {}",
-                            existing_version.unwrap_or_default(),
-                            import_version.unwrap_or_default()
+                            existing_version.clone().unwrap_or_default(),
+                            import_version.clone().unwrap_or_default()
                         ),
                         world_name: name.clone(),
                         existing_version,

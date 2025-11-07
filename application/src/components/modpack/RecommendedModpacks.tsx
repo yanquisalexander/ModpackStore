@@ -196,7 +196,9 @@ export const RecommendedModpacks: React.FC<RecommendedModpacksProps> = ({
 
     return (
         <div className={cn("space-y-4 relative z-1", className)}>
-            <img src='/images/magic-bg.webp' className="absolute inset-0 w-full h-full blur-3xl saturate-150" />
+            <img src='/images/magic-bg.webp'
+                draggable={false}
+                className="absolute animate-pulsing animate-iteration-count-infinite animate-duration-[6000ms] inset-0 w-full h-full blur-3xl saturate-150" />
             <div className="flex items-center gap-2">
                 {getIcon()}
                 <h2 className="text-2xl font-bold">{getTitle()}</h2>

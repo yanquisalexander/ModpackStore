@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
+import { readFile } from "@tauri-apps/plugin-fs";
 import { invoke } from "@tauri-apps/api/core";
-import { open, save } from "@tauri-apps/plugin-dialog";
+import { open as tauriOpen, save } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -26,7 +27,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
@@ -36,8 +37,45 @@ import { LucideDownload, LucideEdit, LucideMoreVertical, LucideTrash2, LucideUpl
 // World icon component that handles fallback properly
 function WorldIcon({ iconPath, worldName }: { iconPath: string | null; worldName: string }) {
   const [hasError, setHasError] = useState(false);
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
 
-  if (!iconPath || hasError) {
+  useEffect(() => {
+    let mounted = true;
+    setHasError(false);
+    setDataUrl(null);
+
+    if (!iconPath) return;
+
+    // Tauri doesn't allow loading file:// in <img>, so read binary and convert to base64
+    (async () => {
+      try {
+        const bytes = await readFile(iconPath);
+        if (!mounted) return;
+
+        // Create a Blob from the bytes and read as data URL using FileReader
+        const uint8 = bytes as Uint8Array;
+        const blob = new Blob([uint8 as any]);
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            if (typeof reader.result === 'string') resolve(reader.result);
+            else reject(new Error('Failed to read blob as data URL'));
+          };
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
+
+        setDataUrl(dataUrl);
+      } catch (e) {
+        console.error("Failed to read icon file:", e);
+        setHasError(true);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, [iconPath]);
+
+  if (!iconPath || hasError || !dataUrl) {
     return (
       <div className="size-16 rounded bg-accent flex items-center justify-center flex-shrink-0">
         <LucideFolderOpen className="size-8 text-muted-foreground" />
@@ -46,9 +84,11 @@ function WorldIcon({ iconPath, worldName }: { iconPath: string | null; worldName
   }
 
   return (
+    // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={`file://${iconPath}`}
+      src={dataUrl}
       alt={worldName}
+      draggable={false}
       className="size-16 rounded object-cover flex-shrink-0"
       onError={() => setHasError(true)}
     />
@@ -93,7 +133,7 @@ export function WorldManagerDialog({ open, onOpenChange, instanceId }: WorldMana
 
   const handleImport = async () => {
     try {
-      const selected = await open({
+      const selected = await tauriOpen({
         multiple: false,
         filters: [{ name: "World ZIP", extensions: ["zip"] }],
       });
@@ -198,6 +238,7 @@ export function WorldManagerDialog({ open, onOpenChange, instanceId }: WorldMana
       difficulty: world.difficulty ?? Difficulty.Normal,
       allow_commands: world.allow_commands ?? false,
       hardcore: world.hardcore ?? false,
+      name: world.name,
     });
   };
 
@@ -377,17 +418,17 @@ export function WorldManagerDialog({ open, onOpenChange, instanceId }: WorldMana
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Edit World Sheet */}
-      <Sheet open={!!editWorld} onOpenChange={(open) => {
+      {/* Edit World Dialog (nested) */}
+      <Dialog open={!!editWorld} onOpenChange={(open) => {
         if (!open) {
           setEditWorld(null);
           setEditData(null);
         }
       }}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>Editar Mundo</SheetTitle>
-          </SheetHeader>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar mundo "{editData?.name}"</DialogTitle>
+          </DialogHeader>
 
           {editData && (
             <div className="space-y-6 mt-6">
@@ -460,8 +501,8 @@ export function WorldManagerDialog({ open, onOpenChange, instanceId }: WorldMana
               </Button>
             </div>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
