@@ -604,6 +604,7 @@ export class PatreonIntegrationService {
             }
 
             user.patreonId = oauthData.patreonId;
+            user.patreonUserId = oauthData.patreonId; // Save patreon_user_id for sync
             user.patreonAccessToken = oauthData.tokens.access_token;
             user.patreonRefreshToken = oauthData.tokens.refresh_token;
 
@@ -618,6 +619,7 @@ export class PatreonIntegrationService {
 
             console.log(`[PATREON_LINK] Successfully linked Patreon account for user ${userId}:`, {
                 patreonId: oauthData.patreonId,
+                patreonUserId: oauthData.patreonId,
                 email: oauthData.userInfo.email
             });
 
