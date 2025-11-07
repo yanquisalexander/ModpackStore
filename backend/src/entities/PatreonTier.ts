@@ -21,6 +21,9 @@ export class PatreonTier extends BaseEntity {
     @Column({ type: "jsonb", nullable: true })
     metadata?: Record<string, any> | null;
 
+    @Column({ name: "last_sync_at", type: "timestamp", nullable: true })
+    lastSyncAt?: Date | null;
+
     @CreateDateColumn({ name: "created_at" })
     createdAt: Date;
 

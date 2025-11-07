@@ -5,6 +5,7 @@ import * as yaml from "yaml";
 import { PatreonTier } from "@/entities/PatreonTier";
 import { User } from "@/entities/User";
 import { PatreonSyncService } from "@/services/patreon-sync.service";
+import { validatePatreonMetadata } from "@/validators/patreon-metadata.validator";
 
 export class PatreonPlusController {
     /**
@@ -28,6 +29,7 @@ export class PatreonPlusController {
                         amountCents: tier.amountCents,
                         active: tier.active,
                         metadata: tier.metadata,
+                        lastSyncAt: tier.lastSyncAt,
                         memberCount,
                         createdAt: tier.createdAt,
                         updatedAt: tier.updatedAt
@@ -151,12 +153,29 @@ export class PatreonPlusController {
     }
 
     /**
-     * Update tier metadata (benefits)
+     * Update tier metadata (benefits) - PATCH endpoint
      */
     static async updateTierMetadata(c: Context) {
         try {
             const tierId = c.req.param('tierId');
             const body = await c.req.json();
+
+            // Validate that metadata exists in body
+            if (!body.metadata || typeof body.metadata !== 'object') {
+                return c.json({
+                    success: false,
+                    error: 'Metadata object is required'
+                }, 400);
+            }
+
+            // Validate metadata values (only boolean, number, string allowed)
+            const validation = validatePatreonMetadata(body.metadata);
+            if (!validation.valid) {
+                return c.json({
+                    success: false,
+                    error: validation.error
+                }, 400);
+            }
 
             const tier = await PatreonTier.findOne({ where: { id: tierId } });
 
@@ -167,10 +186,10 @@ export class PatreonPlusController {
                 }, 404);
             }
 
-            // Update metadata
+            // Merge existing metadata with new values (PATCH behavior)
             tier.metadata = {
                 ...tier.metadata,
-                ...body.metadata
+                ...validation.data
             };
 
             await tier.save();
