@@ -5,6 +5,7 @@ import { APIError } from "@/lib/APIError";
 import { Modpack } from "@/entities/Modpack";
 import { ModpackVersion } from "@/entities/ModpackVersion";
 import { ModpackDownload } from "@/entities/ModpackDownload";
+import { ModpackAcquisition } from "@/entities/ModpackAcquisition";
 import { User } from "@/entities/User";
 import { Context } from "hono";
 
@@ -209,6 +210,7 @@ AnalyticsRoute.get(
  * POST /creators/track/install/:modpackId/:versionId
  * Track a modpack installation
  * This endpoint is called by the client when a user installs a modpack
+ * Only users with active acquisition/access can track installations
  */
 AnalyticsRoute.post(
     "/track/install/:modpackId/:versionId",
@@ -232,6 +234,17 @@ AnalyticsRoute.post(
 
         if (!version) {
             throw new APIError(404, "Version not found");
+        }
+
+        // Verify user has access to the modpack
+        // Check if user has an active acquisition for this modpack
+        const acquisition = await ModpackAcquisition.findActiveUserAcquisition(user.id, modpackId);
+        
+        // For free modpacks without password, allow tracking without acquisition
+        const isFreeModpack = modpack.acquisitionMethod === 'free' && !modpack.password;
+        
+        if (!isFreeModpack && !acquisition) {
+            throw new APIError(403, "User does not have access to this modpack");
         }
 
         try {

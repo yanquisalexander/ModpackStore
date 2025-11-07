@@ -17,13 +17,25 @@ import { AnalyticsService } from "../src/services/analytics.service";
 async function setupTestData() {
     console.log("🔧 Setting up test data...");
 
-    // Create test user
+    // Create test users
     const testUser = User.create({
         username: "analytics-test-user",
         email: "analytics-test@test.com",
         discordId: "test-discord-id",
     });
     await testUser.save();
+
+    // Create additional test users for votes (to avoid unique constraint violations)
+    const voteUsers = [];
+    for (let i = 0; i < 10; i++) {
+        const voteUser = User.create({
+            username: `vote-test-user-${i}`,
+            email: `vote-test-${i}@test.com`,
+            discordId: `test-discord-vote-${i}`,
+        });
+        await voteUser.save();
+        voteUsers.push(voteUser);
+    }
 
     // Create test publisher
     const testPublisher = Publisher.create({
@@ -101,18 +113,20 @@ async function setupTestData() {
         await ModpackDownload.trackDownload(testUser.id, modpack2.id, version3.id);
     }
 
-    // Create votes
+    // Create votes (use different users to avoid unique constraint violations)
     console.log("👍 Creating test votes...");
+    // 8 likes for modpack1
     for (let i = 0; i < 8; i++) {
         await ModpackVote.create({
-            userId: testUser.id,
+            userId: voteUsers[i].id,
             modpackId: modpack1.id,
             vote: 1, // like
         }).save();
     }
-    for (let i = 0; i < 2; i++) {
+    // 2 dislikes for modpack1
+    for (let i = 8; i < 10; i++) {
         await ModpackVote.create({
-            userId: testUser.id,
+            userId: voteUsers[i].id,
             modpackId: modpack1.id,
             vote: -1, // dislike
         }).save();
@@ -120,6 +134,7 @@ async function setupTestData() {
 
     return {
         testUser,
+        voteUsers,
         testPublisher,
         modpack1,
         modpack2,
@@ -143,6 +158,13 @@ async function cleanupTestData(data: any) {
     await Modpack.delete({ id: data.modpack2.id });
     await Publisher.delete({ id: data.testPublisher.id });
     await User.delete({ id: data.testUser.id });
+    
+    // Delete vote test users
+    if (data.voteUsers) {
+        for (const voteUser of data.voteUsers) {
+            await User.delete({ id: voteUser.id });
+        }
+    }
 }
 
 async function runTests() {
