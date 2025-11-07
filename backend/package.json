@@ -16,6 +16,7 @@
         "test:vote-recommendation": "tsx ./test/vote-recommendation.test.ts",
         "test:patreon-plus": "tsx ./test/patreon-plus.test.ts",
         "test:patreon-plus-validation": "tsx ./test/patreon-plus-validation.test.ts",
+        "test:analytics": "tsx ./test/analytics.test.ts",
         "job:generate-recommendations": "tsx ./src/jobs/generate-recommendations.ts",
         "job:sync-patreon": "tsx ./src/jobs/sync-patreon.ts"
     },
