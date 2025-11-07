@@ -113,6 +113,7 @@ export class PatreonSyncService {
                     existingTier.description = tierData.attributes.description;
                     existingTier.amountCents = tierData.attributes.amount_cents;
                     existingTier.active = tierData.attributes.published;
+                    existingTier.lastSyncAt = new Date();
                     await existingTier.save();
                     tiersUpdated++;
                     console.log(`[PATREON_SYNC] Updated tier: ${tierData.attributes.title}`);
@@ -124,7 +125,8 @@ export class PatreonSyncService {
                         description: tierData.attributes.description,
                         amountCents: tierData.attributes.amount_cents,
                         active: tierData.attributes.published,
-                        metadata: {}
+                        metadata: {},
+                        lastSyncAt: new Date()
                     });
                     await newTier.save();
                     tiersAdded++;

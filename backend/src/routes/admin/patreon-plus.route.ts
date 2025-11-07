@@ -53,7 +53,7 @@ patreonPlusRoutes.get('/tiers/:tierId/members', PatreonPlusController.getTierMem
 /**
  * @openapi
  * /admin/patreon-plus/tiers/{tierId}/metadata:
- *   put:
+ *   patch:
  *     summary: Update tier metadata (benefits configuration)
  *     tags: [Admin - Patreon Plus]
  *     security:
@@ -74,16 +74,18 @@ patreonPlusRoutes.get('/tiers/:tierId/members', PatreonPlusController.getTierMem
  *             properties:
  *               metadata:
  *                 type: object
- *                 description: Benefits metadata for the tier
+ *                 description: Benefits metadata for the tier (values must be boolean, number, or string)
  *     responses:
  *       200:
  *         description: Tier metadata updated successfully
+ *       400:
+ *         description: Invalid metadata format
  *       404:
  *         description: Tier not found
  *       500:
  *         description: Internal server error
  */
-patreonPlusRoutes.put('/tiers/:tierId/metadata', PatreonPlusController.updateTierMetadata);
+patreonPlusRoutes.patch('/tiers/:tierId/metadata', PatreonPlusController.updateTierMetadata);
 
 /**
  * @openapi
