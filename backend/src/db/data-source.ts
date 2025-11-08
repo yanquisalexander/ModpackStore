@@ -28,6 +28,7 @@ import { ModpackVote } from "../entities/ModpackVote";
 import { UserRecommendation } from "../entities/UserRecommendation";
 import { PatreonTier } from "../entities/PatreonTier";
 import { ModpackDownload } from "../entities/ModpackDownload";
+import { PublisherFile } from "../entities/PublisherFile";
 
 export const AppDataSource = new DataSource({
     type: "postgres",
@@ -74,5 +75,6 @@ export const AppDataSource = new DataSource({
         UserRecommendation,
         PatreonTier,
         ModpackDownload,
+        PublisherFile,
     ],
 });
