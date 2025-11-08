@@ -12,7 +12,8 @@ import {
     LucideChevronRight,
     LucideShield,
     LucideHandCoins,
-    LucideBarChart3
+    LucideBarChart3,
+    LucideCloud
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { useTeams } from '@/hooks/creators/useTeams';
@@ -24,6 +25,7 @@ import { PublisherPaymentsView } from '@/views/publisher/PublisherPaymentsView';
 import { useGlobalContext } from "@/stores/GlobalContext";
 import PublisherModpackVersionWizard from '@/components/publisher/PublisherModpackVersionWizard';
 import { PublisherAnalyticsView } from '@/views/publisher/PublisherAnalyticsView';
+import { PublisherStorageView } from '@/views/publisher/PublisherStorageView';
 
 interface PublisherLayoutProps {
     children?: React.ReactNode;
@@ -42,6 +44,12 @@ const getPublisherNavItems = (publisherId: string) => [
         label: 'Analytics',
         icon: LucideBarChart3,
         description: 'Estadísticas y métricas de rendimiento'
+    },
+    {
+        path: `/publisher/${publisherId}/storage`,
+        label: 'Cloud Storage',
+        icon: LucideCloud,
+        description: 'Gestiona tus archivos multimedia'
     },
     {
         path: `/publisher/${publisherId}/team`,
@@ -289,6 +297,7 @@ export const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) =>
                                 <Route path="/team" element={<PublisherTeamView />} />
                                 <Route path="/payments" element={<PublisherPaymentsView />} />
                                 <Route path="/analytics" element={<PublisherAnalyticsView />} />
+                                <Route path="/storage" element={<PublisherStorageView />} />
                                 <Route path="*" element={<PublisherModpacksView />} /> {/* Default to modpacks */}
                             </Routes>
                         )}

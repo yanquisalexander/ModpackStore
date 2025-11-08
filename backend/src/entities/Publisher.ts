@@ -3,6 +3,7 @@ import { PublisherMember } from "./PublisherMember";
 import { Modpack } from "./Modpack";
 import { Scope } from "./Scope";
 import { Wallet } from "./Wallet";
+import { PublisherFile } from "./PublisherFile";
 
 @Entity({ name: "publishers" })
 export class Publisher extends BaseEntity {
@@ -45,6 +46,9 @@ export class Publisher extends BaseEntity {
     @Column({ name: "is_hosting_partner", type: "boolean", default: false })
     isHostingPartner: boolean;
 
+    @Column({ name: "storage_limit_kb", type: "integer", default: 16384 })
+    storageLimitKb: number;
+
     @CreateDateColumn({ name: "created_at" })
     createdAt: Date;
 
@@ -60,4 +64,7 @@ export class Publisher extends BaseEntity {
 
     @OneToMany(() => Wallet, wallet => wallet.publisher)
     wallets: Wallet[];
+
+    @OneToMany(() => PublisherFile, file => file.publisher)
+    files: PublisherFile[];
 }
