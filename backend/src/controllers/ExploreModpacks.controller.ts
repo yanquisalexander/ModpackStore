@@ -130,11 +130,13 @@ export class ExploreModpacksController {
     static async getPrelaunchAppearance(c: Context): Promise<Response> {
         const modpackId = c.req.param('modpackId');
 
-        // Get the authenticated user if available (set by optionalAuth middleware)
-        const user = c.get('user') as User | undefined;
-
         try {
-            const modpack = await getModpackById(modpackId, user);
+            // Get modpack directly without visibility/access checks for prelaunch appearance
+            const modpack = await Modpack.findOne({
+                where: { id: modpackId },
+                select: ['id', 'prelaunchAppearance']
+            });
+
             if (!modpack) {
                 return c.json(serializeError({
                     status: '404',
@@ -143,14 +145,12 @@ export class ExploreModpacksController {
                 }), 404);
             }
 
-            let attributes = tryParseJSON(modpack.prelaunchAppearance);
-
             // Return the prelaunch appearance or null if not set
             return c.json({
                 data: {
                     type: 'prelaunch-appearance',
                     id: modpackId,
-                    attributes: attributes || null
+                    attributes: modpack.prelaunchAppearance || null
                 }
             }, 200);
         } catch (error: any) {
@@ -385,7 +385,7 @@ export class ExploreModpacksController {
                 status: statusCode.toString(),
                 title: error.name || 'Modpack Version Error',
                 detail: error.message || "Failed to fetch modpack version."
-            }), statusCode);
+            }));
         }
     }
 

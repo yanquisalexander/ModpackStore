@@ -317,7 +317,7 @@ export const getModpackById = async (modpackId: string, user?: any): Promise<Mod
 
         // Permission checks based on modpack status and visibility
         if (modpack.status === ModpackStatus.DRAFT) {
-            // Draft: only accessible to creator, admins, or team members
+            // Draft: only accessible to creator, app admins, or team members
             if (!user) {
                 console.log(`[SERVICE_MODPACKS] Draft modpack ${modpackId} requires authentication.`);
                 return null;
