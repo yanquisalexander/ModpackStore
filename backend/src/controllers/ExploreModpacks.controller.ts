@@ -145,12 +145,19 @@ export class ExploreModpacksController {
                 }), 404);
             }
 
+            let attributes;
+            if (typeof modpack.prelaunchAppearance === 'string') {
+                attributes = tryParseJSON(modpack.prelaunchAppearance);
+            } else {
+                attributes = modpack.prelaunchAppearance;
+            }
+
             // Return the prelaunch appearance or null if not set
             return c.json({
                 data: {
                     type: 'prelaunch-appearance',
                     id: modpackId,
-                    attributes: modpack.prelaunchAppearance || null
+                    attributes: attributes || null
                 }
             }, 200);
         } catch (error: any) {
