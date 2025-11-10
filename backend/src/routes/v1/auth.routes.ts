@@ -226,4 +226,59 @@ authRoutes.post('/patreon/callback', AccountsController.callbackPatreon);
  */
 authRoutes.post('/accept-tos', requireAuth, AccountsController.acceptTermsAndConditions);
 
+/**
+ * @openapi
+ * /auth/flags:
+ *   get:
+ *     summary: Get Modpack Store+ flags for current user
+ *     tags: [Auth]
+ *     description: Returns all feature flags and benefits for the authenticated user based on their Patreon tier. Flags include limits, feature access, and other benefits.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User flags retrieved successfully.
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     max_instances_allowed:
+ *                       type: number
+ *                       description: Maximum number of modpack instances allowed
+ *                       example: 10
+ *                     max_modpack_size_mb:
+ *                       type: number
+ *                       description: Maximum modpack upload size in MB
+ *                       example: 100
+ *                     can_upload_cover_image:
+ *                       type: boolean
+ *                       description: Whether user can upload custom cover images
+ *                       example: false
+ *                     priority_support:
+ *                       type: boolean
+ *                       description: Whether user has priority support access
+ *                       example: false
+ *                     early_access_features:
+ *                       type: boolean
+ *                       description: Whether user has early access to beta features
+ *                       example: false
+ *       401:
+ *         description: Unauthorized - if no valid token is provided.
+ *         content:
+ *           application/vnd.api+json:
+ *             schema:
+ *               $ref: '#/components/schemas/JsonApiErrorResponse'
+ *       500:
+ *         description: Internal Server Error.
+ *         content:
+ *           application/vnd.api+json:
+ *             schema:
+ *               $ref: '#/components/schemas/JsonApiErrorResponse'
+ */
+authRoutes.get('/flags', requireAuth, AccountsController.getUserFlags);
+
 export default authRoutes;
