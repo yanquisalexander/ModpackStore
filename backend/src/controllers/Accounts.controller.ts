@@ -226,4 +226,26 @@ export class AccountsController {
             }
         });
     }
+
+    /**
+     * Get Modpack Store+ flags for the current authenticated user
+     * Returns benefits and feature flags based on user's Patreon tier
+     */
+    static async getUserFlags(c: Context<{ Variables: AuthVariables }>): Promise<Response> {
+        const authenticatedUser = c.get('user');
+
+        if (!authenticatedUser) {
+            throw new APIError(401, 'User must be authenticated.', 'USER_NOT_AUTHENTICATED');
+        }
+
+        console.log(`[ACCOUNTS] Getting flags for user ID: ${authenticatedUser.id}`);
+        
+        // Import dynamically to avoid circular dependencies
+        const { getFlagsForUser } = await import('@/utils/userFlags');
+        const flags = await getFlagsForUser(authenticatedUser);
+
+        return c.json({
+            data: flags
+        });
+    }
 }
