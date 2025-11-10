@@ -115,7 +115,7 @@ export function useUserFlags(): UseUserFlagsState {
  */
 export function useFlag(flagKey: keyof UserFlags) {
     const { flags, loading, error } = useUserFlags();
-    
+
     return {
         value: flags[flagKey],
         loading,
@@ -151,7 +151,7 @@ export function useFlag(flagKey: keyof UserFlags) {
  */
 export function useActionLimit(flagKey: keyof UserFlags, currentCount: number) {
     const { flags, loading, error } = useUserFlags();
-    
+
     const value = flags[flagKey];
     const limit = typeof value === 'number' ? value : 0;
     const remaining = Math.max(0, limit - currentCount);

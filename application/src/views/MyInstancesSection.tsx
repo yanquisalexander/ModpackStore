@@ -14,6 +14,8 @@ import { LucidePackageOpen } from "lucide-react";
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner";
 import type { MrpackManifest, MrpackCompatibility } from "@/types/mrpack";
+import { useActionLimit } from "@/hooks/useUserFlags";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 
 export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) => {
@@ -25,6 +27,8 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
     const [instances, setInstances] = useState<TauriCommandReturns['get_instance_by_id'][]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isDragging, setIsDragging] = useState(false)
+
+    const { allowed, limit, remaining } = useActionLimit('max_instances_allowed', instances.length)
 
     const fetchInstances = useCallback(async () => {
         setIsLoading(true)
@@ -44,6 +48,8 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
     useEffect(() => {
         fetchInstances()
     }, []) // Sin dependencias para que se ejecute solo al montar
+
+    console.log({ allowed, limit, remaining })
 
     useEffect(() => {
         if (offlineMode) return // Prevents setting title bar state if in offline mode
@@ -187,6 +193,16 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                 </p>
             </header>
 
+            {/* {
+                !allowed && (
+                    <Alert variant="destructive" className="mb-6">
+                        <AlertDescription className="font-medium">
+                            Has alcanzado el límite de instancias permitidas para tu plan ({limit}).
+                            Por favor, elimina algunas instancias existentes para crear nuevas o considera actualizar tu plan.
+                        </AlertDescription>
+                    </Alert>
+                )
+            } */}
             {isLoading ? (
                 <div className="flex flex-col items-center justify-center h-64">
                     <ArmadilloLoading className="h-14" />

@@ -8,30 +8,16 @@ import { UserRole } from "@/types/enums";
 export interface UserFlags {
     // Instance limits
     max_instances_allowed: number;
-    
-    // Upload limits
-    max_modpack_size_mb: number;
-    
+
+
+
     // Feature flags
     can_upload_cover_image: boolean;
-    can_create_private_modpacks: boolean;
-    can_create_patreon_exclusive: boolean;
+
     priority_support: boolean;
     early_access_features: boolean;
     custom_badges: boolean;
-    
-    // Storage limits
-    max_storage_gb: number;
-    
-    // Publishing limits
-    max_publishers: number;
-    max_modpacks_per_publisher: number;
-    
-    // Analytics
-    advanced_analytics: boolean;
-    
-    // API access
-    api_rate_limit_multiplier: number;
+
 }
 
 /**
@@ -43,7 +29,7 @@ export interface UserFlags {
  */
 export async function getUserFlags(userId: string): Promise<UserFlags> {
     const benefits = await BenefitsService.getAllBenefits(userId);
-    return benefits as UserFlags;
+    return benefits as unknown as UserFlags;
 }
 
 /**
@@ -66,11 +52,11 @@ export async function getFlagsForUser(user: User): Promise<UserFlags> {
 export function getDefaultFlags(): UserFlags {
     const benefitDefinitions = BenefitsService.getBenefitDefinitions();
     const defaultFlags: any = {};
-    
+
     for (const [key, definition] of Object.entries(benefitDefinitions)) {
         defaultFlags[key] = definition.default;
     }
-    
+
     return defaultFlags as UserFlags;
 }
 

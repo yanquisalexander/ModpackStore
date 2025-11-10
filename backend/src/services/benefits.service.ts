@@ -3,6 +3,7 @@ import * as path from "path";
 import * as yaml from "yaml";
 import { PatreonTier } from "@/entities/PatreonTier";
 import { User } from "@/entities/User";
+import { UserRole } from "@/types/enums";
 
 interface BenefitDefinition {
     type: 'number' | 'boolean';
@@ -47,13 +48,25 @@ export class BenefitsService {
             return null;
         }
 
-        const user = await User.findOne({ 
+        const user = await User.findOne({
             where: { id: userId },
             relations: ['patreonTierRelation']
         });
 
         if (!user) {
             return benefitDef.default;
+        }
+
+        // Check if user is admin or superadmin - they get highest tier benefits
+        if (user.role === UserRole.ADMIN || user.role === UserRole.SUPERADMIN) {
+            const highestTier = await PatreonTier.findOne({
+                where: { active: true },
+                order: { amountCents: 'DESC' }
+            });
+
+            if (highestTier && highestTier.metadata && benefitKey in highestTier.metadata) {
+                return highestTier.metadata[benefitKey];
+            }
         }
 
         // Check if user has an active Patreon tier
@@ -91,7 +104,7 @@ export class BenefitsService {
      */
     static async hasBenefit(userId: string, benefitKey: string): Promise<boolean> {
         const value = await this.getBenefit(userId, benefitKey);
-        
+
         if (typeof value === 'boolean') {
             return value;
         }
@@ -108,14 +121,14 @@ export class BenefitsService {
      */
     static async getNumericBenefit(userId: string, benefitKey: string): Promise<number> {
         const value = await this.getBenefit(userId, benefitKey);
-        
+
         if (typeof value === 'number') {
             return value;
         }
 
         const config = this.loadConfig();
         const defaultValue = config.benefits[benefitKey]?.default;
-        
+
         return typeof defaultValue === 'number' ? defaultValue : 0;
     }
 
