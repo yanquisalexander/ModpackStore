@@ -76,14 +76,14 @@ const Logo = memo(({ logo, onLoadError }: { logo: PreLaunchAppearance['logo'], o
 
 // Memoized Loading Indicator Component
 const LoadingIndicator = memo(({ isLoading, message, loadingIndicator }: { isLoading: boolean, message: string, loadingIndicator?: PreLaunchAppearance['loadingIndicator'] }) => {
-    // if (!isLoading) return null;
+    if (!isLoading) return null;
 
     const positionStyle: React.CSSProperties = loadingIndicator?.position ? {
         top: loadingIndicator.position.top,
         left: loadingIndicator.position.left,
         right: loadingIndicator.position.right,
         bottom: loadingIndicator.position.bottom,
-        transform: loadingIndicator.position.transform,
+        transform: loadingIndicator.position.transform?.replace('!important', '').trim(),
     } : {};
 
     const customStyle = loadingIndicator?.style || {};
@@ -92,11 +92,16 @@ const LoadingIndicator = memo(({ isLoading, message, loadingIndicator }: { isLoa
 
     return (
         <div
-            className={`flex gap-x-2 absolute animate-fade-in-down tabular-nums animate-duration-400 ease-in-out z-20 ${hasCustomPosition ? '' : 'top-12 right-4'} bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center truncate`}
-            style={Object.assign({}, positionStyle, customStyle)}
+            className={`absolute z-20 ${hasCustomPosition ? '' : 'top-12 right-4'}`}
+            style={hasCustomPosition ? positionStyle : {}}
         >
-            <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" />
-            {message}
+            <div
+                className={`flex gap-x-2 animate-fade-in-down tabular-nums animate-duration-400 ease-in-out bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center truncate`}
+                style={customStyle}
+            >
+                <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" />
+                {message}
+            </div>
         </div>
     );
 });
@@ -137,7 +142,7 @@ const Footer = memo(({ appearance, isLoading, isPlaying, isInstanceBootstraping,
                         right: appearance?.playButton?.position?.right,
                         bottom: appearance?.playButton?.position?.bottom,
                         transform: appearance?.playButton?.position?.transform,
-                    } as React.CSSProperties}
+                    } as any}
                     ariaLabel={isInstanceBootstraping ? "Instalando..." : isPlaying ? "Ya estás jugando" : appearance?.playButton?.text ?? "Jugar ahora"}
                 />
 

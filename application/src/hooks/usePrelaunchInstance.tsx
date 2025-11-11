@@ -115,6 +115,10 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }
     }, []);
 
+    const handleResourceError = useCallback((resource: string, error: string) => {
+        console.warn(`Resource error for ${resource}: ${error}`);
+    }, []);
+
     // --- Core Logic ---
     const fetchInstanceAndAppearance = useCallback(async (abortSignal: AbortSignal) => {
         try {
@@ -351,6 +355,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
         handlePlayButtonClick: handlePlay,
         handleAccountSelected,
         fetchInstanceData: () => fetchInstanceAndAppearance(new AbortController().signal), // Expose refetch if needed
+        handleResourceError: handleResourceError,
         navigate,
     };
 };
