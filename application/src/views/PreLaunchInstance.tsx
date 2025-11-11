@@ -75,11 +75,26 @@ const Logo = memo(({ logo, onLoadError }: { logo: PreLaunchAppearance['logo'], o
 });
 
 // Memoized Loading Indicator Component
-const LoadingIndicator = memo(({ isLoading, message }: { isLoading: boolean, message: string }) => {
-    if (!isLoading) return null;
+const LoadingIndicator = memo(({ isLoading, message, loadingIndicator }: { isLoading: boolean, message: string, loadingIndicator?: PreLaunchAppearance['loadingIndicator'] }) => {
+    // if (!isLoading) return null;
+
+    const positionStyle: React.CSSProperties = loadingIndicator?.position ? {
+        top: loadingIndicator.position.top,
+        left: loadingIndicator.position.left,
+        right: loadingIndicator.position.right,
+        bottom: loadingIndicator.position.bottom,
+        transform: loadingIndicator.position.transform,
+    } : {};
+
+    const customStyle = loadingIndicator?.style || {};
+
+    const hasCustomPosition = loadingIndicator?.position && Object.values(loadingIndicator.position).some(value => value != null);
 
     return (
-        <div className="flex gap-x-2 absolute animate-fade-in-down tabular-nums animate-duration-400 ease-in-out z-20 top-12 right-4 bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center">
+        <div
+            className={`flex gap-x-2 absolute animate-fade-in-down tabular-nums animate-duration-400 ease-in-out z-20 ${hasCustomPosition ? '' : 'top-12 right-4'} bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center truncate`}
+            style={Object.assign({}, positionStyle, customStyle)}
+        >
             <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" />
             {message}
         </div>
@@ -211,6 +226,7 @@ export const PreLaunchInstance = () => {
                 <LoadingIndicator
                     isLoading={loadingStatus.isLoading}
                     message={loadingStatus.message}
+                    loadingIndicator={appearance?.loadingIndicator}
                 />
                 <Logo
                     logo={appearance?.logo}

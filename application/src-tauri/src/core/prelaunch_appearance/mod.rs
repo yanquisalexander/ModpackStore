@@ -283,6 +283,42 @@ pub struct PreLaunchAppearance {
     pub footer_text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_blocks: Option<Vec<CustomBlock>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub loading_indicator: Option<LoadingIndicator>,
+
+    // Captura campos desconocidos
+    #[serde(flatten)]
+    #[serde(skip_serializing)]
+    pub unknown_fields: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadingIndicatorPosition {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub right: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bottom: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transform: Option<String>,
+
+    // Captura campos desconocidos
+    #[serde(flatten)]
+    #[serde(skip_serializing)]
+    pub unknown_fields: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LoadingIndicator {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub style: Option<serde_json::Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<LoadingIndicatorPosition>,
 
     // Captura campos desconocidos
     #[serde(flatten)]
@@ -399,6 +435,13 @@ pub async fn get_prelaunch_appearance(instance_id: String) -> Option<PreLaunchAp
                             }
                         }
                     }
+                }
+            }
+
+            if let Some(loading_indicator) = &data.loading_indicator {
+                log_unknown_fields("loading_indicator", &loading_indicator.unknown_fields);
+                if let Some(position) = &loading_indicator.position {
+                    log_unknown_fields("loading_indicator.position", &position.unknown_fields);
                 }
             }
 

@@ -1,3 +1,5 @@
+import * as React from 'react';
+
 export interface PreLaunchAppearance {
     title?: string;
     description?: string;
@@ -9,6 +11,7 @@ export interface PreLaunchAppearance {
     footerStyle?: FooterStyle;
     footerText?: string;
     customBlocks?: CustomBlock[];
+    loadingIndicator?: LoadingIndicator;
 }
 
 export interface CustomBlock {
@@ -116,4 +119,17 @@ export interface FooterStyle {
     padding?: string;
     width?: string;
     fontSize?: string;
+}
+
+export interface LoadingIndicator {
+    style?: any;
+    position?: LoadingIndicatorPosition;
+}
+
+export interface LoadingIndicatorPosition {
+    top?: string;
+    left?: string;
+    right?: string;
+    bottom?: string;
+    transform?: string;
 }
