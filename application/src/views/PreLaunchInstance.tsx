@@ -96,7 +96,7 @@ const LoadingIndicator = memo(({ isLoading, message, loadingIndicator }: { isLoa
             style={hasCustomPosition ? positionStyle : {}}
         >
             <div
-                className={`flex gap-x-2 animate-fade-in-down tabular-nums animate-duration-400 ease-in-out bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center truncate`}
+                className={`flex gap-x-2 animate-fade-in-down tabular-nums animate-duration-400 ease-in-out bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center`}
                 style={customStyle}
             >
                 <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" />
