@@ -10,6 +10,7 @@ import { ModpackVisibility, ModpackStatus, AcquisitionMethod } from "../types/en
 import { ModpackAcquisition } from "./ModpackAcquisition";
 import { ModpackVote } from "./ModpackVote";
 import { UserRecommendation } from "./UserRecommendation";
+import { ModpackWhitelist } from "./ModpackWhitelist";
 
 @Entity({ name: "modpacks" })
 @Index(["visibility", "status"])
@@ -211,6 +212,9 @@ export class Modpack extends BaseEntity {
     @OneToMany(() => UserRecommendation, recommendation => recommendation.modpack, { cascade: true })
     recommendations: UserRecommendation[];
 
+    @OneToMany(() => ModpackWhitelist, whitelist => whitelist.modpack, { cascade: true })
+    whitelists: ModpackWhitelist[];
+
     // Métodos de búsqueda y consulta
     static async search(query: string, limit: number = 25): Promise<Modpack[]> {
         return this.createQueryBuilder("modpack")
@@ -318,5 +322,30 @@ export class Modpack extends BaseEntity {
     // Backward compatibility - maintain existing method names but use new logic
     isPasswordProtected(): boolean {
         return this.requiresPassword();
+    }
+
+    // Validation for private/whitelist modpacks
+    validateVisibilityConstraints(): { valid: boolean; error?: string } {
+        // Private and whitelist modpacks must be free
+        if ((this.visibility === ModpackVisibility.PRIVATE || this.visibility === ModpackVisibility.WHITELIST)) {
+            if (this.isPaid || this.acquisitionMethod === AcquisitionMethod.PAID) {
+                return {
+                    valid: false,
+                    error: 'Private and whitelist modpacks must be free (no payment required)'
+                };
+            }
+            if (this.password) {
+                return {
+                    valid: false,
+                    error: 'Private and whitelist modpacks cannot have passwords'
+                };
+            }
+        }
+        return { valid: true };
+    }
+
+    // Check if modpack is whitelist-only
+    isWhitelistOnly(): boolean {
+        return this.visibility === ModpackVisibility.WHITELIST;
     }
 }
