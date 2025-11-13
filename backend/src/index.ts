@@ -77,6 +77,16 @@ const initializeServices = async (): Promise<void> => {
     // Don't fail startup if cron job fails
   }
 
+  // Initialize Subscription expiry cron job
+  try {
+    const { SubscriptionCronService } = await import('./services/subscription-cron.service');
+    SubscriptionCronService.startDailyExpiryJob();
+    console.log('Subscription expiry cron job started.');
+  } catch (error) {
+    console.error('Error starting Subscription cron job:', error);
+    // Don't fail startup if cron job fails
+  }
+
   // Add any other service initializations here
 };
 

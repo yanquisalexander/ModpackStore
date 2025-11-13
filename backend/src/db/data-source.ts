@@ -29,6 +29,9 @@ import { UserRecommendation } from "../entities/UserRecommendation";
 import { PatreonTier } from "../entities/PatreonTier";
 import { ModpackDownload } from "../entities/ModpackDownload";
 import { PublisherFile } from "../entities/PublisherFile";
+import { PublisherSubscription } from "../entities/PublisherSubscription";
+import { PublisherSubscriptionFeature } from "../entities/PublisherSubscriptionFeature";
+import { ModpackWhitelist } from "../entities/ModpackWhitelist";
 
 export const AppDataSource = new DataSource({
     type: "postgres",
@@ -76,5 +79,8 @@ export const AppDataSource = new DataSource({
         PatreonTier,
         ModpackDownload,
         PublisherFile,
+        PublisherSubscription,
+        PublisherSubscriptionFeature,
+        ModpackWhitelist,
     ],
 });

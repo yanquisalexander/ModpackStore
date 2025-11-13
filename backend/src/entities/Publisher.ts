@@ -4,6 +4,7 @@ import { Modpack } from "./Modpack";
 import { Scope } from "./Scope";
 import { Wallet } from "./Wallet";
 import { PublisherFile } from "./PublisherFile";
+import { PublisherSubscription } from "./PublisherSubscription";
 
 @Entity({ name: "publishers" })
 export class Publisher extends BaseEntity {
@@ -67,4 +68,7 @@ export class Publisher extends BaseEntity {
 
     @OneToMany(() => PublisherFile, file => file.publisher)
     files: PublisherFile[];
+
+    @OneToMany(() => PublisherSubscription, subscription => subscription.publisher)
+    subscriptions: PublisherSubscription[];
 }

@@ -9,6 +9,7 @@ import adminCategoriesRouter from '../admin/categories.route';
 import systemSettingsRouter from '../admin/system-settings.route';
 import adminBansRouter from '../admin/bans.route';
 import patreonPlusRoutes from '../admin/patreon-plus.route';
+import subscriptionsRoute from '../admin/subscriptions.route';
 import { requireAuth } from '../../middlewares/auth.middleware';
 
 const adminRoutes = new Hono();
@@ -27,5 +28,6 @@ adminRoutes.route('/categories', adminCategoriesRouter);
 adminRoutes.route('/settings', systemSettingsRouter);
 adminRoutes.route('/bans', adminBansRouter);
 adminRoutes.route('/patreon-plus', patreonPlusRoutes);
+adminRoutes.route('/subscriptions', subscriptionsRoute);
 
 export default adminRoutes;

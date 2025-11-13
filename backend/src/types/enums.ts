@@ -10,7 +10,7 @@ export enum TransactionType {
 export enum ModpackVisibility {
     PUBLIC = 'public',
     PRIVATE = 'private',
-    PATREON = 'patreon'
+    WHITELIST = 'whitelist'
 }
 
 export enum ModpackStatus {
