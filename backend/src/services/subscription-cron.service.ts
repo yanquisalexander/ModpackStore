@@ -1,8 +1,8 @@
-import cron from 'node-cron';
+import cron, { type ScheduledTask } from 'node-cron';
 import { processExpiredSubscriptions } from '@/jobs/process-expired-subscriptions';
 
 export class SubscriptionCronService {
-    private static dailyJob: cron.ScheduledTask | null = null;
+    private static dailyJob: ScheduledTask | null = null;
 
     /**
      * Start daily subscription expiry check job

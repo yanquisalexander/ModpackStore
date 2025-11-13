@@ -7,7 +7,7 @@ import { PublisherSubscriptionService } from "@/services/publisher-subscription.
  */
 async function processExpiredSubscriptions() {
     console.log('[SUBSCRIPTION_JOB] Starting expired subscriptions processing...');
-    
+
     try {
         // Initialize database if not already initialized
         if (!AppDataSource.isInitialized) {
@@ -24,17 +24,5 @@ async function processExpiredSubscriptions() {
     }
 }
 
-// Run if executed directly
-if (require.main === module) {
-    processExpiredSubscriptions()
-        .then(() => {
-            console.log('[SUBSCRIPTION_JOB] Job completed successfully');
-            process.exit(0);
-        })
-        .catch((error) => {
-            console.error('[SUBSCRIPTION_JOB] Job failed:', error);
-            process.exit(1);
-        });
-}
 
 export { processExpiredSubscriptions };
