@@ -4,6 +4,7 @@ import { ModpackCreatorsRoute } from "./modpacks.route";
 import { WithdrawalsRoute } from "./withdrawals.route";
 import { AnalyticsRoute } from "./analytics.route";
 import { StorageRoute } from "./storage.route";
+import whitelistRoute from "./whitelist.route";
 import { User } from "@/entities/User";
 
 export const CreatorsRoute = new Hono()
@@ -27,3 +28,4 @@ CreatorsRoute.route('/', ModpackCreatorsRoute)
 CreatorsRoute.route('/', WithdrawalsRoute)
 CreatorsRoute.route('/', AnalyticsRoute)
 CreatorsRoute.route('/', StorageRoute)
+CreatorsRoute.route('/whitelist', whitelistRoute)
