@@ -14,7 +14,8 @@ import {
     LucideEdit,
     LucideSettings,
     LucideTrash2,
-    LucideHistory
+    LucideHistory,
+    LucideUsers
 } from 'lucide-react';
 import {
     DropdownMenu,
@@ -29,6 +30,7 @@ import { useNavigate } from 'react-router-dom';
 import CreateModpackDialog from '@/components/creator/dialogs/CreateModpackDialog';
 import EditModpackDialog from '@/components/creator/dialogs/EditModpackDialog';
 import ImportCurseForgeDialog from '@/components/creator/dialogs/ImportCurseForgeDialog';
+import { ManageWhitelistModal } from '@/components/publisher/ManageWhitelistModal';
 
 // Types
 interface Modpack {
@@ -122,6 +124,7 @@ const getVisibilityLabel = (visibility: string) => {
         case 'public': return 'Público';
         case 'unlisted': return 'No listado';
         case 'private': return 'Privado';
+        case 'whitelist': return 'Whitelist';
         default: return visibility;
     }
 };
@@ -157,6 +160,15 @@ export const PublisherModpacksView: React.FC = () => {
 
     // Dialog state for import CurseForge
     const [importCurseForgeDialogOpen, setImportCurseForgeDialogOpen] = useState(false);
+
+    // Dialog state for manage whitelist
+    const [whitelistDialog, setWhitelistDialog] = useState<{
+        open: boolean;
+        modpack: Modpack | null;
+    }>({
+        open: false,
+        modpack: null
+    });
 
     // Get user role in this publisher
     const publisherMembership = session?.publisherMemberships?.find(
@@ -430,6 +442,13 @@ export const PublisherModpacksView: React.FC = () => {
                                                             <LucideEdit className="h-4 w-4 mr-2" />
                                                             Editar
                                                         </DropdownMenuItem>
+                                                        
+                                                        {modpack.visibility === 'whitelist' && (
+                                                            <DropdownMenuItem onClick={() => setWhitelistDialog({ open: true, modpack })}>
+                                                                <LucideUsers className="h-4 w-4 mr-2" />
+                                                                Gestionar Whitelist
+                                                            </DropdownMenuItem>
+                                                        )}
 
                                                         {(['owner', 'admin'].includes(userRole) && modpack.status !== 'deleted') && (
                                                             <DropdownMenuItem
@@ -451,6 +470,17 @@ export const PublisherModpacksView: React.FC = () => {
                     </CardContent>
                 </Card>
             </div>
+
+            {/* Manage Whitelist Modal */}
+            {whitelistDialog.modpack && sessionTokens?.accessToken && (
+                <ManageWhitelistModal
+                    isOpen={whitelistDialog.open}
+                    onClose={() => setWhitelistDialog({ open: false, modpack: null })}
+                    modpackId={whitelistDialog.modpack.id}
+                    modpackName={whitelistDialog.modpack.name}
+                    accessToken={sessionTokens.accessToken}
+                />
+            )}
         </>
     );
 };

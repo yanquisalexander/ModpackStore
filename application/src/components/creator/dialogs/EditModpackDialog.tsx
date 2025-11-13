@@ -88,7 +88,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
     const [name, setName] = useState('');
     const [shortDescription, setShortDescription] = useState('');
     const [description, setDescription] = useState('');
-    const [visibility, setVisibility] = useState<'public' | 'private' | 'patreon'>('public');
+    const [visibility, setVisibility] = useState<'public' | 'private' | 'whitelist'>('public');
     const [loading, setLoading] = useState(false);
 
     // NUEVO: Estado para los archivos de imagen
@@ -450,16 +450,21 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                     <div>
                         <label className="text-sm text-zinc-300 block mb-1">Visibilidad</label>
                         {/* CAMBIO: Componente Select corregido */}
-                        <Select value={visibility} onValueChange={(v: 'public' | 'private' | 'patreon') => setVisibility(v)}>
+                        <Select value={visibility} onValueChange={(v: 'public' | 'private' | 'whitelist') => setVisibility(v)}>
                             <SelectTrigger className="w-full">
                                 <SelectValue placeholder="Selecciona una visibilidad" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="public">Público</SelectItem>
                                 <SelectItem value="private">Privado</SelectItem>
-                                <SelectItem value="patreon">Solo Patreon</SelectItem>
+                                <SelectItem value="whitelist">Whitelist (Lista de Acceso)</SelectItem>
                             </SelectContent>
                         </Select>
+                        {visibility === 'whitelist' && (
+                            <p className="text-xs text-zinc-400 mt-1">
+                                Solo usuarios autorizados en la whitelist podrán acceder a este modpack.
+                            </p>
+                        )}
                     </div>
 
                     {/* Access Mode Section */}
