@@ -18,6 +18,7 @@
         "test:patreon-plus-validation": "tsx ./test/patreon-plus-validation.test.ts",
         "test:analytics": "tsx ./test/analytics.test.ts",
         "test:user-flags": "tsx ./test/user-flags.test.ts",
+        "test:subscriptions-whitelist": "tsx ./test/subscriptions-whitelist.test.ts",
         "job:generate-recommendations": "tsx ./src/jobs/generate-recommendations.ts",
         "job:sync-patreon": "tsx ./src/jobs/sync-patreon.ts",
         "job:process-expired-subscriptions": "tsx ./src/jobs/process-expired-subscriptions.ts"
