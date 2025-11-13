@@ -29,6 +29,7 @@ import { Slider } from "@/components/ui/slider";
 // Configuration components
 import { ConfigSection } from '@/components/configuration/ConfigSection';
 import { ThemeSelector } from '@/components/theme/ThemeSelector';
+import { WhitelistModeSettings } from '@/components/WhitelistModeSettings';
 
 // Types
 import type {
@@ -496,17 +497,20 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                                             </Card>
 
                                             {isAuthenticated && (
-                                                <Card>
-                                                    <CardHeader>
-                                                        <CardTitle className="text-lg font-semibold">Opciones Avanzadas</CardTitle>
-                                                        <CardDescription>Opciones adicionales para usuarios autenticados</CardDescription>
-                                                    </CardHeader>
-                                                    <CardContent>
-                                                        <div className="h-32 flex items-center justify-center rounded-md border border-dashed border-muted bg-muted/50">
-                                                            <p className="text-sm text-muted-foreground">Próximamente disponibles más opciones avanzadas</p>
-                                                        </div>
-                                                    </CardContent>
-                                                </Card>
+                                                <>
+                                                    <WhitelistModeSettings />
+                                                    <Card>
+                                                        <CardHeader>
+                                                            <CardTitle className="text-lg font-semibold">Opciones Avanzadas</CardTitle>
+                                                            <CardDescription>Opciones adicionales para usuarios autenticados</CardDescription>
+                                                        </CardHeader>
+                                                        <CardContent>
+                                                            <div className="h-32 flex items-center justify-center rounded-md border border-dashed border-muted bg-muted/50">
+                                                                <p className="text-sm text-muted-foreground">Próximamente disponibles más opciones avanzadas</p>
+                                                            </div>
+                                                        </CardContent>
+                                                    </Card>
+                                                </>
                                             )}
                                         </>
                                     )}

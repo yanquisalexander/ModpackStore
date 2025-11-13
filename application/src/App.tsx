@@ -4,6 +4,8 @@ import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { HomeMainHeader } from "./components/home/MainHeader";
 import { toast } from "sonner";
 import { ExploreSection } from "./views/ExploreSection";
+import { HomeView } from "./views/HomeView";
+import { WhitelistInstancesView } from "./views/WhitelistInstancesView";
 import { PreLaunchInstance } from "./views/PreLaunchInstance";
 import { useConnection } from "./utils/ConnectionContext";
 import { LucideLoader } from "lucide-react";
@@ -175,7 +177,9 @@ function App() {
     // 3. Usuario autenticado y conectado
     return (
       <Routes>
-        <Route path="/" element={<ExploreSection />} />
+        <Route path="/" element={<HomeView />} />
+        <Route path="/explore" element={<ExploreSection />} />
+        <Route path="/whitelist-instances" element={<WhitelistInstancesView />} />
         <Route path="/library" element={<LibrarySection />} />
         <Route path="/my-instances" element={<MyInstancesSection offlineMode={false} />} />
         <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />

@@ -2,7 +2,7 @@
 // fija, similar al guild bar de Discord.
 
 import { useAuthentication } from "@/stores/AuthContext";
-import { LucideLibrary, LucideServer, LucideUsers, LucideTrash2 } from "lucide-react";
+import { LucideLibrary, LucideServer, LucideUsers, LucideTrash2, LucideShield } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useEffect, useState, useCallback, useMemo, memo, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -18,6 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import GridIcon from "@/icons/GridIcon";
 import { isHalloween } from "@/utils/SPECIAL_DATES";
 import { MdiHalloween } from "@/icons/MdiHalloween";
+import { useWhitelistMode } from "@/hooks/useWhitelistMode";
 
 
 export const AppSidebar: React.FC = memo(() => {
@@ -27,6 +28,7 @@ export const AppSidebar: React.FC = memo(() => {
     const { session } = useAuthentication();
 
     const { isLoading: isLoadingConnectionCheck, isConnected } = useConnection();
+    const { hasWhitelists, whitelistCount } = useWhitelistMode();
 
     // Estado para el menú contextual
     const [contextMenuOpen, setContextMenuOpen] = useState(false);
@@ -136,11 +138,13 @@ export const AppSidebar: React.FC = memo(() => {
     };
 
     const NAV_ITEMS = useMemo(() => {
+        const isOfflineMode = !isConnected && !isLoadingConnectionCheck;
+        
         const baseItems = [
             {
                 name: "Explorar",
                 icon: GridIcon,
-                path: "/",
+                path: "/explore",
                 requiresConnection: true
             },
             {
@@ -163,9 +167,19 @@ export const AppSidebar: React.FC = memo(() => {
             }
         ];
 
+        // Add whitelist instances if user has whitelists
+        if (hasWhitelists && isConnected) {
+            baseItems.splice(1, 0, {
+                name: `Whitelist (${whitelistCount})`,
+                icon: LucideShield,
+                path: "/whitelist-instances",
+                requiresConnection: true
+            });
+        }
+
         // Filtrar items basados en el estado de conexión
         return isConnected ? baseItems : baseItems.filter(item => !item.requiresConnection);
-    }, [isConnected]);
+    }, [isConnected, isLoadingConnectionCheck, hasWhitelists, whitelistCount]);
 
     return (
         <aside className="h-full scrollbar-hide flex flex-col overflow-y-auto bg-[var(--sidebar)]" style={{ gridArea: 'sidebar' }}>
