@@ -21,7 +21,7 @@ export const BannedScreen: React.FC = () => {
     };
 
     const handleOpenDiscord = () => {
-        open('https://discord.gg/bcxeTy2q8d').catch(console.error);
+        open('https://discord.gg/XSRtDgJzzK').catch(console.error);
     };
 
     const banReason = session?.activeBan?.reason || session?.banReason || 'No se proporcionó una razón';
