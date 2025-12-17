@@ -180,12 +180,23 @@ publisherSubscriptionRoutes.get('/subscription/paypal/status/:orderId', async (c
     try {
         const { orderId } = c.req.param();
 
-        // Check if order exists and get its status
-        // This is a simplified implementation - in production you'd check with PayPal API
-        const subscription = await PublisherSubscriptionService.findByPaymentReference(orderId);
+        // Check order status with PayPal API
+        const { result, ...httpResponse } = await ordersController.ordersGet({ id: orderId });
 
-        if (subscription) {
-            return c.json({ data: { status: subscription.status } });
+        if (httpResponse.statusCode === 200 && result) {
+            const paypalStatus = result.status;
+
+            // Map PayPal status to our status
+            let status = 'PENDING';
+            if (paypalStatus === 'APPROVED') {
+                status = 'COMPLETED';
+            } else if (paypalStatus === 'COMPLETED') {
+                status = 'COMPLETED';
+            } else if (paypalStatus === 'VOIDED' || paypalStatus === 'CANCELLED') {
+                status = 'CANCELLED';
+            }
+
+            return c.json({ data: { status, paypalStatus } });
         }
 
         return c.json({ data: { status: 'PENDING' } });

@@ -136,7 +136,7 @@ export class PublisherSubscriptionService {
      */
     static async applyTierFeatures(subscriptionId: string, tier: SubscriptionTier): Promise<void> {
         const features = this.TIER_FEATURES[tier];
-        
+
         for (const [key, value] of Object.entries(features)) {
             const feature = PublisherSubscriptionFeature.fromValue(
                 key as FeatureKey,
@@ -204,18 +204,18 @@ export class PublisherSubscriptionService {
         // Update expiration date
         const currentExpiry = subscription.subscriptionExpiresAt || new Date();
         const newExpiry = new Date(currentExpiry);
-        
+
         // If subscription is already expired, start from now
         if (new Date() > currentExpiry) {
             newExpiry.setTime(new Date().getTime());
         }
-        
+
         newExpiry.setDate(newExpiry.getDate() + durationDays);
-        
+
         subscription.subscriptionExpiresAt = newExpiry;
         subscription.status = SubscriptionStatus.ACTIVE;
         subscription.lastPaymentAt = new Date();
-        
+
         if (paymentReference) {
             subscription.paymentReference = paymentReference;
         }
@@ -270,7 +270,7 @@ export class PublisherSubscriptionService {
      */
     static async hasFeature(publisherId: string, featureKey: FeatureKey): Promise<boolean> {
         const subscription = await this.getActiveSubscription(publisherId);
-        
+
         if (!subscription) {
             // No active subscription, return free tier feature
             const freeFeatures = this.TIER_FEATURES[SubscriptionTier.FREE];
@@ -279,7 +279,7 @@ export class PublisherSubscriptionService {
         }
 
         const feature = subscription.features.find(f => f.featureKey === featureKey);
-        
+
         if (!feature) {
             return false;
         }
@@ -292,7 +292,7 @@ export class PublisherSubscriptionService {
      */
     static async getFeatureValue(publisherId: string, featureKey: FeatureKey): Promise<FeatureValue> {
         const subscription = await this.getActiveSubscription(publisherId);
-        
+
         if (!subscription) {
             // No active subscription, return free tier feature
             const freeFeatures = this.TIER_FEATURES[SubscriptionTier.FREE];
@@ -300,7 +300,7 @@ export class PublisherSubscriptionService {
         }
 
         const feature = subscription.features.find(f => f.featureKey === featureKey);
-        
+
         if (!feature) {
             // Feature not found, check tier defaults
             const tierFeatures = this.TIER_FEATURES[subscription.tier];
@@ -315,13 +315,13 @@ export class PublisherSubscriptionService {
      */
     static async getPublisherFeatures(publisherId: string): Promise<Record<string, FeatureValue>> {
         const subscription = await this.getActiveSubscription(publisherId);
-        
+
         if (!subscription) {
             return this.TIER_FEATURES[SubscriptionTier.FREE] as Record<string, FeatureValue>;
         }
 
         const features: Record<string, FeatureValue> = {};
-        
+
         for (const feature of subscription.features) {
             features[feature.featureKey] = feature.getValue();
         }
@@ -338,7 +338,7 @@ export class PublisherSubscriptionService {
         value: FeatureValue
     ): Promise<PublisherSubscriptionFeature> {
         let subscription = await this.getActiveSubscription(publisherId);
-        
+
         if (!subscription) {
             // Create a free subscription if none exists
             subscription = await this.createSubscription({
@@ -349,7 +349,7 @@ export class PublisherSubscriptionService {
 
         // Check if feature already exists
         let feature = subscription.features.find(f => f.featureKey === featureKey);
-        
+
         if (feature) {
             feature.featureValue = String(value);
             feature.isOverride = true;
@@ -375,7 +375,7 @@ export class PublisherSubscriptionService {
         featureKey: FeatureKey
     ): Promise<void> {
         const subscription = await this.getActiveSubscription(publisherId);
-        
+
         if (!subscription) {
             return;
         }
@@ -383,7 +383,7 @@ export class PublisherSubscriptionService {
         const feature = subscription.features.find(
             f => f.featureKey === featureKey && f.isOverride
         );
-        
+
         if (feature) {
             await feature.remove();
         }
@@ -428,7 +428,7 @@ export class PublisherSubscriptionService {
         byTier: Record<SubscriptionTier, number>;
     }> {
         const all = await PublisherSubscription.find();
-        
+
         const stats = {
             total: all.length,
             active: 0,
@@ -446,7 +446,7 @@ export class PublisherSubscriptionService {
             if (sub.status === SubscriptionStatus.ACTIVE) stats.active++;
             if (sub.status === SubscriptionStatus.EXPIRED) stats.expired++;
             if (sub.status === SubscriptionStatus.CANCELLED) stats.cancelled++;
-            
+
             stats.byTier[sub.tier]++;
         }
 
