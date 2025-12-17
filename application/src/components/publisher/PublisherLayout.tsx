@@ -28,6 +28,7 @@ import PublisherModpackVersionWizard from '@/components/publisher/PublisherModpa
 import { PublisherAnalyticsView } from '@/views/publisher/PublisherAnalyticsView';
 import { PublisherStorageView } from '@/views/publisher/PublisherStorageView';
 import { PublisherSubscriptionView } from '@/views/publisher/PublisherSubscriptionView';
+import { PublisherSettingsView } from '@/views/publisher/PublisherSettingsView';
 
 interface PublisherLayoutProps {
     children?: React.ReactNode;
@@ -77,7 +78,7 @@ const getPublisherNavItems = (publisherId: string) => [
         label: 'Configuración',
         icon: LucideSettings,
         description: 'Configuración del publisher',
-        disabled: true // Not implemented yet
+        disabled: false
     }
 ];
 
@@ -307,6 +308,7 @@ export const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) =>
                                 <Route path="/payments" element={<PublisherPaymentsView />} />
                                 <Route path="/analytics" element={<PublisherAnalyticsView />} />
                                 <Route path="/storage" element={<PublisherStorageView />} />
+                                <Route path="/settings" element={<PublisherSettingsView />} />
                                 <Route path="*" element={<PublisherModpacksView />} /> {/* Default to modpacks */}
                             </Routes>
                         )}

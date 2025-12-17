@@ -28,6 +28,7 @@ import CommandPalette from "./components/CommandPalette";
 import { CreatorsLayout } from "./components/layouts/CreatorsLayout";
 import { AdminLayout } from "./components/admin/AdminLayout";
 import { PublisherLayout } from "./components/publisher/PublisherLayout";
+import { PublisherProfileView } from "./views/PublisherProfileView";
 import { ConfigurationDialog } from "./components/ConfigurationDialog";
 import { useConfigDialog } from "./stores/ConfigDialogContext";
 import { OnboardingFlow } from "./components/onboarding";
@@ -203,6 +204,8 @@ function App() {
         {session?.isAdmin?.() && (
           <Route path="/admin/*" element={<AdminLayout />} />
         )}
+
+        <Route path="/p/:publisherSlug" element={<PublisherProfileView />} />
 
         <Route path="*" element={<NotFound />} />
       </Routes>

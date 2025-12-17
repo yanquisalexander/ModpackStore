@@ -242,6 +242,84 @@ class AdminPublishersAPI {
 
         return response.json();
     }
+
+    // Subscription Methods
+    static async getPublisherSubscriptions(publisherId: string, accessToken: string): Promise<any> {
+        const response = await fetch(`${API_ENDPOINT}/admin/subscriptions/publisher/${publisherId}`, {
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) throw new Error(`Error fetching subscriptions: ${response.statusText}`);
+        return response.json();
+    }
+
+    static async createSubscription(data: any, accessToken: string): Promise<any> {
+        const response = await fetch(`${API_ENDPOINT}/admin/subscriptions`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Error creating subscription: ${response.statusText}`);
+        }
+        return response.json();
+    }
+
+    static async cancelSubscription(id: string, accessToken: string): Promise<any> {
+        const response = await fetch(`${API_ENDPOINT}/admin/subscriptions/${id}/cancel`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Error cancelling subscription: ${response.statusText}`);
+        }
+        return response.json();
+    }
+
+    static async overrideFeature(publisherId: string, featureKey: string, value: any, accessToken: string): Promise<any> {
+        const response = await fetch(`${API_ENDPOINT}/admin/subscriptions/publisher/${publisherId}/features/override`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ featureKey, value }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Error overriding feature: ${response.statusText}`);
+        }
+        return response.json();
+    }
+
+    static async removeFeatureOverride(publisherId: string, featureKey: string, accessToken: string): Promise<any> {
+        const response = await fetch(`${API_ENDPOINT}/admin/subscriptions/publisher/${publisherId}/features/${featureKey}/override`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+            },
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Error removing override: ${response.statusText}`);
+        }
+        return response.json();
+    }
 }
 
 // Helper functions
@@ -281,31 +359,96 @@ const PublisherForm: React.FC<{
         discordUrl: publisher?.discordUrl || '',
     });
 
+    const [errors, setErrors] = useState<Record<string, string>>({});
+
+    // URL validation helper
+    const isValidUrl = (url: string): boolean => {
+        if (!url.trim()) return true; // Empty URLs are valid (optional)
+        try {
+            new URL(url);
+            return true;
+        } catch {
+            return false;
+        }
+    };
+
+    // Validate form
+    const validateForm = (): boolean => {
+        const newErrors: Record<string, string> = {};
+
+        // Required fields
+        if (!formData.publisherName.trim()) {
+            newErrors.publisherName = 'El nombre del publisher es requerido';
+        } else if (formData.publisherName.length > 32) {
+            newErrors.publisherName = 'El nombre no puede exceder 32 caracteres';
+        }
+
+        // URL validations (only if not empty)
+        if (formData.tosUrl && !isValidUrl(formData.tosUrl)) {
+            newErrors.tosUrl = 'URL de términos de servicio inválida';
+        }
+        if (formData.privacyUrl && !isValidUrl(formData.privacyUrl)) {
+            newErrors.privacyUrl = 'URL de política de privacidad inválida';
+        }
+        if (formData.bannerUrl && !isValidUrl(formData.bannerUrl)) {
+            newErrors.bannerUrl = 'URL del banner inválida';
+        }
+        if (formData.logoUrl && !isValidUrl(formData.logoUrl)) {
+            newErrors.logoUrl = 'URL del logo inválida';
+        }
+        if (formData.websiteUrl && !isValidUrl(formData.websiteUrl)) {
+            newErrors.websiteUrl = 'URL del sitio web inválida';
+        }
+        if (formData.discordUrl && !isValidUrl(formData.discordUrl)) {
+            newErrors.discordUrl = 'URL de Discord inválida';
+        }
+
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSubmit(formData);
+        if (validateForm()) {
+            onSubmit(formData);
+        }
+    };
+
+    const updateField = (field: keyof PublisherFormData, value: string) => {
+        setFormData({ ...formData, [field]: value });
+        // Clear error when user starts typing
+        if (errors[field]) {
+            setErrors({ ...errors, [field]: '' });
+        }
     };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label className="block text-sm font-medium mb-2">Nombre del Publisher</label>
+                    <label className="block text-sm font-medium mb-2">Nombre del Publisher *</label>
                     <Input
                         value={formData.publisherName}
-                        onChange={(e) => setFormData({ ...formData, publisherName: e.target.value })}
-                        required
+                        onChange={(e) => updateField('publisherName', e.target.value)}
                         maxLength={32}
+                        className={errors.publisherName ? 'border-red-500' : ''}
                     />
+                    {errors.publisherName && (
+                        <p className="text-sm text-red-500 mt-1">{errors.publisherName}</p>
+                    )}
                 </div>
                 <div>
                     <label className="block text-sm font-medium mb-2">URL del Logo</label>
                     <Input
                         type="url"
                         value={formData.logoUrl}
-                        onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
-                        required
+                        onChange={(e) => updateField('logoUrl', e.target.value)}
+                        placeholder="https://ejemplo.com/logo.png"
+                        className={errors.logoUrl ? 'border-red-500' : ''}
                     />
+                    {errors.logoUrl && (
+                        <p className="text-sm text-red-500 mt-1">{errors.logoUrl}</p>
+                    )}
                 </div>
             </div>
 
@@ -313,8 +456,8 @@ const PublisherForm: React.FC<{
                 <label className="block text-sm font-medium mb-2">Descripción</label>
                 <Input
                     value={formData.description}
-                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    required
+                    onChange={(e) => updateField('description', e.target.value)}
+                    placeholder="Descripción del publisher"
                 />
             </div>
 
@@ -324,18 +467,26 @@ const PublisherForm: React.FC<{
                     <Input
                         type="url"
                         value={formData.tosUrl}
-                        onChange={(e) => setFormData({ ...formData, tosUrl: e.target.value })}
-                        required
+                        onChange={(e) => updateField('tosUrl', e.target.value)}
+                        placeholder="https://ejemplo.com/terminos"
+                        className={errors.tosUrl ? 'border-red-500' : ''}
                     />
+                    {errors.tosUrl && (
+                        <p className="text-sm text-red-500 mt-1">{errors.tosUrl}</p>
+                    )}
                 </div>
                 <div>
                     <label className="block text-sm font-medium mb-2">URL de Política de Privacidad</label>
                     <Input
                         type="url"
                         value={formData.privacyUrl}
-                        onChange={(e) => setFormData({ ...formData, privacyUrl: e.target.value })}
-                        required
+                        onChange={(e) => updateField('privacyUrl', e.target.value)}
+                        placeholder="https://ejemplo.com/privacidad"
+                        className={errors.privacyUrl ? 'border-red-500' : ''}
                     />
+                    {errors.privacyUrl && (
+                        <p className="text-sm text-red-500 mt-1">{errors.privacyUrl}</p>
+                    )}
                 </div>
             </div>
 
@@ -344,9 +495,13 @@ const PublisherForm: React.FC<{
                 <Input
                     type="url"
                     value={formData.bannerUrl}
-                    onChange={(e) => setFormData({ ...formData, bannerUrl: e.target.value })}
-                    required
+                    onChange={(e) => updateField('bannerUrl', e.target.value)}
+                    placeholder="https://ejemplo.com/banner.png"
+                    className={errors.bannerUrl ? 'border-red-500' : ''}
                 />
+                {errors.bannerUrl && (
+                    <p className="text-sm text-red-500 mt-1">{errors.bannerUrl}</p>
+                )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -355,16 +510,26 @@ const PublisherForm: React.FC<{
                     <Input
                         type="url"
                         value={formData.websiteUrl}
-                        onChange={(e) => setFormData({ ...formData, websiteUrl: e.target.value })}
+                        onChange={(e) => updateField('websiteUrl', e.target.value)}
+                        placeholder="https://ejemplo.com"
+                        className={errors.websiteUrl ? 'border-red-500' : ''}
                     />
+                    {errors.websiteUrl && (
+                        <p className="text-sm text-red-500 mt-1">{errors.websiteUrl}</p>
+                    )}
                 </div>
                 <div>
                     <label className="block text-sm font-medium mb-2">URL de Discord (Opcional)</label>
                     <Input
                         type="url"
                         value={formData.discordUrl}
-                        onChange={(e) => setFormData({ ...formData, discordUrl: e.target.value })}
+                        onChange={(e) => updateField('discordUrl', e.target.value)}
+                        placeholder="https://discord.gg/ejemplo"
+                        className={errors.discordUrl ? 'border-red-500' : ''}
                     />
+                    {errors.discordUrl && (
+                        <p className="text-sm text-red-500 mt-1">{errors.discordUrl}</p>
+                    )}
                 </div>
             </div>
 
@@ -378,6 +543,226 @@ const PublisherForm: React.FC<{
                 </Button>
             </DialogFooter>
         </form>
+    );
+};
+
+const PublisherSubscriptionTab: React.FC<{ publisherId: string }> = ({ publisherId }) => {
+    const { sessionTokens } = useAuthentication();
+    const { toast } = useToast();
+    const [subscriptions, setSubscriptions] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [createLoading, setCreateLoading] = useState(false);
+    const [overrideLoading, setOverrideLoading] = useState(false);
+    const [showCreateDialog, setShowCreateDialog] = useState(false);
+
+    // New subscription form state
+    const [newSubTier, setNewSubTier] = useState('free');
+    const [newSubDuration, setNewSubDuration] = useState('30');
+
+    useEffect(() => {
+        loadSubscriptions();
+    }, [publisherId]);
+
+    const loadSubscriptions = async () => {
+        if (!sessionTokens?.accessToken) return;
+        setLoading(true);
+        try {
+            const res = await AdminPublishersAPI.getPublisherSubscriptions(publisherId, sessionTokens.accessToken);
+            setSubscriptions(res.data || []);
+        } catch (error) {
+            console.error(error);
+            toast({ title: 'Error', description: 'Error cargando suscripciones', variant: 'destructive' });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleCreateSubscription = async () => {
+        if (!sessionTokens?.accessToken) return;
+        setCreateLoading(true);
+        try {
+            await AdminPublishersAPI.createSubscription({
+                publisherId,
+                tier: newSubTier,
+                paymentProvider: 'manual', // Admin created
+                durationDays: parseInt(newSubDuration),
+                autoRenew: false
+            }, sessionTokens.accessToken);
+
+            toast({ title: 'Éxito', description: 'Suscripción creada correctamente' });
+            setShowCreateDialog(false);
+            loadSubscriptions();
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } finally {
+            setCreateLoading(false);
+        }
+    };
+
+    const handleCancelSubscription = async (id: string) => {
+        if (!confirm('¿Seguro que deseas cancelar esta suscripción?')) return;
+        if (!sessionTokens?.accessToken) return;
+        try {
+            await AdminPublishersAPI.cancelSubscription(id, sessionTokens.accessToken);
+            toast({ title: 'Éxito', description: 'Suscripción cancelada' });
+            loadSubscriptions();
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        }
+    };
+
+    const handleFeatureOverride = async (featureKey: string, value: any) => {
+        if (!sessionTokens?.accessToken) return;
+        // Simple prompt for value for now, in a real app would be a modal
+        const newValue = prompt(`Nuevo valor para ${featureKey} (true/false, number, string):`, value);
+        if (newValue === null) return;
+
+        let parsedValue: any = newValue;
+        if (newValue === 'true') parsedValue = true;
+        else if (newValue === 'false') parsedValue = false;
+        else if (!isNaN(Number(newValue))) parsedValue = Number(newValue);
+
+        setOverrideLoading(true);
+        try {
+            await AdminPublishersAPI.overrideFeature(publisherId, featureKey, parsedValue, sessionTokens.accessToken);
+            toast({ title: 'Éxito', description: 'Característica ajustada' });
+            loadSubscriptions();
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        } finally {
+            setOverrideLoading(false);
+        }
+    };
+
+    const handleRemoveOverride = async (featureKey: string) => {
+        if (!confirm(`¿Remover override para ${featureKey}?`)) return;
+        if (!sessionTokens?.accessToken) return;
+        try {
+            await AdminPublishersAPI.removeFeatureOverride(publisherId, featureKey, sessionTokens.accessToken);
+            toast({ title: 'Éxito', description: 'Override removido' });
+            loadSubscriptions();
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        }
+    }
+
+    const activeSub = subscriptions.find(s => s.isActive);
+
+    if (loading) return <LucideLoader className="animate-spin" />;
+
+    return (
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
+                <h3 className="font-semibold text-lg">Suscripción Actual</h3>
+                {!activeSub && (
+                    <Button onClick={() => setShowCreateDialog(true)} size="sm">
+                        <LucidePlus className="mr-2 h-4 w-4" /> Asignar Plan
+                    </Button>
+                )}
+            </div>
+
+            {activeSub ? (
+                <div className="space-y-4">
+                    <Card className="border-primary/20 bg-muted/30">
+                        <CardHeader>
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <CardTitle>{activeSub.tier.toUpperCase()}</CardTitle>
+                                        <Badge>Activo</Badge>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">Provider: {activeSub.paymentProvider}</p>
+                                </div>
+                                <Button variant="destructive" size="sm" onClick={() => handleCancelSubscription(activeSub.id)}>
+                                    Cancelar
+                                </Button>
+                            </div>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                                <div>Expira: {activeSub.expiresAt ? new Date(activeSub.expiresAt).toLocaleDateString() : 'Nunca'}</div>
+                                <div>Días restantes: {activeSub.daysUntilExpiry ?? 'N/A'}</div>
+                            </div>
+
+                            <h4 className="font-medium mb-2">Características y Límites</h4>
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Característica</TableHead>
+                                        <TableHead>Valor</TableHead>
+                                        <TableHead>Override</TableHead>
+                                        <TableHead>Acciones</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {activeSub.features.map((f: any) => (
+                                        <TableRow key={f.key}>
+                                            <TableCell>{f.key}</TableCell>
+                                            <TableCell className="font-mono">
+                                                {typeof f.value === 'boolean' ? (f.value ? 'Sí' : 'No') : f.value}
+                                            </TableCell>
+                                            <TableCell>
+                                                {f.isOverride && <Badge variant="secondary">Manual</Badge>}
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex gap-2">
+                                                    <Button variant="ghost" size="icon" onClick={() => handleFeatureOverride(f.key, f.value)}>
+                                                        <LucideEdit className="h-4 w-4" />
+                                                    </Button>
+                                                    {f.isOverride && (
+                                                        <Button variant="ghost" size="icon" className="text-destructive" onClick={() => handleRemoveOverride(f.key)}>
+                                                            <LucideTrash className="h-4 w-4" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </CardContent>
+                    </Card>
+                </div>
+            ) : (
+                <Alert>
+                    <AlertDescription>Este publisher no tiene una suscripción activa (Plan Free por defecto).</AlertDescription>
+                </Alert>
+            )}
+
+            <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Asignar Suscripción Manual</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Plan</label>
+                            <Select value={newSubTier} onValueChange={setNewSubTier}>
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="basic">Basic</SelectItem>
+                                    <SelectItem value="premium">Premium</SelectItem>
+                                    <SelectItem value="enterprise">Enterprise</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-sm font-medium">Duración (Días)</label>
+                            <Input type="number" value={newSubDuration} onChange={e => setNewSubDuration(e.target.value)} />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Cancelar</Button>
+                        <Button onClick={handleCreateSubscription} disabled={createLoading}>
+                            {createLoading && <LucideLoader className="mr-2 h-4 w-4 animate-spin" />}
+                            Crear Suscripción
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
     );
 };
 
@@ -538,6 +923,7 @@ const PublisherDetails: React.FC<{
                     <TabsTrigger value="info">Información</TabsTrigger>
                     <TabsTrigger value="members">Miembros ({members.length})</TabsTrigger>
                     <TabsTrigger value="modpacks">Modpacks ({publisher.modpacks?.length || 0})</TabsTrigger>
+                    <TabsTrigger value="subscriptions">Suscripción</TabsTrigger>
                     <TabsTrigger value="status">Estado</TabsTrigger>
                 </TabsList>
 
@@ -574,6 +960,10 @@ const PublisherDetails: React.FC<{
                             </p>
                         </div>
                     </div>
+                </TabsContent>
+
+                <TabsContent value="subscriptions">
+                    <PublisherSubscriptionTab publisherId={publisher.id} />
                 </TabsContent>
 
                 <TabsContent value="members">

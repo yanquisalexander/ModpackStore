@@ -26,15 +26,19 @@ impl MinecraftPaths {
             instance.instanceName
         );
 
-        let java_path = instance
+        let java_path_str = instance
             .javaPath
             .as_ref()
-            .map(PathBuf::from)
-            .unwrap_or_else(|| {
+            .cloned()
+            .or_else(|| {
                 config
-                    .get_java_dir()
-                    .unwrap_or_else(|| PathBuf::from("default_java"))
+                    .get("javaDir")
+                    .and_then(|v| v.as_str())
+                    .map(String::from)
             })
+            .unwrap_or_else(|| "default_java".to_string());
+
+        let java_path = expand_path(&java_path_str)
             .join("bin")
             .join(if cfg!(windows) { "javaw.exe" } else { "java" });
 
@@ -289,4 +293,36 @@ fn expand_path(path: &str) -> PathBuf {
     }
 
     PathBuf::from(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::env;
+
+    #[test]
+    fn test_expand_path() {
+        // Setup environment variable
+        env::set_var("TEST_VAR", "expanded_value");
+
+        // Test basic expansion
+        let path = "$TEST_VAR/subdir";
+        let expanded = expand_path(path);
+        
+        #[cfg(target_os = "windows")]
+        assert_eq!(expanded.to_str().unwrap(), "expanded_value\\subdir");
+        
+        #[cfg(not(target_os = "windows"))]
+        assert_eq!(expanded.to_str().unwrap(), "expanded_value/subdir");
+
+        // Test Windows style expansion
+        let path_win = "%TEST_VAR%/subdir";
+        let expanded_win = expand_path(path_win);
+        
+        #[cfg(target_os = "windows")]
+        assert_eq!(expanded_win.to_str().unwrap(), "expanded_value\\subdir");
+
+        // Cleanup
+        env::remove_var("TEST_VAR");
+    }
 }

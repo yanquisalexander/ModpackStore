@@ -134,12 +134,13 @@ pub fn validate_java_installation() -> Result<JavaValidationResult, String> {
     // Paso 1: Verificar la configuración interna primero
     if let Ok(config_result) = get_config_manager().lock() {
         if let Ok(config) = &*config_result {
-            if let Some(saved_java_path) = config.get("javaDir").and_then(|v| v.as_str()) {
+            if let Some(saved_java_path_buf) = config.get_java_dir() {
+                let saved_java_path = saved_java_path_buf.to_string_lossy();
                 // Verificar que la ruta guardada sea válida y funcional
-                match java_manager.validate_configured_java(saved_java_path) {
+                match java_manager.validate_configured_java(&saved_java_path) {
                     Ok(true) => {
                         // Java configurado es válido
-                        let version = get_java_version_from_path(&java_manager, saved_java_path);
+                        let version = get_java_version_from_path(&java_manager, &saved_java_path);
                         return Ok(JavaValidationResult {
                             is_installed: true,
                             java_path: Some(saved_java_path.to_string()),

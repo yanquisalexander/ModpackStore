@@ -8,7 +8,10 @@ import categoriesRoutes from './v1/categories.routes';
 import { CreatorsRoute } from "./v1/creators/index.route";
 import websocketRoutes from './v1/websocket.routes';
 import ticketRoutes from './v1/tickets.routes';
-import publisherPermissionsRoutes from './v1/publisher-permissions.route';
+import publisherPermissionRoutes from './v1/publisher-permissions.route';
+import publisherProfileRoutes from './v1/publisher-profile.route';
+import publisherSubscriptionRoutes from './v1/publisher-subscription.route';
+import publisherStorageRoutes from './v1/publisher-storage.route';
 import webhooksRoutes from './webhooks.routes';
 import { socialRoutes } from './v1/social.routes';
 import yggdrasilRoutes from './v1/yggdrasil.routes';
@@ -27,7 +30,10 @@ rootRouter.route('/categories', categoriesRoutes);
 rootRouter.route('/creators', CreatorsRoute);
 rootRouter.route('/websocket', websocketRoutes);
 rootRouter.route('/tickets', ticketRoutes);
-rootRouter.route('/publishers', publisherPermissionsRoutes);
+rootRouter.route('/publishers', publisherPermissionRoutes);
+rootRouter.route('/publishers', publisherProfileRoutes);
+rootRouter.route('/publishers', publisherSubscriptionRoutes); // Subscriptions
+rootRouter.route('/publishers', publisherStorageRoutes);
 rootRouter.route('/social', socialRoutes); // Mount social routes
 rootRouter.route('/yggdrasil', yggdrasilRoutes); // Mount Yggdrasil routes
 rootRouter.route('/votes', votesRoutes); // Mount votes routes

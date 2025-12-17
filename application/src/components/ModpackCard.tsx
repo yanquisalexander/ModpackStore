@@ -1,7 +1,8 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { LucideCheck, LucidePackage, LucidePlay, LucideSparkles, LucideUser2, LucideVerified } from "lucide-react"
 
 export const ModpackCard = ({ modpack, to = "/prelaunch/", className = "" }: { modpack: any, to?: string, className?: string }) => {
+    const navigate = useNavigate();
     // Verificamos si debemos mostrar el usuario como publicador
     const { showUserAsPublisher } = modpack
     console.log({ modpack, showUserAsPublisher })
@@ -44,6 +45,15 @@ export const ModpackCard = ({ modpack, to = "/prelaunch/", className = "" }: { m
 
     const isPatreonModpack = modpack.visibility === "patreon"
 
+    const handlePublisherClick = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const slug = displayPublisher.slug || displayPublisher.id;
+        if (slug) {
+            navigate(`/p/${slug}`);
+        }
+    }
+
     return (
         <article className={`z-10 group relative overflow-hidden rounded-xl h-full
             transition 
@@ -81,7 +91,9 @@ export const ModpackCard = ({ modpack, to = "/prelaunch/", className = "" }: { m
                         {/* Publisher Badge con texto que no se rompe */}
                         {showUserAsPublisher && displayPublisher.isHostingPartner ? (
                             <div className="flex flex-col items-end gap-1">
-                                <span className={`backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium ${publisherClass} max-w-full overflow-hidden text-ellipsis`}>
+                                <span
+                                    onClick={handlePublisherClick}
+                                    className={`cursor-pointer backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium ${publisherClass} max-w-full overflow-hidden text-ellipsis hover:opacity-80 transition-opacity`}>
                                     <LucideUser2 className="h-4 w-auto flex-shrink-0" />
                                     <span className="truncate">{displayPublisher.publisherName}</span>
                                 </span>
@@ -95,7 +107,9 @@ export const ModpackCard = ({ modpack, to = "/prelaunch/", className = "" }: { m
                                 </span>
                             </div>
                         ) : (
-                            <span className={`backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium ${publisherClass} max-w-full`}>
+                            <span
+                                onClick={handlePublisherClick}
+                                className={`cursor-pointer backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium ${publisherClass} max-w-full hover:opacity-80 transition-opacity`}>
                                 {!showUserAsPublisher && (displayPublisher.partnered || displayPublisher.verified) ? (
                                     <LucideVerified className="h-4 w-auto flex-shrink-0" />
                                 ) : (

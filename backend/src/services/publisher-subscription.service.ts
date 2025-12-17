@@ -408,6 +408,16 @@ export class PublisherSubscriptionService {
     }
 
     /**
+     * Find subscription by payment reference
+     */
+    static async findByPaymentReference(paymentReference: string): Promise<PublisherSubscription | null> {
+        return await PublisherSubscription.findOne({
+            where: { paymentReference },
+            relations: ['features']
+        });
+    }
+
+    /**
      * Get subscription statistics
      */
     static async getSubscriptionStats(): Promise<{

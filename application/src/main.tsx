@@ -69,15 +69,27 @@ const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   );
 };
 
+import { PayPalScriptProvider } from "@paypal/react-paypal-js";
+
+// ... existing code ...
+
+const initialOptions = {
+  "clientId": import.meta.env.VITE_PAYPAL_CLIENT_ID || "test",
+  currency: "USD",
+  intent: "capture",
+};
+
 createRoot($root).render(
   <AppProviders>
-    <BrowserRouter>
-      <LayoutWrapper>
-        <AppTitleBar />
-        <App />
-        <Toaster theme="dark" />
-        <UpdateStatus />
-      </LayoutWrapper>
-    </BrowserRouter>
+    <PayPalScriptProvider options={initialOptions}>
+      <BrowserRouter>
+        <LayoutWrapper>
+          <AppTitleBar />
+          <App />
+          <Toaster theme="dark" />
+          <UpdateStatus />
+        </LayoutWrapper>
+      </BrowserRouter>
+    </PayPalScriptProvider>
   </AppProviders>
 );

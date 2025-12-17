@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Badge } from '@/components/ui/badge';
 import {
     LucideLoader,
-    LucideShield,
-    LucideDownload,
     LucideAlertTriangle,
     LucidePackage,
-    LucideInfo
+    LucideInfo,
+    LucideShield
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { whitelistService } from '@/services/whitelist.service';
@@ -17,12 +15,24 @@ import { WhitelistedModpack } from '@/types/whitelist';
 import { toast } from 'sonner';
 import { ModpackCard } from '@/components/ModpackCard';
 import { motion } from 'motion/react';
+import { useGlobalContext } from '@/stores/GlobalContext';
 
 export const WhitelistInstancesView: React.FC = () => {
     const { sessionTokens, isAuthenticated } = useAuthentication();
+    const { setTitleBarState } = useGlobalContext();
     const [loading, setLoading] = useState(true);
     const [modpacks, setModpacks] = useState<WhitelistedModpack[]>([]);
     const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        setTitleBarState({
+            title: "Whitelist",
+            icon: LucideShield,
+            canGoBack: true,
+            customIconClassName: "bg-blue-500/10",
+            opaque: true,
+        });
+    }, [setTitleBarState]);
 
     useEffect(() => {
         if (isAuthenticated && sessionTokens?.accessToken) {
@@ -94,43 +104,41 @@ export const WhitelistInstancesView: React.FC = () => {
     }
 
     return (
-        <div className="p-6 space-y-6">
+        <div className="mx-auto max-w-7xl px-8 py-10 overflow-y-auto h-full">
             {/* Header */}
-            <motion.div
+            <motion.header
+                className="flex flex-col mb-10"
                 initial={{ opacity: 0, y: -20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
             >
-                <div className="flex items-center gap-3 mb-2">
-                    <LucideShield className="h-8 w-8 text-primary" />
-                    <h1 className="text-3xl font-bold">Available Instances</h1>
-                </div>
-                <p className="text-muted-foreground">
-                    These modpacks are exclusively available to you via whitelist access
+                <h1 className="tracking-tight inline font-semibold text-2xl bg-gradient-to-b from-blue-200 to-blue-500 bg-clip-text text-transparent">
+                    Available Instances
+                </h1>
+                <p className="text-gray-400 text-base max-w-2xl mt-1">
+                    These modpacks are exclusively available to you via whitelist access.
                 </p>
-            </motion.div>
 
-            {/* Info Alert */}
-            <Alert>
-                <LucideInfo className="h-4 w-4" />
-                <AlertDescription>
-                    You have access to <strong>{modpacks.length}</strong> whitelisted {modpacks.length === 1 ? 'modpack' : 'modpacks'}.
-                    These are private instances shared with you by their creators.
-                </AlertDescription>
-            </Alert>
+                <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 w-fit">
+                    <LucideInfo className="h-4 w-4 text-blue-400" />
+                    <span>
+                        You have access to <strong className="text-blue-200">{modpacks.length}</strong> whitelisted {modpacks.length === 1 ? 'modpack' : 'modpacks'}.
+                    </span>
+                </div>
+            </motion.header>
 
             {/* Modpacks Grid */}
             {modpacks.length === 0 ? (
-                <Card>
-                    <CardContent className="py-12">
+                <Card className="bg-neutral-900/50 border-neutral-800">
+                    <CardContent className="py-16">
                         <div className="text-center space-y-4">
-                            <LucidePackage className="h-16 w-16 text-muted-foreground mx-auto" />
+                            <div className="bg-neutral-800/50 p-4 rounded-full w-fit mx-auto">
+                                <LucidePackage className="h-12 w-12 text-muted-foreground" />
+                            </div>
                             <div>
-                                <h3 className="text-xl font-semibold mb-2">No Instances Available</h3>
-                                <p className="text-muted-foreground">
+                                <h3 className="text-xl font-semibold mb-2 text-white">No Instances Available</h3>
+                                <p className="text-muted-foreground max-w-md mx-auto">
                                     You don't have access to any whitelisted modpacks yet.
-                                </p>
-                                <p className="text-sm text-muted-foreground mt-2">
                                     Contact modpack creators to request whitelist access to private instances.
                                 </p>
                             </div>
@@ -139,87 +147,30 @@ export const WhitelistInstancesView: React.FC = () => {
                 </Card>
             ) : (
                 <motion.div
-                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"
+                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
                     variants={containerVariants}
                     initial="hidden"
                     animate="visible"
                 >
-                    {modpacks.map((modpack) => (
-                        <motion.div key={modpack.id} variants={itemVariants}>
-                            <Card className="h-full hover:shadow-lg transition-shadow">
-                                <CardContent className="p-4">
-                                    {/* Modpack Icon */}
-                                    <div className="relative mb-3">
-                                        <img
-                                            src={modpack.iconUrl || '/images/modpack-fallback.webp'}
-                                            alt={modpack.name}
-                                            className="w-full h-40 object-cover rounded-lg"
-                                        />
-                                        <Badge className="absolute top-2 right-2 bg-primary">
-                                            <LucideShield className="h-3 w-3 mr-1" />
-                                            Whitelist
-                                        </Badge>
-                                    </div>
+                    {modpacks.map((modpack) => {
+                        // Adapt WhitelistedModpack to simple format for ModpackCard
+                        const modpackForCard = {
+                            ...modpack,
+                            publisher: {
+                                ...modpack.publisher,
+                                publisherName: modpack.publisher.name
+                            }
+                        };
 
-                                    {/* Modpack Info */}
-                                    <div className="space-y-2">
-                                        <h3 className="font-semibold text-lg line-clamp-1">
-                                            {modpack.name}
-                                        </h3>
-                                        
-                                        {modpack.shortDescription && (
-                                            <p className="text-sm text-muted-foreground line-clamp-2">
-                                                {modpack.shortDescription}
-                                            </p>
-                                        )}
-
-                                        {/* Publisher Info */}
-                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                            {modpack.publisher.logoUrl && (
-                                                <img
-                                                    src={modpack.publisher.logoUrl}
-                                                    alt={modpack.publisher.name}
-                                                    className="h-5 w-5 rounded-full"
-                                                />
-                                            )}
-                                            <span>{modpack.publisher.name}</span>
-                                        </div>
-
-                                        {/* Version Info */}
-                                        {modpack.latestVersion && (
-                                            <div className="text-xs text-muted-foreground">
-                                                Latest: v{modpack.latestVersion}
-                                            </div>
-                                        )}
-
-                                        {/* Actions */}
-                                        <div className="pt-2 flex gap-2">
-                                            <Button
-                                                size="sm"
-                                                className="flex-1"
-                                                onClick={() => {
-                                                    // Navigate to modpack detail
-                                                    window.location.href = `/modpack/${modpack.slug || modpack.id}`;
-                                                }}
-                                            >
-                                                <LucideInfo className="h-4 w-4 mr-1" />
-                                                View Details
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={() => {
-                                                    toast.info('Installation feature coming soon!');
-                                                }}
-                                            >
-                                                <LucideDownload className="h-4 w-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </motion.div>
-                    ))}
+                        return (
+                            <motion.div key={modpack.id} variants={itemVariants}>
+                                <ModpackCard
+                                    modpack={modpackForCard}
+                                    to={`/modpack/${modpack.id}`}
+                                />
+                            </motion.div>
+                        );
+                    })}
                 </motion.div>
             )}
         </div>

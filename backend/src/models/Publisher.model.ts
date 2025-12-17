@@ -25,13 +25,13 @@ export enum PublisherRole {
 // Validation schemas
 export const newPublisherSchema = z.object({
     publisherName: z.string().min(1).max(32),
-    tosUrl: z.string().url(),
-    privacyUrl: z.string().url(),
-    bannerUrl: z.string().url(),
-    logoUrl: z.string().url(),
-    description: z.string().min(1),
-    websiteUrl: z.string().url().optional(),
-    discordUrl: z.string().url().optional(),
+    tosUrl: z.string().optional(),
+    privacyUrl: z.string().optional(),
+    bannerUrl: z.string().optional(),
+    logoUrl: z.string().optional(),
+    description: z.string().optional(),
+    websiteUrl: z.string().optional(),
+    discordUrl: z.string().optional(),
     banned: z.boolean().default(false),
     verified: z.boolean().default(false),
     partnered: z.boolean().default(false),
@@ -112,12 +112,21 @@ export class Publisher {
         try {
             const newPublisher = await db.transaction(async (tx) => {
                 // Create publisher
+                const insertData = {
+                    ...parsed.data,
+                    tosUrl: parsed.data.tosUrl ?? '',
+                    privacyUrl: parsed.data.privacyUrl ?? '',
+                    bannerUrl: parsed.data.bannerUrl ?? '',
+                    logoUrl: parsed.data.logoUrl ?? '',
+                    description: parsed.data.description ?? '',
+                    websiteUrl: parsed.data.websiteUrl ?? '',
+                    discordUrl: parsed.data.discordUrl ?? '',
+                    createdAt: now,
+                };
+
                 const [insertedPublisherRecord] = await tx
                     .insert(PublishersTable)
-                    .values({
-                        ...parsed.data,
-                        createdAt: now, // PublishersTable does not have updatedAt
-                    })
+                    .values(insertData)
                     .returning();
 
                 if (!insertedPublisherRecord) {
@@ -258,7 +267,16 @@ export class Publisher {
         // PublishersTable does not have an 'updatedAt' column in the provided schema.ts
         // If it were added, it would be:
         // const updatePayload = { ...validationResult.data, updatedAt: new Date() };
-        const updatePayload = validationResult.data;
+        const updatePayload = {
+            ...validationResult.data,
+            tosUrl: validationResult.data.tosUrl ?? '',
+            privacyUrl: validationResult.data.privacyUrl ?? '',
+            bannerUrl: validationResult.data.bannerUrl ?? '',
+            logoUrl: validationResult.data.logoUrl ?? '',
+            description: validationResult.data.description ?? '',
+            websiteUrl: validationResult.data.websiteUrl ?? '',
+            discordUrl: validationResult.data.discordUrl ?? '',
+        };
 
 
         try {

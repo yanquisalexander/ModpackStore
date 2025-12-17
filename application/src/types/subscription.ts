@@ -145,7 +145,7 @@ export const TIER_DEFAULTS: Record<SubscriptionTier, TierFeatures> = {
 
 export const TIER_PRICES: Record<SubscriptionTier, { monthly: string; yearly: string }> = {
     [SubscriptionTier.FREE]: { monthly: '0', yearly: '0' },
-    [SubscriptionTier.BASIC]: { monthly: '9.99', yearly: '99.99' },
-    [SubscriptionTier.PREMIUM]: { monthly: '29.99', yearly: '299.99' },
-    [SubscriptionTier.ENTERPRISE]: { monthly: '99.99', yearly: '999.99' }
+    [SubscriptionTier.BASIC]: { monthly: '4.99', yearly: '49.99' },
+    [SubscriptionTier.PREMIUM]: { monthly: '14.99', yearly: '149.99' },
+    [SubscriptionTier.ENTERPRISE]: { monthly: '49.99', yearly: '499.99' }
 };
