@@ -46,7 +46,8 @@ const getPublisherNavItems = (publisherId: string) => [
         path: `/publisher/${publisherId}/subscription`,
         label: 'Suscripción',
         icon: LucideCrown,
-        description: 'Gestionar plan y características'
+        description: 'Gestionar plan y características',
+        disabled: true
     },
     {
         path: `/publisher/${publisherId}/analytics`,
@@ -71,7 +72,7 @@ const getPublisherNavItems = (publisherId: string) => [
         label: 'Pagos',
         icon: LucideHandCoins,
         description: 'Ver y retirar pagos',
-        disabled: false
+        disabled: true
     },
     {
         path: `/publisher/${publisherId}/settings`,

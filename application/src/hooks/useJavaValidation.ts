@@ -12,7 +12,7 @@ export const useJavaValidation = () => {
   const validateJava = useCallback(async () => {
     // Prevent multiple simultaneous validations
     if (isValidatingRef.current) return;
-    
+
     isValidatingRef.current = true;
     setLoading(true);
     setError(null);
@@ -55,17 +55,18 @@ export const useJavaValidation = () => {
 
     try {
       const { invoke } = await import('@tauri-apps/api/core');
-      
-      // Use the new repair command that includes local scanning
+
+      // Use the newer repair_java_installation command
       await invoke('repair_java_installation');
-      
+
       setRepairStatus('Reparación completada');
-      
-      // Re-validate after repair
+
+      // Re-validate after repair to get updated validation result
       await validateJava();
     } catch (err) {
       console.error('Error repairing Java:', err);
       setError(err as string);
+      setJavaValidation({ is_installed: false });
       setRepairStatus(null);
     } finally {
       setIsInstalling(false);
