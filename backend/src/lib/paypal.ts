@@ -1,4 +1,4 @@
-import { Client, Environment, LogLevel, OrdersController } from '@paypal/paypal-server-sdk';
+import { Client, Environment, LogLevel, OrdersController, SubscriptionsController } from '@paypal/paypal-server-sdk';
 
 
 
@@ -21,5 +21,6 @@ const client = new Client({
 });
 
 const ordersController = new OrdersController(client);
+const subscriptionsController = new SubscriptionsController(client);
 
-export { client as paypal, ordersController };
+export { client as paypal, ordersController, subscriptionsController };

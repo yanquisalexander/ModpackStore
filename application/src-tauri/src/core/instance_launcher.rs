@@ -1,11 +1,14 @@
 //! Handles the logic for preparing and launching a specific Minecraft instance.
 
 // --- Standard Library Imports ---
+use std::collections::VecDeque;
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
 use std::path::PathBuf;
 use std::process::{Child, Command};
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::thread;
 
 // --- Crate Imports ---
@@ -166,99 +169,210 @@ impl InstanceLauncher {
 
     /// Monitors the launched Minecraft process in a separate thread.
     /// This is the core of crash detection.
+    // --- Process Monitoring ---
+
     fn monitor_process(instance: Arc<MinecraftInstance>, mut child: Child) {
+        let instance_id = instance.instanceId.clone();
         let emitter_launcher = Self {
             instance: Arc::clone(&instance),
         };
 
-        thread::spawn(move || {
-            info!(
-                "[Monitor: {}] Started monitoring process.",
-                instance.instanceId
-            );
+        // 1. Preparamos un "Buffer Circular" compartido.
+        // Guardará las últimas 200 líneas combinadas de stdout y stderr.
+        // Arc<Mutex<...>> permite que los hilos de lectura escriban y el hilo principal lea al final.
+        let log_buffer: Arc<Mutex<VecDeque<String>>> =
+            Arc::new(Mutex::new(VecDeque::with_capacity(200)));
 
-            match child.wait_with_output() {
-                Ok(output) => {
-                    let exit_code = output.status.code().unwrap_or(-1);
-                    let stdout = String::from_utf8_lossy(&output.stdout);
-                    let stderr = String::from_utf8_lossy(&output.stderr);
+        // Clones para los hilos de lectura
+        let stdout_buffer = Arc::clone(&log_buffer);
+        let stderr_buffer = Arc::clone(&log_buffer);
+
+        // 2. Capturamos los pipes (IMPORTANTE: Al lanzar el comando debiste usar .stdout(Stdio::piped()))
+        let stdout = child.stdout.take();
+        let stderr = child.stderr.take();
+
+        // 3. Hilo para STDOUT (Log normal del juego)
+        if let Some(out) = stdout {
+            let inst_id = instance_id.clone();
+            thread::spawn(move || {
+                let reader = BufReader::new(out);
+                for line in reader.lines() {
+                    if let Ok(l) = line {
+                        // Opcional: Emitir evento al Frontend para una consola en tiempo real
+                        // emit_console_log(&inst_id, &l, "stdout");
+
+                        // Guardar en el buffer circular
+                        if let Ok(mut buffer) = stdout_buffer.lock() {
+                            if buffer.len() >= 200 {
+                                buffer.pop_front();
+                            } // Borrar la más vieja
+                            buffer.push_back(l); // Agregar la nueva
+                        }
+                    }
+                }
+            });
+        }
+
+        // 4. Hilo para STDERR (Errores críticos de Java)
+        if let Some(err) = stderr {
+            let inst_id = instance_id.clone();
+            thread::spawn(move || {
+                let reader = BufReader::new(err);
+                for line in reader.lines() {
+                    if let Ok(l) = line {
+                        // emit_console_log(&inst_id, &l, "stderr");
+
+                        if let Ok(mut buffer) = stderr_buffer.lock() {
+                            if buffer.len() >= 200 {
+                                buffer.pop_front();
+                            }
+                            buffer.push_back(l);
+                        }
+                    }
+                }
+            });
+        }
+
+        // 5. El hilo principal espera a que el proceso termine
+        thread::spawn(move || {
+            // .wait() bloquea este hilo hasta que Minecraft se cierra, pero no consume RAM acumulando logs
+            let wait_result = child.wait();
+
+            match wait_result {
+                Ok(status) => {
+                    let exit_code = status.code().unwrap_or(-1);
                     let official_exit_code: OfficialExitCode = exit_code.into();
 
-                    info!("[Minecraft:{} stdout]\n{}", instance.instanceId, stdout);
-                    if !stderr.is_empty() {
-                        error!("[Minecraft:{} stderr]\n{}", instance.instanceId, stderr);
-                    }
+                    // Recuperamos las últimas líneas guardadas en memoria
+                    let captured_logs: Vec<String> = log_buffer
+                        .lock()
+                        .map(|b| b.iter().cloned().collect())
+                        .unwrap_or_default();
 
+                    let log_tail = captured_logs.join("\n");
+
+                    info!(
+                        "[Monitor: {}] Process exited with code {}",
+                        instance.instanceId, exit_code
+                    );
+
+                    // --- Lógica de Detección de Crash ---
+                    let mut crash_source = "NORMAL_EXIT";
                     let mut crash_report_content: Option<String> = None;
                     let mut detected_error_details = json!({ "code": "UNKNOWN_ERROR" });
 
-                    // Only search for crash reports and analyze stderr if the game exited with an error
                     if exit_code != 0 {
-                        // --- 1. The Holy Grail: Search for a crash report file ---
-                        let crash_report_dir =
-                            PathBuf::from(&instance.minecraftPath).join("crash-reports");
-                        if crash_report_dir.exists() {
-                            if let Ok(mut entries) = fs::read_dir(crash_report_dir) {
-                                let latest_report = entries
-                                    .filter_map(Result::ok)
-                                    .map(|e| e.path())
-                                    .filter(|p| {
-                                        p.is_file()
-                                            && p.extension().map_or(false, |ext| ext == "txt")
-                                    })
-                                    .max(); // Filename timestamp ensures max() gets the latest
+                        crash_source = "UNKNOWN";
+                        let mc_path = PathBuf::from(&instance.minecraftPath);
 
-                                if let Some(report_path) = latest_report {
-                                    info!(
-                                        "[Monitor: {}] Found crash report: {:?}",
-                                        instance.instanceId, report_path
-                                    );
-                                    crash_report_content = fs::read_to_string(report_path).ok();
+                        // A. Buscar Crash Report Físico (Prioridad Alta)
+                        let crash_report_dir = mc_path.join("crash-reports");
+                        if let Ok(mut entries) = fs::read_dir(crash_report_dir) {
+                            let latest = entries
+                                .filter_map(Result::ok)
+                                .map(|e| e.path())
+                                .filter(|p| {
+                                    p.is_file() && p.extension().map_or(false, |ext| ext == "txt")
+                                })
+                                .max();
+
+                            if let Some(path) = latest {
+                                if let Ok(meta) = fs::metadata(&path) {
+                                    if let Ok(modified) = meta.modified() {
+                                        // Solo si es reciente (< 1 min)
+                                        if modified.elapsed().unwrap_or_default().as_secs() < 60 {
+                                            crash_report_content = fs::read_to_string(path).ok();
+                                            crash_source = "CRASH_REPORT";
+                                        }
+                                    }
                                 }
                             }
                         }
 
-                        // --- 2. Advanced stderr analysis with Regex ---
-                        if let Some(captures) = RE_JAVA_VERSION.captures(&stderr) {
-                            let expected_ver = captures.get(1).map_or("?", |m| m.as_str());
-                            let actual_ver = captures.get(2).map_or("?", |m| m.as_str());
-                            detected_error_details = json!({
-                                "code": "INCOMPATIBLE_JAVA_VERSION",
-                                "message": format!("Java version mismatch. Game requires Java {}, but launcher is using Java {}.", expected_ver, actual_ver),
-                            });
-                        } else if stderr.contains("java.lang.OutOfMemoryError") {
-                            detected_error_details = json!({
-                                "code": "OUT_OF_MEMORY",
-                                "message": "The game ran out of memory. Try allocating more RAM to the instance."
-                            });
+                        // B. Buscar Crash Nativo JVM (hs_err_pid)
+                        if crash_source == "UNKNOWN" {
+                            if let Ok(entries) = fs::read_dir(&mc_path) {
+                                let jvm_crash = entries
+                                    .filter_map(Result::ok)
+                                    .map(|e| e.path())
+                                    .filter(|p| {
+                                        p.file_name()
+                                            .map(|n| n.to_string_lossy().starts_with("hs_err_pid"))
+                                            .unwrap_or(false)
+                                    })
+                                    .max();
+
+                                if let Some(path) = jvm_crash {
+                                    if let Ok(meta) = fs::metadata(&path) {
+                                        if meta
+                                            .modified()
+                                            .unwrap_or(std::time::SystemTime::now())
+                                            .elapsed()
+                                            .unwrap_or_default()
+                                            .as_secs()
+                                            < 60
+                                        {
+                                            let content =
+                                                fs::read_to_string(path).unwrap_or_default();
+                                            crash_report_content = Some(
+                                                content
+                                                    .lines()
+                                                    .take(50)
+                                                    .collect::<Vec<_>>()
+                                                    .join("\n"),
+                                            );
+                                            crash_source = "JVM_CRASH";
+                                            detected_error_details = json!({ "code": "JVM_CRASH", "message": "Native Java crash detected." });
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // C. USAR EL LOG NORMAL (El Buffer que capturamos)
+                        // Si no hay reporte, analizamos lo último que dijo el juego.
+                        if crash_source == "UNKNOWN" {
+                            // Análisis básico de regex sobre log_tail
+                            if let Some(captures) = RE_JAVA_VERSION.captures(&log_tail) {
+                                // ... lógica de versión de java ...
+                                detected_error_details = json!({ "code": "JAVA_VERSION", "message": "Java version mismatch detected in logs." });
+                                crash_source = "LOG_ANALYSIS";
+                            } else if log_tail.contains("OutOfMemory") {
+                                detected_error_details = json!({ "code": "OOM", "message": "Out of memory detected in logs." });
+                                crash_source = "LOG_ANALYSIS";
+                            } else {
+                                // Si no detectamos nada específico, pero falló, enviamos el tail como "evidencia"
+                                crash_source = "LOG_TAIL";
+                                // Marcamos que usamos el log normal como reporte
+                                crash_report_content = Some(format!(
+                                    "--- NO CRASH REPORT FOUND. SHOWING LAST LOG LINES ---\n{}",
+                                    log_tail
+                                ));
+                                detected_error_details = json!({
+                                    "code": "GENERIC_ERROR",
+                                    "message": "Game exited with error but produced no crash report. Check the attached log tail."
+                                });
+                            }
                         }
                     }
 
-                    let message = format!(
-                        "Minecraft instance '{}' exited with code {} ({:?})",
-                        instance.instanceName, exit_code, official_exit_code
-                    );
+                    // Emitir evento final
                     emitter_launcher.emit_status(
                         EVENT_EXITED,
-                        &message,
+                        &format!("Exited with code {}", exit_code),
                         Some(json!({
                             "exitCode": exit_code,
                             "officialExitCode": format!("{:?}", official_exit_code),
-                            "detectedError": detected_error_details, // Detailed error object
-                            "crashReport": crash_report_content, // Full crash report text
-                            "stdout": stdout.trim_end(),
-                            "stderr": stderr.trim_end(),
+                            "crashSource": crash_source,
+                            "detectedError": detected_error_details,
+                            "crashReport": crash_report_content, // Aquí va el log normal si no hubo crash report
                         })),
                     );
                 }
-                Err(err) => {
-                    let error_msg = format!("Failed to wait for process: {}", err);
-                    error!("[Monitor: {}] {}", instance.instanceId, error_msg);
-                    emitter_launcher.emit_error(&error_msg, None);
+                Err(e) => {
+                    emitter_launcher.emit_error(&format!("Process wait failed: {}", e), None);
                 }
             }
-
-            info!("[Monitor: {}] Finished monitoring.", instance.instanceId);
         });
     }
 

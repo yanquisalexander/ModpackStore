@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { requireAuth } from '@/middlewares/auth.middleware';
 import { PublisherSubscriptionService } from '@/services/publisher-subscription.service';
 import { SubscriptionTier, PaymentProvider } from '@/entities/PublisherSubscription';
-import { ordersController } from '@/lib/paypal';
+import { ordersController, subscriptionsController } from '@/lib/paypal';
 
 // Validation schemas
 const createOrderSchema = z.object({
@@ -62,69 +62,86 @@ publisherSubscriptionRoutes.get('/:publisherId/subscription/features', async (c)
     }
 });
 
-// Create PayPal Order
+// Create PayPal Subscription
 publisherSubscriptionRoutes.post('/:publisherId/subscription/order', zValidator('json', createOrderSchema), async (c) => {
     try {
         const { publisherId } = c.req.param();
         const { tier } = c.req.valid('json');
 
-        // Determine price based on tier
-        let price = '0.00';
+        if (tier === SubscriptionTier.FREE) {
+            const sub = await PublisherSubscriptionService.createSubscription({
+                publisherId,
+                tier: SubscriptionTier.FREE
+            });
+            return c.json({ data: { subscriptionId: sub.id, free: true } });
+        }
+
+        // Get Plan ID from env
+        let planId = '';
         switch (tier) {
-            case SubscriptionTier.BASIC: price = '9.99'; break;
-            case SubscriptionTier.PREMIUM: price = '29.99'; break;
-            case SubscriptionTier.ENTERPRISE: price = '99.99'; break;
-            case SubscriptionTier.FREE:
-                const sub = await PublisherSubscriptionService.createSubscription({
-                    publisherId,
-                    tier: SubscriptionTier.FREE
-                });
-                return c.json({ data: { subscriptionId: sub.id, free: true } });
+            case SubscriptionTier.BASIC: planId = process.env.PAYPAL_PLAN_ID_BASIC || ''; break;
+            case SubscriptionTier.PREMIUM: planId = process.env.PAYPAL_PLAN_ID_PREMIUM || ''; break;
+            case SubscriptionTier.ENTERPRISE: planId = process.env.PAYPAL_PLAN_ID_ENTERPRISE || ''; break;
+        }
+
+        if (!planId) {
+            console.error(`Missing PayPal Plan ID for tier ${tier}`);
+            return c.json({ error: 'Configuration error: Missing Plan ID' }, 500);
         }
 
         const collect = {
             body: {
-                intent: 'CAPTURE',
-                purchaseUnits: [{
-                    amount: {
-                        currencyCode: 'USD',
-                        value: price
-                    },
-                    description: `Subscription Upgrade to ${tier.toUpperCase()}`
-                }]
+                planId: planId,
+                customId: publisherId, // Store publisherId in custom_id for reference
+                applicationContext: {
+                    userAction: 'SUBSCRIBE_NOW',
+                    returnUrl: 'https://example.com/return', // Frontend handles the return via popup, but this is required
+                    cancelUrl: 'https://example.com/cancel'
+                }
             }
         };
 
-        const { result } = await ordersController.createOrder(collect);
-        return c.json({ orderId: result.id });
+        const { result } = await subscriptionsController.subscriptionsCreate(collect);
+
+        // Find approval URL
+        const approvalLink = result.links?.find((link: any) => link.rel === 'approve');
+        if (!approvalLink) {
+            console.error('No approval link found in PayPal response', result);
+            return c.json({ error: 'Failed to get approval URL' }, 500);
+        }
+
+        return c.json({ orderId: result.id, approvalUrl: approvalLink.href });
 
     } catch (error) {
-        console.error('Error creating PayPal order:', error);
-        return c.json({ error: 'Failed to create payment order' }, 500);
+        console.error('Error creating PayPal subscription:', error);
+        return c.json({ error: 'Failed to create subscription' }, 500);
     }
 });
 
-// Capture PayPal Order
-publisherSubscriptionRoutes.post('/:publisherId/subscription/capture', zValidator('json', captureOrderSchema), async (c) => {
+// Activate/Check PayPal Subscription
+const activateSubscriptionSchema = z.object({
+    subscriptionId: z.string(),
+    tier: z.nativeEnum(SubscriptionTier),
+});
+
+publisherSubscriptionRoutes.post('/:publisherId/subscription/capture', zValidator('json', activateSubscriptionSchema), async (c) => {
     try {
         const { publisherId } = c.req.param();
-        const { orderId, tier } = c.req.valid('json');
+        const { subscriptionId, tier } = c.req.valid('json');
 
-        const { result } = await ordersController.captureOrder({ id: orderId, prefer: 'return=representation' });
+        // Verify status with PayPal
+        const { result } = await subscriptionsController.subscriptionsGet({ id: subscriptionId });
 
-        if (result.status === 'COMPLETED') {
-            const durationDays = 30;
-            const amount = result.purchaseUnits?.[0]?.payments?.captures?.[0]?.amount?.value || '0.00';
-
+        if (result.status === 'ACTIVE') {
             const subscription = await PublisherSubscriptionService.createSubscription({
                 publisherId,
                 tier,
                 paymentProvider: PaymentProvider.PAYPAL,
-                paymentReference: orderId,
-                amount: amount,
-                currency: 'USD',
-                durationDays,
-                autoRenew: false
+                paymentReference: subscriptionId,
+                amount: result.billingInfo?.lastPayment?.amount?.value || '0.00', // Best effort to get amount
+                currency: result.billingInfo?.lastPayment?.amount?.currencyCode || 'USD',
+                durationDays: 30, // Monthly
+                autoRenew: true
             });
 
             return c.json({
@@ -132,12 +149,12 @@ publisherSubscriptionRoutes.post('/:publisherId/subscription/capture', zValidato
                 data: { subscriptionId: subscription.id }
             });
         } else {
-            return c.json({ error: 'Payment not completed' }, 400);
+            return c.json({ error: `Subscription status is ${result.status}` }, 400);
         }
 
     } catch (error) {
-        console.error('Error capturing PayPal order:', error);
-        return c.json({ error: 'Failed to capture payment' }, 500);
+        console.error('Error activating PayPal subscription:', error);
+        return c.json({ error: 'Failed to activate subscription' }, 500);
     }
 });
 
@@ -151,6 +168,19 @@ publisherSubscriptionRoutes.post('/:publisherId/subscription/cancel', async (c) 
             return c.json({ error: 'No active subscription found' }, 404);
         }
 
+        // If PayPal, cancel on PayPal side too
+        if (subscription.paymentProvider === PaymentProvider.PAYPAL && subscription.paymentReference) {
+            try {
+                await subscriptionsController.subscriptionsCancel({
+                    id: subscription.paymentReference,
+                    reason: 'User requested cancellation' // Note: verify signature, usually body/reason
+                });
+            } catch (ppError) {
+                console.error('Error cancelling PayPal subscription:', ppError);
+                // Continue to cancel locally even if PayPal fails (maybe already cancelled)
+            }
+        }
+
         await PublisherSubscriptionService.cancelSubscription(subscription.id);
 
         return c.json({ message: 'Subscription cancelled successfully' });
@@ -160,49 +190,30 @@ publisherSubscriptionRoutes.post('/:publisherId/subscription/cancel', async (c) 
     }
 });
 
-// Get PayPal approval URL
+// Get PayPal approval URL - No longer needed as it is returned in create, but keeping for backward compat if needed or just error
 publisherSubscriptionRoutes.get('/subscription/paypal/approval/:orderId', async (c) => {
-    try {
-        const { orderId } = c.req.param();
-
-        // Get order details from PayPal to extract approval URL
-        const approvalUrl = `https://www.sandbox.paypal.com/checkoutnow?token=${orderId}`;
-
-        return c.json({ data: { approvalUrl } });
-    } catch (error) {
-        console.error('Error getting PayPal approval URL:', error);
-        return c.json({ error: 'Failed to get approval URL' }, 500);
-    }
+    return c.json({ error: 'Use create endpoint response' }, 400);
 });
 
 // Check payment status
 publisherSubscriptionRoutes.get('/subscription/paypal/status/:orderId', async (c) => {
     try {
-        const { orderId } = c.req.param();
+        const { orderId } = c.req.param(); // In this context orderId is subscriptionId
 
-        // Check order status with PayPal API
-        const { result, ...httpResponse } = await ordersController.ordersGet({ id: orderId });
+        const { result } = await subscriptionsController.subscriptionsGet({ id: orderId });
 
-        if (httpResponse.statusCode === 200 && result) {
+        if (result) {
             const paypalStatus = result.status;
+            // Map PayPal status
+            // ACTIVE, APPROVAL_PENDING, APPROVED, SUSPENDED, CANCELLED, EXPIRED
 
-            // Map PayPal status to our status
-            let status = 'PENDING';
-            if (paypalStatus === 'APPROVED') {
-                status = 'COMPLETED';
-            } else if (paypalStatus === 'COMPLETED') {
-                status = 'COMPLETED';
-            } else if (paypalStatus === 'VOIDED' || paypalStatus === 'CANCELLED') {
-                status = 'CANCELLED';
-            }
-
-            return c.json({ data: { status, paypalStatus } });
+            return c.json({ data: { status: paypalStatus, paypalStatus } });
         }
 
         return c.json({ data: { status: 'PENDING' } });
     } catch (error) {
-        console.error('Error checking payment status:', error);
-        return c.json({ error: 'Failed to check payment status' }, 500);
+        console.error('Error checking subscription status:', error);
+        return c.json({ error: 'Failed to check status' }, 500);
     }
 });
 
