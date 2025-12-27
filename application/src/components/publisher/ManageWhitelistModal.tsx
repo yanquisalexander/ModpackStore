@@ -10,8 +10,15 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Progress } from '@/components/ui/progress'; // Si tienes este componente, úsalo. Si no, el div inferior funciona.
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow
+} from '@/components/ui/table';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -23,13 +30,14 @@ import {
     AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import {
-    LucideLoader,
+    LucideLoader2,
     LucideUserPlus,
     LucideTrash2,
     LucideDownload,
-    LucideAlertTriangle,
     LucideUsers,
-    LucideX
+    LucideX,
+    LucideSearch,
+    LucideShieldCheck
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { whitelistService } from '@/services/whitelist.service';
@@ -75,8 +83,8 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
             setUsers(usersData);
             setStats(statsData);
         } catch (error) {
-            console.error('Error loading whitelist:', error);
-            toast.error('Failed to load whitelist data');
+            console.error('Error cargando whitelist:', error);
+            toast.error('Error al cargar datos', { description: 'No se pudo obtener la lista de usuarios.' });
         } finally {
             setLoading(false);
         }
@@ -84,14 +92,13 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
 
     const handleAddUser = async () => {
         if (!newUserInput.trim()) {
-            toast.error('Please enter a Discord username');
+            toast.warning('Campo vacío', { description: 'Por favor ingresa un usuario de Discord.' });
             return;
         }
 
-        // Check if we've reached the limit
         if (stats && stats.remainingSlots <= 0) {
-            toast.error('Whitelist is full', {
-                description: `Maximum of ${stats.maxAllowed} users allowed`
+            toast.error('Whitelist llena', {
+                description: `Has alcanzado el límite máximo de ${stats.maxAllowed} usuarios.`
             });
             return;
         }
@@ -106,27 +113,23 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
                 },
                 accessToken
             );
-            
-            toast.success('User added to whitelist');
+
+            toast.success('Usuario añadido', { description: `${newUserInput} ha sido agregado a la whitelist.` });
             setNewUserInput('');
             setNotes('');
             await loadWhitelist();
         } catch (error: any) {
-            console.error('Error adding user to whitelist:', error);
-            const message = error.message || 'Failed to add user to whitelist';
-            
+            console.error('Error añadiendo usuario:', error);
+            const message = error.message || 'Error desconocido';
+
             if (message.includes('not found')) {
-                toast.error('User not found', {
-                    description: 'No user found with that Discord username'
-                });
+                toast.error('Usuario no encontrado', { description: 'No existe ese usuario en Discord.' });
             } else if (message.includes('already')) {
-                toast.error('User already in whitelist');
+                toast.warning('Usuario duplicado', { description: 'Este usuario ya está en la whitelist.' });
             } else if (message.includes('limit')) {
-                toast.error('Whitelist limit reached');
+                toast.error('Límite alcanzado');
             } else {
-                toast.error('Failed to add user', {
-                    description: message
-                });
+                toast.error('Error al añadir', { description: message });
             }
         } finally {
             setAddingUser(false);
@@ -137,11 +140,11 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
         setRemovingUserId(userId);
         try {
             await whitelistService.removeFromWhitelist(modpackId, userId, accessToken);
-            toast.success('User removed from whitelist');
+            toast.success('Usuario eliminado');
             await loadWhitelist();
         } catch (error) {
-            console.error('Error removing user from whitelist:', error);
-            toast.error('Failed to remove user from whitelist');
+            console.error('Error eliminando usuario:', error);
+            toast.error('Error al eliminar usuario');
         } finally {
             setRemovingUserId(null);
         }
@@ -150,22 +153,22 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
     const handleClearWhitelist = async () => {
         try {
             const count = await whitelistService.clearWhitelist(modpackId, accessToken);
-            toast.success(`Removed ${count} users from whitelist`);
+            toast.success('Whitelist vaciada', { description: `Se eliminaron ${count} usuarios.` });
             setShowClearDialog(false);
             await loadWhitelist();
         } catch (error) {
-            console.error('Error clearing whitelist:', error);
-            toast.error('Failed to clear whitelist');
+            console.error('Error vaciando whitelist:', error);
+            toast.error('Error al vaciar la lista');
         }
     };
 
     const handleExport = async () => {
         try {
             const exportData = await whitelistService.exportWhitelist(modpackId, accessToken);
-            
-            // Convert to CSV
+
+            // CSV Header y Rows
             const csvContent = [
-                ['Username', 'Discord ID', 'Added At', 'Added By', 'Notes'],
+                ['Username', 'Discord ID', 'Fecha Agregado', 'Agregado Por', 'Notas'],
                 ...exportData.users.map(u => [
                     u.username,
                     u.discordId || '',
@@ -175,190 +178,208 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
                 ])
             ].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
 
-            // Download file
             const blob = new Blob([csvContent], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `whitelist-${modpackName}-${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = `whitelist-${modpackName.replace(/\s+/g, '-').toLowerCase()}-${new Date().toISOString().split('T')[0]}.csv`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
 
-            toast.success('Whitelist exported successfully');
+            toast.success('Exportación exitosa');
         } catch (error) {
-            console.error('Error exporting whitelist:', error);
-            toast.error('Failed to export whitelist');
+            console.error('Error exportando:', error);
+            toast.error('Error al exportar');
         }
     };
 
-    const usagePercentage = stats 
-        ? (stats.totalWhitelisted / stats.maxAllowed) * 100
-        : 0;
+    // Calcular porcentaje de uso para barra de progreso
+    const usagePercentage = stats ? Math.min((stats.totalWhitelisted / stats.maxAllowed) * 100, 100) : 0;
 
     return (
         <>
             <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent className="sm:max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            <LucideUsers className="h-5 w-5" />
-                            Manage Whitelist
-                        </DialogTitle>
-                        <DialogDescription>
-                            Manage access for "{modpackName}"
-                        </DialogDescription>
-                    </DialogHeader>
+                <DialogContent className="sm:max-w-3xl max-h-[85vh] flex flex-col gap-0 p-0 overflow-hidden">
 
-                    {loading ? (
-                        <div className="flex items-center justify-center py-12">
-                            <LucideLoader className="h-8 w-8 animate-spin text-primary" />
-                        </div>
-                    ) : (
-                        <div className="space-y-4 flex-1 overflow-y-auto">
-                            {/* Stats Card */}
-                            {stats && (
-                                <Alert>
-                                    <LucideUsers className="h-4 w-4" />
-                                    <AlertDescription>
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <span className="font-semibold">{stats.totalWhitelisted}</span> of{' '}
-                                                <span className="font-semibold">{stats.maxAllowed}</span> slots used
+                    {/* Header */}
+                    <div className="p-6 pb-4 border-b">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2 text-xl">
+                                <LucideShieldCheck className="h-5 w-5 text-primary" />
+                                Gestionar Whitelist
+                            </DialogTitle>
+                            <DialogDescription>
+                                Administra el acceso para <strong>{modpackName}</strong>
+                            </DialogDescription>
+                        </DialogHeader>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                        {loading && !stats ? (
+                            <div className="flex flex-col items-center justify-center py-12 gap-2 text-muted-foreground">
+                                <LucideLoader2 className="h-8 w-8 animate-spin text-primary" />
+                                <span className="text-sm">Cargando lista...</span>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Stats & Progress */}
+                                {stats && (
+                                    <div className="bg-muted/30 border rounded-lg p-4 space-y-3">
+                                        <div className="flex items-center justify-between text-sm">
+                                            <span className="font-medium text-muted-foreground">Ocupación</span>
+                                            <div className="flex gap-2 items-center">
+                                                <span className="font-bold text-foreground">{stats.totalWhitelisted}</span>
+                                                <span className="text-muted-foreground">/ {stats.maxAllowed}</span>
                                             </div>
-                                            <Badge variant={stats.remainingSlots === 0 ? 'destructive' : 'default'}>
-                                                {stats.remainingSlots} remaining
-                                            </Badge>
                                         </div>
-                                        {stats.remainingSlots === 0 && (
-                                            <p className="text-xs text-destructive mt-2">
-                                                Whitelist is full. Upgrade your plan or remove users to add more.
-                                            </p>
-                                        )}
-                                    </AlertDescription>
-                                </Alert>
-                            )}
 
-                            {/* Add User Form */}
-                            <div className="space-y-3 p-4 border rounded-lg">
-                                <h3 className="font-semibold flex items-center gap-2">
-                                    <LucideUserPlus className="h-4 w-4" />
-                                    Add User to Whitelist
-                                </h3>
-                                <div className="space-y-2">
-                                    <div>
-                                        <label className="text-sm text-muted-foreground">
-                                            Discord Username
-                                        </label>
-                                        <Input
-                                            placeholder="username#1234"
-                                            value={newUserInput}
-                                            onChange={(e) => setNewUserInput(e.target.value)}
-                                            disabled={addingUser || (stats?.remainingSlots === 0)}
-                                        />
+                                        {/* Barra de progreso visual */}
+                                        <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                                            <div
+                                                className={`h-full transition-all duration-500 ease-out ${stats.remainingSlots === 0 ? 'bg-destructive' : 'bg-primary'}`}
+                                                style={{ width: `${usagePercentage}%` }}
+                                            />
+                                        </div>
+
+                                        <div className="flex justify-between items-center text-xs">
+                                            <Badge variant={stats.remainingSlots === 0 ? 'destructive' : 'secondary'} className="font-normal">
+                                                {stats.remainingSlots === 0 ? 'Lleno' : `${stats.remainingSlots} espacios disponibles`}
+                                            </Badge>
+                                            {stats.remainingSlots === 0 && (
+                                                <span className="text-destructive font-medium">Límite alcanzado</span>
+                                            )}
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="text-sm text-muted-foreground">
-                                            Notes (optional)
+                                )}
+
+                                {/* Add User Section */}
+                                <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] items-end">
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                            Usuario de Discord
+                                        </label>
+                                        <div className="relative">
+                                            <LucideSearch className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                            <Input
+                                                placeholder="usuario#1234"
+                                                value={newUserInput}
+                                                onChange={(e) => setNewUserInput(e.target.value)}
+                                                className="pl-9"
+                                                disabled={addingUser || (stats?.remainingSlots === 0)}
+                                                onKeyDown={(e) => e.key === 'Enter' && handleAddUser()}
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                                            Notas (Opcional)
                                         </label>
                                         <Input
-                                            placeholder="VIP member, beta tester, etc."
+                                            placeholder="Ej: VIP, Amigo, Admin"
                                             value={notes}
                                             onChange={(e) => setNotes(e.target.value)}
                                             disabled={addingUser || (stats?.remainingSlots === 0)}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleAddUser()}
                                         />
                                     </div>
                                     <Button
                                         onClick={handleAddUser}
                                         disabled={addingUser || !newUserInput.trim() || (stats?.remainingSlots === 0)}
-                                        className="w-full"
+                                        className="mb-[1px]" // Ajuste visual menor
                                     >
                                         {addingUser ? (
-                                            <>
-                                                <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
-                                                Adding...
-                                            </>
+                                            <LucideLoader2 className="h-4 w-4 animate-spin" />
                                         ) : (
                                             <>
-                                                <LucideUserPlus className="h-4 w-4 mr-2" />
-                                                Add User
+                                                <LucideUserPlus className="h-4 w-4 sm:mr-2" />
+                                                <span className="hidden sm:inline">Añadir</span>
                                             </>
                                         )}
                                     </Button>
                                 </div>
-                            </div>
 
-                            {/* Users List */}
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <h3 className="font-semibold">Whitelisted Users ({users.length})</h3>
+                                {/* Actions Toolbar */}
+                                <div className="flex items-center justify-between pt-2">
+                                    <h3 className="text-sm font-semibold">
+                                        Usuarios Permitidos ({users.length})
+                                    </h3>
                                     <div className="flex gap-2">
                                         <Button
                                             variant="outline"
                                             size="sm"
                                             onClick={handleExport}
                                             disabled={users.length === 0}
+                                            className="h-8 text-xs"
                                         >
-                                            <LucideDownload className="h-4 w-4 mr-1" />
-                                            Export CSV
+                                            <LucideDownload className="h-3.5 w-3.5 mr-1.5" />
+                                            CSV
                                         </Button>
                                         <Button
-                                            variant="destructive"
+                                            variant="ghost"
                                             size="sm"
                                             onClick={() => setShowClearDialog(true)}
                                             disabled={users.length === 0}
+                                            className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
                                         >
-                                            <LucideX className="h-4 w-4 mr-1" />
-                                            Clear All
+                                            <LucideX className="h-3.5 w-3.5 mr-1.5" />
+                                            Vaciar
                                         </Button>
                                     </div>
                                 </div>
 
-                                {users.length === 0 ? (
-                                    <Alert>
-                                        <LucideAlertTriangle className="h-4 w-4" />
-                                        <AlertDescription>
-                                            No users in whitelist yet. Add users above to grant access.
-                                        </AlertDescription>
-                                    </Alert>
-                                ) : (
-                                    <div className="border rounded-lg">
+                                {/* Users Table */}
+                                <div className="border rounded-md overflow-hidden">
+                                    {users.length === 0 ? (
+                                        <div className="flex flex-col items-center justify-center py-12 text-center bg-muted/5">
+                                            <LucideUsers className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                                            <p className="text-sm font-medium text-foreground">La whitelist está vacía</p>
+                                            <p className="text-xs text-muted-foreground">Añade usuarios arriba para darles acceso.</p>
+                                        </div>
+                                    ) : (
                                         <Table>
                                             <TableHeader>
-                                                <TableRow>
-                                                    <TableHead>Username</TableHead>
-                                                    <TableHead>Discord ID</TableHead>
-                                                    <TableHead className="text-right">Actions</TableHead>
+                                                <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                                    <TableHead className="w-[200px]">Usuario</TableHead>
+                                                    <TableHead>Notas</TableHead>
+                                                    <TableHead className="w-[50px]"></TableHead>
                                                 </TableRow>
                                             </TableHeader>
                                             <TableBody>
                                                 {users.map((user) => (
                                                     <TableRow key={user.id}>
-                                                        <TableCell className="flex items-center gap-2">
-                                                            {user.avatarUrl && (
-                                                                <img
-                                                                    src={user.avatarUrl}
-                                                                    alt={user.username}
-                                                                    className="h-8 w-8 rounded-full"
-                                                                />
-                                                            )}
-                                                            <span className="font-medium">{user.username}</span>
+                                                        <TableCell className="font-medium">
+                                                            <div className="flex items-center gap-2">
+                                                                {user.avatarUrl ? (
+                                                                    <img src={user.avatarUrl} alt="" className="h-6 w-6 rounded-full" />
+                                                                ) : (
+                                                                    <div className="h-6 w-6 rounded-full bg-secondary flex items-center justify-center text-[10px]">
+                                                                        {user.username.charAt(0).toUpperCase()}
+                                                                    </div>
+                                                                )}
+                                                                <div className="flex flex-col">
+                                                                    <span>{user.username}</span>
+                                                                    <span className="text-[10px] text-muted-foreground">{user.discordId}</span>
+                                                                </div>
+                                                            </div>
                                                         </TableCell>
-                                                        <TableCell>
-                                                            <code className="text-xs">{user.discordId || 'N/A'}</code>
+                                                        <TableCell className="text-muted-foreground text-sm">
+                                                            {user.notes || '-'}
                                                         </TableCell>
                                                         <TableCell className="text-right">
                                                             <Button
                                                                 variant="ghost"
-                                                                size="sm"
+                                                                size="icon"
+                                                                className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                                                                 onClick={() => handleRemoveUser(user.id)}
                                                                 disabled={removingUserId === user.id}
                                                             >
                                                                 {removingUserId === user.id ? (
-                                                                    <LucideLoader className="h-4 w-4 animate-spin" />
+                                                                    <LucideLoader2 className="h-4 w-4 animate-spin" />
                                                                 ) : (
-                                                                    <LucideTrash2 className="h-4 w-4 text-destructive" />
+                                                                    <LucideTrash2 className="h-4 w-4" />
                                                                 )}
                                                             </Button>
                                                         </TableCell>
@@ -366,15 +387,15 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
                                                 ))}
                                             </TableBody>
                                         </Table>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
+                                    )}
+                                </div>
+                            </>
+                        )}
+                    </div>
 
-                    <DialogFooter>
+                    <DialogFooter className="p-4 border-t bg-muted/10 mt-auto">
                         <Button variant="outline" onClick={onClose}>
-                            Close
+                            Cerrar
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -384,16 +405,17 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
             <AlertDialog open={showClearDialog} onOpenChange={setShowClearDialog}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Clear Entire Whitelist?</AlertDialogTitle>
+                        <AlertDialogTitle>¿Vaciar toda la Whitelist?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This will remove all {users.length} users from the whitelist.
-                            This action cannot be undone.
+                            Esta acción eliminará a <strong>{users.length}</strong> usuarios de la lista.
+                            Los usuarios perderán el acceso al modpack inmediatamente.
+                            Esta acción no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleClearWhitelist} className="bg-destructive">
-                            Clear All
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleClearWhitelist} className="bg-destructive hover:bg-destructive/90">
+                            Sí, vaciar lista
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

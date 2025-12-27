@@ -47,7 +47,7 @@ const getPublisherNavItems = (publisherId: string) => [
         label: 'Suscripción',
         icon: LucideCrown,
         description: 'Gestionar plan y características',
-        disabled: true
+        disabled: import.meta.env.PROD
     },
     {
         path: `/publisher/${publisherId}/analytics`,
