@@ -1,34 +1,52 @@
 import { useAuthentication } from "@/stores/AuthContext";
-import { LucideAppWindowMac, LucideLogOut, LucidePackageOpen, LucideSettings2, LucideSquareUserRound } from "lucide-react";
+import {
+    LucideAppWindowMac,
+    LucideLogOut,
+    LucidePackageOpen,
+    LucideSettings2,
+    LucideUser,
+    LucideShieldCheck,
+    LucideSparkles,
+    LucideLayoutDashboard
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useConfigDialog } from "@/stores/ConfigDialogContext";
-import { useReloadApp } from "@/stores/ReloadContext"; // Importar el nuevo hook
+import { useReloadApp } from "@/stores/ReloadContext";
 import { useConnection } from "@/utils/ConnectionContext";
 import { CreatorInviteDialog } from "@/components/CreatorInviteDialog";
 import { useI18n } from "@/hooks/useI18n";
+import { cn } from "@/lib/utils"; // Asumo que tienes una utilidad cn (clsx + tailwind-merge)
 
 export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) => {
     const { session, logout, isAuthenticated } = useAuthentication();
     const { isConnected } = useConnection();
     const { openConfigDialog } = useConfigDialog();
-    const { showReloadDialog } = useReloadApp(); // Usar el hook para acceder a la funcionalidad de recarga
+    const { showReloadDialog } = useReloadApp();
+    const { t } = useI18n();
+
+    // Estados
     const [openMenu, setOpenMenu] = useState(false);
     const [showMoreOptions, setShowMoreOptions] = useState(false);
     const [isCreatorDialogOpen, setIsCreatorDialogOpen] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const { t } = useI18n();
 
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    // Permisos y Roles
+    const isPublisher = session?.publisherMemberships && session.publisherMemberships.length > 0;
+    const isAdmin = session?.hasRole?.("admin") || session?.hasRole?.("superadmin");
+    const isBanned = session?.isBanned;
+
+    // Handlers
     const toggleMenu = (event: React.MouseEvent) => {
         const isOpening = !openMenu;
         setOpenMenu(isOpening);
 
-        // Set showMoreOptions to true if opening menu with shift key pressed
+        // Easter egg: Shift + Click para opciones avanzadas
         if (isOpening && event.shiftKey) {
             setShowMoreOptions(true);
         } else if (!isOpening) {
-            // Reset showMoreOptions when closing the menu
-            setShowMoreOptions(false);
+            setShowMoreOptions(false); // Reset al cerrar
         }
     };
 
@@ -37,26 +55,12 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
         setShowMoreOptions(false);
     };
 
-    const handleReloadApp = () => {
+    const handleAction = (action: () => void) => {
         closeMenu();
-        showReloadDialog({ fromOffline: !isConnected });
+        action();
     };
 
-    const handleLogout = () => {
-        closeMenu();
-        logout();
-    };
-
-    const handleOpenConfig = () => {
-        closeMenu();
-        openConfigDialog();
-    };
-
-    const handleOpenCreatorDialog = () => {
-        closeMenu();
-        setIsCreatorDialogOpen(true);
-    };
-
+    // Click Outside Listener
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
@@ -64,142 +68,149 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
             }
         };
 
-        if (openMenu) {
-            document.addEventListener("mousedown", handleClickOutside);
-        } else {
-            document.removeEventListener("mousedown", handleClickOutside);
-        }
-
-        return () => {
-            document.removeEventListener("mousedown", handleClickOutside);
-        };
+        if (openMenu) document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [openMenu]);
 
-    const baseClasses = "flex h-full items-center space-x-3 transition-all px-3 py-1 rounded-md cursor-pointer";
-    const lightMode = "hover:bg-[var(--sidebar-accent)] text-[var(--sidebar-accent-foreground)]";
-    const darkMode = "hover:bg-[var(--sidebar-accent)] text-[var(--sidebar-accent-foreground)]";
-
-    if (!isAuthenticated) return null;
-
-    /* publisherMemberships: [
-  {
-    "createdAt": "2025-05-25T01:49:47.057Z",
-    "id": 2,
-    "permissions": {},
-    "publisherId": "ccbe46fd-2848-4224-b29e-11df619ce999",
-    "role": "super_admin",
-    "updatedAt": "2025-05-25T01:49:47.057Z",
-    "userId": "654c7a18-6a30-48e2-a7ec-c396af0641cd"
-  }
-] */
-
-
-
-    const isPublisher = session?.publisherMemberships && session.publisherMemberships.length > 0;
-
-    const isBanned = session?.isBanned;
-
-    if (!session || isBanned) return null;
+    if (!isAuthenticated || !session || isBanned) return null;
 
     return (
-        <div className="relative" ref={containerRef}>
+        <div className="relative h-full flex items-center" ref={containerRef}>
+
+            {/* --- TRIGGER BUTTON --- */}
             <div
                 onClick={toggleMenu}
-                className={`${baseClasses} !rounded-none !hover:bg-white/5 !transition-none ${titleBarOpaque ? darkMode : lightMode}`}
+                className={cn(
+                    "flex items-center gap-3 px-3 py-1.5 rounded-md cursor-pointer transition-all duration-200 select-none group",
+                    // Estilos base
+                    "hover:bg-white/10 active:scale-95",
+                    // Condicional según opacidad del header (si aplica)
+                    titleBarOpaque ? "text-white" : "text-white/90 hover:text-white"
+                )}
                 title={t('user.currentUser')}
             >
-                <img draggable={false} src={session?.avatarUrl} alt="Avatar" className="size-5 rounded-md object-cover" />
-                <span className="text-sm font-medium whitespace-nowrap">{session?.username}</span>
+                {/* Avatar con Badge de Rol */}
+                <div className="relative">
+                    <img
+                        draggable={false}
+                        src={session.avatarUrl}
+                        alt={session.username}
+                        className="size-6 rounded-md object-cover ring-1 ring-white/10 group-hover:ring-white/30 transition-all"
+                    />
+
+                </div>
+
+                <span className="text-sm font-medium max-w-[100px] truncate hidden sm:block">
+                    {session.username}
+                </span>
             </div>
 
+            {/* --- DROPDOWN MENU --- */}
             <div
-                style={{
-                    opacity: openMenu ? 1 : 0,
-                    visibility: openMenu ? "visible" : "hidden",
-                    transform: openMenu ? "translateY(0) scale(1)" : "translateY(-6px) scale(0.98)",
-                    transition: "opacity 160ms ease, visibility 160ms ease, transform 160ms ease",
-                }}
-                className="absolute right-0 mt-2 min-w-[220px] max-w-72 w-auto bg-[var(--popover)] backdrop-blur-sm border border-[var(--border)] rounded-lg shadow-2xl z-50 p-3">
-                {/* decorative caret */}
-                <div className="absolute -top-2 right-4 w-3 h-3 rotate-45 bg-[var(--popover)] border-t border-l border-[var(--border)]"></div>
-                <ul className="text-sm text-[var(--popover-foreground)] flex flex-col gap-1">
+                className={cn(
+                    "absolute top-full right-2 mt-2 w-64 origin-top-right",
+                    "bg-[#121217]/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden",
+                    "transition-all duration-200 ease-out",
+                    openMenu
+                        ? "opacity-100 translate-y-0 scale-100 visible"
+                        : "opacity-0 -translate-y-2 scale-95 invisible pointer-events-none"
+                )}
+            >
+                {/* Header del Menú (UserInfo) */}
+                <div className="px-4 py-3 border-b border-white/5 bg-white/[0.02]">
+                    <p className="text-sm font-bold text-white truncate">{session.username}</p>
+                    <p className="text-xs text-white/50 truncate font-mono mt-0.5">{session.email || "Usuario"}</p>
+                </div>
+
+                <div className="p-1.5 space-y-0.5">
+
+                    {/* SECCIÓN 1: PERSONAL */}
                     <Link
                         to="/profile"
                         onClick={closeMenu}
-                        className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-[var(--accent)] rounded whitespace-nowrap font-medium"
+                        className="flex items-center gap-3 px-3 py-2 text-sm text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors group"
                     >
-                        <LucideSquareUserRound size={16} />
+                        <LucideUser size={16} className="text-white/50 group-hover:text-white transition-colors" />
                         {t('user.viewProfile')}
                     </Link>
 
                     <button
-                        onClick={handleOpenConfig}
-                        className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-[var(--accent)] rounded text-left cursor-pointer whitespace-nowrap font-medium"
+                        onClick={() => handleAction(openConfigDialog)}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white/80 hover:text-white hover:bg-white/10 rounded-lg transition-colors group text-left"
                     >
-                        <LucideSettings2 size={16} />
+                        <LucideSettings2 size={16} className="text-white/50 group-hover:text-white transition-colors" />
                         {t('user.settings')}
                     </button>
 
+                    {/* SECCIÓN 2: ROLES ESPECIALES */}
+                    {(isPublisher || isAdmin) && (
+                        <>
+                            <div className="h-px bg-white/5 my-1.5 mx-2" />
 
-                    {isPublisher && (
-                        <Link
-                            to="/creators"
-                            onClick={closeMenu}
-                            className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-[var(--accent)] rounded whitespace-nowrap font-medium"
-                        >
-                            <LucidePackageOpen size={16} />
-                            {t('user.creatorsCenter')}
-                        </Link>
+                            {isPublisher && (
+                                <Link
+                                    to="/creators"
+                                    onClick={closeMenu}
+                                    className="flex items-center gap-3 px-3 py-2 text-sm text-purple-200 hover:text-white hover:bg-purple-500/20 rounded-lg transition-colors"
+                                >
+                                    <LucideLayoutDashboard size={16} className="text-purple-400" />
+                                    {t('user.creatorsCenter')}
+                                </Link>
+                            )}
+
+                            {isAdmin && (
+                                <Link
+                                    to="/admin"
+                                    onClick={closeMenu}
+                                    className="flex items-center gap-3 px-3 py-2 text-sm text-red-200 hover:text-white hover:bg-red-500/20 rounded-lg transition-colors"
+                                >
+                                    <LucideShieldCheck size={16} className="text-red-400" />
+                                    {t('user.adminPanel')}
+                                </Link>
+                            )}
+                        </>
                     )}
 
-
-                    {(session.hasRole?.("admin") || session.hasRole?.("superadmin")) && (
-                        <Link
-                            to="/admin"
-                            onClick={closeMenu}
-                            className="w-full shrink-0 flex gap-x-3 items-center py-2 px-2 hover:bg-[var(--accent)] rounded whitespace-nowrap font-medium"
-                        >
-                            <LucideSettings2 size={16} />
-                            {t('user.adminPanel')}
-                        </Link>
-                    )}
-
-                    {/* Conditional rendering based on showMoreOptions */}
+                    {/* SECCIÓN 3: OPCIONES AVANZADAS (Shift) */}
                     {showMoreOptions && (
                         <>
-                            <div className="border-t border-[var(--border)] my-1"></div>
-                            {/* Additional options here when shift is pressed */}
+                            <div className="h-px bg-white/5 my-1.5 mx-2" />
+                            <div className="px-2 py-1 text-[10px] uppercase font-bold text-white/20 tracking-wider">Debug</div>
                             <button
-                                onClick={handleReloadApp}
-                                className="cursor-pointer w-full flex gap-x-2 items-center py-1 px-2 hover:bg-[var(--accent)] rounded whitespace-nowrap"
+                                onClick={() => handleAction(() => showReloadDialog({ fromOffline: !isConnected }))}
+                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-yellow-200 hover:text-white hover:bg-yellow-500/20 rounded-lg transition-colors text-left"
                             >
-                                <LucideAppWindowMac size={16} />
+                                <LucideAppWindowMac size={16} className="text-yellow-400" />
                                 {t('user.reloadApp')}
                             </button>
                         </>
                     )}
 
-                    {/* New button to become a creator, only visible if the user is not a creator */}
+                    <div className="h-px bg-white/5 my-1.5 mx-2" />
+
+                    {/* SECCIÓN 4: ACCIONES FINALES */}
                     {!isPublisher && (
                         <button
-                            onClick={handleOpenCreatorDialog}
-                            className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-purple-600/30 rounded text-left cursor-pointer whitespace-nowrap font-medium text-purple-100"
+                            onClick={() => handleAction(() => setIsCreatorDialogOpen(true))}
+                            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-lg transition-all group text-left mb-1"
                         >
-                            <LucidePackageOpen size={16} />
+                            <LucideSparkles size={16} className="text-indigo-400 group-hover:text-indigo-300" />
                             {t('user.becomeCreator')}
                         </button>
                     )}
 
                     <button
-                        onClick={handleLogout}
-                        className="w-full flex gap-x-3 items-center py-2 px-2 hover:bg-red-600/30 rounded text-left cursor-pointer whitespace-nowrap font-medium text-red-100"
+                        onClick={() => handleAction(logout)}
+                        className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-300/80 hover:text-red-200 hover:bg-red-500/10 rounded-lg transition-colors text-left"
                     >
                         <LucideLogOut size={16} />
                         {t('user.logout')}
                     </button>
-                </ul>
+
+                </div>
             </div>
 
+            {/* Dialogo Externo */}
             <CreatorInviteDialog
                 isOpen={isCreatorDialogOpen}
                 onClose={() => setIsCreatorDialogOpen(false)}

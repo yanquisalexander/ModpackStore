@@ -113,16 +113,16 @@ export const WhitelistInstancesView: React.FC = () => {
                 transition={{ duration: 0.5 }}
             >
                 <h1 className="tracking-tight inline font-semibold text-2xl bg-gradient-to-b from-blue-200 to-blue-500 bg-clip-text text-transparent">
-                    Available Instances
+                    Instancias disponibles
                 </h1>
                 <p className="text-gray-400 text-base max-w-2xl mt-1">
-                    These modpacks are exclusively available to you via whitelist access.
+                    Estos modpacks están disponibles exclusivamente para ti mediante acceso por lista blanca.
                 </p>
 
                 <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground bg-blue-900/10 border border-blue-500/20 rounded-lg p-3 w-fit">
                     <LucideInfo className="h-4 w-4 text-blue-400" />
                     <span>
-                        You have access to <strong className="text-blue-200">{modpacks.length}</strong> whitelisted {modpacks.length === 1 ? 'modpack' : 'modpacks'}.
+                        Tienes acceso a <strong className="text-blue-200">{modpacks.length}</strong> {modpacks.length === 1 ? 'modpack' : 'modpacks'} en la lista blanca
                     </span>
                 </div>
             </motion.header>

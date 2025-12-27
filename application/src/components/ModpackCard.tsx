@@ -1,149 +1,153 @@
 import { Link, useNavigate } from "react-router-dom";
-import { LucideCheck, LucidePackage, LucidePlay, LucideSparkles, LucideUser2, LucideVerified } from "lucide-react"
+import {
+    LucideCheck,
+    LucidePackage,
+    LucidePlay,
+    LucideUser2,
+    LucideVerified,
+    LucideSparkles,
+    LucideCrown,
+    LucideGamepad2
+} from "lucide-react";
 
-export const ModpackCard = ({ modpack, to = "/prelaunch/", className = "" }: { modpack: any, to?: string, className?: string }) => {
+// Helper simple por si no usas librerías externas
+const cn = (...classes: (string | undefined | null | false)[]) => classes.filter(Boolean).join(" ");
+
+export const ModpackCard = ({
+    modpack,
+    to = "/prelaunch/",
+    className = ""
+}: {
+    modpack: any,
+    to?: string,
+    className?: string
+}) => {
     const navigate = useNavigate();
-    // Verificamos si debemos mostrar el usuario como publicador
-    const { showUserAsPublisher } = modpack
-    console.log({ modpack, showUserAsPublisher })
-    // Creamos una copia del publisher para mostrar el usuario si es necesario
-    let displayPublisher = { ...modpack.publisher }
-    const originalPublisherName = displayPublisher.publisherName
 
-    // Si debemos mostrar el usuario como publisher, cambiamos el nombre
+    // --- LÓGICA DE DATOS ---
+    const { showUserAsPublisher } = modpack;
+
+    let displayPublisher = { ...modpack.publisher };
+    const originalPublisherName = displayPublisher.publisherName;
+
     if (showUserAsPublisher && modpack.creatorUser) {
         displayPublisher = {
             ...displayPublisher,
             publisherName: modpack.creatorUser.username || "Desconocido",
+        };
+    }
+
+    const isPatreon = modpack.visibility === "patreon";
+
+    // --- LÓGICA DE ESTILOS ---
+    const getPublisherStyle = () => {
+        const base = "backdrop-blur-md border border-white/10 text-white/90";
+
+        if (showUserAsPublisher && displayPublisher.isHostingPartner) {
+            return { className: `${base} bg-purple-500/20 text-purple-200 border-purple-500/30`, icon: LucideCrown };
         }
-    }
 
-    // Definimos clases para los diferentes tipos de publisher
-    const publisherTagClasses = {
-        NORMAL: "bg-gray-800 text-white border-white/10",
-        VERIFIED: "bg-green-700 text-white",
-        PARTNERED: "bg-indigo-500 text-white",
-        AFFILIATE: "bg-twitch-purple text-white",
-    }
-
-    // Determinamos qué clase usar basado en el tipo de publisher
-    let publisherClass = publisherTagClasses.NORMAL
-
-    // Solo aplicamos verificado o partner si no estamos mostrando al usuario
-    if (!showUserAsPublisher) {
-        if (displayPublisher.partnered) {
-            publisherClass = publisherTagClasses.PARTNERED
-        } else if (displayPublisher.verified) {
-            publisherClass = publisherTagClasses.VERIFIED
+        if (!showUserAsPublisher) {
+            if (displayPublisher.partnered) return { className: "bg-[#5865F2] text-white border-transparent", icon: LucideVerified };
+            if (displayPublisher.verified) return { className: "bg-[#1f8b4c] text-white border-transparent", icon: LucideCheck };
         }
-    }
 
-    // Si es un hosting partner y mostramos al usuario, usamos la clase de afiliado
-    if (showUserAsPublisher && displayPublisher.isHostingPartner) {
-        publisherClass = publisherTagClasses.AFFILIATE
-    }
+        return { className: `${base} bg-black/40 hover:bg-black/60`, icon: LucideUser2 };
+    };
 
-    const isPatreonModpack = modpack.visibility === "patreon"
+    const pubStyle = getPublisherStyle();
 
     const handlePublisherClick = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
         const slug = displayPublisher.slug || displayPublisher.id;
-        if (slug) {
-            navigate(`/p/${slug}`);
-        }
-    }
+        if (slug) navigate(`/p/${slug}`);
+    };
 
     return (
-        <article className={`z-10 group relative overflow-hidden rounded-xl h-full
-            transition 
-            before:left-1/2 before:bottom-0 before:-translate-x-1/2 before:w-full before:h-1/2 
-            before:rounded-full before:bg-black before:absolute before:translate-y-full 
-            hover:before:translate-y-1/2 before:blur-3xl before:-z-10 before:transition before:duration-200 
-            after:left-0 after:bottom-0 after:-translate-x-full after:translate-y-full 
-            hover:after:-translate-x-1/2 hover:after:translate-y-1/2 after:w-2/2 after:aspect-square 
-            after:rounded-2xl after:bg-black after:absolute after:blur-3xl hover:after:opacity-40 
-            after:-z-10 after:opacity-0 after:transition after:duration-200
-            border ${isPatreonModpack ? 'patreon-card border-transparent' : 'border-white/20'}
-            ${className}`}>
-
-            {/* Patreon border overlay */}
-            {isPatreonModpack && (
-                <div className="absolute inset-0 rounded-xl pointer-events-none">
-                    <div className="absolute inset-0 rounded-xl patreon-gradient-border opacity-50 group-hover:opacity-100 transition-opacity duration-300"></div>
-                </div>
+        <Link
+            to={to}
+            draggable={false}
+            className={cn(
+                // AQUI ESTABA EL ERROR: Agregamos 'aspect-video' para forzar la relación de aspecto 16:9
+                "group relative block w-full overflow-hidden rounded-xl bg-[#121214] aspect-video",
+                "ring-1 ring-white/10 transition-all duration-300 hover:ring-white/30 hover:shadow-2xl hover:shadow-black/50",
+                isPatreon && "ring-yellow-500/50 shadow-[0_0_15px_rgba(234,179,8,0.1)]",
+                className
             )}
-
-            <Link
-                draggable={false}
-                to={to} className="flex aspect-video flex-col h-full p-4">
-                {/* Background image */}
+        >
+            {/* 1. IMAGEN DE FONDO (Absolute) */}
+            <div className="absolute inset-0 z-0">
                 <img
-                    src={modpack.bannerUrl}
+                    src={modpack.bannerUrl || "/images/modpack-fallback.webp"}
                     onError={(e) => { e.currentTarget.src = "/images/modpack-fallback.webp" }}
-                    className="absolute inset-0 -z-20 transform-gpu animate-fade-in object-cover w-full h-full rounded-xl transition duration-500 group-hover:scale-105 group-hover:opacity-80"
                     alt={modpack.name}
+                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                 />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/40 to-transparent opacity-90" />
+                <div className="absolute inset-0 bg-black/20 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+            </div>
 
-                {/* Tags section */}
-                <div className="opacity-100 flex transition flex-col gap-2 flex-1">
-                    <div className="flex justify-end items-start flex-wrap gap-2 transition group-hover:opacity-100 -translate-y-1 group-hover:translate-y-0 opacity-0 duration-300">
-                        {/* Publisher Badge con texto que no se rompe */}
-                        {showUserAsPublisher && displayPublisher.isHostingPartner ? (
-                            <div className="flex flex-col items-end gap-1">
-                                <span
-                                    onClick={handlePublisherClick}
-                                    className={`cursor-pointer backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium ${publisherClass} max-w-full overflow-hidden text-ellipsis hover:opacity-80 transition-opacity`}>
-                                    <LucideUser2 className="h-4 w-auto flex-shrink-0" />
-                                    <span className="truncate">{displayPublisher.publisherName}</span>
-                                </span>
-
-                                {/* Badge separado para "de [Publisher]" */}
-                                <span className={`backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium bg-yellow-500 max-w-full`}>
-                                    <span className="whitespace-nowrap text-black text-xs">de {originalPublisherName}</span>
-                                    {displayPublisher.verified && (
-                                        <LucideVerified className="w-4 h-4 text-black flex-shrink-0" />
-                                    )}
-                                </span>
-                            </div>
-                        ) : (
-                            <span
-                                onClick={handlePublisherClick}
-                                className={`cursor-pointer backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium ${publisherClass} max-w-full hover:opacity-80 transition-opacity`}>
-                                {!showUserAsPublisher && (displayPublisher.partnered || displayPublisher.verified) ? (
-                                    <LucideVerified className="h-4 w-auto flex-shrink-0" />
-                                ) : (
-                                    <LucideUser2 className="h-4 w-auto flex-shrink-0" />
-                                )}
-                                <span className="truncate">{displayPublisher.publisherName}</span>
-                            </span>
-                        )}
-
-
-                    </div>
-                </div>
-
-                {/* Title and actions section */}
-                <div className="flex flex-wrap gap-y-6 items-end justify-between mt-8 transition group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 opacity-0 duration-300">
-                    <div>
-                        <h2 className="text-lg mt-auto text-white leading-snug font-medium text-balance max-w-[28ch] group-hover:text-sky-200">
-                            {modpack.name}
-                        </h2>
-                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-300 flex-wrap">
-                            <p className="flex items-center gap-1">
-                                <span className="p-1 w-6 h-6 aspect-square border border-gray-400/10 bg-gray-800 rounded-full flex items-center justify-center">
-                                    <LucidePackage className="text-gray-300 w-3 h-auto" />
-                                </span>
-                                Modpack
-                            </p>
+            {/* 2. EFECTOS PATREON */}
+            {isPatreon && (
+                <>
+                    <div className="absolute top-0 right-0 p-3 z-20">
+                        <div className="flex items-center gap-1.5 rounded-full bg-yellow-500/90 px-2.5 py-1 text-[10px] font-bold text-black shadow-lg backdrop-blur-sm">
+                            <LucideSparkles size={12} fill="currentColor" />
+                            <span>PREMIUM</span>
                         </div>
                     </div>
-                    <span className="text-white rounded-lg bg-gray-800/20 border border-gray-400/40 py-2 px-4 flex items-center gap-1.5 group-hover:scale-105 transition text-sm group-hover:bg-gray-800/80">
-                        <LucidePlay className="h-4 w-auto" />
-                        Ver más
-                    </span>
+                    <div className="absolute inset-0 pointer-events-none rounded-xl border border-yellow-500/20 opacity-50 z-20" />
+                </>
+            )}
+
+            {/* 3. CONTENIDO (Absolute sobre la imagen) */}
+            <div className="absolute inset-0 flex flex-col justify-end p-4 z-10">
+
+                <div className="transform transition-transform duration-300 group-hover:-translate-y-2">
+                    {/* Publisher */}
+                    <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <button
+                            onClick={handlePublisherClick}
+                            className={cn(
+                                "flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium transition-all hover:scale-105 active:scale-95",
+                                pubStyle.className
+                            )}
+                        >
+                            <pubStyle.icon size={12} />
+                            <span className="max-w-[120px] truncate">{displayPublisher.publisherName}</span>
+                        </button>
+
+                        {showUserAsPublisher && displayPublisher.isHostingPartner && (
+                            <span className="flex items-center gap-1 rounded-full bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 text-[10px] font-bold text-yellow-500">
+                                <span>de {originalPublisherName}</span>
+                                {displayPublisher.verified && <LucideVerified size={10} />}
+                            </span>
+                        )}
+                    </div>
+
+                    {/* Título y Categoría */}
+                    <h3 className="font-sans text-lg font-bold leading-tight text-white drop-shadow-md group-hover:text-[var(--primary)] transition-colors line-clamp-1">
+                        {modpack.name}
+                    </h3>
+
+                    <div className="mt-1 flex items-center gap-2 text-xs text-white/50">
+                        <LucidePackage size={12} />
+                        <span>Modpack</span>
+                    </div>
                 </div>
-            </Link>
-        </article>
-    )
-}
+
+                {/* Botón Acción */}
+                <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between opacity-0 transition-all duration-300 transform translate-y-4 group-hover:opacity-100 group-hover:translate-y-0">
+                    <span className="text-xs font-medium text-white/40">
+
+                    </span>
+                    <div className="flex items-center gap-2 rounded-lg bg-white text-black px-3 py-1.5 text-xs font-bold shadow-lg shadow-white/10 transition-transform hover:scale-105 active:scale-95">
+                        <LucideGamepad2 size={12} />
+                        Jugar
+                    </div>
+                </div>
+            </div>
+        </Link>
+    );
+};

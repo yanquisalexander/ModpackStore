@@ -139,7 +139,7 @@ export const AppSidebar: React.FC = memo(() => {
 
     const NAV_ITEMS = useMemo(() => {
         const isOfflineMode = !isConnected && !isLoadingConnectionCheck;
-        
+
         const baseItems = [
             {
                 name: "Explorar",
