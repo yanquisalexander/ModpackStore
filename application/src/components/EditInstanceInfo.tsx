@@ -1,12 +1,17 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
-import { LucideCpu, LucidePencil, LucideSave, LucideUser, LucideStore } from "lucide-react";
+import {
+    LucideCpu,
+    LucidePencil,
+    LucideSave,
+    LucideUser,
+    LucideGamepad2,
+    LucideLoader2
+} from "lucide-react";
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -14,17 +19,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { TauriCommandReturns } from "@/types/TauriCommandReturns";
 import {
     Select,
     SelectContent,
+    SelectGroup,
     SelectItem,
+    SelectLabel,
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { useAuthentication } from "@/stores/AuthContext";
+import { TauriCommandReturns } from "@/types/TauriCommandReturns";
 
 interface EditInstanceInfoProps {
     instanceId: string;
@@ -32,273 +37,232 @@ interface EditInstanceInfoProps {
     defaultShowEditInfo?: boolean;
 }
 
+const ACCOUNT_OFFLINE_VALUE = "offline_mode";
+
 export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: EditInstanceInfoProps) => {
     const [open, setOpen] = useState(defaultShowEditInfo || false);
-    const [isLoading, setIsLoading] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isLoadingData, setIsLoadingData] = useState(true);
+
     const [instance, setInstance] = useState<TauriCommandReturns['get_instance_by_id'] | null>(null);
     const [accounts, setAccounts] = useState<TauriCommandReturns['get_all_accounts']>([]);
-    const [formData, setFormData] = useState<{
-        instanceName: string;
-        accountUuid: string | null;
-        ms_nickname: string;
-    }>({
+
+    const [formData, setFormData] = useState({
         instanceName: "",
-        accountUuid: null,
-        ms_nickname: "",
+        selectedAccountValue: "",
+        customNickname: "",
     });
 
-    // Obtener el contexto de autenticación
     const { session } = useAuthentication();
 
-    // Cargar la instancia y las cuentas cuando se abre el diálogo
     useEffect(() => {
-        const loadData = async () => {
-            if (!open) return;
+        if (!open) return;
 
+        const fetchData = async () => {
+            setIsLoadingData(true);
             try {
-                setIsLoading(true);
-
-                // Cargar la instancia
-                const instanceData = await invoke<TauriCommandReturns['get_instance_by_id']>(
-                    "get_instance_by_id",
-                    { instanceId }
-                );
+                const [instanceData, accountsData] = await Promise.all([
+                    invoke<TauriCommandReturns['get_instance_by_id']>("get_instance_by_id", { instanceId }),
+                    invoke<TauriCommandReturns['get_all_accounts']>("get_all_accounts")
+                ]);
 
                 if (instanceData) {
                     setInstance(instanceData);
-
-                    // Determinar el ms_nickname inicial
-                    let initialMsNickname = instanceData.ms_nickname || "";
-                    if (instanceData.accountUuid === null && (!initialMsNickname || initialMsNickname.trim() === "")) {
-                        initialMsNickname = session?.username || "";
-                    }
+                    const isOffline = instanceData.accountUuid === null;
+                    const initialNickname = instanceData.ms_nickname || session?.username || "";
 
                     setFormData({
                         instanceName: instanceData.instanceName || "",
-                        accountUuid: instanceData.accountUuid || null,
-                        ms_nickname: initialMsNickname,
+                        selectedAccountValue: isOffline ? ACCOUNT_OFFLINE_VALUE : instanceData.accountUuid!,
+                        customNickname: initialNickname,
                     });
                 }
-
-                // Cargar las cuentas disponibles
-                const accountsData = await invoke<TauriCommandReturns['get_all_accounts']>(
-                    "get_all_accounts"
-                );
-
                 setAccounts(accountsData);
             } catch (error) {
-                console.error("Error al cargar datos:", error);
-                toast.error("Error al cargar datos", {
-                    description: "No se pudo cargar la información necesaria.",
-                });
+                console.error(error);
+                toast.error("Error de carga", { description: "No se pudieron obtener los datos." });
+                setOpen(false);
             } finally {
-                setIsLoading(false);
+                setIsLoadingData(false);
             }
         };
 
-        loadData();
+        fetchData();
     }, [open, instanceId, session]);
-
-    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }));
-    };
-
-    const handleAccountChange = (value: string) => {
-        const newAccountUuid = value === "modpackstore" ? null : value;
-
-        setFormData(prev => ({
-            ...prev,
-            accountUuid: newAccountUuid,
-            // Si se selecciona modpackstore y ms_nickname está vacío, usar el username del usuario
-            ms_nickname: newAccountUuid === null && (!prev.ms_nickname || prev.ms_nickname.trim() === "")
-                ? (session?.username || "")
-                : prev.ms_nickname
-        }));
-    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsLoading(true);
+        if (!formData.instanceName.trim()) return toast.warning("El nombre es obligatorio");
 
+        setIsSubmitting(true);
         try {
-            // Determinar el ms_nickname final
-            let finalMsNickname = formData.accountUuid === null ? formData.ms_nickname : null;
+            const isOfflineSelection = formData.selectedAccountValue === ACCOUNT_OFFLINE_VALUE;
+            const payload = {
+                ...instance,
+                instanceName: formData.instanceName,
+                accountUuid: isOfflineSelection ? null : formData.selectedAccountValue,
+                ms_nickname: isOfflineSelection ? (formData.customNickname || session?.username) : null,
+            };
 
-            // Si accountUuid es null y no se colocó ms_nickname, tomar desde authContext
-            if (formData.accountUuid === null && (!finalMsNickname || finalMsNickname.trim() === "")) {
-                finalMsNickname = session?.username || "";
-            }
-
-            await invoke("update_instance", {
-                instance: {
-                    ...instance,
-                    instanceName: formData.instanceName,
-                    accountUuid: formData.accountUuid,
-                    ms_nickname: finalMsNickname,
-                }
-            });
-
-            // Notificar al usuario
-            toast.success("Información actualizada", {
-                description: "La información de la instancia ha sido actualizada correctamente.",
-            });
-
-            // Cerrar el diálogo
-            setOpen(false);
-
-            // Llamar al callback si existe
+            await invoke("update_instance", { instance: payload });
+            toast.success("Instancia actualizada");
             if (onUpdate) onUpdate();
+            setOpen(false);
         } catch (error) {
-            console.error("Error al actualizar la instancia:", error);
-            toast.error("Error al actualizar", {
-                description: "No se pudo actualizar la información de la instancia.",
-            });
+            console.error(error);
+            toast.error("Error al guardar cambios");
         } finally {
-            setIsLoading(false);
+            setIsSubmitting(false);
         }
     };
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
+                {/* CONSISTENCIA: Botón de estilo menú estándar */}
                 <button
-                    className="cursor-pointer flex items-center gap-x-2 text-white w-full hover:bg-neutral-800 px-3 py-2 rounded-md transition"
+                    className="group flex items-center gap-x-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 text-neutral-200 hover:bg-white/10 hover:text-white cursor-pointer"
                 >
-                    <LucidePencil className="size-4" />
-                    Editar información
+                    <LucidePencil className="size-4 text-neutral-400 group-hover:text-white" />
+                    Editar Información
                 </button>
             </DialogTrigger>
-            <DialogContent className="bg-neutral-900 border-neutral-800 text-white">
-                <DialogHeader>
-                    <DialogTitle>Editar información de la instancia</DialogTitle>
-                    <DialogDescription className="text-neutral-400">
-                        Modifica los detalles básicos de tu instancia de Minecraft.
-                    </DialogDescription>
-                </DialogHeader>
 
-                <Alert
+            <DialogContent className="sm:max-w-[440px] p-0 gap-0 overflow-hidden border-white/10 bg-[#09090b]/95 backdrop-blur-xl shadow-2xl">
 
-                    className=" bg-blue-900/20 border-blue-700/50 text-blue-300"
-                >
-                    <LucideCpu className="h-4 w-4" />
+                {/* --- HEADER --- */}
+                <div className="relative p-6 pb-4 border-b border-white/5">
+                    <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-blue-500/5 via-transparent to-transparent pointer-events-none" />
 
-                    <AlertDescription>
-                        <p className="text-white">
-                            Los ajustes de rendimiento y recursos (Como RAM, CPU, etc.) se aplican globalmente a todas las instancias desde la configuración de la aplicación.
-                        </p>
-                    </AlertDescription>
-                </Alert>
-
-                {isLoading && !formData.instanceName ? (
-                    <div className="flex items-center justify-center py-8">
-                        <div className="flex flex-col items-center gap-2">
-                            <div className="animate-spin h-6 w-6 border-2 border-emerald-500 rounded-full border-t-transparent"></div>
-                            <p className="text-sm text-neutral-400">Cargando datos...</p>
+                    <DialogHeader className="relative z-10 space-y-1">
+                        <DialogTitle className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
+                            Editar Instancia
+                        </DialogTitle>
+                        <div className="text-sm text-white/50">
+                            Ajusta los detalles principales de tu juego.
                         </div>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="space-y-4 mt-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="instanceName">Nombre de la instancia</Label>
-                            <Input
-                                id="instanceName"
-                                name="instanceName"
-                                value={formData.instanceName}
-                                onChange={handleInputChange}
-                                className="bg-neutral-800 border-neutral-700 text-white"
-                                placeholder="Mi instancia de Minecraft"
-                                required
-                            />
-                        </div>
+                    </DialogHeader>
+                </div>
 
-                        <div className="space-y-2">
-                            <Label htmlFor="accountUuid">Cuenta de Minecraft</Label>
-                            <Select
-                                value={formData.accountUuid === null ? "modpackstore" : formData.accountUuid}
-                                onValueChange={handleAccountChange}
-                            >
-                                <SelectTrigger className="bg-neutral-800 border-neutral-700 text-white">
-                                    <SelectValue placeholder="Seleccionar cuenta" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-neutral-800 border-neutral-700 text-white">
-                                    <SelectItem value="modpackstore" className="flex items-center gap-2">
-                                        <div className="flex items-center gap-2">
-                                            <LucideStore className="size-4 text-purple-400" />
-                                            Usar cuenta de Modpack Store
-                                        </div>
-                                    </SelectItem>
-                                    {accounts.length === 0 ? (
-                                        <SelectItem value="no-accounts" disabled>
-                                            No hay cuentas disponibles
-                                        </SelectItem>
-                                    ) : (
-                                        accounts.map((account) => (
-                                            <SelectItem
-                                                key={account.uuid}
-                                                value={account.uuid}
-                                                className="flex items-center gap-2"
-                                            >
-                                                <div className="flex items-center gap-2">
-                                                    <LucideUser className="size-4 text-emerald-400" />
-                                                    {account.username}
-                                                </div>
-                                            </SelectItem>
-                                        ))
-                                    )}
-                                </SelectContent>
-                            </Select>
-                            <p className="text-xs text-neutral-400">
-                                Selecciona la cuenta que se usará para iniciar esta instancia.
-                            </p>
+                {/* --- BODY --- */}
+                <div className="p-6 space-y-6">
+                    {isLoadingData ? (
+                        <div className="flex flex-col items-center justify-center py-10 gap-3 text-white/30">
+                            <LucideLoader2 className="animate-spin size-8" />
+                            <span className="text-xs uppercase tracking-wider font-medium">Cargando...</span>
                         </div>
+                    ) : (
+                        <form id="edit-instance-form" onSubmit={handleSubmit} className="space-y-5">
 
-                        {formData.accountUuid === null && (
-                            <div className="space-y-2">
-                                <Label htmlFor="ms_nickname">Nickname de Modpack Store</Label>
-                                <Input
-                                    id="ms_nickname"
-                                    name="ms_nickname"
-                                    value={formData.ms_nickname}
-                                    onChange={handleInputChange}
-                                    className="bg-neutral-800 border-neutral-700 text-white"
-                                    placeholder="Tu nickname en Modpack Store"
-                                />
-                                <p className="text-xs text-neutral-400">
-                                    Este nickname se usará para autenticarte con Modpack Store.
-                                </p>
+                            {/* Alert Info */}
+                            <div className="flex gap-3 p-3 rounded-xl bg-blue-500/5 border border-blue-500/10">
+                                <LucideCpu className="size-5 text-blue-400/70 shrink-0 mt-0.5" />
+                                <div className="space-y-1">
+                                    <p className="text-xs font-semibold text-blue-300/90">Rendimiento Global</p>
+                                    <p className="text-[11px] leading-relaxed text-white/40">
+                                        La asignación de RAM y argumentos de Java se gestionan desde la configuración global.
+                                    </p>
+                                </div>
                             </div>
-                        )}
 
-                        <DialogFooter>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={() => setOpen(false)}
-                                className="cursor-pointer bg-neutral-800 hover:bg-neutral-700 text-white border-neutral-700"
-                            >
-                                Cancelar
-                            </Button>
-                            <Button
-                                type="submit"
-                                disabled={isLoading}
-                                className="cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-x-2"
-                            >
-                                {isLoading ? (
-                                    <>Guardando...</>
-                                ) : (
-                                    <>
-                                        <LucideSave className="size-4" />
-                                        Guardar cambios
-                                    </>
+                            <div className="space-y-4">
+                                {/* Input Nombre */}
+                                <div className="space-y-1.5">
+                                    <Label htmlFor="name" className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Nombre</Label>
+                                    <Input
+                                        id="name"
+                                        value={formData.instanceName}
+                                        onChange={(e) => setFormData(prev => ({ ...prev, instanceName: e.target.value }))}
+                                        className="h-11 bg-white/[0.03] border-white/10 text-white placeholder:text-white/20 focus:bg-white/[0.07] focus:border-blue-500/30 transition-all rounded-xl"
+                                        placeholder="Mi Mundo Épico"
+                                    />
+                                </div>
+
+                                {/* Select Cuenta */}
+                                <div className="space-y-1.5">
+                                    <Label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Cuenta</Label>
+                                    <Select
+                                        value={formData.selectedAccountValue}
+                                        onValueChange={(val) => setFormData(prev => ({ ...prev, selectedAccountValue: val }))}
+                                    >
+                                        <SelectTrigger className="h-11 bg-white/[0.03] border-white/10 text-white focus:ring-0 focus:border-white/20 rounded-xl">
+                                            <SelectValue placeholder="Seleccionar cuenta" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[#121212] border-white/10 text-white rounded-xl shadow-xl">
+                                            <SelectGroup>
+                                                <SelectLabel className="text-white/30 text-[10px] uppercase tracking-wider px-2 py-1.5">Offline</SelectLabel>
+                                                <SelectItem value={ACCOUNT_OFFLINE_VALUE} className="focus:bg-white/10 focus:text-white cursor-pointer rounded-lg mx-1">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="p-1 bg-purple-500/20 rounded-md">
+                                                            <LucideGamepad2 className="size-3.5 text-purple-400" />
+                                                        </div>
+                                                        <span className="text-sm">Cuenta Local</span>
+                                                    </div>
+                                                </SelectItem>
+                                            </SelectGroup>
+
+                                            {accounts.length > 0 && (
+                                                <>
+                                                    <div className="h-px bg-white/5 my-1 mx-2" />
+                                                    <SelectGroup>
+                                                        <SelectLabel className="text-white/30 text-[10px] uppercase tracking-wider px-2 py-1.5">Microsoft</SelectLabel>
+                                                        {accounts.map((acc) => (
+                                                            <SelectItem key={acc.uuid} value={acc.uuid} className="focus:bg-white/10 focus:text-white cursor-pointer rounded-lg mx-1">
+                                                                <div className="flex items-center gap-2">
+                                                                    <div className="p-1 bg-emerald-500/20 rounded-md">
+                                                                        <LucideUser className="size-3.5 text-emerald-400" />
+                                                                    </div>
+                                                                    <span className="text-sm">{acc.username}</span>
+                                                                </div>
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectGroup>
+                                                </>
+                                            )}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+
+                                {/* Input Nickname (Condicional) */}
+                                {formData.selectedAccountValue === ACCOUNT_OFFLINE_VALUE && (
+                                    <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <Label htmlFor="nickname" className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Nickname</Label>
+                                        <Input
+                                            id="nickname"
+                                            value={formData.customNickname}
+                                            onChange={(e) => setFormData(prev => ({ ...prev, customNickname: e.target.value }))}
+                                            className="h-11 bg-white/[0.03] border-white/10 text-white placeholder:text-white/20 focus:bg-white/[0.07] focus:border-purple-500/30 transition-all rounded-xl"
+                                            placeholder={session?.username || "Steve"}
+                                        />
+                                    </div>
                                 )}
-                            </Button>
-                        </DialogFooter>
-                    </form>
-                )}
+                            </div>
+                        </form>
+                    )}
+                </div>
+
+                {/* --- FOOTER --- */}
+                <div className="p-6 pt-0 flex gap-3">
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setOpen(false)}
+                        className="flex-1 h-11 rounded-xl bg-transparent hover:bg-white/5 text-white/60 hover:text-white border border-transparent hover:border-white/5 transition-all"
+                    >
+                        Cancelar
+                    </Button>
+                    {/* CONSISTENCIA: Botón de acción primario estándar */}
+                    <Button
+                        type="submit"
+                        form="edit-instance-form"
+                        disabled={isSubmitting || isLoadingData}
+                        className="flex-[2] h-11 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-medium border-0 transition-all hover:scale-[1.01] active:scale-[0.98]"
+                    >
+                        {isSubmitting ? <LucideLoader2 className="animate-spin size-4 mr-2" /> : <LucideSave className="size-4 mr-2" />}
+                        Guardar Cambios
+                    </Button>
+                </div>
+
             </DialogContent>
         </Dialog>
     );

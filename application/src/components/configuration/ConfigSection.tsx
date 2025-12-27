@@ -1,87 +1,98 @@
 import React from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
 import { RotateCcw } from 'lucide-react';
-import type { ConfigDefinition, ConfigSectionProps } from '@/types/configuration';
+import type { ConfigSectionProps } from '@/types/configuration';
 
 export const ConfigSection: React.FC<ConfigSectionProps> = ({
     title,
     description,
     configs,
-    values,
-    onConfigChange,
     onRestoreDefaults,
     renderConfigControl
 }) => {
+    // Título formateado
     const sectionTitle = title.charAt(0).toUpperCase() + title.slice(1);
 
     return (
-        <Card>
-            <CardHeader>
-                <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                        <CardTitle className="text-lg font-semibold">
-                            {sectionTitle}
-                        </CardTitle>
-                        {description && (
-                            <p className="text-sm text-muted-foreground">
-                                {description}
-                            </p>
-                        )}
-                    </div>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={onRestoreDefaults}
-                        className="flex items-center gap-2"
-                    >
-                        <RotateCcw className="h-3 w-3" />
-                        Restaurar valores por defecto
-                    </Button>
-                </div>
-            </CardHeader>
+        <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
-            <CardContent className="space-y-6">
+            {/* HEADER DE LA SECCIÓN */}
+            <div className="flex items-start justify-between border-b border-white/5 pb-4 mb-6">
+                <div className="space-y-1">
+                    <h2 className="text-2xl font-bold tracking-tight text-white">
+                        {sectionTitle}
+                    </h2>
+                    {description && (
+                        <p className="text-sm text-white/50">
+                            {description}
+                        </p>
+                    )}
+                </div>
+
+                <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onRestoreDefaults}
+                    className="text-white/40 hover:text-white hover:bg-white/5 h-8 px-3 text-xs"
+                >
+                    <RotateCcw className="h-3 w-3 mr-2" />
+                    Restaurar defecto
+                </Button>
+            </div>
+
+            {/* LISTA DE CONFIGURACIONES */}
+            <div className="space-y-8">
                 {configs.length > 0 ? (
-                    configs.map(([key, def], index, array) => (
-                        <div key={key}>
+                    configs.map(([key, def]) => (
+                        <div key={key} className="group">
+
+                            {/* LAYOUT CONDICIONAL (Boolean vs Otros) */}
                             {def.type === "boolean" ? (
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-0.5">
-                                        <Label className="text-sm font-medium">
+                                <div className="flex items-center justify-between p-3 -mx-3 rounded-xl transition-colors hover:bg-white/[0.03]">
+                                    <div className="space-y-1 pr-4">
+                                        <Label htmlFor={key} className="text-sm font-medium text-white/90 cursor-pointer">
                                             {def.description}
                                         </Label>
+                                        {/* Podrías añadir una descripción extendida aquí si existiera en `def` */}
                                     </div>
-                                    {renderConfigControl(key, def)}
+                                    <div className="shrink-0">
+                                        {renderConfigControl(key, def)}
+                                    </div>
                                 </div>
                             ) : (
-                                <div className="space-y-2">
-                                    <Label htmlFor={key} className="text-sm font-medium">
-                                        {def.description}
-                                    </Label>
+                                <div className="space-y-3 p-3 -mx-3 rounded-xl transition-colors hover:bg-white/[0.03]">
+                                    <div className="flex justify-between items-center">
+                                        <Label htmlFor={key} className="text-sm font-medium text-white/90">
+                                            {def.description}
+                                        </Label>
+                                        {def.type === "slider" && (
+                                            <span className="text-xs text-white/40 font-mono">
+                                                {/* Aquí podrías mostrar el valor actual si se pasara como prop, o dejarlo en el control */}
+                                            </span>
+                                        )}
+                                    </div>
+
                                     {renderConfigControl(key, def)}
+
                                     {def.type === "slider" && (
-                                        <p className="text-xs text-muted-foreground">
-                                            Rango: {def.min} - {def.max}
-                                        </p>
+                                        <div className="flex justify-between text-[10px] text-white/20 px-1">
+                                            <span>Min: {def.min}</span>
+                                            <span>Max: {def.max}</span>
+                                        </div>
                                     )}
                                 </div>
-                            )}
-                            {index < array.length - 1 && (
-                                <Separator className="mt-4" />
                             )}
                         </div>
                     ))
                 ) : (
-                    <div className="h-32 flex items-center justify-center rounded-md border border-dashed border-muted bg-muted/50">
-                        <p className="text-sm text-muted-foreground">
-                            Más opciones estarán disponibles en futuras versiones
+                    <div className="h-40 flex flex-col items-center justify-center rounded-xl border border-dashed border-white/10 bg-white/[0.02] text-center">
+                        <p className="text-sm text-white/40">
+                            No hay configuraciones disponibles para esta sección.
                         </p>
                     </div>
                 )}
-            </CardContent>
-        </Card>
+            </div>
+        </div>
     );
 };

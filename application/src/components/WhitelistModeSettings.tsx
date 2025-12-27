@@ -1,74 +1,94 @@
 import React from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { LucideShield, LucideInfo } from 'lucide-react';
+import { LucideShield, LucideInfo, LucideCheckCircle2 } from 'lucide-react';
 import { useWhitelistMode } from '@/hooks/useWhitelistMode';
+import { cn } from '@/lib/utils';
 
 export const WhitelistModeSettings: React.FC = () => {
-    const { 
-        hasWhitelists, 
-        whitelistCount, 
-        isWhitelistMode, 
+    const {
+        hasWhitelists,
+        whitelistCount,
+        isWhitelistMode,
         setWhitelistMode,
-        loading 
+        loading
     } = useWhitelistMode();
 
-    if (loading) {
-        return null; // Don't show anything while loading
-    }
-
-    // Only show this setting if user has whitelists
-    if (!hasWhitelists) {
-        return null;
-    }
+    if (loading || !hasWhitelists) return null;
 
     return (
-        <Card>
-            <CardHeader>
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <LucideShield className="h-5 w-5 text-primary" />
-                        <CardTitle>Whitelist Mode</CardTitle>
+        <div className="group relative overflow-hidden rounded-xl border border-white/5 bg-white/[0.02] transition-all hover:bg-white/[0.04]">
+
+            {/* Decoración de fondo sutil (Glow) */}
+            <div className="absolute -right-10 -top-10 h-32 w-32 rounded-full bg-purple-500/5 blur-3xl transition-opacity group-hover:opacity-70" />
+
+            {/* HEADER */}
+            <div className="flex items-center justify-between border-b border-white/5 p-4">
+                <div className="flex items-center gap-3">
+                    <div className={cn(
+                        "flex h-10 w-10 items-center justify-center rounded-lg border transition-colors",
+                        isWhitelistMode
+                            ? "bg-purple-500/20 border-purple-500/30 text-purple-300"
+                            : "bg-white/5 border-white/10 text-white/40"
+                    )}>
+                        <LucideShield className="h-5 w-5" />
                     </div>
-                    <Badge variant="secondary">{whitelistCount} instances</Badge>
+                    <div>
+                        <h3 className="font-semibold text-white">Whitelist Mode</h3>
+                        <p className="text-xs text-white/40">Acceso exclusivo a tus servidores privados</p>
+                    </div>
                 </div>
-                <CardDescription>
-                    Show your whitelisted instances as the main view
-                </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+                <Badge variant="outline" className="border-white/10 bg-white/5 text-white/60">
+                    {whitelistCount} Instancias
+                </Badge>
+            </div>
+
+            {/* CONTENT */}
+            <div className="p-4 space-y-4">
+
+                {/* Toggle Row */}
                 <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
-                        <div className="font-medium">Enable Whitelist Mode</div>
-                        <div className="text-sm text-muted-foreground">
-                            When enabled, your available whitelist instances will be shown first
-                        </div>
+                        <label className="text-sm font-medium text-white/90">Activar Modo Whitelist</label>
+                        <p className="text-xs text-white/50 max-w-[280px]">
+                            Prioriza tus instancias privadas en la pantalla de inicio.
+                        </p>
                     </div>
                     <Switch
                         checked={isWhitelistMode}
                         onCheckedChange={setWhitelistMode}
+                        className="data-[state=checked]:bg-purple-600"
                     />
                 </div>
 
-                <Alert>
-                    <LucideInfo className="h-4 w-4" />
-                    <AlertDescription>
+                {/* Info Box Dinámico */}
+                <div className={cn(
+                    "flex gap-3 rounded-lg border p-3 text-xs transition-colors",
+                    isWhitelistMode
+                        ? "border-purple-500/20 bg-purple-500/10 text-purple-200"
+                        : "border-blue-500/20 bg-blue-500/10 text-blue-200"
+                )}>
+                    {isWhitelistMode ? (
+                        <LucideCheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-purple-400" />
+                    ) : (
+                        <LucideInfo className="mt-0.5 h-4 w-4 shrink-0 text-blue-400" />
+                    )}
+
+                    <div className="leading-relaxed opacity-90">
                         {isWhitelistMode ? (
-                            <>
-                                Your home screen will show <strong>Available Instances</strong> first. 
-                                You can still browse all modpacks in the Explore section.
-                            </>
+                            <span>
+                                Tu pantalla de inicio ahora muestra <strong>Primero las instancias Whitelist</strong>.
+                                Aún puedes ver el resto en la sección Explorar.
+                            </span>
                         ) : (
-                            <>
-                                Enable this to prioritize your whitelisted instances on the home screen.
-                                Perfect if you primarily use private modpacks.
-                            </>
+                            <span>
+                                Habilita esto si usas principalmente modpacks privados.
+                                Te ahorrará tiempo al abrir el launcher.
+                            </span>
                         )}
-                    </AlertDescription>
-                </Alert>
-            </CardContent>
-        </Card>
+                    </div>
+                </div>
+            </div>
+        </div>
     );
 };

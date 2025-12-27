@@ -8,17 +8,17 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useI18n } from '@/hooks/useI18n';
 import { getVersion } from '@tauri-apps/api/app';
 
-
 // Lucide Icons
 import {
     Settings as LucideSettings,
     Folder as LucideFolder,
     Save as LucideSave,
     Loader as LucideLoader,
-    X as LucideX
+    X as LucideX,
+    Search as LucideSearch
 } from "lucide-react";
 
-// shadcn/ui components
+// UI Components
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,7 +26,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 
-// Configuration components
+// Sub-components
 import { ConfigSection } from '@/components/configuration/ConfigSection';
 import { ThemeSelector } from '@/components/theme/ThemeSelector';
 import { WhitelistModeSettings } from '@/components/WhitelistModeSettings';
@@ -42,10 +42,9 @@ import { TranslatedText } from "@/providers/I18nProvider";
 
 export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProps) => {
     const { isAuthenticated } = useAuthentication();
-    const { availableLanguages, detectedSystemLanguage, resetToSystemLanguage } = useI18n();
-    const { t } = useI18n();
+    const { availableLanguages, detectedSystemLanguage, resetToSystemLanguage, t } = useI18n();
 
-    // Estado consolidado
+    // State
     const [config, setConfig] = useState<ConfigState>({
         values: {},
         schema: {},
@@ -55,64 +54,41 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
         gitHash: 'Loading...'
     });
 
-    // Sección seleccionada para la vista tipo Discord
     const [selectedSection, setSelectedSection] = useState<string | null>(null);
-
-    // búsqueda simple para la sidebar (opcional)
     const [sidebarSearch, setSidebarSearch] = useState<string>('');
-
-    // Versión de la aplicación
     const [appVersion, setAppVersion] = useState<string>('Loading...');
 
-    // Cargar configuración optimizada
+    // --- DATA LOADING ---
     const loadConfig = useCallback(async () => {
         try {
             setConfig(prev => ({ ...prev, loading: true }));
-
-            // Cargar en paralelo
             const [schema, values, gitHash] = await Promise.all([
                 invoke<ConfigSchema>('get_schema'),
                 invoke<Record<string, any>>('get_config'),
-                invoke<string>('get_git_hash').catch(() => 'Error fetching hash')
+                invoke<string>('get_git_hash').catch(() => 'Unknown')
             ]);
 
-            // Extraer secciones
-            const sections = Array.from(
-                new Set(
-                    Object.values(schema)
-                        .map(def => def.ui_section)
-                        .filter(section => section && section !== "internal")
-                )
-            );
+            const sections = Array.from(new Set(
+                Object.values(schema)
+                    .map(def => def.ui_section)
+                    .filter(section => section && section !== "internal")
+            ));
 
-            setConfig({
-                values,
-                schema,
-                sections,
-                loading: false,
-                saving: false,
-                gitHash
-            });
+            setConfig({ values, schema, sections, loading: false, saving: false, gitHash });
+            setSelectedSection('Inicio'); // Mostrar Inicio por defecto
 
-            // seleccionar la primera sección por defecto
-            setSelectedSection(sections[0] ?? null);
-
-            // obtener versión de la app (tauri)
             try {
                 const v = await getVersion();
                 setAppVersion(v || 'Unknown');
-            } catch (err) {
-                setAppVersion('Unknown');
-            }
+            } catch { setAppVersion('Unknown'); }
 
         } catch (error) {
-            console.error("Failed to load config:", error);
+            console.error(error);
             toast.error(t('config.loadError'));
             setConfig(prev => ({ ...prev, loading: false }));
         }
     }, []);
 
-    // Efectos optimizados
     useEffect(() => {
         if (isOpen) {
             trackSectionView("configuration");
@@ -122,374 +98,224 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
-            if (e.key === 'Escape' && isOpen) {
-                onClose();
-            }
+            if (e.key === 'Escape' && isOpen) onClose();
         };
-
-        if (isOpen) {
-            document.addEventListener('keydown', handleKeyDown);
-            return () => document.removeEventListener('keydown', handleKeyDown);
-        }
+        if (isOpen) document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose]);
 
-    // Obtener configuraciones para sección (memoizado)
-    const getConfigsForSection = useMemo(() => {
-        return (section: string): [string, ConfigDefinition][] => {
-            return Object.entries(config.schema)
-                .filter(([_, def]) => def.ui_section === section)
-                .sort(([a], [b]) => a.localeCompare(b));
-        };
+    // --- HANDLERS (Iguales que antes) ---
+    const getConfigsForSection = useMemo(() => (section: string) => {
+        return Object.entries(config.schema)
+            .filter(([_, def]) => def.ui_section === section)
+            .sort(([a], [b]) => a.localeCompare(b));
     }, [config.schema]);
 
-    // Manejar cambios de configuración
     const handleConfigChange = useCallback((key: string, value: any) => {
-        setConfig(prev => ({
-            ...prev,
-            values: { ...prev.values, [key]: value }
-        }));
+        setConfig(prev => ({ ...prev, values: { ...prev.values, [key]: value } }));
     }, []);
 
-    // Restaurar valores por defecto para una sección
     const handleRestoreDefaults = useCallback((section: string) => {
-        const sectionConfigs = getConfigsForSection(section);
-        const defaultValues: Record<string, any> = {};
-
-        sectionConfigs.forEach(([key, def]) => {
-            defaultValues[key] = def.default;
-        });
-
-        setConfig(prev => ({
-            ...prev,
-            values: { ...prev.values, ...defaultValues }
-        }));
-
-        toast.success(`Valores por defecto restaurados para ${section.charAt(0).toUpperCase() + section.slice(1)}`);
+        const defaults: Record<string, any> = {};
+        getConfigsForSection(section).forEach(([key, def]) => defaults[key] = def.default);
+        setConfig(prev => ({ ...prev, values: { ...prev.values, ...defaults } }));
+        toast.success(`Valores restaurados para ${section}`);
     }, [getConfigsForSection]);
 
-    // Seleccionar directorio
     const selectDirectory = useCallback(async (key: string, currentPath: string) => {
         try {
             const selected = await open({
-                directory: true,
-                multiple: false,
-                defaultPath: currentPath,
+                directory: true, multiple: false, defaultPath: currentPath,
                 title: `Seleccionar ${config.schema[key]?.description || "directorio"}`
             });
-
-            if (selected && !Array.isArray(selected)) {
-                handleConfigChange(key, selected);
-            }
-        } catch (error) {
-            console.error("Error al seleccionar directorio:", error);
-            toast.error("Error al seleccionar directorio");
-        }
+            if (selected && !Array.isArray(selected)) handleConfigChange(key, selected);
+        } catch { toast.error("Error al seleccionar directorio"); }
     }, [config.schema, handleConfigChange]);
 
-    // Guardar configuración optimizada
     const handleSaveConfig = useCallback(async () => {
         try {
             setConfig(prev => ({ ...prev, saving: true }));
-
-            // Excluir selectedTheme ya que se maneja por separado en ThemeSelector
             const configToSave = Object.entries(config.values).filter(([key]) => key !== 'selectedTheme');
+            await Promise.all(configToSave.map(([key, value]) => invoke('set_config', { key, value })));
 
-            // Usar Promise.all para guardar en paralelo
-            await Promise.all(
-                configToSave.map(([key, value]) =>
-                    invoke('set_config', { key, value })
-                )
-            );
-
-            toast.success(t('config.saveSuccess'), {
-                description: t('config.saveSuccessDescription'),
-                richColors: true,
-            });
-
+            toast.success(t('config.saveSuccess'), { description: t('config.saveSuccessDescription') });
             setConfig(prev => ({ ...prev, saving: false }));
             onClose();
         } catch (error) {
-            console.error("Error al guardar configuración:", error);
-            toast.error(t('config.saveError'), {
-                description: t('config.saveErrorDescription'),
-            });
+            console.error(error);
+            toast.error(t('config.saveError'));
             setConfig(prev => ({ ...prev, saving: false }));
         }
-    }, [config.values, onClose]);
+    }, [config.values, onClose, t]);
 
-    // Renderizar controles optimizado
+    // --- RENDERERS ---
     const renderConfigControl = useCallback((key: string, def: ConfigDefinition) => {
         const value = config.values[key] ?? def.default;
-
-        const commonInputProps = {
-            className: "bg-background border-input"
-        };
+        const commonClass = "bg-black/20 border-white/10 text-white placeholder:text-white/20 focus:border-white/20 transition-all rounded-lg";
 
         switch (def.type) {
             case "string":
-                return (
-                    <Input
-                        {...commonInputProps}
-                        value={value || ''}
-                        onChange={(e) => handleConfigChange(key, e.target.value)}
-                    />
-                );
-
+                return <Input className={commonClass} value={value || ''} onChange={(e) => handleConfigChange(key, e.target.value)} />;
             case "integer":
             case "float":
                 return (
                     <Input
-                        {...commonInputProps}
-                        type="number"
-                        value={value || def.default}
-                        min={def.min}
-                        max={def.max}
+                        className={commonClass} type="number"
+                        value={value || def.default} min={def.min} max={def.max}
                         step={def.type === "float" ? (def.step || 0.1) : 1}
-                        onChange={(e) => handleConfigChange(key,
-                            def.type === "integer"
-                                ? parseInt(e.target.value) || def.default
-                                : parseFloat(e.target.value) || def.default
-                        )}
+                        onChange={(e) => handleConfigChange(key, def.type === "integer" ? parseInt(e.target.value) : parseFloat(e.target.value))}
                     />
                 );
-
             case "slider":
                 return (
                     <div className="space-y-2">
-                        <div className="flex justify-between text-sm text-muted-foreground">
-                            <span>{def.min}</span>
-                            <span className="font-medium text-foreground">{value}</span>
-                            <span>{def.max}</span>
+                        <div className="flex justify-between text-xs text-white/40">
+                            <span>{def.min}</span><span className="font-medium text-white">{value}</span><span>{def.max}</span>
                         </div>
-                        <Slider
-                            value={[value || def.default]}
-                            onValueChange={(val) => handleConfigChange(key, val[0])}
-                            min={def.min || 0}
-                            max={def.max || 100}
-                            step={def.step || 1}
-                            className="w-full"
-                        />
+                        <Slider value={[value || def.default]} onValueChange={(val) => handleConfigChange(key, val[0])} min={def.min || 0} max={def.max || 100} step={def.step || 1} className="w-full" />
                     </div>
                 );
-
             case "boolean":
-                return (
-                    <Switch
-                        checked={value === true}
-                        onCheckedChange={(checked) => handleConfigChange(key, checked)}
-                    />
-                );
-
+                return <Switch checked={value === true} onCheckedChange={(checked) => handleConfigChange(key, checked)} />;
             case "path":
                 return (
                     <div className="flex gap-2">
-                        <Input
-                            {...commonInputProps}
-                            value={value || ''}
-                            onChange={(e) => handleConfigChange(key, e.target.value)}
-                            readOnly={def.validator !== undefined}
-                        />
-                        <Button
-                            variant="outline"
-                            onClick={() => selectDirectory(key, value)}
-                            className="shrink-0"
-                        >
-                            <LucideFolder className="h-4 w-4 mr-2" />
-                            Examinar
+                        <Input className={commonClass} value={value || ''} onChange={(e) => handleConfigChange(key, e.target.value)} readOnly={def.validator !== undefined} />
+                        <Button variant="secondary" onClick={() => selectDirectory(key, value)} className="shrink-0 bg-white/5 hover:bg-white/10 text-white border border-white/5">
+                            <LucideFolder className="h-4 w-4 mr-2" /> Examinar
                         </Button>
                     </div>
                 );
-
             case "enum":
                 return (
-                    <Select
-                        value={value || def.default}
-                        onValueChange={(val) => handleConfigChange(key, val)}
-                    >
-                        <SelectTrigger className="bg-background border-input">
-                            <SelectValue placeholder={def.description} />
-                        </SelectTrigger>
-                        <SelectContent className="z-[9999]">
-                            {def.choices?.map((choice, idx) => (
-                                <SelectItem key={idx} value={choice}>
-                                    {choice}
-                                </SelectItem>
-                            ))}
+                    <Select value={value || def.default} onValueChange={(val) => handleConfigChange(key, val)}>
+                        <SelectTrigger className={commonClass}><SelectValue placeholder={def.description} /></SelectTrigger>
+                        <SelectContent className="bg-[#121212] border-white/10 text-white">
+                            {def.choices?.map((c, i) => <SelectItem key={i} value={c} className="focus:bg-white/10 cursor-pointer">{c}</SelectItem>)}
                         </SelectContent>
                     </Select>
                 );
-
             case "language_enum":
                 return (
                     <div className="space-y-2">
-                        <Select
-                            value={value || def.default}
-                            onValueChange={(val) => handleConfigChange(key, val)}
-                        >
-                            <SelectTrigger className="bg-background border-input">
-                                <SelectValue placeholder="Seleccionar idioma" />
-                            </SelectTrigger>
-                            <SelectContent className="z-[9999]">
+                        <Select value={value || def.default} onValueChange={(val) => handleConfigChange(key, val)}>
+                            <SelectTrigger className={commonClass}><SelectValue placeholder="Seleccionar idioma" /></SelectTrigger>
+                            <SelectContent className="bg-[#121212] border-white/10 text-white">
                                 {availableLanguages.map((lang) => (
-                                    <SelectItem key={lang} value={lang}>
-                                        <TranslatedText id={`languages.${lang}`} />
-                                        {lang === detectedSystemLanguage && " (Detectado)"}
+                                    <SelectItem key={lang} value={lang} className="focus:bg-white/10 cursor-pointer">
+                                        <TranslatedText id={`languages.${lang}`} /> {lang === detectedSystemLanguage && "(Detectado)"}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
                         </Select>
                         {detectedSystemLanguage && detectedSystemLanguage !== value && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => {
-                                    resetToSystemLanguage();
-                                    handleConfigChange(key, detectedSystemLanguage);
-                                }}
-                                className="w-full"
-                            >
-                                Usar idioma del sistema (<TranslatedText id={`languages.${detectedSystemLanguage}`} />)
+                            <Button variant="ghost" size="sm" onClick={() => { resetToSystemLanguage(); handleConfigChange(key, detectedSystemLanguage); }} className="w-full text-xs text-white/50 hover:text-white">
+                                Usar idioma del sistema
                             </Button>
                         )}
                     </div>
                 );
-
             default:
-                return (
-                    <Input
-                        {...commonInputProps}
-                        value={String(value) || ''}
-                        onChange={(e) => handleConfigChange(key, e.target.value)}
-                    />
-                );
+                return <Input className={commonClass} value={String(value) || ''} onChange={(e) => handleConfigChange(key, e.target.value)} />;
         }
-    }, [config.values, handleConfigChange, selectDirectory]);
+    }, [config.values, handleConfigChange, selectDirectory, availableLanguages, detectedSystemLanguage]);
 
     if (!isOpen) return null;
 
     return (
         <AnimatePresence>
+            {/* CORRECCIÓN AQUÍ:
+                1. top-8 (32px): Empuja el modal hacia abajo para no tapar el titlebar.
+                2. border-t: Crea una línea divisoria sutil arriba.
+                3. z-[40]: Asegura que esté encima del contenido pero debajo de alertas (z-50) o titlebar si es flotante.
+            */}
             <motion.div
-                className="fixed left-0 right-0 top-[var(--app-top-bar-height)] bottom-0 z-[999] bg-black/60 backdrop-blur-sm overflow-hidden"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.18 }}
+                className="fixed inset-x-0 bottom-0 top-8 z-[40] overflow-hidden border-t border-white/10"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.2, ease: "easeOut" }}
             >
-                <motion.div
-                    className="absolute inset-0 flex flex-col"
-                    initial={{ y: 8, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: 8, opacity: 0 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 28 }}
-                >
-                    {/* Fullscreen container */}
+                {/* FONDO Y BLUR
+                   Aplicamos el fondo sólido translúcido aquí para que cubra todo el espacio disponible
+                */}
+                <div className="absolute inset-0 bg-[#09090b]/95 backdrop-blur-2xl flex flex-col">
+
+                    {/* CONTAINER GRID */}
                     <div className="flex-1 flex overflow-hidden">
-                        {/* Sidebar (Discord-like) */}
-                        <aside className="w-64 min-w-[200px] bg-card border-r p-4 flex flex-col gap-4">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2">
-                                    <LucideSettings className="h-5 w-5 text-primary" />
-                                    <h3 className="text-lg font-semibold">Configuración</h3>
+
+                        {/* --- SIDEBAR --- */}
+                        <aside className="w-64 min-w-[240px] flex flex-col gap-4 p-4 border-r border-white/5 bg-white/[0.02]">
+                            <div className="flex items-center justify-between pl-2">
+                                <div className="flex items-center gap-2 text-white">
+                                    <LucideSettings className="h-5 w-5 text-blue-500" />
+                                    <h3 className="font-bold tracking-tight">Ajustes</h3>
                                 </div>
-                                <Button variant="ghost" size="icon" onClick={onClose}>
+                                <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full hover:bg-white/10 text-white/60 hover:text-white">
                                     <LucideX className="h-4 w-4" />
                                 </Button>
                             </div>
 
-                            <Input
-                                placeholder="Buscar secciones..."
-                                value={sidebarSearch}
-                                onChange={(e) => setSidebarSearch(e.target.value)}
-                                className="bg-background border-input"
-                            />
+                            <div className="relative">
+                                <LucideSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+                                <Input
+                                    placeholder="Buscar..."
+                                    value={sidebarSearch}
+                                    onChange={(e) => setSidebarSearch(e.target.value)}
+                                    className="pl-9 bg-black/20 border-white/5 text-white placeholder:text-white/20 h-9 rounded-lg focus:border-white/10 focus:bg-black/40 transition-all"
+                                />
+                            </div>
 
-                            <nav className="flex-1 overflow-y-auto">
-                                <ul className="space-y-1">
-                                    {config.sections
-                                        .filter(s => s.toLowerCase().includes(sidebarSearch.toLowerCase()))
-                                        .map((section) => {
-                                            const active = selectedSection === section;
-                                            return (
-                                                <li key={section}>
-                                                    <button
-                                                        onClick={() => setSelectedSection(section)}
-                                                        className={`w-full text-left px-3 py-2 rounded-md flex items-center justify-between ${active ? 'bg-primary text-primary-foreground' : 'hover:bg-muted/60'}`}
-                                                    >
-                                                        <span className="capitalize">{section}</span>
-                                                        {active && <span className="text-xs text-muted-foreground">Seleccionado</span>}
-                                                    </button>
-                                                </li>
-                                            );
-                                        })}
-                                </ul>
+                            <nav className="flex-1 overflow-y-auto space-y-1 pr-2 scrollbar-thin scrollbar-thumb-white/10">
+                                {/* Tab Inicio fijo al principio */}
+                                <button
+                                    key="Inicio"
+                                    onClick={() => setSelectedSection('Inicio')}
+                                    className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-sm transition-all ${selectedSection === 'Inicio'
+                                        ? 'bg-blue-600/10 text-blue-400 font-medium'
+                                        : 'text-white/60 hover:bg-white/5 hover:text-white'
+                                        }`}
+                                >
+                                    <span className="capitalize">Inicio</span>
+                                    {selectedSection === 'Inicio' && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                                </button>
+                                {config.sections
+                                    .filter(s => s.toLowerCase().includes(sidebarSearch.toLowerCase()))
+                                    .map((section) => (
+                                        <button
+                                            key={section}
+                                            onClick={() => setSelectedSection(section)}
+                                            className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-sm transition-all ${selectedSection === section
+                                                ? 'bg-blue-600/10 text-blue-400 font-medium'
+                                                : 'text-white/60 hover:bg-white/5 hover:text-white'
+                                                }`}
+                                        >
+                                            <span className="capitalize">{section}</span>
+                                            {selectedSection === section && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
+                                        </button>
+                                    ))}
                             </nav>
 
-                            <div className="text-xs text-muted-foreground">
-                                Commit: {config.gitHash} · v{appVersion}
+                            <div className="text-[10px] text-white/20 font-mono text-center pt-2 border-t border-white/5">
+                                v{appVersion} ({config.gitHash.slice(0, 7)})
                             </div>
                         </aside>
 
-                        {/* Main panel */}
-                        <main className="flex-1 overflow-y-auto p-6 bg-background">
+                        {/* --- MAIN CONTENT --- */}
+                        <main className="flex-1 overflow-y-auto p-8 relative scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                             {config.loading ? (
-                                <div className="flex items-center justify-center h-full">
-                                    <div className="flex flex-col items-center gap-2">
-                                        <LucideLoader className="h-8 w-8 animate-spin text-primary" />
-                                        <p className="text-lg">Cargando configuración...</p>
-                                    </div>
+                                <div className="flex flex-col items-center justify-center h-full text-white/30 gap-4">
+                                    <LucideLoader className="h-10 w-10 animate-spin" />
+                                    <p className="text-sm font-medium tracking-wider uppercase">Cargando...</p>
                                 </div>
                             ) : (
-                                <div className="space-y-6">
-                                    <Card>
-                                        <CardHeader>
-                                            <CardTitle className="text-2xl font-semibold">{selectedSection ? selectedSection.charAt(0).toUpperCase() + selectedSection.slice(1) : 'Configuración'}</CardTitle>
-                                            <CardDescription>
-                                                {selectedSection ? `Opciones de ${selectedSection}` : 'Personaliza los ajustes del launcher'}
-                                            </CardDescription>
-                                        </CardHeader>
-                                    </Card>
-
-                                    {/* Only render the selected section */}
-                                    {selectedSection ? (() => {
-                                        const section = selectedSection;
-                                        const sectionConfigs = getConfigsForSection(section);
-                                        const getSectionDescription = (sectionName: string) => {
-                                            switch (sectionName) {
-                                                case 'general':
-                                                    return 'Configuraciones generales del launcher';
-                                                case 'gameplay':
-                                                    return 'Configuraciones relacionadas con el gameplay';
-                                                case 'minecraft':
-                                                    return 'Configuraciones específicas de Minecraft';
-                                                case 'account':
-                                                    return 'Configuraciones de cuenta y autenticación';
-                                                case 'appearance':
-                                                    return 'Personaliza la apariencia del launcher';
-                                                default:
-                                                    return `Configuraciones de ${sectionName}`;
-                                            }
-                                        };
-
-                                        return (
-                                            <ConfigSection
-                                                key={section}
-                                                title={section}
-                                                description={getSectionDescription(section)}
-                                                configs={sectionConfigs}
-                                                values={config.values}
-                                                onConfigChange={handleConfigChange}
-                                                onRestoreDefaults={() => handleRestoreDefaults(section)}
-                                                renderConfigControl={renderConfigControl}
-                                            />
-                                        );
-                                    })() : (
-                                        // If no section selected, show overview and themes
+                                <div className="max-w-3xl mx-auto space-y-8 pb-24">
+                                    {selectedSection === 'Inicio' ? (
                                         <>
-                                            <Card>
+                                            <Card className="bg-white/[0.02] border-white/5">
                                                 <CardHeader>
-                                                    <CardTitle className="text-lg font-semibold">Temas</CardTitle>
-                                                    <CardDescription>Personaliza la apariencia de la aplicación con temas</CardDescription>
+                                                    <CardTitle className="text-white">Temas</CardTitle>
+                                                    <CardDescription className="text-white/40">Personaliza la apariencia</CardDescription>
                                                 </CardHeader>
                                                 <CardContent>
                                                     <ThemeSelector />
@@ -499,46 +325,51 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                                             {isAuthenticated && (
                                                 <>
                                                     <WhitelistModeSettings />
-                                                    <Card>
-                                                        <CardHeader>
-                                                            <CardTitle className="text-lg font-semibold">Opciones Avanzadas</CardTitle>
-                                                            <CardDescription>Opciones adicionales para usuarios autenticados</CardDescription>
-                                                        </CardHeader>
-                                                        <CardContent>
-                                                            <div className="h-32 flex items-center justify-center rounded-md border border-dashed border-muted bg-muted/50">
-                                                                <p className="text-sm text-muted-foreground">Próximamente disponibles más opciones avanzadas</p>
-                                                            </div>
+                                                    <Card className="bg-white/[0.02] border-white/5 border-dashed">
+                                                        <CardContent className="h-32 flex items-center justify-center text-white/20 text-sm">
+                                                            Más opciones próximamente
                                                         </CardContent>
                                                     </Card>
                                                 </>
                                             )}
                                         </>
-                                    )}
+                                    ) : selectedSection ? (
+                                        <ConfigSection
+                                            title={selectedSection}
+                                            description={`Configuración de ${selectedSection}`}
+                                            configs={getConfigsForSection(selectedSection)}
+                                            values={config.values}
+                                            onConfigChange={handleConfigChange}
+                                            onRestoreDefaults={() => handleRestoreDefaults(selectedSection)}
+                                            renderConfigControl={renderConfigControl}
+                                        />
+                                    ) : null}
                                 </div>
                             )}
                         </main>
                     </div>
 
-                    {/* Footer actions floating at bottom-right */}
-                    <div className="absolute right-6 bottom-6 flex gap-2">
-                        <Button variant="outline" onClick={onClose} disabled={config.saving}>
+                    {/* --- FOOTER ACTIONS --- */}
+                    <div className="absolute bottom-6 right-8 flex gap-3 z-50">
+                        <Button
+                            variant="ghost"
+                            onClick={onClose}
+                            disabled={config.saving}
+                            className="text-white/60 hover:text-white hover:bg-white/10"
+                        >
                             Cancelar
                         </Button>
-                        <Button onClick={handleSaveConfig} disabled={config.loading || config.saving}>
-                            {config.saving ? (
-                                <>
-                                    <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
-                                    Guardando...
-                                </>
-                            ) : (
-                                <>
-                                    <LucideSave className="h-4 w-4 mr-2" />
-                                    Guardar cambios
-                                </>
-                            )}
+                        <Button
+                            onClick={handleSaveConfig}
+                            disabled={config.loading || config.saving}
+                            className="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 shadow-lg shadow-blue-900/20"
+                        >
+                            {config.saving ? <LucideLoader className="h-4 w-4 mr-2 animate-spin" /> : <LucideSave className="h-4 w-4 mr-2" />}
+                            {config.saving ? 'Guardando...' : 'Guardar Cambios'}
                         </Button>
                     </div>
-                </motion.div>
+
+                </div>
             </motion.div>
         </AnimatePresence>
     );
