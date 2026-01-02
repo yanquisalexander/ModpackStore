@@ -145,7 +145,7 @@ export class PaymentGatewayManager {
     /**
      * Process webhook from any gateway
      */
-    async processWebhook(gatewayType: string, payload: any): Promise<WebhookPayload> {
+    async processWebhook(gatewayType: string, payload: any, headers?: Record<string, string>, query?: Record<string, string>): Promise<WebhookPayload> {
         const gateway = this.getGateway(gatewayType);
 
         console.log(`Processing webhook from ${gatewayType}`);
@@ -153,7 +153,7 @@ export class PaymentGatewayManager {
         try {
             // Validate webhook if supported
             if (gateway.validateWebhook) {
-                const isValid = await gateway.validateWebhook(payload);
+                const isValid = await gateway.validateWebhook(payload, headers, query);
                 if (!isValid) {
                     throw new APIError(400, 'Invalid webhook signature');
                 }

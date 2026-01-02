@@ -32,6 +32,10 @@ export const useAppearanceStore = defineStore('appearance', {
       this.addToHistory()
     },
 
+    updateAppearanceSilent(partial: Partial<PreLaunchAppearance>) {
+      this.appearance = { ...this.appearance, ...partial }
+    },
+
     addCustomBlock(block: CustomBlock) {
       if (!this.appearance.customBlocks) {
         this.appearance.customBlocks = []
@@ -89,6 +93,10 @@ export const useAppearanceStore = defineStore('appearance', {
 
     exportToJSON(): string {
       return JSON.stringify(this.appearance, null, 2)
+    },
+
+    commitHistory() {
+      this.addToHistory()
     },
 
     addToHistory() {

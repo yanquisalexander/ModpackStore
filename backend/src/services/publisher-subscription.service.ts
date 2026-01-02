@@ -13,6 +13,7 @@ interface CreateSubscriptionParams {
     currency?: string;
     durationDays?: number;
     autoRenew?: boolean;
+    status?: SubscriptionStatus;
 }
 
 interface SubscriptionFeatures {
@@ -108,13 +109,15 @@ export class PublisherSubscriptionService {
         const subscription = new PublisherSubscription();
         subscription.publisherId = params.publisherId;
         subscription.tier = params.tier;
-        subscription.status = SubscriptionStatus.ACTIVE;
+        subscription.status = params.status || SubscriptionStatus.ACTIVE;
         subscription.paymentProvider = params.paymentProvider || null;
         subscription.paymentReference = params.paymentReference || null;
         subscription.amount = params.amount || null;
         subscription.currency = params.currency || 'USD';
         subscription.autoRenew = params.autoRenew || false;
-        subscription.lastPaymentAt = new Date();
+        if (subscription.status === SubscriptionStatus.ACTIVE) {
+            subscription.lastPaymentAt = new Date();
+        }
 
         // Set expiration date if duration is provided
         if (params.durationDays && params.durationDays > 0) {
@@ -125,8 +128,10 @@ export class PublisherSubscriptionService {
 
         await subscription.save();
 
-        // Apply default features for the tier
-        await this.applyTierFeatures(subscription.id, params.tier);
+        // Apply default features for the tier only when active
+        if (subscription.status === SubscriptionStatus.ACTIVE) {
+            await this.applyTierFeatures(subscription.id, params.tier);
+        }
 
         return subscription;
     }
@@ -263,6 +268,126 @@ export class PublisherSubscriptionService {
 
         subscription.status = SubscriptionStatus.EXPIRED;
         await subscription.save();
+    }
+
+    /**
+     * Suspend a subscription
+     */
+    static async suspendSubscription(subscriptionId: string): Promise<void> {
+        const subscription = await PublisherSubscription.findOne({
+            where: { id: subscriptionId }
+        });
+
+        if (!subscription) {
+            return;
+        }
+
+        subscription.status = SubscriptionStatus.SUSPENDED;
+        await subscription.save();
+    }
+
+    /**
+     * Handle Payment Webhook (Mercado Pago)
+     */
+    static async handleWebhook(payload: any): Promise<void> {
+        const eventType = payload.eventType; // From our gateway mapping
+        const paymentId = payload.paymentId;
+        const status = payload.status;
+        const metadata = payload.metadata || {};
+
+        console.log(`[SUBSCRIPTION_WEBHOOK] Handling ${eventType} for payment/subscription ${paymentId}`);
+
+        // Find subscription by payment reference
+        let subscription = await PublisherSubscription.findOne({
+            where: { paymentReference: paymentId }
+        });
+
+        // If not found by paymentId, try by publisherId from metadata (include pending)
+        if (!subscription && metadata.publisherId) {
+            subscription = await PublisherSubscription.findOne({
+                where: { publisherId: metadata.publisherId },
+                order: { createdAt: 'DESC' }
+            });
+        }
+
+        if (!subscription) {
+            console.warn(`[SUBSCRIPTION_WEBHOOK] Subscription not found for reference: ${paymentId} or metadata: ${JSON.stringify(metadata)}`);
+            return;
+        }
+
+        switch (eventType) {
+            case 'subscription.authorized':
+            case 'subscription.active':
+                if (subscription.status !== SubscriptionStatus.ACTIVE) {
+                    subscription.status = SubscriptionStatus.ACTIVE;
+                    subscription.paymentProvider = PaymentProvider.MERCADOPAGO;
+                    subscription.paymentReference = paymentId;
+                    await subscription.save();
+                }
+                break;
+
+            case 'subscription.cancelled':
+                if (subscription.status !== SubscriptionStatus.CANCELLED) {
+                    subscription.status = SubscriptionStatus.CANCELLED;
+                    subscription.cancelledAt = new Date();
+                    subscription.autoRenew = false;
+                    await subscription.save();
+                }
+                break;
+
+            case 'subscription.paused':
+                if (subscription.status !== SubscriptionStatus.SUSPENDED) {
+                    subscription.status = SubscriptionStatus.SUSPENDED;
+                    await subscription.save();
+                }
+                break;
+
+            case 'payment.completed':
+                // Recurring payment completed
+                const currentExpiry = subscription.subscriptionExpiresAt || new Date();
+                const newExpiry = new Date(currentExpiry);
+
+                // If expired, start from now
+                if (new Date() > currentExpiry) {
+                    newExpiry.setTime(new Date().getTime());
+                }
+
+                // Add 30 days
+                newExpiry.setDate(newExpiry.getDate() + 30);
+
+                subscription.subscriptionExpiresAt = newExpiry;
+                subscription.lastPaymentAt = new Date();
+                subscription.status = SubscriptionStatus.ACTIVE;
+
+                await subscription.save();
+                console.log(`[SUBSCRIPTION_WEBHOOK] Subscription ${subscription.id} renewed until ${newExpiry.toISOString()}`);
+                break;
+
+            case 'payment.failed':
+            case 'payment.rejected':
+                console.warn(`[SUBSCRIPTION_WEBHOOK] Payment failed for subscription ${paymentId}`);
+                // We could suspend here if we want to be strict
+                break;
+        }
+    }
+
+    /**
+     * Set admin override for a subscription
+     */
+    static async setAdminOverride(publisherId: string, override: boolean): Promise<PublisherSubscription> {
+        let subscription = await this.getActiveSubscription(publisherId);
+
+        if (!subscription) {
+            subscription = await this.createSubscription({
+                publisherId,
+                tier: SubscriptionTier.FREE
+            });
+        }
+
+        subscription.isAdminOverride = override;
+        await subscription.save();
+
+        return subscription;
     }
 
     /**

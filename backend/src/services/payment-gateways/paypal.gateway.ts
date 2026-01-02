@@ -308,7 +308,7 @@ export class PayPalGateway implements PaymentGateway {
         };
     }
 
-    async validateWebhook(payload: any, signature?: string): Promise<boolean> {
+    async validateWebhook(payload: any, headers?: Record<string, string>, query?: Record<string, string>): Promise<boolean> {
         // TODO: Implement PayPal webhook signature validation
         // For now, we'll return true as PayPal webhooks are on a secure endpoint
         return true;

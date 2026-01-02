@@ -64,7 +64,7 @@ export interface PaymentGateway {
     /**
      * Validate webhook authenticity (optional but recommended)
      */
-    validateWebhook?(payload: any, signature?: string): Promise<boolean>;
+    validateWebhook?(payload: any, headers?: Record<string, string>, query?: Record<string, string>): Promise<boolean>;
 
     /**
      * Get gateway configuration status

@@ -1,3 +1,4 @@
+@import "tailwindcss";
 @import "@fontsource-variable/jost";
 
 @font-face {
@@ -32,4 +33,47 @@
   --font-minecraft-ten: "Minecraft Ten", sans-serif;
   --font-minecraft-five: "Minecraft Five", sans-serif;
   --default-font-family: var(--font-jost);
+
+  --color-primary: #00a63e;
+  --color-accent: #7c3aed;
+}
+
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-[#0a0a0a] text-white antialiased;
+    background-image: 
+      radial-gradient(at 0% 0%, rgba(0, 166, 62, 0.05) 0px, transparent 50%),
+      radial-gradient(at 100% 100%, rgba(124, 58, 237, 0.05) 0px, transparent 50%);
+  }
+}
+
+@layer components {
+  .glass {
+    @apply bg-white/5 backdrop-blur-md border border-white/10 shadow-xl;
+  }
+
+  .glass-dark {
+    @apply bg-black/40 backdrop-blur-xl border-white/5 shadow-2xl;
+  }
+
+  .liquid-glass {
+    @apply relative overflow-hidden bg-white/5 backdrop-blur-2xl border border-white/10 shadow-2xl;
+  }
+
+  .liquid-glass::before {
+    content: "";
+    @apply absolute -inset-[100%] opacity-20 pointer-events-none;
+    background: radial-gradient(circle at center, var(--color-primary) 0%, transparent 50%);
+    animation: liquid 10s linear infinite;
+  }
+
+  @keyframes liquid {
+    0% { transform: translate(-10%, -10%) rotate(0deg); }
+    50% { transform: translate(10%, 10%) rotate(180deg); }
+    100% { transform: translate(-10%, -10%) rotate(360deg); }
+  }
 }

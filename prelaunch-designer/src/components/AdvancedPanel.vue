@@ -1,90 +1,61 @@
 <template>
-  <v-container>
-    <v-alert
-      type="info"
-      variant="tonal"
-      class="mb-4"
-    >
-      Modo editor JSON avanzado. Edita directamente la configuración.
-    </v-alert>
+  <div class="space-y-6">
+    <div class="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl flex gap-3">
+      <Info class="w-5 h-5 text-blue-400 shrink-0" />
+      <p class="text-xs text-blue-200/80 leading-relaxed">
+        Modo editor JSON avanzado. Edita directamente la configuración para un control total.
+      </p>
+    </div>
 
-    <v-textarea
-      v-model="jsonText"
-      variant="outlined"
-      rows="20"
-      :error-messages="errorMessages"
-      class="font-monospace"
-      @blur="validateAndUpdate"
-    ></v-textarea>
+    <div class="space-y-2">
+      <div class="flex items-center justify-between">
+        <label class="text-xs font-bold text-white/60 uppercase tracking-wider">Configuración JSON</label>
+        <span v-if="errorMessages.length" class="text-[10px] text-red-400 font-bold">{{ errorMessages[0] }}</span>
+      </div>
+      <textarea v-model="jsonText" @blur="validateAndUpdate" rows="15"
+        class="w-full bg-black/60 border border-white/20 rounded-xl p-4 font-mono text-xs text-white focus:outline-none focus:border-primary transition-colors resize-none"
+        :class="{ 'border-red-500/50': errorMessages.length }"></textarea>
+      <button @click="validateAndUpdate" :disabled="!!errorMessages.length"
+        class="w-full py-2 bg-primary text-white rounded-lg text-sm font-bold shadow-lg shadow-primary/20 hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50 transition-all">
+        Aplicar Cambios
+      </button>
+    </div>
 
-    <v-btn
-      color="primary"
-      prepend-icon="mdi-content-save"
-      block
-      @click="validateAndUpdate"
-      :disabled="!!errorMessages.length"
-    >
-      Aplicar Cambios
-    </v-btn>
+    <div class="space-y-4">
+      <div class="space-y-2">
+        <label class="text-xs font-bold text-white/60 uppercase tracking-wider">Plantillas Rápidas</label>
+        <select v-model="selectedTemplate" @change="loadTemplate"
+          class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors appearance-none">
+          <option :value="null" disabled class="bg-zinc-900">Seleccionar plantilla...</option>
+          <option v-for="template in templates" :key="template.id" :value="template.id" class="bg-zinc-900">{{
+            template.name }}</option>
+        </select>
+      </div>
 
-    <v-divider class="my-4"></v-divider>
+      <div class="space-y-2">
+        <button @click="showVariables = !showVariables"
+          class="w-full p-3 glass rounded-xl flex items-center justify-between text-sm hover:bg-white/10 transition-colors">
+          <span class="font-medium">Variables Dinámicas</span>
+          <ChevronDown :class="['w-4 h-4 transition-transform', showVariables ? 'rotate-180' : '']" />
+        </button>
 
-    <h3 class="text-subtitle-1 mb-2">Plantillas Rápidas</h3>
-    
-    <v-select
-      v-model="selectedTemplate"
-      label="Cargar Plantilla"
-      :items="templates"
-      item-title="name"
-      item-value="id"
-      variant="outlined"
-      density="comfortable"
-      @update:model-value="loadTemplate"
-    ></v-select>
-
-    <v-expansion-panels class="mt-4">
-      <v-expansion-panel title="Variables Dinámicas Disponibles">
-        <v-expansion-panel-text>
-          <v-list density="compact">
-            <v-list-item>
-              <v-list-item-title><code>$date()</code></v-list-item-title>
-              <v-list-item-subtitle>Fecha actual</v-list-item-subtitle>
-            </v-list-item>
-            <v-list-item>
-              <v-list-item-title><code>$time()</code></v-list-item-title>
-              <v-list-item-subtitle>Hora actual</v-list-item-subtitle>
-            </v-list-item>
-            <v-list-item>
-              <v-list-item-title><code>$username(default)</code></v-list-item-title>
-              <v-list-item-subtitle>Nombre de usuario autenticado</v-list-item-subtitle>
-            </v-list-item>
-            <v-list-item>
-              <v-list-item-title><code>$mcAccountName(default)</code></v-list-item-title>
-              <v-list-item-subtitle>Cuenta de Minecraft</v-list-item-subtitle>
-            </v-list-item>
-            <v-list-item>
-              <v-list-item-title><code>$fetch(url, default)</code></v-list-item-title>
-              <v-list-item-subtitle>Petición HTTP</v-list-item-subtitle>
-            </v-list-item>
-            <v-list-item>
-              <v-list-item-title><code>$onlinePlayers(host:port)</code></v-list-item-title>
-              <v-list-item-subtitle>Jugadores online en servidor</v-list-item-subtitle>
-            </v-list-item>
-            <v-list-item>
-              <v-list-item-title><code>$random(min, max)</code></v-list-item-title>
-              <v-list-item-subtitle>Número aleatorio</v-list-item-subtitle>
-            </v-list-item>
-          </v-list>
-        </v-expansion-panel-text>
-      </v-expansion-panel>
-    </v-expansion-panels>
-  </v-container>
+        <div v-if="showVariables"
+          class="p-3 glass rounded-xl space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div v-for="variable in variables" :key="variable.code" class="space-y-1">
+            <code class="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded">{{ variable.code }}</code>
+            <p class="text-[10px] text-white/40">{{ variable.desc }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useAppearanceStore } from '@/store/appearance'
 import { storeToRefs } from 'pinia'
+import { Info, ChevronDown } from 'lucide-vue-next'
 
 const store = useAppearanceStore()
 const { appearance } = storeToRefs(store)
@@ -92,6 +63,17 @@ const { appearance } = storeToRefs(store)
 const jsonText = ref(JSON.stringify(appearance.value, null, 2))
 const errorMessages = ref<string[]>([])
 const selectedTemplate = ref<string | null>(null)
+const showVariables = ref(false)
+
+const variables = [
+  { code: '$date()', desc: 'Fecha actual en formato local' },
+  { code: '$time()', desc: 'Hora actual' },
+  { code: '$username(default)', desc: 'Nombre de usuario autenticado' },
+  { code: '$mcAccountName(default)', desc: 'Cuenta de Minecraft vinculada' },
+  { code: '$fetch(url, default)', desc: 'Petición HTTP GET' },
+  { code: '$onlinePlayers(host:port)', desc: 'Jugadores online en servidor' },
+  { code: '$random(min, max)', desc: 'Número aleatorio' }
+]
 
 const templates = [
   {
@@ -185,9 +167,3 @@ const loadTemplate = () => {
   }
 }
 </script>
-
-<style scoped>
-.font-monospace {
-  font-family: 'Courier New', Courier, monospace;
-}
-</style>

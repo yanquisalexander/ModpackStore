@@ -1,9 +1,9 @@
 import React from 'react';
-import { AlertCircle, Download, X, Search, LucideSparkles, LucideWandSparkles } from 'lucide-react';
+import { AlertCircle, X, Search, Sparkles, Download, CheckCircle2, TriangleAlert } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useJavaValidation } from '@/hooks/useJavaValidation';
-import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils'; // Asumo que tienes esto, si no, usa string templates
 
 interface JavaStatusBannerProps {
   className?: string;
@@ -13,113 +13,117 @@ export const JavaStatusBanner: React.FC<JavaStatusBannerProps> = ({ className = 
   const { javaValidation, loading, isInstalling, repairStatus, repairJava } = useJavaValidation();
   const [dismissed, setDismissed] = React.useState(false);
 
-  console.log('Java Validation State:', { javaValidation, loading, isInstalling, repairStatus });
+  // Estados derivados para limpiar el renderizado
+  const isWorking = isInstalling || !!repairStatus;
 
   const handleRepairJava = async () => {
     try {
       await repairJava();
       toast.success('Java configurado correctamente', {
-        description: 'Java se ha configurado exitosamente en tu sistema.',
+        description: 'Todo listo para jugar.',
+        icon: <CheckCircle2 className="text-green-500" />,
       });
     } catch (error) {
       toast.error('Error al reparar Java', {
-        description: 'No se pudo reparar Java automáticamente. Por favor, intenta manualmente.',
+        description: 'Intenta instalarlo manualmente desde java.com',
       });
     }
   };
 
-  const handleDismiss = () => {
-    setDismissed(true);
-  };
-
-  // Don't show banner if loading, dismissed, or if Java is installed
   if (loading || dismissed || !javaValidation || javaValidation.is_installed) {
     return null;
   }
 
-  const getRepairButtonContent = () => {
-    if (repairStatus) {
-      if (repairStatus.includes('Buscando')) {
-        return (
-          <>
-            <Search className="h-4 w-4 animate-pulse" />
-            {repairStatus}
-          </>
-        );
-      } else if (repairStatus.includes('Descargando')) {
-        return (
-          <>
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            Descargando...
-          </>
-        );
-      } else {
-        return (
-          <>
-            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-            {repairStatus}
-          </>
-        );
-      }
-    }
-
-    if (isInstalling) {
-      return (
-        <>
-          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-          Descargando...
-        </>
-      );
-    }
-
-    return (
-      <>
-        <LucideWandSparkles className="h-4 w-4" />
-        Reparar automáticamente
-      </>
-    );
-  };
-
   return (
     <AnimatePresence>
       <motion.div
-        initial={{ y: -50, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: -50, opacity: 0 }}
-        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-        className={`bg-orange-900/20 border border-orange-400/30 rounded-lg p-4 mb-6 ${className}`}
+        initial={{ height: 0, opacity: 0, scale: 0.95 }}
+        animate={{ height: "auto", opacity: 1, scale: 1 }}
+        exit={{ height: 0, opacity: 0, scale: 0.95, marginBottom: 0 }}
+        transition={{ duration: 0.4, type: "spring", bounce: 0.3 }}
+        className={cn("overflow-hidden mb-6", className)}
       >
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 flex-1">
-            <AlertCircle className="h-5 w-5 text-orange-400 flex-shrink-0" />
-            <div className="flex-1">
-              <h3 className="text-orange-400 font-semibold text-sm">
-                Java no detectado
-              </h3>
-              <p className="text-orange-300/90 text-sm">
-                {repairStatus || 'Algunas funciones podrían no estar disponibles. Se requiere Java para ejecutar modpacks.'}
-              </p>
+        <div className="relative bg-neutral-900/80 backdrop-blur-xl border border-orange-500/20 rounded-2xl overflow-hidden shadow-2xl shadow-orange-900/10">
+
+          {/* Barra de progreso decorativa en el fondo si está trabajando */}
+          {isWorking && (
+            <motion.div
+              className="absolute bottom-0 left-0 h-1 bg-orange-500/50 blur-[2px]"
+              initial={{ width: "0%" }}
+              animate={{ width: "100%" }}
+              transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
+            />
+          )}
+
+          {/* Glow effect lateral */}
+          <div className="absolute top-0 left-0 w-1 h-full bg-gradient-to-b from-orange-400 to-orange-600" />
+
+          <div className="p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-5">
+
+            {/* Contenido Izquierdo */}
+            <div className="flex items-start gap-4">
+              <div className="p-3 bg-orange-500/10 rounded-xl border border-orange-500/10 shadow-inner">
+                {isWorking ? (
+                  <Download className="h-6 w-6 text-orange-400 animate-bounce" />
+                ) : (
+                  <TriangleAlert className="h-6 w-6 text-orange-500" />
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="text-white font-bold text-base flex items-center gap-2">
+                  Se requiere Java
+                  {!isWorking && (
+                    <span className="text-[10px] uppercase tracking-wider bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded-full border border-orange-500/10">
+                      Importante
+                    </span>
+                  )}
+                </h3>
+                <p className="text-neutral-400 text-sm max-w-lg leading-relaxed">
+                  {repairStatus ? (
+                    <span className="text-orange-300 animate-pulse font-medium">{repairStatus}</span>
+                  ) : (
+                    "Para ejecutar Minecraft y los mods correctamente, necesitamos instalar una versión compatible de Java."
+                  )}
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={handleRepairJava}
-              disabled={isInstalling || !!repairStatus}
-              className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-md flex items-center gap-2 flex-shrink-0"
-            >
-              {getRepairButtonContent()}
-            </Button>
+            {/* Botones de Acción */}
+            <div className="flex items-center gap-3 w-full md:w-auto pl-14 md:pl-0">
+              <button
+                onClick={handleRepairJava}
+                disabled={isWorking}
+                className={cn(
+                  "relative group flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all duration-300 shadow-lg",
+                  isWorking
+                    ? "bg-neutral-800 text-neutral-400 cursor-wait border border-neutral-700"
+                    : "bg-gradient-to-r from-orange-500 to-amber-600 hover:to-orange-500 text-white hover:scale-105 border border-orange-400/20 shadow-orange-900/20 hover:shadow-orange-500/20"
+                )}
+              >
+                {/* Lógica de Iconos/Texto del Botón */}
+                {isWorking ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    <span>Procesando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    <span>Reparar Automáticamente</span>
+                  </>
+                )}
+              </button>
 
-            <Button
-              onClick={handleDismiss}
-              variant="ghost"
-              size="icon"
-              className="text-orange-400 hover:text-orange-300 hover:bg-orange-900/30 h-8 w-8"
-              disabled={isInstalling || !!repairStatus}
-            >
-              <X className="h-4 w-4" />
-            </Button>
+              <button
+                onClick={() => setDismissed(true)}
+                disabled={isWorking}
+                className="p-2.5 rounded-xl text-neutral-500 hover:text-white hover:bg-white/10 transition-colors border border-transparent hover:border-white/5"
+                title="Descartar por ahora"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
       </motion.div>

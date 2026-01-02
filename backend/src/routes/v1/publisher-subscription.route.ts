@@ -1,22 +1,17 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { z } from 'zod';
-import { requireAuth } from '@/middlewares/auth.middleware';
+import { requireAuth, AuthVariables } from '@/middlewares/auth.middleware';
 import { PublisherSubscriptionService } from '@/services/publisher-subscription.service';
-import { SubscriptionTier, PaymentProvider } from '@/entities/PublisherSubscription';
-import { ordersController, subscriptionsController } from '@/lib/paypal';
+import { SubscriptionTier, PaymentProvider, SubscriptionStatus } from '@/entities/PublisherSubscription';
+import { MercadoPagoGateway } from '@/services/payment-gateways/mercadopago.gateway';
 
 // Validation schemas
 const createOrderSchema = z.object({
     tier: z.nativeEnum(SubscriptionTier),
 });
 
-const captureOrderSchema = z.object({
-    orderId: z.string(),
-    tier: z.nativeEnum(SubscriptionTier),
-});
-
-const publisherSubscriptionRoutes = new Hono();
+const publisherSubscriptionRoutes = new Hono<{ Variables: AuthVariables }>();
 
 // All routes require authentication
 publisherSubscriptionRoutes.use('*', requireAuth);
@@ -42,6 +37,12 @@ publisherSubscriptionRoutes.get('/:publisherId/subscription', async (c) => {
                 daysUntilExpiry: subscription.daysUntilExpiry(),
                 paymentProvider: subscription.paymentProvider,
                 autoRenew: subscription.autoRenew,
+                isAdminOverride: subscription.isAdminOverride,
+                features: subscription.features?.map(f => ({
+                    key: f.featureKey,
+                    value: f.getValue(),
+                    isOverride: f.isOverride
+                })) || []
             }
         });
     } catch (error) {
@@ -62,11 +63,12 @@ publisherSubscriptionRoutes.get('/:publisherId/subscription/features', async (c)
     }
 });
 
-// Create PayPal Subscription
-publisherSubscriptionRoutes.post('/:publisherId/subscription/order', zValidator('json', createOrderSchema), async (c) => {
+// Create Mercado Pago Subscription
+publisherSubscriptionRoutes.post('/:publisherId/subscription/mercadopago', zValidator('json', createOrderSchema), async (c) => {
     try {
         const { publisherId } = c.req.param();
         const { tier } = c.req.valid('json');
+        const user = c.get('user') as any;
 
         if (tier === SubscriptionTier.FREE) {
             const sub = await PublisherSubscriptionService.createSubscription({
@@ -76,85 +78,59 @@ publisherSubscriptionRoutes.post('/:publisherId/subscription/order', zValidator(
             return c.json({ data: { subscriptionId: sub.id, free: true } });
         }
 
-        // Get Plan ID from env
-        let planId = '';
+        // Get amount based on tier
+        let amount = '0.00';
+        let description = '';
         switch (tier) {
-            case SubscriptionTier.BASIC: planId = process.env.PAYPAL_PLAN_ID_BASIC || ''; break;
-            case SubscriptionTier.PREMIUM: planId = process.env.PAYPAL_PLAN_ID_PREMIUM || ''; break;
-            case SubscriptionTier.ENTERPRISE: planId = process.env.PAYPAL_PLAN_ID_ENTERPRISE || ''; break;
+            case SubscriptionTier.BASIC:
+                amount = process.env.PRICE_BASIC || '5.00';
+                description = 'ModpackStore Basic Plan';
+                break;
+            case SubscriptionTier.PREMIUM:
+                amount = process.env.PRICE_PREMIUM || '15.00';
+                description = 'ModpackStore Premium Plan';
+                break;
+            case SubscriptionTier.ENTERPRISE:
+                amount = process.env.PRICE_ENTERPRISE || '50.00';
+                description = 'ModpackStore Enterprise Plan';
+                break;
         }
 
-        if (!planId) {
-            console.error(`Missing PayPal Plan ID for tier ${tier}`);
-            return c.json({ error: 'Configuration error: Missing Plan ID' }, 500);
-        }
+        const mpGateway = new MercadoPagoGateway();
+        // Do NOT require app-level email; let Mercado Pago handle buyer authentication.
+        const response = await mpGateway.createSubscription({
+            amount,
+            currency: process.env.MERCADOPAGO_CURRENCY || 'UYU',
+            description,
+            publisherId,
+            tier,
+            payerEmail: undefined as any,
+            backUrl: process.env.MERCADOPAGO_BACK_URL || 'https://modpackstore.com/publisher/subscription/success'
+        });
 
-        const collect = {
-            body: {
-                planId: planId,
-                customId: publisherId, // Store publisherId in custom_id for reference
-                applicationContext: {
-                    userAction: 'SUBSCRIBE_NOW',
-                    returnUrl: 'https://example.com/return', // Frontend handles the return via popup, but this is required
-                    cancelUrl: 'https://example.com/cancel'
-                }
-            }
-        };
+        // Create local subscription in pending state. The frontend must redirect the user
+        // to MercadoPago using the returned preapproval plan ID / approvalUrl to complete approval.
+        const localSub = await PublisherSubscriptionService.createSubscription({
+            publisherId,
+            tier,
+            paymentProvider: PaymentProvider.MERCADOPAGO,
+            paymentReference: response.paymentId,
+            amount,
+            currency: process.env.MERCADOPAGO_CURRENCY || 'UYU',
+            autoRenew: true,
+            status: SubscriptionStatus.PENDING
+        });
 
-        const { result } = await subscriptionsController.subscriptionsCreate(collect);
-
-        // Find approval URL
-        const approvalLink = result.links?.find((link: any) => link.rel === 'approve');
-        if (!approvalLink) {
-            console.error('No approval link found in PayPal response', result);
-            return c.json({ error: 'Failed to get approval URL' }, 500);
-        }
-
-        return c.json({ orderId: result.id, approvalUrl: approvalLink.href });
+        return c.json({
+            subscriptionId: localSub.id,
+            approvalUrl: response.approvalUrl,
+            preapprovalPlanId: response.paymentId,
+            note: 'Redirect the user to `approvalUrl` so they can authenticate on Mercado Pago and approve the subscription.'
+        });
 
     } catch (error) {
-        console.error('Error creating PayPal subscription:', error);
+        console.error('Error creating Mercado Pago subscription:', error);
         return c.json({ error: 'Failed to create subscription' }, 500);
-    }
-});
-
-// Activate/Check PayPal Subscription
-const activateSubscriptionSchema = z.object({
-    subscriptionId: z.string(),
-    tier: z.nativeEnum(SubscriptionTier),
-});
-
-publisherSubscriptionRoutes.post('/:publisherId/subscription/capture', zValidator('json', activateSubscriptionSchema), async (c) => {
-    try {
-        const { publisherId } = c.req.param();
-        const { subscriptionId, tier } = c.req.valid('json');
-
-        // Verify status with PayPal
-        const { result } = await subscriptionsController.subscriptionsGet({ id: subscriptionId });
-
-        if (result.status === 'ACTIVE') {
-            const subscription = await PublisherSubscriptionService.createSubscription({
-                publisherId,
-                tier,
-                paymentProvider: PaymentProvider.PAYPAL,
-                paymentReference: subscriptionId,
-                amount: result.billingInfo?.lastPayment?.amount?.value || '0.00', // Best effort to get amount
-                currency: result.billingInfo?.lastPayment?.amount?.currencyCode || 'USD',
-                durationDays: 30, // Monthly
-                autoRenew: true
-            });
-
-            return c.json({
-                message: 'Subscription activated successfully',
-                data: { subscriptionId: subscription.id }
-            });
-        } else {
-            return c.json({ error: `Subscription status is ${result.status}` }, 400);
-        }
-
-    } catch (error) {
-        console.error('Error activating PayPal subscription:', error);
-        return c.json({ error: 'Failed to activate subscription' }, 500);
     }
 });
 
@@ -168,18 +144,8 @@ publisherSubscriptionRoutes.post('/:publisherId/subscription/cancel', async (c) 
             return c.json({ error: 'No active subscription found' }, 404);
         }
 
-        // If PayPal, cancel on PayPal side too
-        if (subscription.paymentProvider === PaymentProvider.PAYPAL && subscription.paymentReference) {
-            try {
-                await subscriptionsController.subscriptionsCancel({
-                    id: subscription.paymentReference,
-                    reason: 'User requested cancellation' // Note: verify signature, usually body/reason
-                });
-            } catch (ppError) {
-                console.error('Error cancelling PayPal subscription:', ppError);
-                // Continue to cancel locally even if PayPal fails (maybe already cancelled)
-            }
-        }
+        // Mercado Pago subscriptions are usually cancelled via the preapproval ID
+        // For now, we just cancel locally. In a real scenario, we'd call MP API.
 
         await PublisherSubscriptionService.cancelSubscription(subscription.id);
 
@@ -190,30 +156,33 @@ publisherSubscriptionRoutes.post('/:publisherId/subscription/cancel', async (c) 
     }
 });
 
-// Get PayPal approval URL - No longer needed as it is returned in create, but keeping for backward compat if needed or just error
-publisherSubscriptionRoutes.get('/subscription/paypal/approval/:orderId', async (c) => {
-    return c.json({ error: 'Use create endpoint response' }, 400);
+// Admin: Override feature
+publisherSubscriptionRoutes.post('/:publisherId/subscription/admin/override-feature', async (c) => {
+    try {
+        // TODO: Add admin check middleware
+        const { publisherId } = c.req.param();
+        const { featureKey, value } = await c.req.json();
+
+        const feature = await PublisherSubscriptionService.overrideFeature(publisherId, featureKey, value);
+        return c.json({ data: feature });
+    } catch (error) {
+        console.error('Error overriding feature:', error);
+        return c.json({ error: 'Failed to override feature' }, 500);
+    }
 });
 
-// Check payment status
-publisherSubscriptionRoutes.get('/subscription/paypal/status/:orderId', async (c) => {
+// Admin: Set admin override
+publisherSubscriptionRoutes.post('/:publisherId/subscription/admin/set-override', async (c) => {
     try {
-        const { orderId } = c.req.param(); // In this context orderId is subscriptionId
+        // TODO: Add admin check middleware
+        const { publisherId } = c.req.param();
+        const { override } = await c.req.json();
 
-        const { result } = await subscriptionsController.subscriptionsGet({ id: orderId });
-
-        if (result) {
-            const paypalStatus = result.status;
-            // Map PayPal status
-            // ACTIVE, APPROVAL_PENDING, APPROVED, SUSPENDED, CANCELLED, EXPIRED
-
-            return c.json({ data: { status: paypalStatus, paypalStatus } });
-        }
-
-        return c.json({ data: { status: 'PENDING' } });
+        const subscription = await PublisherSubscriptionService.setAdminOverride(publisherId, override);
+        return c.json({ data: subscription });
     } catch (error) {
-        console.error('Error checking subscription status:', error);
-        return c.json({ error: 'Failed to check status' }, 500);
+        console.error('Error setting admin override:', error);
+        return c.json({ error: 'Failed to set admin override' }, 500);
     }
 });
 

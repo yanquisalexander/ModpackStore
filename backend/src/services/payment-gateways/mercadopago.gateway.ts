@@ -1,5 +1,6 @@
 import { PaymentGateway, PaymentRequest, PaymentResponse, WebhookPayload, PaymentGatewayType } from './interfaces';
 import { APIError } from '@/lib/APIError';
+import crypto from 'crypto';
 
 interface MercadoPagoPreferenceRequest {
     items: Array<{
@@ -122,6 +123,81 @@ export class MercadoPagoGateway implements PaymentGateway {
         }
     }
 
+    private async createPreapprovalPlan(request: {
+        amount: string;
+        currency: string;
+        description: string;
+        backUrl: string;
+    }) {
+        const plan = {
+            reason: request.description,
+            auto_recurring: {
+                frequency: 1,
+                frequency_type: 'months',
+                transaction_amount: parseFloat(request.amount),
+                currency_id: request.currency,
+            },
+            back_url: request.backUrl,
+        };
+
+        const response = await fetch(`${this.baseUrl}/preapproval_plan`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${this.accessToken}`,
+            },
+            body: JSON.stringify(plan),
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new APIError(400, `MercadoPago preapproval plan creation failed: ${error.message || JSON.stringify(error)}`);
+        }
+
+        return response.json();
+    }
+
+    async createSubscription(request: {
+        amount: string;
+        currency: string;
+        description: string;
+        publisherId: string;
+        tier: string;
+        payerEmail: string;
+        backUrl: string;
+    }): Promise<PaymentResponse> {
+        if (!this.isConfigured()) {
+            throw new APIError(500, 'MercadoPago configuration not found');
+        }
+
+        try {
+            // Create (or reuse) a preapproval plan and return its id to the frontend.
+            // The frontend must redirect the user to MercadoPago to complete the approval flow.
+            const plan = await this.createPreapprovalPlan({
+                amount: request.amount,
+                currency: request.currency,
+                description: request.description,
+                backUrl: request.backUrl,
+            });
+
+            // Some MP responses may include an init_point for the plan; include if available
+            const approvalUrl = (plan && (plan.init_point || plan.sandbox_init_point)) || null;
+
+            return {
+                paymentId: plan.id,
+                approvalUrl,
+                status: 'pending',
+                metadata: {
+                    mercadopagoPreapprovalPlanId: plan.id,
+                    approvalUrl
+                }
+            };
+        } catch (error) {
+            console.error('MercadoPago subscription creation error:', error);
+            throw new APIError(500, 'Failed to create MercadoPago subscription');
+        }
+    }
+
     async processWebhook(payload: any): Promise<WebhookPayload> {
         const webhookEvent = payload as MercadoPagoWebhookEvent;
 
@@ -149,7 +225,8 @@ export class MercadoPagoGateway implements PaymentGateway {
                     total: payment.transaction_amount.toString(),
                     currency: payment.currency_id
                 },
-                metadata
+                metadata,
+                rawPayload: payload
             };
         } else if (webhookEvent.type === 'merchant_order') {
             // Handle merchant order webhook - check if it has completed payments
@@ -176,6 +253,8 @@ export class MercadoPagoGateway implements PaymentGateway {
                         // Don't include modpackId/userId for pending merchant orders
                         skipPaymentProcessing: true
                     }
+                    ,
+                    rawPayload: payload
                 };
             }
 
@@ -202,17 +281,116 @@ export class MercadoPagoGateway implements PaymentGateway {
                     total: payment.transaction_amount.toString(),
                     currency: payment.currency_id
                 },
-                metadata
+                metadata,
+                rawPayload: payload
+            };
+        } else if (webhookEvent.type === 'preapproval' || webhookEvent.type === 'subscription_preapproval') {
+            const preapproval = await this.getPreApproval(webhookEvent.data.id);
+
+            let metadata: Record<string, any> = {};
+            if (preapproval.external_reference) {
+                try {
+                    metadata = JSON.parse(preapproval.external_reference);
+                } catch (error) {
+                    console.warn('Failed to parse MercadoPago preapproval external reference:', error);
+                }
+            }
+
+            return {
+                gatewayType: this.gatewayType,
+                eventType: `subscription.${preapproval.status}`,
+                paymentId: preapproval.id,
+                status: this.mapMercadoPagoStatus(preapproval.status),
+                amount: {
+                    total: preapproval.auto_recurring?.transaction_amount?.toString() || '0',
+                    currency: preapproval.auto_recurring?.currency_id || 'ARS'
+                },
+                metadata,
+                rawPayload: payload
+            };
+        } else if (webhookEvent.type === 'subscription_authorized_payment') {
+            const authorizedPayment = await this.getAuthorizedPayment(webhookEvent.data.id);
+
+            // Authorized payments are linked to a preapproval
+            const preapproval = await this.getPreApproval(authorizedPayment.preapproval_id);
+
+            let metadata: Record<string, any> = {};
+            if (preapproval.external_reference) {
+                try {
+                    metadata = JSON.parse(preapproval.external_reference);
+                } catch (error) {
+                    console.warn('Failed to parse MercadoPago preapproval external reference:', error);
+                }
+            }
+
+            return {
+                gatewayType: this.gatewayType,
+                eventType: 'payment.completed',
+                paymentId: authorizedPayment.preapproval_id, // Link to the subscription
+                status: 'completed',
+                amount: {
+                    total: authorizedPayment.transaction_amount?.toString() || '0',
+                    currency: authorizedPayment.currency_id || 'ARS'
+                },
+                metadata,
+                rawPayload: payload
             };
         } else {
             throw new Error(`Unsupported MercadoPago webhook type: ${webhookEvent.type}`);
         }
     }
 
-    async validateWebhook(payload: any, signature?: string): Promise<boolean> {
-        // TODO: Implement MercadoPago webhook signature validation
-        // For now, we'll return true as MercadoPago webhooks are on a secure endpoint
-        return true;
+    async validateWebhook(payload: any, headers: Record<string, string>, query: Record<string, string>): Promise<boolean> {
+        if (!this.webhookSecret) {
+            console.warn('[MERCADOPAGO] Webhook secret not configured. Skipping validation.');
+            return true;
+        }
+
+        const xSignature = headers['x-signature'];
+        const xRequestId = headers['x-request-id'];
+
+        if (!xSignature || !xRequestId) {
+            console.warn('[MERCADOPAGO] Missing x-signature or x-request-id headers');
+            return false;
+        }
+
+        // Parse x-signature: ts=123,v1=abc
+        const parts = xSignature.split(',');
+        let ts = '';
+        let v1 = '';
+
+        for (const part of parts) {
+            const [key, value] = part.split('=');
+            if (key === 'ts') ts = value;
+            if (key === 'v1') v1 = value;
+        }
+
+        if (!ts || !v1) {
+            console.warn('[MERCADOPAGO] Invalid x-signature format');
+            return false;
+        }
+
+        // Get data.id from query params (MercadoPago docs say it's in query params)
+        // If not in query, try payload
+        const dataId = query['data.id'] || payload.data?.id || '';
+
+        // Manifest: id:[data.id];request-id:[x-request-id];ts:[ts];
+        const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+
+        const hmac = crypto.createHmac('sha256', this.webhookSecret);
+        hmac.update(manifest);
+        const sha = hmac.digest('hex');
+
+        const isValid = sha === v1;
+        if (!isValid) {
+            console.error('[MERCADOPAGO] Webhook signature validation failed', {
+                manifest,
+                receivedV1: v1,
+                computedSha: sha
+            });
+        }
+
+        return isValid;
     }
 
     private async getPayment(paymentId: string): Promise<MercadoPagoPayment> {
@@ -224,6 +402,34 @@ export class MercadoPagoGateway implements PaymentGateway {
 
         if (!response.ok) {
             throw new APIError(404, 'MercadoPago payment not found');
+        }
+
+        return await response.json();
+    }
+
+    private async getPreApproval(preapprovalId: string) {
+        const response = await fetch(`${this.baseUrl}/preapproval/${preapprovalId}`, {
+            headers: {
+                'Authorization': `Bearer ${this.accessToken}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new APIError(404, 'MercadoPago preapproval not found');
+        }
+
+        return await response.json();
+    }
+
+    private async getAuthorizedPayment(authorizedPaymentId: string) {
+        const response = await fetch(`${this.baseUrl}/authorized_payments/${authorizedPaymentId}`, {
+            headers: {
+                'Authorization': `Bearer ${this.accessToken}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new APIError(404, 'MercadoPago authorized payment not found');
         }
 
         return await response.json();

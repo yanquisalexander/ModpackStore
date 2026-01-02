@@ -17,6 +17,7 @@ export enum PaymentProvider {
 
 export enum SubscriptionStatus {
     ACTIVE = 'active',
+    PENDING = 'pending',
     EXPIRED = 'expired',
     CANCELLED = 'cancelled',
     SUSPENDED = 'suspended'
@@ -75,6 +76,9 @@ export class PublisherSubscription extends BaseEntity {
     @Column({ name: "last_payment_at", type: "timestamp", nullable: true })
     lastPaymentAt?: Date | null;
 
+    @Column({ name: "is_admin_override", type: "boolean", default: false })
+    isAdminOverride: boolean;
+
     @CreateDateColumn({ name: "created_at" })
     createdAt: Date;
 
@@ -91,6 +95,10 @@ export class PublisherSubscription extends BaseEntity {
 
     // Helper methods
     isActive(): boolean {
+        if (this.isAdminOverride) {
+            return true;
+        }
+
         if (this.status !== SubscriptionStatus.ACTIVE) {
             return false;
         }
@@ -103,9 +111,9 @@ export class PublisherSubscription extends BaseEntity {
     }
 
     isExpired(): boolean {
-        return this.subscriptionExpiresAt !== null && 
-               this.subscriptionExpiresAt !== undefined && 
-               new Date() > this.subscriptionExpiresAt;
+        return this.subscriptionExpiresAt !== null &&
+            this.subscriptionExpiresAt !== undefined &&
+            new Date() > this.subscriptionExpiresAt;
     }
 
     daysUntilExpiry(): number | null {
@@ -117,7 +125,7 @@ export class PublisherSubscription extends BaseEntity {
         const expiry = new Date(this.subscriptionExpiresAt);
         const diffTime = expiry.getTime() - now.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        
+
         return diffDays;
     }
 }

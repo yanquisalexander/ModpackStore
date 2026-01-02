@@ -320,6 +320,23 @@ class AdminPublishersAPI {
         }
         return response.json();
     }
+
+    static async setAdminOverride(publisherId: string, override: boolean, accessToken: string): Promise<any> {
+        const response = await fetch(`${API_ENDPOINT}/admin/subscriptions/publisher/${publisherId}/set-override`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ override }),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Error setting admin override: ${response.statusText}`);
+        }
+        return response.json();
+    }
 }
 
 // Helper functions
@@ -646,6 +663,17 @@ const PublisherSubscriptionTab: React.FC<{ publisherId: string }> = ({ publisher
         }
     }
 
+    const handleToggleAdminOverride = async (currentValue: boolean) => {
+        if (!sessionTokens?.accessToken) return;
+        try {
+            await AdminPublishersAPI.setAdminOverride(publisherId, !currentValue, sessionTokens.accessToken);
+            toast({ title: 'Éxito', description: `Override administrativo ${!currentValue ? 'activado' : 'desactivado'}` });
+            loadSubscriptions();
+        } catch (error: any) {
+            toast({ title: 'Error', description: error.message, variant: 'destructive' });
+        }
+    };
+
     const activeSub = subscriptions.find(s => s.isActive);
 
     if (loading) return <LucideLoader className="animate-spin" />;
@@ -670,12 +698,24 @@ const PublisherSubscriptionTab: React.FC<{ publisherId: string }> = ({ publisher
                                     <div className="flex items-center gap-2">
                                         <CardTitle>{activeSub.tier.toUpperCase()}</CardTitle>
                                         <Badge>Activo</Badge>
+                                        {activeSub.isAdminOverride && (
+                                            <Badge variant="destructive" className="animate-pulse">ADMIN OVERRIDE</Badge>
+                                        )}
                                     </div>
                                     <p className="text-sm text-muted-foreground">Provider: {activeSub.paymentProvider}</p>
                                 </div>
-                                <Button variant="destructive" size="sm" onClick={() => handleCancelSubscription(activeSub.id)}>
-                                    Cancelar
-                                </Button>
+                                <div className="flex gap-2">
+                                    <Button
+                                        variant={activeSub.isAdminOverride ? "destructive" : "outline"}
+                                        size="sm"
+                                        onClick={() => handleToggleAdminOverride(activeSub.isAdminOverride)}
+                                    >
+                                        {activeSub.isAdminOverride ? "Desactivar Override" : "Activar Override"}
+                                    </Button>
+                                    <Button variant="destructive" size="sm" onClick={() => handleCancelSubscription(activeSub.id)}>
+                                        Cancelar
+                                    </Button>
+                                </div>
                             </div>
                         </CardHeader>
                         <CardContent>

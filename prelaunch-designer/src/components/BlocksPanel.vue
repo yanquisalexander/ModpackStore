@@ -1,185 +1,183 @@
 <template>
-  <v-container>
-    <v-btn
-      color="primary"
-      prepend-icon="mdi-plus"
-      block
-      @click="addNewBlock"
-      class="mb-4"
-    >
+  <div class="space-y-4">
+    <button @click="showAddDialog = true"
+      class="w-full py-3 bg-primary text-white rounded-xl font-semibold flex items-center justify-center gap-2 shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
+      <Plus class="w-4 h-4" />
       Agregar Bloque
-    </v-btn>
+    </button>
 
-    <v-list>
-      <v-list-item
-        v-for="(block, index) in appearance.customBlocks"
-        :key="index"
-        @click="selectBlock(block, index)"
-        :active="selectedBlockIndex === index"
-        class="mb-2"
-      >
-        <template v-slot:prepend>
-          <v-icon>mdi-cube-outline</v-icon>
-        </template>
+    <div class="space-y-2">
+      <div v-for="(block, index) in appearance.customBlocks" :key="index" @click="selectBlock(block, index)" :class="[
+        'p-3 rounded-xl border transition-all cursor-pointer group',
+        selectedBlockIndex === index
+          ? 'bg-primary/10 border-primary shadow-lg shadow-primary/5'
+          : 'bg-white/5 border-white/10 hover:bg-white/10'
+      ]">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div :class="[
+              'w-8 h-8 rounded-lg flex items-center justify-center',
+              selectedBlockIndex === index ? 'bg-primary text-white' : 'bg-white/10 text-white/60'
+            ]">
+              <Box class="w-4 h-4" />
+            </div>
+            <div>
+              <h4 class="text-sm font-medium">{{ block.id || `Bloque ${index + 1}` }}</h4>
+              <p class="text-xs text-white/40">{{ block.tagName || 'div' }} • {{ block.renderType || 'auto' }}</p>
+            </div>
+          </div>
 
-        <v-list-item-title>
-          {{ block.id || `Bloque ${index + 1}` }}
-        </v-list-item-title>
+          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button @click.stop="moveBlockUp(index)" :disabled="index === 0"
+              class="p-1.5 hover:bg-white/10 rounded disabled:opacity-30">
+              <ArrowUp class="w-3.5 h-3.5" />
+            </button>
+            <button @click.stop="moveBlockDown(index)" :disabled="index === (appearance.customBlocks?.length || 0) - 1"
+              class="p-1.5 hover:bg-white/10 rounded disabled:opacity-30">
+              <ArrowDown class="w-3.5 h-3.5" />
+            </button>
+            <button @click.stop="deleteBlock(index)" class="p-1.5 hover:bg-red-500/20 text-red-400 rounded">
+              <Trash2 class="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      </div>
 
-        <v-list-item-subtitle>
-          {{ block.tagName || 'div' }} - {{ block.renderType || 'auto' }}
-        </v-list-item-subtitle>
-
-        <template v-slot:append>
-          <v-btn
-            icon="mdi-arrow-up"
-            variant="text"
-            size="small"
-            :disabled="index === 0"
-            @click.stop="moveBlockUp(index)"
-          ></v-btn>
-          <v-btn
-            icon="mdi-arrow-down"
-            variant="text"
-            size="small"
-            :disabled="index === (appearance.customBlocks?.length || 0) - 1"
-            @click.stop="moveBlockDown(index)"
-          ></v-btn>
-          <v-btn
-            icon="mdi-delete"
-            variant="text"
-            size="small"
-            color="error"
-            @click.stop="deleteBlock(index)"
-          ></v-btn>
-        </template>
-      </v-list-item>
-
-      <v-list-item v-if="!appearance.customBlocks?.length">
-        <v-list-item-title class="text-center text-disabled">
-          No hay bloques personalizados
-        </v-list-item-title>
-      </v-list-item>
-    </v-list>
+      <div v-if="!appearance.customBlocks?.length" class="py-12 text-center">
+        <Box class="w-12 h-12 text-white/10 mx-auto mb-3" />
+        <p class="text-sm text-white/40">No hay bloques personalizados</p>
+      </div>
+    </div>
 
     <!-- Add Block Dialog -->
-    <v-dialog v-model="showAddDialog" max-width="600">
-      <v-card>
-        <v-card-title>Agregar Nuevo Bloque</v-card-title>
-        <v-card-text>
-          <v-text-field
-            v-model="newBlock.id"
-            label="ID del Bloque"
-            variant="outlined"
-            density="comfortable"
-          ></v-text-field>
+    <div v-if="showAddDialog" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showAddDialog = false"></div>
+      <div class="liquid-glass w-full max-w-md p-6 rounded-2xl relative z-10">
+        <h3 class="text-xl font-bold mb-6">Nuevo Bloque</h3>
 
-          <v-select
-            v-model="newBlock.tagName"
-            label="Etiqueta HTML"
-            :items="['div', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'section', 'article']"
-            variant="outlined"
-            density="comfortable"
-          ></v-select>
+        <div class="space-y-4">
+          <div class="space-y-1">
+            <span class="text-sm font-medium text-white/90">ID del Bloque</span>
+            <input v-model="newBlock.id"
+              class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors"
+              placeholder="mi-bloque-personalizado" />
+          </div>
 
-          <v-select
-            v-model="newBlock.renderType"
-            label="Tipo de Renderizado"
-            :items="['auto', 'text', 'markdown', 'html']"
-            variant="outlined"
-            density="comfortable"
-          ></v-select>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="space-y-1">
+              <span class="text-sm font-medium text-white/90">Etiqueta HTML</span>
+              <select v-model="newBlock.tagName"
+                class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors appearance-none">
+                <option v-for="tag in ['div', 'p', 'h1', 'h2', 'h3', 'span', 'section']" :key="tag" :value="tag"
+                  class="bg-zinc-900">{{ tag
+                  }}</option>
+              </select>
+            </div>
+            <div class="space-y-1">
+              <span class="text-sm font-medium text-white/90">Renderizado</span>
+              <select v-model="newBlock.renderType"
+                class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors appearance-none">
+                <option v-for="type in ['auto', 'text', 'markdown', 'html']" :key="type" :value="type"
+                  class="bg-zinc-900">{{ type }}
+                </option>
+              </select>
+            </div>
+          </div>
 
-          <v-textarea
-            v-model="newBlock.content"
-            label="Contenido"
-            variant="outlined"
-            rows="4"
-          ></v-textarea>
+          <div class="space-y-1">
+            <span class="text-sm font-medium text-white/90">Contenido</span>
+            <textarea v-model="newBlock.content" rows="4"
+              class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors resize-none"
+              placeholder="Escribe aquí el contenido..."></textarea>
+          </div>
+        </div>
 
-          <v-text-field
-            v-model="newBlock.className"
-            label="Clases CSS"
-            variant="outlined"
-            density="comfortable"
-            placeholder="text-white text-center"
-          ></v-text-field>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn text @click="showAddDialog = false">Cancelar</v-btn>
-          <v-btn color="primary" @click="confirmAddBlock">Agregar</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-  </v-container>
+        <div class="flex justify-end gap-3 mt-8">
+          <button @click="showAddDialog = false"
+            class="px-4 py-2 hover:bg-white/5 rounded-lg transition-colors">Cancelar</button>
+          <button @click="addNewBlock"
+            class="px-6 py-2 bg-primary rounded-lg font-semibold shadow-lg shadow-primary/20 hover:scale-105 transition-all">Crear
+            Bloque</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useAppearanceStore } from '@/store/appearance'
-import { storeToRefs } from 'pinia'
-import type { CustomBlock } from '@/types/PreLaunchAppearance'
+import { Plus, Box, Trash2, ArrowUp, ArrowDown } from 'lucide-vue-next'
 
 const store = useAppearanceStore()
-const { appearance } = storeToRefs(store)
+const appearance = computed(() => store.appearance)
+const selectedBlockIndex = computed(() => {
+  if (!store.selectedBlock || !appearance.value.customBlocks) return -1
+  return appearance.value.customBlocks.findIndex(b => b === store.selectedBlock)
+})
 
-const selectedBlockIndex = ref<number | null>(null)
 const showAddDialog = ref(false)
-const newBlock = ref<CustomBlock>({
+const newBlock = ref({
   id: '',
   tagName: 'div',
   renderType: 'auto',
   content: '',
-  className: ''
+  className: '',
+  style: '{}',
+  position: {
+    top: '0',
+    left: '0'
+  }
 })
 
-const addNewBlock = () => {
-  newBlock.value = {
-    id: `block-${Date.now()}`,
-    tagName: 'div',
-    renderType: 'auto',
-    content: '',
-    className: ''
-  }
-  showAddDialog.value = true
-}
-
-const confirmAddBlock = () => {
-  store.addCustomBlock({ ...newBlock.value })
-  showAddDialog.value = false
-}
-
-const selectBlock = (block: CustomBlock, index: number) => {
-  selectedBlockIndex.value = index
+const selectBlock = (block: any, index: number) => {
   store.selectBlock(block)
 }
 
-const moveBlockUp = (index: number) => {
-  if (index > 0) {
-    store.moveCustomBlock(index, index - 1)
-    if (selectedBlockIndex.value === index) {
-      selectedBlockIndex.value = index - 1
-    }
-  }
-}
-
-const moveBlockDown = (index: number) => {
-  const maxIndex = (appearance.value.customBlocks?.length || 0) - 1
-  if (index < maxIndex) {
-    store.moveCustomBlock(index, index + 1)
-    if (selectedBlockIndex.value === index) {
-      selectedBlockIndex.value = index + 1
-    }
+const addNewBlock = () => {
+  const blocks = [...(appearance.value.customBlocks || [])]
+  const block = { ...newBlock.value }
+  blocks.push(block)
+  store.updateAppearance({ ...appearance.value, customBlocks: blocks })
+  store.selectBlock(block)
+  showAddDialog.value = false
+  // Reset new block
+  newBlock.value = {
+    id: '',
+    tagName: 'div',
+    renderType: 'auto',
+    content: '',
+    className: '',
+    style: '{}',
+    position: { top: '0', left: '0' }
   }
 }
 
 const deleteBlock = (index: number) => {
-  if (confirm('¿Estás seguro de que quieres eliminar este bloque?')) {
-    store.removeCustomBlock(index)
-    if (selectedBlockIndex.value === index) {
-      selectedBlockIndex.value = null
-    }
+  const blocks = [...(appearance.value.customBlocks || [])]
+  const isSelected = selectedBlockIndex.value === index
+  blocks.splice(index, 1)
+  store.updateAppearance({ ...appearance.value, customBlocks: blocks })
+  if (isSelected) {
+    store.selectBlock(null)
   }
+}
+
+const moveBlockUp = (index: number) => {
+  if (index === 0) return
+  const blocks = [...(appearance.value.customBlocks || [])]
+  const temp = blocks[index]
+  blocks[index] = blocks[index - 1]
+  blocks[index - 1] = temp
+  store.updateAppearance({ ...appearance.value, customBlocks: blocks })
+}
+
+const moveBlockDown = (index: number) => {
+  if (index === (appearance.value.customBlocks?.length || 0) - 1) return
+  const blocks = [...(appearance.value.customBlocks || [])]
+  const temp = blocks[index]
+  blocks[index] = blocks[index + 1]
+  blocks[index + 1] = temp
+  store.updateAppearance({ ...appearance.value, customBlocks: blocks })
 }
 </script>

@@ -5,44 +5,6 @@ const app = new Hono();
 
 /**
  * @openapi
- * /webhooks/payments/paypal:
- *   post:
- *     summary: PayPal payment webhook
- *     tags: [Payment Webhooks]
- *     description: Handles PayPal payment completion and status change webhooks.
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             description: PayPal webhook event payload
- *     responses:
- *       200:
- *         description: Webhook processed successfully.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 success:
- *                   type: boolean
- *       500:
- *         description: Webhook processing failed.
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: string
- *                 details:
- *                   type: string
- */
-app.post('/paypal', PaymentWebhookController.paypalWebhook);
-
-/**
- * @openapi
  * /webhooks/payments/mercadopago:
  *   post:
  *     summary: MercadoPago payment webhook

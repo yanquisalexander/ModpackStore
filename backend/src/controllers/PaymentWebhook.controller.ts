@@ -1,5 +1,6 @@
 import { type Context } from 'hono';
 import { PaymentService } from '@/services/payment.service';
+import { PublisherSubscriptionService } from '@/services/publisher-subscription.service';
 import { paymentGatewayManager, PaymentGatewayType } from '@/services/payment-gateways';
 import { PatreonIntegrationService } from '@/services/patreon-integration.service';
 import crypto from 'crypto';
@@ -14,15 +15,26 @@ export class PaymentWebhookController {
 
         try {
             const payload = await c.req.json();
+            const eventType = payload.event_type;
 
             console.log('[WEBHOOK_PAYPAL] Received webhook:', {
                 requestId,
                 timestamp: new Date().toISOString(),
-                eventType: payload.event_type,
+                eventType: eventType,
                 resourceId: payload.resource?.id
             });
 
-            await PaymentService.handleWebhook(PaymentGatewayType.PAYPAL, payload);
+            // Check if it's a subscription event
+            if (eventType && (eventType.startsWith('BILLING.SUBSCRIPTION') ||
+                (eventType === 'PAYMENT.SALE.COMPLETED' && payload.resource?.billing_agreement_id))) {
+
+                console.log('[WEBHOOK_PAYPAL] Routing to PublisherSubscriptionService');
+                await PublisherSubscriptionService.handleWebhook(payload);
+
+            } else {
+                // Default to PaymentService for one-time payments
+                await PaymentService.handleWebhook(PaymentGatewayType.PAYPAL, payload);
+            }
 
             const processingTime = Date.now() - startTime;
             console.log('[WEBHOOK_PAYPAL] Webhook processed successfully:', {
@@ -58,24 +70,35 @@ export class PaymentWebhookController {
         const startTime = Date.now();
 
         try {
-            // MercadoPago sends data as query parameters, not JSON body
-            const queryParams = c.req.query();
-            const payload = {
-                type: queryParams.topic, // 'payment' or 'merchant_order'
-                data: {
-                    id: queryParams.id // payment or merchant_order ID
-                }
-            };
+            // MercadoPago sends data as JSON body for Webhooks, or query params for IPN
+            let payload: any;
+            try {
+                // Try to get JSON body (Webhooks)
+                payload = await c.req.json();
+            } catch (e) {
+                // Fallback to query parameters (IPN)
+                const queryParams = c.req.query();
+                payload = {
+                    type: queryParams.topic || queryParams.type,
+                    data: {
+                        id: queryParams.id || queryParams['data.id']
+                    }
+                };
+            }
+
+            const headers = c.req.header();
+            const query = c.req.query();
 
             console.log('[WEBHOOK_MERCADOPAGO] Received webhook:', {
                 requestId,
                 timestamp: new Date().toISOString(),
                 type: payload.type,
                 dataId: payload.data?.id,
-                queryParams // Log for debugging
+                hasSignature: !!headers['x-signature']
             });
 
-            await PaymentService.handleWebhook(PaymentGatewayType.MERCADOPAGO, payload);
+            // Pass everything to PaymentService which will handle validation and routing
+            await PaymentService.handleWebhook(PaymentGatewayType.MERCADOPAGO, payload, headers, query);
 
             const processingTime = Date.now() - startTime;
             console.log('[WEBHOOK_MERCADOPAGO] Webhook processed successfully:', {
@@ -114,7 +137,7 @@ export class PaymentWebhookController {
             // Get the raw body for signature validation
             const body = await c.req.text();
             const signature = c.req.header('X-Patreon-Signature');
-            
+
             if (!signature) {
                 console.warn('[WEBHOOK_PATREON] Missing signature header:', { requestId });
                 return c.json({ error: 'Missing signature' }, 401);
@@ -133,10 +156,10 @@ export class PaymentWebhookController {
                 .digest('hex');
 
             if (signature !== expectedSignature) {
-                console.warn('[WEBHOOK_PATREON] Invalid signature:', { 
+                console.warn('[WEBHOOK_PATREON] Invalid signature:', {
                     requestId,
                     receivedSignature: signature,
-                    expectedSignature 
+                    expectedSignature
                 });
                 return c.json({ error: 'Invalid signature' }, 401);
             }

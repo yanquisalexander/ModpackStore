@@ -7,6 +7,7 @@ import { TransactionType } from '@/types/enums';
 import { APIError } from '@/lib/APIError';
 import { paymentGatewayManager, PaymentRequest, PaymentResponse, WebhookPayload, PaymentGatewayType } from './payment-gateways';
 import { wsManager } from './websocket.service';
+import { PublisherSubscriptionService } from './publisher-subscription.service';
 
 interface PaymentCreationRequest {
     amount: string;
@@ -122,7 +123,7 @@ export class PaymentService {
     /**
      * Handle webhook from any payment gateway
      */
-    static async handleWebhook(gatewayType: string, payload: any): Promise<void> {
+    static async handleWebhook(gatewayType: string, payload: any, headers?: Record<string, string>, query?: Record<string, string>): Promise<void> {
         const startTime = Date.now();
         const logContext = {
             gatewayType,
@@ -133,7 +134,7 @@ export class PaymentService {
         console.log('[PAYMENT_WEBHOOK] Processing webhook:', logContext);
 
         try {
-            const webhookPayload = await paymentGatewayManager.processWebhook(gatewayType, payload);
+            const webhookPayload = await paymentGatewayManager.processWebhook(gatewayType, payload, headers, query);
 
             console.log('[PAYMENT_WEBHOOK] Webhook parsed:', {
                 ...logContext,
@@ -142,6 +143,14 @@ export class PaymentService {
                 status: webhookPayload.status,
                 amount: webhookPayload.amount
             });
+
+            // Route to PublisherSubscriptionService if it's a subscription event
+            if (webhookPayload.eventType.startsWith('subscription.') || 
+                (webhookPayload.eventType === 'payment.completed' && webhookPayload.metadata?.publisherId)) {
+                console.log('[PAYMENT_WEBHOOK] Routing to PublisherSubscriptionService');
+                await PublisherSubscriptionService.handleWebhook(webhookPayload);
+                return;
+            }
 
             // Extract modpack and user info from metadata FIRST
             const { modpackId, userId, skipPaymentProcessing } = webhookPayload.metadata || {};

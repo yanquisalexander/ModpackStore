@@ -78,6 +78,7 @@ subscriptionsRoute.get('/', async (c) => {
                 amount: sub.amount,
                 currency: sub.currency,
                 autoRenew: sub.autoRenew,
+                isAdminOverride: sub.isAdminOverride,
                 features: sub.features.map(f => ({
                     key: f.featureKey,
                     value: f.getValue(),
@@ -92,6 +93,34 @@ subscriptionsRoute.get('/', async (c) => {
         return c.json({ error: 'Failed to fetch subscriptions' }, 500);
     }
 });
+
+// Set admin override for a publisher
+subscriptionsRoute.post(
+    '/publisher/:publisherId/set-override',
+    zValidator('json', z.object({ override: z.boolean() })),
+    async (c) => {
+        try {
+            const { publisherId } = c.req.param();
+            const { override } = c.req.valid('json');
+
+            const subscription = await PublisherSubscriptionService.setAdminOverride(
+                publisherId,
+                override
+            );
+
+            return c.json({
+                message: 'Admin override set successfully',
+                data: {
+                    isAdminOverride: subscription.isAdminOverride
+                }
+            });
+        } catch (error) {
+            console.error('Error setting admin override:', error);
+            const message = error instanceof Error ? error.message : 'Failed to set admin override';
+            return c.json({ error: message }, 400);
+        }
+    }
+);
 
 // Get subscription statistics
 subscriptionsRoute.get('/stats', async (c) => {

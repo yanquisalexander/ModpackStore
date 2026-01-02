@@ -1,222 +1,190 @@
 <template>
-  <v-container>
-    <v-text-field
-      v-model="appearance.title"
-      label="Título"
-      variant="outlined"
-      density="comfortable"
-      @update:model-value="updateAppearance"
-    ></v-text-field>
+  <div class="space-y-6">
+    <!-- General -->
+    <section class="space-y-4">
+      <div class="space-y-2">
+        <label class="text-xs font-bold text-white/60 uppercase tracking-wider">General</label>
+        <div class="space-y-3">
+          <div class="space-y-1">
+            <span class="text-sm font-medium text-white/90">Título</span>
+            <input v-model="appearance.title" @input="updateAppearance"
+              class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors"
+              placeholder="Mi Servidor" />
+          </div>
+          <div class="space-y-1">
+            <span class="text-sm font-medium text-white/90">Descripción</span>
+            <textarea v-model="appearance.description" @input="updateAppearance" rows="3"
+              class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors resize-none"
+              placeholder="La mejor experiencia..."></textarea>
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <v-textarea
-      v-model="appearance.description"
-      label="Descripción"
-      variant="outlined"
-      density="comfortable"
-      rows="3"
-      @update:model-value="updateAppearance"
-    ></v-textarea>
+    <!-- Logo -->
+    <section class="space-y-4">
+      <div class="space-y-2">
+        <label class="text-xs font-bold text-white/60 uppercase tracking-wider">Logo</label>
+        <div class="space-y-3">
+          <div class="space-y-1">
+            <span class="text-sm font-medium text-white/90">URL del Logo</span>
+            <input v-model="logoUrl" @input="updateLogo"
+              class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors"
+              placeholder="https://..." />
+          </div>
+          <div class="space-y-1">
+            <span class="text-sm font-medium text-white/90">Altura</span>
+            <input v-model="logoHeight" @input="updateLogo"
+              class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors"
+              placeholder="56px" />
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <v-divider class="my-4"></v-divider>
+    <!-- Fondo -->
+    <section class="space-y-4">
+      <div class="space-y-2">
+        <label class="text-xs font-bold text-white/60 uppercase tracking-wider">Fondo</label>
+        <div class="space-y-3">
+          <div class="space-y-1">
+            <span class="text-sm font-medium text-white/90">Imagen URL</span>
+            <input v-model="backgroundImageUrl" @input="updateBackground"
+              class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors"
+              placeholder="https://..." />
+          </div>
+          <div class="space-y-1">
+            <span class="text-sm font-medium text-white/90">Video URL</span>
+            <input v-model="backgroundVideoUrl" @input="updateBackground"
+              class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors"
+              placeholder="https://..." />
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <h3 class="text-subtitle-1 mb-2">Logo</h3>
-    <v-text-field
-      v-model="logoUrl"
-      label="URL del Logo"
-      variant="outlined"
-      density="comfortable"
-      @update:model-value="updateLogo"
-    ></v-text-field>
+    <!-- Audio -->
+    <section class="space-y-4">
+      <div class="space-y-2">
+        <label class="text-xs font-bold text-white/60 uppercase tracking-wider">Audio</label>
+        <div class="space-y-3">
+          <div class="space-y-1">
+            <span class="text-sm font-medium text-white/90">URL del Audio</span>
+            <input v-model="audioUrl" @input="updateAudio"
+              class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors"
+              placeholder="https://..." />
+          </div>
+          <div class="space-y-1">
+            <div class="flex justify-between items-center">
+              <span class="text-sm font-medium text-white/90">Volumen</span>
+              <span class="text-xs text-white/60">{{ audioVolumeDisplay }}%</span>
+            </div>
+            <input type="range" v-model="audioVolumeDisplay" @input="updateAudio" min="0" max="100"
+              class="w-full accent-primary" />
+          </div>
+        </div>
+      </div>
+    </section>
 
-    <v-text-field
-      v-model="logoHeight"
-      label="Altura del Logo"
-      variant="outlined"
-      density="comfortable"
-      placeholder="56px"
-      @update:model-value="updateLogo"
-    ></v-text-field>
-
-    <v-divider class="my-4"></v-divider>
-
-    <h3 class="text-subtitle-1 mb-2">Fondo</h3>
-    <v-text-field
-      v-model="backgroundImageUrl"
-      label="URL de Imagen de Fondo"
-      variant="outlined"
-      density="comfortable"
-      @update:model-value="updateBackground"
-    ></v-text-field>
-
-    <v-text-field
-      v-model="backgroundVideoUrl"
-      label="URL de Video de Fondo"
-      variant="outlined"
-      density="comfortable"
-      @update:model-value="updateBackground"
-    ></v-text-field>
-
-    <v-divider class="my-4"></v-divider>
-
-    <h3 class="text-subtitle-1 mb-2">Audio</h3>
-    <v-text-field
-      v-model="audioUrl"
-      label="URL del Audio"
-      variant="outlined"
-      density="comfortable"
-      placeholder="https://ejemplo.com/audio.mp3"
-      @update:model-value="updateAudio"
-    ></v-text-field>
-
-    <div class="audio-volume-control">
-      <v-row align="center" class="mb-2">
-        <v-col cols="12" sm="8">
-          <v-slider
-            v-model="audioVolumeDisplay"
-            label="Volumen del Audio"
-            min="0"
-            max="100"
-            step="5"
-            thumb-label
-            color="primary"
-            show-ticks="always"
-            tick-size="4"
-            @update:model-value="updateAudio"
-          ></v-slider>
-        </v-col>
-        <v-col cols="12" sm="4">
-          <v-text-field
-            v-model="audioVolumeDisplay"
-            label="Volumen (%)"
-            type="number"
-            min="0"
-            max="100"
-            step="5"
-            density="comfortable"
-            variant="outlined"
-            suffix="%"
-            @update:model-value="updateAudio"
-          ></v-text-field>
-        </v-col>
-      </v-row>
-    </div>
-
-    <v-divider class="my-4"></v-divider>
-
-    <h3 class="text-subtitle-1 mb-2">Botón de Jugar</h3>
-    <v-text-field
-      v-model="playButtonText"
-      label="Texto del Botón"
-      variant="outlined"
-      density="comfortable"
-      @update:model-value="updatePlayButton"
-    ></v-text-field>
-
-    <v-row>
-      <v-col cols="6">
-        <v-text-field
-          v-model="playButtonBgColor"
-          label="Color de Fondo"
-          variant="outlined"
-          density="comfortable"
-          type="color"
-          @update:model-value="updatePlayButton"
-        ></v-text-field>
-      </v-col>
-      <v-col cols="6">
-        <v-text-field
-          v-model="playButtonTextColor"
-          label="Color de Texto"
-          variant="outlined"
-          density="comfortable"
-          type="color"
-          @update:model-value="updatePlayButton"
-        ></v-text-field>
-      </v-col>
-    </v-row>
-
-    <v-divider class="my-4"></v-divider>
-
-    <h3 class="text-subtitle-1 mb-2">Footer</h3>
-    <v-text-field
-      v-model="footerText"
-      label="Texto del Footer"
-      variant="outlined"
-      density="comfortable"
-      @update:model-value="updateFooter"
-    ></v-text-field>
-  </v-container>
+    <!-- Botón Jugar -->
+    <section class="space-y-4">
+      <div class="space-y-2">
+        <label class="text-xs font-bold text-white/60 uppercase tracking-wider">Botón Jugar</label>
+        <div class="space-y-3">
+          <div class="space-y-1">
+            <span class="text-sm font-medium text-white/90">Texto</span>
+            <input v-model="playButtonText" @input="updatePlayButton"
+              class="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-primary transition-colors" />
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="space-y-1">
+              <span class="text-sm font-medium text-white/90">Fondo</span>
+              <div class="flex gap-2">
+                <input type="color" v-model="playButtonBg" @input="updatePlayButton"
+                  class="w-8 h-8 rounded border-none bg-transparent cursor-pointer" />
+                <input v-model="playButtonBg" @input="updatePlayButton"
+                  class="flex-1 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-white focus:outline-none" />
+              </div>
+            </div>
+            <div class="space-y-1">
+              <span class="text-sm font-medium text-white/90">Texto</span>
+              <div class="flex gap-2">
+                <input type="color" v-model="playButtonTextCol" @input="updatePlayButton"
+                  class="w-8 h-8 rounded border-none bg-transparent cursor-pointer" />
+                <input v-model="playButtonTextCol" @input="updatePlayButton"
+                  class="flex-1 bg-white/10 border border-white/20 rounded-lg px-2 py-1 text-xs text-white focus:outline-none" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useAppearanceStore } from '@/store/appearance'
-import { storeToRefs } from 'pinia'
 
 const store = useAppearanceStore()
-const { appearance } = storeToRefs(store)
+const appearance = computed(() => store.appearance)
 
-// Local refs for form fields
+// Local state for nested properties
 const logoUrl = ref(appearance.value.logo?.url || '')
 const logoHeight = ref(appearance.value.logo?.height || '56px')
 const backgroundImageUrl = ref(appearance.value.background?.imageUrl || '')
-const backgroundVideoUrl = ref(appearance.value.background?.videoUrl as string || '')
+const backgroundVideoUrl = ref(appearance.value.background?.videoUrl || '')
 const audioUrl = ref(appearance.value.audio?.url || '')
 const audioVolumeDisplay = ref(Math.round((appearance.value.audio?.volume || 0.5) * 100))
 const playButtonText = ref(appearance.value.playButton?.text || 'Jugar ahora')
-const playButtonBgColor = ref(appearance.value.playButton?.backgroundColor || '#00a63e')
-const playButtonTextColor = ref(appearance.value.playButton?.textColor || '#ffffff')
-const footerText = ref(appearance.value.footerText || '')
+const playButtonBg = ref(appearance.value.playButton?.backgroundColor || '#00a63e')
+const playButtonTextCol = ref(appearance.value.playButton?.textColor || '#ffffff')
 
-// Watch for store changes
-watch(appearance, (newVal) => {
+// Watch for store changes to update local state
+watch(() => store.appearance, (newVal) => {
   logoUrl.value = newVal.logo?.url || ''
   logoHeight.value = newVal.logo?.height || '56px'
   backgroundImageUrl.value = newVal.background?.imageUrl || ''
-  backgroundVideoUrl.value = newVal.background?.videoUrl as string || ''
+  backgroundVideoUrl.value = newVal.background?.videoUrl || ''
   audioUrl.value = newVal.audio?.url || ''
   audioVolumeDisplay.value = Math.round((newVal.audio?.volume || 0.5) * 100)
   playButtonText.value = newVal.playButton?.text || 'Jugar ahora'
-  playButtonBgColor.value = newVal.playButton?.backgroundColor || '#00a63e'
-  playButtonTextColor.value = newVal.playButton?.textColor || '#ffffff'
-  footerText.value = newVal.footerText || ''
+  playButtonBg.value = newVal.playButton?.backgroundColor || '#00a63e'
+  playButtonTextCol.value = newVal.playButton?.textColor || '#ffffff'
 }, { deep: true })
 
 const updateAppearance = () => {
-  store.updateAppearance({
-    title: appearance.value.title,
-    description: appearance.value.description
-  })
+  store.updateAppearance({ ...appearance.value })
 }
 
 const updateLogo = () => {
   store.updateAppearance({
+    ...appearance.value,
     logo: {
       ...appearance.value.logo,
       url: logoUrl.value,
-      height: logoHeight.value,
-      position: appearance.value.logo?.position || {
-        top: '8rem',
-        left: '50%',
-        transform: 'translateX(-50%)'
-      }
+      height: logoHeight.value
     }
   })
 }
 
 const updateBackground = () => {
   store.updateAppearance({
+    ...appearance.value,
     background: {
-      imageUrl: backgroundImageUrl.value || undefined,
-      videoUrl: backgroundVideoUrl.value || undefined
+      ...appearance.value.background,
+      imageUrl: backgroundImageUrl.value,
+      videoUrl: backgroundVideoUrl.value
     }
   })
 }
 
 const updateAudio = () => {
   store.updateAppearance({
+    ...appearance.value,
     audio: {
-      url: audioUrl.value || undefined,
+      ...appearance.value.audio,
+      url: audioUrl.value,
       volume: audioVolumeDisplay.value / 100
     }
   })
@@ -224,33 +192,15 @@ const updateAudio = () => {
 
 const updatePlayButton = () => {
   store.updateAppearance({
+    ...appearance.value,
     playButton: {
       ...appearance.value.playButton,
       text: playButtonText.value,
-      backgroundColor: playButtonBgColor.value,
-      textColor: playButtonTextColor.value
+      backgroundColor: playButtonBg.value,
+      textColor: playButtonTextCol.value
     }
-  })
-}
-
-const updateFooter = () => {
-  store.updateAppearance({
-    footerText: footerText.value
   })
 }
 </script>
 
-<style scoped>
-.audio-volume-control {
-  margin-top: 1rem;
-  margin-bottom: 1rem;
-}
-
-.audio-volume-control .v-slider {
-  margin-bottom: 0.5rem;
-}
-
-.audio-volume-control .v-text-field {
-  margin-top: 0;
-}
-</style>
+<style scoped></style>

@@ -11,20 +11,25 @@
   },
   "dependencies": {
     "@fontsource-variable/jost": "^5.2.8",
-    "@mdi/font": "^7.4.47",
+    "clsx": "^2.1.1",
     "dompurify": "^3.2.7",
+    "lucide-vue-next": "^0.562.0",
     "marked": "^16.3.0",
     "pinia": "^3.0.3",
+    "radix-vue": "^1.9.17",
+    "tailwind-merge": "^3.4.0",
     "vue": "^3.5.13",
-    "vue-router": "^4.5.0",
-    "vuetify": "^3.7.6"
+    "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^22.10.5",
     "@vitejs/plugin-vue": "^5.2.2",
+    "autoprefixer": "^10.4.23",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.18",
     "typescript": "~5.9.2",
     "vite": "^6.0.0",
-    "vite-plugin-vuetify": "^2.0.5",
     "vue-tsc": "^2.2.0"
   }
 }

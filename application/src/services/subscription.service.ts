@@ -15,7 +15,7 @@ class SubscriptionService {
      */
     async getPublisherSubscription(publisherId: string, accessToken: string): Promise<PublisherSubscription | null> {
         try {
-            const response = await fetch(`${this.baseUrl}/publisher/${publisherId}`, {
+            const response = await fetch(`${this.publisherBaseUrl}/${publisherId}/subscription`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json',
@@ -30,13 +30,7 @@ class SubscriptionService {
             }
 
             const { data } = await response.json();
-
-            // Return the first active subscription or the most recent one
-            if (Array.isArray(data) && data.length > 0) {
-                return data[0];
-            }
-
-            return null;
+            return data;
         } catch (error) {
             console.error('Error fetching publisher subscription:', error);
             throw error;
@@ -48,7 +42,7 @@ class SubscriptionService {
      */
     async getPublisherFeatures(publisherId: string, accessToken: string): Promise<Record<string, any>> {
         try {
-            const response = await fetch(`${this.baseUrl}/publisher/${publisherId}/features`, {
+            const response = await fetch(`${this.publisherBaseUrl}/${publisherId}/subscription/features`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json',
@@ -68,11 +62,11 @@ class SubscriptionService {
     }
 
     /**
-     * Create PayPal Order for subscription
+     * Create Mercado Pago Subscription
      */
-    async createPayPalOrder(publisherId: string, tier: string, accessToken: string): Promise<string> {
+    async createMercadoPagoSubscription(publisherId: string, tier: string, accessToken: string): Promise<{ subscriptionId: string; approvalUrl: string }> {
         try {
-            const response = await fetch(`${this.publisherBaseUrl}/${publisherId}/subscription/order`, {
+            const response = await fetch(`${this.publisherBaseUrl}/${publisherId}/subscription/mercadopago`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
@@ -83,39 +77,13 @@ class SubscriptionService {
 
             if (!response.ok) {
                 const error = await response.json();
-                throw new Error(error.message || 'Failed to create PayPal order');
+                throw new Error(error.message || 'Failed to create Mercado Pago subscription');
             }
 
             const data = await response.json();
-            return data.orderId;
+            return { subscriptionId: data.subscriptionId, approvalUrl: data.approvalUrl };
         } catch (error) {
-            console.error('Error creating PayPal order:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Capture PayPal Order and activate subscription
-     */
-    async capturePayPalOrder(publisherId: string, orderId: string, tier: string, accessToken: string): Promise<void> {
-        try {
-            const response = await fetch(`${this.publisherBaseUrl}/${publisherId}/subscription/capture`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ orderId, tier }), // Tier sent for validation
-            });
-
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.message || 'Failed to capture PayPal order');
-            }
-
-            return;
-        } catch (error) {
-            console.error('Error capturing PayPal order:', error);
+            console.error('Error creating Mercado Pago subscription:', error);
             throw error;
         }
     }
@@ -264,7 +232,7 @@ class SubscriptionService {
         accessToken: string
     ): Promise<void> {
         try {
-            const response = await fetch(`${this.baseUrl}/publisher/${publisherId}/features/override`, {
+            const response = await fetch(`${this.publisherBaseUrl}/${publisherId}/subscription/admin/override-feature`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
@@ -282,6 +250,36 @@ class SubscriptionService {
             }
         } catch (error) {
             console.error('Error overriding feature:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Set admin override for a publisher (admin only)
+     */
+    async setAdminOverride(
+        publisherId: string,
+        override: boolean,
+        accessToken: string
+    ): Promise<void> {
+        try {
+            const response = await fetch(`${this.publisherBaseUrl}/${publisherId}/subscription/admin/set-override`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    override,
+                }),
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || `Failed to set admin override: ${response.statusText}`);
+            }
+        } catch (error) {
+            console.error('Error setting admin override:', error);
             throw error;
         }
     }
@@ -309,54 +307,6 @@ class SubscriptionService {
             }
         } catch (error) {
             console.error('Error removing feature override:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Get PayPal approval URL for an order
-     */
-    async getPayPalApprovalUrl(orderId: string, accessToken: string): Promise<string> {
-        try {
-            const response = await fetch(`${this.publisherBaseUrl}/subscription/paypal/approval/${orderId}`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to get PayPal approval URL: ${response.statusText}`);
-            }
-
-            const { data } = await response.json();
-            return data.approvalUrl;
-        } catch (error) {
-            console.error('Error getting PayPal approval URL:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Check payment status
-     */
-    async checkPaymentStatus(orderId: string, accessToken: string): Promise<{ status: string }> {
-        try {
-            const response = await fetch(`${this.publisherBaseUrl}/subscription/paypal/status/${orderId}`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-
-            if (!response.ok) {
-                throw new Error(`Failed to check payment status: ${response.statusText}`);
-            }
-
-            const { data } = await response.json();
-            return data;
-        } catch (error) {
-            console.error('Error checking payment status:', error);
             throw error;
         }
     }

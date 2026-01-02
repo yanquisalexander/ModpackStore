@@ -1,34 +1,38 @@
 <template>
-  <v-app>
-    <v-app-bar v-show="store.showAppBar" color="primary" prominent>
-      <v-app-bar-title>
-        <v-icon icon="mdi-rocket-launch" class="mr-2"></v-icon>
-        Prelaunch Designer
-      </v-app-bar-title>
+  <div class="min-h-screen flex flex-col bg-[#0a0a0a] text-white">
+    <header v-show="store.showAppBar"
+      class="glass-dark border-b border-white/10 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/20">
+          <Rocket class="w-6 h-6 text-white" />
+        </div>
+        <h1 class="text-xl font-bold tracking-tight">Prelaunch Designer</h1>
+      </div>
 
-      <v-spacer></v-spacer>
+      <div class="flex items-center gap-2">
+        <a href="https://github.com/yanquisalexander/ModpackStore" target="_blank"
+          class="p-2 rounded-lg hover:bg-white/5 transition-colors">
+          <Github class="w-5 h-5" />
+        </a>
+      </div>
+    </header>
 
-      <v-btn icon="mdi-theme-light-dark" @click="toggleTheme"></v-btn>
-      <v-btn icon="mdi-help-circle-outline" href="https://github.com/yanquisalexander/ModpackStore"
-        target="_blank"></v-btn>
-    </v-app-bar>
-
-    <v-main :class="{ 'pa-0': !store.showAppBar }">
+    <main class="flex-1 flex flex-col overflow-hidden">
       <router-view />
-    </v-main>
-  </v-app>
+    </main>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { useTheme } from 'vuetify'
+import { onMounted } from 'vue'
 import { useAppearanceStore } from '@/store/appearance'
+import { Rocket, Github } from 'lucide-vue-next'
 
-const theme = useTheme()
 const store = useAppearanceStore()
 
-const toggleTheme = () => {
-  theme.global.name.value = theme.global.name.value === 'dark' ? 'light' : 'dark'
-}
+onMounted(() => {
+  document.documentElement.classList.add('dark')
+})
 </script>
 
 <style scoped></style>

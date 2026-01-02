@@ -170,7 +170,7 @@ export const AppSidebar: React.FC = memo(() => {
         // Add whitelist instances if user has whitelists
         if (hasWhitelists && isConnected) {
             baseItems.splice(1, 0, {
-                name: `Whitelist (${whitelistCount})`,
+                name: "Whitelist",
                 icon: LucideShield,
                 path: "/whitelist-instances",
                 requiresConnection: true

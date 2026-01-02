@@ -1,131 +1,157 @@
 <template>
-  <v-container fluid class="pa-0" :class="containerClass">
-    <v-row no-gutters class="fill-height">
-      <!-- Left Panel - Editor Controls -->
-      <v-col :cols="leftPanelCols.cols" :md="leftPanelCols.md" class="border-e"
-        v-show="!leftPanelCollapsed && !fullscreenPreview">
-        <v-card flat tile height="100%">
-          <v-card-title class="d-flex align-center justify-space-between">
-            <span>Controles del Editor</span>
-            <v-btn icon="mdi-chevron-left" size="small" variant="text"
-              @click="leftPanelCollapsed = !leftPanelCollapsed">
-              <v-tooltip activator="parent">Colapsar panel izquierdo</v-tooltip>
-            </v-btn>
-          </v-card-title>
-          <v-card-text>
-            <v-tabs v-model="activeTab" color="primary" align-tabs="center">
-              <v-tab value="basic">Básico</v-tab>
-              <v-tab value="blocks">Bloques</v-tab>
-              <v-tab value="advanced">Avanzado</v-tab>
-            </v-tabs>
+  <div class="flex-1 flex overflow-hidden relative">
+    <!-- Left Panel - Editor Controls -->
+    <aside v-show="!leftPanelCollapsed && !fullscreenPreview"
+      class="w-80 glass-dark border-r border-white/10 flex flex-col transition-all duration-300">
+      <div class="p-4 border-b border-white/10 flex items-center justify-between">
+        <h2 class="font-semibold flex items-center gap-2">
+          <Settings2 class="w-4 h-4 text-primary" />
+          Controles
+        </h2>
+        <button @click="leftPanelCollapsed = true" class="p-1 hover:bg-white/5 rounded transition-colors">
+          <ChevronLeft class="w-4 h-4" />
+        </button>
+      </div>
 
-            <v-window v-model="activeTab" class="mt-4">
-              <v-window-item value="basic">
-                <BasicSettingsPanel />
-              </v-window-item>
+      <div class="flex-1 overflow-y-auto p-4">
+        <div class="flex p-1 bg-black/20 rounded-lg mb-6">
+          <button v-for="tab in tabs" :key="tab.id" @click="activeTab = tab.id" :class="[
+            'flex-1 py-2 text-sm font-medium rounded-md transition-all',
+            activeTab === tab.id ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-white/60 hover:text-white'
+          ]">
+            {{ tab.label }}
+          </button>
+        </div>
 
-              <v-window-item value="blocks">
-                <BlocksPanel />
-              </v-window-item>
+        <div class="space-y-4">
+          <BasicSettingsPanel v-if="activeTab === 'basic'" />
+          <BlocksPanel v-if="activeTab === 'blocks'" />
+          <AdvancedPanel v-if="activeTab === 'advanced'" />
+        </div>
+      </div>
+    </aside>
 
-              <v-window-item value="advanced">
-                <AdvancedPanel />
-              </v-window-item>
-            </v-window>
-          </v-card-text>
-        </v-card>
-      </v-col>
+    <!-- Center Panel - Preview -->
+    <main class="flex-1 relative bg-black/40 overflow-hidden flex flex-col">
+      <div class="absolute inset-0 pointer-events-none overflow-hidden">
+        <div class="absolute -top-24 -left-24 w-96 h-96 bg-primary/10 blur-[120px] rounded-full"></div>
+        <div class="absolute -bottom-24 -right-24 w-96 h-96 bg-accent/5 blur-[120px] rounded-full"></div>
+      </div>
 
-      <!-- Center Panel - Preview -->
-      <v-col :cols="centerPanelCols.cols" :md="centerPanelCols.md">
+      <div class="p-4 flex items-center justify-between relative z-10">
+        <div class="flex items-center gap-2">
+          <button v-if="leftPanelCollapsed && !fullscreenPreview" @click="leftPanelCollapsed = false"
+            class="p-2 glass hover:bg-white/10 rounded-lg transition-all">
+            <ChevronRight class="w-4 h-4" />
+          </button>
+          <div class="px-3 py-1 glass rounded-full text-xs font-medium text-white/60 flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full bg-primary animate-pulse"></div>
+            Live Preview
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button @click="toggleFullscreen" class="p-2 glass hover:bg-white/10 rounded-lg transition-all">
+            <Maximize2 v-if="!fullscreenPreview" class="w-4 h-4" />
+            <Minimize2 v-else class="w-4 h-4" />
+          </button>
+          <button v-if="rightPanelCollapsed && !fullscreenPreview" @click="rightPanelCollapsed = false"
+            class="p-2 glass hover:bg-white/10 rounded-lg transition-all">
+            <ChevronLeft class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 flex items-start justify-center p-8 overflow-auto">
         <PreviewPanel />
-      </v-col>
+      </div>
+    </main>
 
-      <!-- Right Panel - Properties -->
-      <v-col :cols="rightPanelCols.cols" :md="rightPanelCols.md" class="border-s"
-        v-show="!rightPanelCollapsed && !fullscreenPreview">
-        <v-card flat tile height="100%">
-          <v-card-title class="d-flex align-center justify-space-between">
-            <span>Propiedades</span>
-            <v-btn icon="mdi-chevron-right" size="small" variant="text"
-              @click="rightPanelCollapsed = !rightPanelCollapsed">
-              <v-tooltip activator="parent">Colapsar panel derecho</v-tooltip>
-            </v-btn>
-          </v-card-title>
-          <PropertiesPanel />
-        </v-card>
-      </v-col>
-    </v-row>
+    <!-- Right Panel - Properties -->
+    <aside v-show="!rightPanelCollapsed && !fullscreenPreview"
+      class="w-80 glass-dark border-l border-white/10 flex flex-col transition-all duration-300">
+      <div class="p-4 border-b border-white/10 flex items-center justify-between">
+        <h2 class="font-semibold flex items-center gap-2">
+          <Sliders class="w-4 h-4 text-primary" />
+          Propiedades
+        </h2>
+        <button @click="rightPanelCollapsed = true" class="p-1 hover:bg-white/5 rounded transition-colors">
+          <ChevronRight class="w-4 h-4" />
+        </button>
+      </div>
 
-    <!-- Action Buttons -->
-    <v-fab size="large" app fixed icon color="primary" v-show="!fullscreenPreview">
-      <v-icon>{{ open ? 'mdi-close' : 'mdi-menu' }}</v-icon>
-      <v-speed-dial v-model="open" transition="slide-y-reverse-transition" activator="parent">
-        <v-btn key="download" icon="mdi-download" color="success" @click="exportJSON">
-          <v-icon>mdi-download</v-icon>
-          <v-tooltip activator="parent" location="start">Exportar JSON</v-tooltip>
-        </v-btn>
+      <div class="flex-1 overflow-y-auto">
+        <PropertiesPanel />
+      </div>
+    </aside>
 
-        <v-btn key="upload" icon="mdi-upload" color="info" @click="showImportDialog = true">
-          <v-icon>mdi-upload</v-icon>
-          <v-tooltip activator="parent" location="start">Importar JSON</v-tooltip>
-        </v-btn>
+    <!-- Floating Action Menu -->
+    <div v-show="!fullscreenPreview" class="fixed bottom-8 right-8 flex flex-col items-end gap-3 z-50">
+      <div v-if="menuOpen" class="flex flex-col gap-3 mb-3 animate-in slide-in-from-bottom-4 duration-200">
+        <button @click="exportJSON" class="group flex items-center gap-3">
+          <span class="px-2 py-1 glass rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity">Exportar
+            JSON</span>
+          <div
+            class="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center shadow-lg shadow-green-500/20 hover:scale-110 transition-transform">
+            <Download class="w-5 h-5 text-white" />
+          </div>
+        </button>
+        <button @click="showImportDialog = true" class="group flex items-center gap-3">
+          <span class="px-2 py-1 glass rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity">Importar
+            JSON</span>
+          <div
+            class="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center shadow-lg shadow-blue-500/20 hover:scale-110 transition-transform">
+            <Upload class="w-5 h-5 text-white" />
+          </div>
+        </button>
+        <button @click="store.undo()" :disabled="!store.canUndo"
+          class="group flex items-center gap-3 disabled:opacity-50">
+          <span
+            class="px-2 py-1 glass rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity">Deshacer</span>
+          <div
+            class="w-12 h-12 rounded-full bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/20 hover:scale-110 transition-transform">
+            <Undo2 class="w-5 h-5 text-white" />
+          </div>
+        </button>
+        <button @click="store.redo()" :disabled="!store.canRedo"
+          class="group flex items-center gap-3 disabled:opacity-50">
+          <span
+            class="px-2 py-1 glass rounded text-xs opacity-0 group-hover:opacity-100 transition-opacity">Rehacer</span>
+          <div
+            class="w-12 h-12 rounded-full bg-orange-500 flex items-center justify-center shadow-lg shadow-orange-500/20 hover:scale-110 transition-transform">
+            <Redo2 class="w-5 h-5 text-white" />
+          </div>
+        </button>
+      </div>
 
-        <v-btn key="undo" icon="mdi-undo" color="warning" :disabled="!store.canUndo" @click="store.undo()">
-          <v-icon>mdi-undo</v-icon>
-          <v-tooltip activator="parent" location="start">Deshacer</v-tooltip>
-        </v-btn>
-
-        <v-btn key="redo" icon="mdi-redo" color="warning" :disabled="!store.canRedo" @click="store.redo()">
-          <v-icon>mdi-redo</v-icon>
-          <v-tooltip activator="parent" location="start">Rehacer</v-tooltip>
-        </v-btn>
-
-        <v-btn key="fullscreen" icon="mdi-fullscreen" color="secondary" @click="toggleFullscreen">
-          <v-icon>{{ fullscreenPreview ? 'mdi-fullscreen-exit' : 'mdi-fullscreen' }}</v-icon>
-          <v-tooltip activator="parent" location="start">
-            {{ fullscreenPreview ? 'Salir de pantalla completa' : 'Vista previa en pantalla completa' }}
-          </v-tooltip>
-        </v-btn>
-      </v-speed-dial>
-    </v-fab>
-
-    <!-- Fullscreen Exit Button -->
-    <v-btn v-show="fullscreenPreview" fab size="small" color="secondary" fixed top right @click="toggleFullscreen"
-      class="ma-4">
-      <v-icon>mdi-fullscreen-exit</v-icon>
-      <v-tooltip activator="parent">Salir de pantalla completa</v-tooltip>
-    </v-btn>
-
-    <!-- Export Dialog -->
-    <v-dialog v-model="showExportDialog" max-width="600">
-      <v-card>
-        <v-card-title>Exportar JSON</v-card-title>
-        <v-card-text>
-          <v-textarea v-model="exportText" readonly label="JSON Exportado"></v-textarea>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn @click="showExportDialog = false">Cerrar</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+      <button @click="menuOpen = !menuOpen"
+        class="w-14 h-14 rounded-full bg-primary flex items-center justify-center shadow-xl shadow-primary/30 hover:scale-105 active:scale-95 transition-all">
+        <X v-if="menuOpen" class="w-6 h-6 text-white" />
+        <Menu v-else class="w-6 h-6 text-white" />
+      </button>
+    </div>
 
     <!-- Import Dialog -->
-    <v-dialog v-model="showImportDialog" max-width="600">
-      <v-card>
-        <v-card-title>Importar JSON</v-card-title>
-        <v-card-text>
-          <v-textarea v-model="importText" label="Pegar JSON aquí" :error-messages="importError"></v-textarea>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn @click="showImportDialog = false">Cancelar</v-btn>
-          <v-btn color="primary" @click="importJSON">Importar</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-  </v-container>
+    <div v-if="showImportDialog" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showImportDialog = false"></div>
+      <div class="liquid-glass w-full max-w-lg p-6 rounded-2xl relative z-10">
+        <h3 class="text-xl font-bold mb-4">Importar Configuración</h3>
+        <p class="text-white/60 text-sm mb-6">Pega el JSON de tu configuración de prelaunch para cargarla en el editor.
+        </p>
+
+        <textarea v-model="importJSONText"
+          class="w-full h-64 bg-black/40 border border-white/10 rounded-xl p-4 font-mono text-sm focus:outline-none focus:border-primary transition-colors mb-6"
+          placeholder='{ "title": "Mi Servidor", ... }'></textarea>
+
+        <div class="flex justify-end gap-3">
+          <button @click="showImportDialog = false"
+            class="px-4 py-2 hover:bg-white/5 rounded-lg transition-colors">Cancelar</button>
+          <button @click="importJSON"
+            class="px-6 py-2 bg-primary rounded-lg font-semibold shadow-lg shadow-primary/20 hover:scale-105 transition-all">Importar</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -136,131 +162,51 @@ import BlocksPanel from '@/components/BlocksPanel.vue'
 import AdvancedPanel from '@/components/AdvancedPanel.vue'
 import PreviewPanel from '@/components/PreviewPanel.vue'
 import PropertiesPanel from '@/components/PropertiesPanel.vue'
+import {
+  Settings2, Sliders, ChevronLeft, ChevronRight,
+  Maximize2, Minimize2, Menu, X, Download, Upload,
+  Undo2, Redo2
+} from 'lucide-vue-next'
 
 const store = useAppearanceStore()
-const activeTab = ref('basic')
-const showImportDialog = ref(false)
-const showExportDialog = ref(false)
-const importText = ref('')
-const exportText = ref('')
-const importError = ref<string[]>([])
-const open = ref(false)
-const fullscreenPreview = ref(false)
 
-// Panel collapse state
+const activeTab = ref('basic')
+const tabs = [
+  { id: 'basic', label: 'Básico' },
+  { id: 'blocks', label: 'Bloques' },
+  { id: 'advanced', label: 'Avanzado' }
+]
+
 const leftPanelCollapsed = ref(false)
 const rightPanelCollapsed = ref(false)
-
-// Dynamic column classes
-const leftPanelCols = computed(() => ({
-  cols: 12,
-  md: fullscreenPreview.value ? 0 : (leftPanelCollapsed.value ? 0 : 3)
-}))
-
-const centerPanelCols = computed(() => {
-  if (fullscreenPreview.value) {
-    return {
-      cols: 12,
-      md: 12
-    }
-  }
-
-  const leftCollapsed = leftPanelCollapsed.value
-  const rightCollapsed = rightPanelCollapsed.value
-
-  let md = 6
-  if (leftCollapsed && rightCollapsed) md = 12
-  else if (leftCollapsed || rightCollapsed) md = 9
-
-  return {
-    cols: 12,
-    md
-  }
-})
-
-const rightPanelCols = computed(() => ({
-  cols: 12,
-  md: fullscreenPreview.value ? 0 : (rightPanelCollapsed.value ? 0 : 3)
-}))
-
-const containerClass = computed(() => ({
-  'fill-height': true,
-  'fill-height-no-appbar': !store.showAppBar
-}))
-
-const exportJSON = () => {
-  const json = store.exportToJSON()
-  exportText.value = json
-  showExportDialog.value = true
-}
-
-const importJSON = () => {
-  const result = store.importFromJSON(importText.value)
-  if (result.success) {
-    showImportDialog.value = false
-    importText.value = ''
-    importError.value = []
-  } else {
-    importError.value = [result.error || 'Error al importar JSON']
-  }
-}
+const fullscreenPreview = ref(false)
+const menuOpen = ref(false)
+const showImportDialog = ref(false)
+const importJSONText = ref('')
 
 const toggleFullscreen = () => {
   fullscreenPreview.value = !fullscreenPreview.value
-  store.setShowAppBar(!fullscreenPreview.value)
+  store.showAppBar = !fullscreenPreview.value
 }
 
+const exportJSON = () => {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(store.appearance, null, 2))
+  const downloadAnchorNode = document.createElement('a')
+  downloadAnchorNode.setAttribute("href", dataStr)
+  downloadAnchorNode.setAttribute("download", "prelaunch-appearance.json")
+  document.body.appendChild(downloadAnchorNode)
+  downloadAnchorNode.click()
+  downloadAnchorNode.remove()
+}
 
+const importJSON = () => {
+  try {
+    const parsed = JSON.parse(importJSONText.value)
+    store.setAppearance(parsed)
+    showImportDialog.value = false
+    importJSONText.value = ''
+  } catch (e) {
+    alert('JSON inválido')
+  }
+}
 </script>
-
-<style scoped>
-.fill-height {
-  height: calc(100vh - 64px);
-}
-
-.fill-height-no-appbar {
-  height: 100vh;
-}
-
-.panel-toggle-buttons {
-  position: fixed;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1000;
-}
-
-.panel-collapse-left {
-  position: absolute;
-  left: 0;
-  top: 20px;
-  border-radius: 0 4px 4px 0;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
-}
-
-.panel-collapse-right {
-  position: absolute;
-  right: 0;
-  top: 20px;
-  border-radius: 4px 0 0 4px;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
-}
-
-.panel-toggle-left {
-  position: absolute;
-  left: 0;
-  border-radius: 0 4px 4px 0;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
-}
-
-.panel-toggle-right {
-  position: absolute;
-  right: 0;
-  border-radius: 4px 0 0 4px;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.15);
-}
-
-/* Smooth transitions for panel collapse/expand */
-.v-col {
-  transition: all 0.3s ease-in-out;
-}
-</style>
