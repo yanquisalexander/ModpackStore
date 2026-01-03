@@ -41,7 +41,7 @@
   },
   "productName": "Modpack Store",
   "mainBinaryName": "ModpackStore",
-  "version": "1.0.115",
+  "version": "1.0.116",
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {
     "updater": {
@@ -86,6 +86,21 @@
         "url": "splash.html",
         "decorations": false,
         "visible": true
+      },
+      {
+        "label": "running-instances-tray-window",
+        "title": "Instancias Activas",
+        "width": 350,
+        "height": 500,
+        "resizable": false,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "shadow": false,
+        "url": "tray.html"
       }
     ]
   }

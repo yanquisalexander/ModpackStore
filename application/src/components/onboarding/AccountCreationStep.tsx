@@ -2,142 +2,137 @@ import React, { useState } from 'react';
 import { OnboardingStepProps } from '@/types/onboarding';
 import { motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { LucideUser, LucideUserPlus } from 'lucide-react';
+import { LucideUser, LucideArrowRight, LucideCheck, LucideGamepad2, LucideLoader2, LucideInfo } from 'lucide-react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'sonner';
 import { TauriCommandReturns } from '@/types/TauriCommandReturns';
+import { cn } from '@/lib/utils';
 
 export const AccountCreationStep: React.FC<OnboardingStepProps> = ({ onNext }) => {
   const [username, setUsername] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleCreateAccount = async () => {
-    if (!username.trim()) {
-      return;
-    }
+    if (!username.trim()) return;
 
     setIsLoading(true);
-
     try {
-      await invoke<TauriCommandReturns['add_offline_account']>('add_offline_account', { 
-        username: username.trim() 
+      await invoke<TauriCommandReturns['add_offline_account']>('add_offline_account', {
+        username: username.trim()
       });
 
-      toast.success('¡Cuenta creada!', {
-        description: `Se ha creado la cuenta ${username} correctamente`,
-      });
+      toast.success(`Bienvenido, ${username}`);
 
-      // Continue to next step
-      onNext();
+      // Pequeño delay para la transición
+      setTimeout(() => {
+        onNext();
+      }, 500);
+
     } catch (error) {
       console.error('Error creating account:', error);
-      toast.error('Error al crear la cuenta', {
-        description: 'No se pudo crear la cuenta. Inténtalo de nuevo.',
-      });
+      toast.error('Error al crear el perfil');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const isUsernameValid = username.trim().length > 0;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Regex estricto para nicks de Minecraft (Alfanumérico + guion bajo)
+    const value = e.target.value.replace(/[^a-zA-Z0-9_]/g, "");
+    setUsername(value);
+  };
+
+  const isValid = username.trim().length >= 3;
 
   return (
-    <div className="mx-auto p-6 min-h-screen flex items-center">
-      <motion.div 
-        initial={{ opacity: 0, y: 10 }} 
-        animate={{ opacity: 1, y: 0 }} 
-        transition={{ duration: 0.45 }} 
-        className="grid md:grid-cols-3 gap-6 w-full"
-      >
-        <div className="md:col-span-1">
-          <Card>
-            <CardContent className="p-6 flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-gradient-to-br from-emerald-600 to-teal-600 text-white">
-                <LucideUserPlus className="h-6 w-6" />
-              </div>
-              <div>
-                <h2 className="text-xl font-bold">Primera Cuenta</h2>
-                <p className="text-sm text-muted-foreground">Configurar jugador</p>
-              </div>
-            </CardContent>
-          </Card>
+    <div className="flex flex-col h-full justify-center max-w-xl mx-auto px-8 relative">
+
+      {/* Header */}
+      <div className="mb-10">
+        <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-6 border border-white/10 shadow-2xl">
+          <LucideUser className="h-8 w-8 text-neutral-300" />
         </div>
 
-        <div className="md:col-span-2">
-          <Card>
-            <CardContent className="p-6">
-              <h1 className="text-2xl font-bold mb-2">Vamos a añadir tu primera cuenta</h1>
-              <p className="text-sm text-muted-foreground mb-6">
-                Para empezar, vamos a añadir tu primera cuenta offline para que puedas jugar.
-              </p>
+        <h1 className="text-4xl font-bold text-white mb-3 tracking-tight">
+          Crea tu Perfil
+        </h1>
 
-              <motion.div 
-                className="space-y-4" 
-                initial={{ opacity: 0 }} 
-                animate={{ opacity: 1 }} 
-                transition={{ delay: 0.12 }}
+        <p className="text-neutral-400 text-lg leading-relaxed">
+          Para terminar, elige un nombre de jugador. Esta será una cuenta local para empezar a jugar inmediatamente.
+        </p>
+      </div>
+
+      {/* Form Area */}
+      <div className="space-y-8">
+
+        <div className="relative group">
+          <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
+            <LucideGamepad2 className={cn("h-5 w-5 transition-colors", isValid ? "text-white" : "text-neutral-500")} />
+          </div>
+
+          <Input
+            type="text"
+            value={username}
+            onChange={handleChange}
+            placeholder="Nombre de usuario"
+            className="h-16 pl-12 text-lg bg-white/5 border-white/10 focus:border-white/30 rounded-xl transition-all placeholder:text-neutral-600"
+            maxLength={16}
+            autoFocus
+            onKeyDown={(e) => e.key === 'Enter' && isValid && handleCreateAccount()}
+          />
+
+          {/* Validation Indicator */}
+          <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
+            {isValid && (
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                className="bg-green-500/20 p-1 rounded-full"
               >
-                <div className="space-y-2">
-                  <Label htmlFor="player-name" className="text-sm font-medium">
-                    Nombre de jugador
-                  </Label>
-                  <div className="relative">
-                    <LucideUser className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      id="player-name"
-                      type="text"
-                      value={username}
-                      onChange={(e) => {
-                        // Prevent spacing and special characters, similar to AddAccountDialog
-                        const value = e.target.value.replace(/[^a-zA-Z0-9_]/g, "");
-                        setUsername(value);
-                      }}
-                      placeholder="Ingresa tu nombre de jugador"
-                      className="pl-10"
-                      disabled={isLoading}
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Solo se permiten letras, números y guiones bajos.
-                  </p>
-                </div>
-
-                <motion.div 
-                  className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800/30 rounded-lg p-4 mt-6"
-                  initial={{ opacity: 0, y: 5 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                >
-                  <h3 className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-2">
-                    ¿Qué puedes hacer después?
-                  </h3>
-                  <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1">
-                    <li>• Gestionar tus cuentas desde la sección "Cuentas"</li>
-                    <li>• Eliminar esta cuenta si lo deseas</li>
-                    <li>• Añadir una cuenta Microsoft (premium)</li>
-                    <li>• Añadir más cuentas offline</li>
-                  </ul>
-                </motion.div>
+                <LucideCheck className="h-4 w-4 text-green-500" />
               </motion.div>
-
-              <div className="flex justify-end mt-6">
-                <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
-                  <Button 
-                    onClick={handleCreateAccount}
-                    disabled={!isUsernameValid || isLoading}
-                    className="cursor-pointer disabled:cursor-not-allowed"
-                  >
-                    {isLoading ? 'Creando cuenta...' : 'Crear cuenta y continuar'}
-                  </Button>
-                </motion.div>
-              </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         </div>
-      </motion.div>
+
+        {/* Info Box */}
+        <div className="p-4 rounded-xl border border-white/5 bg-white/[0.02] flex gap-4 items-start">
+          <LucideInfo className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <h4 className="text-sm font-medium text-white">Nota sobre cuentas</h4>
+            <p className="text-sm text-neutral-500 leading-relaxed">
+              Esta es una cuenta <strong>Offline</strong>. Podrás añadir tu cuenta premium de Microsoft más tarde desde el menú de configuración si lo deseas.
+            </p>
+          </div>
+        </div>
+
+      </div>
+
+      {/* Action Buttons */}
+      <div className="mt-10">
+        <Button
+          onClick={handleCreateAccount}
+          disabled={!isValid || isLoading}
+          className={cn(
+            "w-full h-14 text-base font-medium rounded-xl transition-all shadow-lg",
+            (!isValid || isLoading)
+              ? "bg-neutral-800 text-neutral-500 cursor-not-allowed"
+              : "bg-white text-black hover:bg-neutral-200 shadow-white/5"
+          )}
+        >
+          {isLoading ? (
+            <span className="flex items-center gap-2">
+              <LucideLoader2 className="animate-spin h-5 w-5" /> Creando perfil...
+            </span>
+          ) : (
+            <span className="flex items-center gap-2">
+              Crear y Finalizar <LucideArrowRight className="ml-2 h-5 w-5" />
+            </span>
+          )}
+        </Button>
+      </div>
+
     </div>
   );
 };

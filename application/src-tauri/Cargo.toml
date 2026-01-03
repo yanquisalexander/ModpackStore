@@ -41,7 +41,7 @@ sha1 = "0.10.6"
 sha2 = "0.10"
 sysinfo = "0.31"
 tar = "0.4.44"
-tauri = {version = "2", features = [] }
+tauri = {version = "2.0.0", features = ["tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-drpc = "0.1.6"
 tauri-plugin-fs = "2"

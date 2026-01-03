@@ -30,6 +30,7 @@ export default defineConfig(async () => ({
       input: {
         main: path.resolve(__dirname, "index.html"),
         splash: path.resolve(__dirname, "splash.html"),
+        tray: path.resolve(__dirname, "tray.html"),
       },
     },
   },

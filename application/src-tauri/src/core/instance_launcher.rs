@@ -1,7 +1,7 @@
 //! Handles the logic for preparing and launching a specific Minecraft instance.
 
 // --- Standard Library Imports ---
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
@@ -24,6 +24,7 @@ use crate::GLOBAL_APP_HANDLE;
 use lazy_static::lazy_static;
 use log::{error, info, warn};
 use regex::Regex;
+use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::{Emitter, Manager};
 use thiserror::Error;
@@ -108,9 +109,24 @@ pub struct InstanceLauncher {
 // Implementation
 //-----------------------------------------------------------------------------
 
+#[derive(Debug, Serialize, Clone)]
+pub struct RunningInstanceInfo {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub icon: Option<String>,
+}
+
 lazy_static! {
+    static ref RUNNING_INSTANCES: Arc<Mutex<HashMap<String, RunningInstanceInfo>>> =
+        Arc::new(Mutex::new(HashMap::new()));
     // Regex to capture Java version mismatch details from stderr
     static ref RE_JAVA_VERSION: Regex = Regex::new(r"class file version (\d+\.\d+).*, this version of the Java Runtime only recognizes class file versions up to (\d+\.\d+)").unwrap();
+}
+
+pub fn get_running_instances_list() -> Vec<RunningInstanceInfo> {
+    let lock = RUNNING_INSTANCES.lock().unwrap();
+    lock.values().cloned().collect()
 }
 
 impl InstanceLauncher {
@@ -237,6 +253,12 @@ impl InstanceLauncher {
         thread::spawn(move || {
             // .wait() bloquea este hilo hasta que Minecraft se cierra, pero no consume RAM acumulando logs
             let wait_result = child.wait();
+
+            // Remove from running instances registry
+            {
+                let mut lock = RUNNING_INSTANCES.lock().unwrap();
+                lock.remove(&instance_id);
+            }
 
             match wait_result {
                 Ok(status) => {
@@ -466,6 +488,21 @@ impl InstanceLauncher {
                     self.instance.instanceId,
                     child_process.id()
                 );
+
+                // Add to running instances registry
+                {
+                    let mut lock = RUNNING_INSTANCES.lock().unwrap();
+                    lock.insert(
+                        self.instance.instanceId.clone(),
+                        RunningInstanceInfo {
+                            id: self.instance.instanceId.clone(),
+                            name: self.instance.instanceName.clone(),
+                            version: self.instance.minecraftVersion.clone(),
+                            icon: self.instance.iconUrl.clone(),
+                        },
+                    );
+                }
+
                 self.emit_status(EVENT_LAUNCHED, "Minecraft se está ejecutando.", None);
 
                 // Record session start

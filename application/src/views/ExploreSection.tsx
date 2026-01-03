@@ -167,7 +167,7 @@ export const ExploreSection = () => {
     }
 
     return (
-        <div className="flex flex-col h-full overflow-hidden relative bg-[#121212]">
+        <div className="flex flex-col h-full w-full overflow-hidden relative bg-[#121212]">
 
             {/* Glow Ambiental (Fondo) */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-green-500/5 blur-[120px] rounded-full pointer-events-none z-0" />

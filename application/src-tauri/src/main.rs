@@ -17,9 +17,10 @@ use std::process::Command;
 use std::str;
 use std::sync::Arc;
 use std::sync::Mutex;
-use tauri::Emitter;
-use tauri::Manager; // Necesario para get_window y emit
+use tauri::menu::{Menu, MenuItem};
+use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
 use tauri::Wry;
+use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize}; // Necesario para get_window y emit
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_store::StoreExt;
 
@@ -69,6 +70,12 @@ fn splash_done(app: tauri::AppHandle) {
     };
 }
 
+#[tauri::command]
+async fn get_running_instances(
+) -> Result<Vec<crate::core::instance_launcher::RunningInstanceInfo>, String> {
+    Ok(crate::core::instance_launcher::get_running_instances_list())
+}
+
 pub fn main() {
     let _ = fix_path_env::fix();
 
@@ -98,6 +105,13 @@ pub fn main() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        /* .on_window_event(|window, event| {
+            if window.label() == "running-instances-tray-window" {
+                if let tauri::WindowEvent::Focused(false) = event {
+                    let _ = window.hide();
+                }
+            }
+        }) */
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_fs::init())
@@ -138,6 +152,66 @@ pub fn main() {
                 log::error!("Failed to initialize i18n manager: {}", e);
                 return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)));
             }
+
+            // --- Tray Icon Setup ---
+            let quit_i = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
+            let show_i = MenuItem::with_id(app, "show", "Abrir Launcher", true, None::<&str>)?;
+            let instances_i = MenuItem::with_id(
+                app,
+                "show_instances",
+                "Ver Instancias Activas",
+                true,
+                None::<&str>,
+            )?;
+
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &show_i,
+                    &instances_i,
+                    &tauri::menu::PredefinedMenuItem::separator(app)?,
+                    &quit_i,
+                ],
+            )?;
+
+            let _tray = TrayIconBuilder::new()
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .icon(app.default_window_icon().unwrap().clone())
+                .on_menu_event(|app, event| {
+                    match event.id().as_ref() {
+                        "quit" => app.exit(0),
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        "show_instances" => {
+                            if let Some(window) =
+                                app.get_webview_window("running-instances-tray-window")
+                            {
+                                // Posicionamiento: Arriba a la derecha
+                                if let Some(monitor) = window.current_monitor().unwrap_or(None) {
+                                    let monitor_size = monitor.size();
+                                    let window_size =
+                                        window.outer_size().unwrap_or(PhysicalSize::new(350, 500));
+
+                                    let x = monitor_size.width - window_size.width - 20;
+                                    let y = 50; // Margen superior
+
+                                    let _ = window
+                                        .set_position(PhysicalPosition::new(x as i32, y as i32));
+                                }
+
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        _ => {}
+                    }
+                })
+                .build(app)?;
 
             let app_handle_clone = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -268,6 +342,7 @@ pub fn main() {
             core::world_manager::edit_world_settings,
             utils::desktop_integration::create_shortcut,
             get_git_hash,
+            get_running_instances,
             splash_done,
         ])
         .run(tauri::generate_context!())
