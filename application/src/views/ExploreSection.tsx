@@ -51,10 +51,10 @@ const Greeting = ({ username }: { username: string | null }) => {
                 <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight leading-none">
                     {saludo},
                     <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#bcfe47] to-[#05cc2a] ml-1">
-                        {nombre.trim() || username}
+                        {nombre?.trim() || username}
                     </span>
                     <motion.span
-                        className="text-2xl md:text-3xl inline-block select-none"
+                        className="text-2xl md:text-3xl inline-block select-none ml-2"
                         animate={{ rotate: [0, 10, -10, 0] }}
                         transition={{ repeat: Infinity, repeatDelay: 5, duration: 2 }}
                     >
@@ -83,8 +83,6 @@ const QuickFilterChip = ({ label, icon: Icon, onClick }: any) => (
 
 export const ExploreSection = () => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
-
-    // 1. REF PARA EL FIX DEL SCROLL
     const scrollContainerRef = useRef<HTMLDivElement>(null)
 
     const [modpackCategories, setModpackCategories] = useState<any[]>([])
@@ -102,7 +100,7 @@ export const ExploreSection = () => {
 
     const hasCompletedOnboarding = onboardingStatus?.first_run_at !== null
 
-    // 2. EFECTO DEL SCROLL: Resetear al cambiar modo
+    // Scroll Fix
     useEffect(() => {
         if (scrollContainerRef.current) {
             scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' })
@@ -150,7 +148,6 @@ export const ExploreSection = () => {
             .finally(() => setLoading(false))
     }, [debouncedSearch])
 
-    // --- ANIMACIONES RECUPERADAS ---
     const containerVariants = {
         hidden: { opacity: 0 },
         visible: {
@@ -175,140 +172,145 @@ export const ExploreSection = () => {
             {/* Glow Ambiental (Fondo) */}
             <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-green-500/5 blur-[120px] rounded-full pointer-events-none z-0" />
 
-            {/* Contenedor con Scroll y Ref */}
+            {/* Contenedor Principal */}
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar scroll-smooth z-10">
 
-                {/* HERO SECTION */}
-                <div className="relative w-full">
-                    <FeaturedSlideshow slides={featuredSlides} />
-                    {/* Gradiente de fusión mejorado */}
-                </div>
+                {/* CORRECCIÓN: Envolvemos TODO el contenido en el estado de carga.
+                    Así, el Slideshow y el Greeting no aparecen hasta que todo esté listo.
+                */}
+                {initialLoading ? (
+                    <div className="flex flex-col items-center justify-center h-full min-h-dvh gap-4">
+                        <LucideLoader className="w-12 h-12 animate-spin text-green-500" />
+                        <p className="text-neutral-400 font-medium animate-pulse">Cargando la tienda...</p>
+                    </div>
+                ) : (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.5 }}
+                    >
+                        {/* HERO SECTION (Ahora se carga junto con el resto) */}
+                        <div className="relative w-full">
+                            <FeaturedSlideshow slides={featuredSlides} />
+                        </div>
 
-                <motion.div
-                    initial="hidden"
-                    animate="visible"
-                    variants={containerVariants}
-                    className="relative px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto -mt-20 mb-10"
-                >
-                    {hasCompletedOnboarding && <div className="mb-6"><JavaStatusBanner /></div>}
+                        <motion.div
+                            initial="hidden"
+                            animate="visible"
+                            variants={containerVariants}
+                            className="relative px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto -mt-20 mb-10"
+                        >
+                            {hasCompletedOnboarding && <div className="mb-6"><JavaStatusBanner /></div>}
 
-                    {/* HEADER CARD CON GLASSMORPHISM REAL */}
-                    <div className="bg-neutral-900/60 backdrop-blur-xl backdrop-saturate-150 border border-white/10 rounded-2xl p-6 shadow-2xl mb-12 ring-1 ring-black/5">
-                        <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
-                            <Greeting username={session?.username!} />
+                            {/* HEADER CARD */}
+                            <div className="bg-neutral-900/60 backdrop-blur-xl backdrop-saturate-150 border border-white/10 rounded-2xl p-6 shadow-2xl mb-12 ring-1 ring-black/5">
+                                <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
+                                    <Greeting username={session?.username!} />
 
-                            <div className="w-full md:w-auto md:min-w-[450px]">
-                                {/* Barra de búsqueda con Glow */}
-                                <motion.div className={`relative group transition-all duration-300 ${isSearchFocused ? 'scale-[1.01]' : ''}`}>
-                                    <div className={`absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl opacity-0 transition duration-500 blur-md ${isSearchFocused ? 'opacity-30' : 'group-hover:opacity-10'}`}></div>
+                                    <div className="w-full md:w-auto md:min-w-[450px]">
+                                        {/* Barra de búsqueda */}
+                                        <motion.div className={`relative group transition-all duration-300 ${isSearchFocused ? 'scale-[1.01]' : ''}`}>
+                                            <div className={`absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl opacity-0 transition duration-500 blur-md ${isSearchFocused ? 'opacity-30' : 'group-hover:opacity-10'}`}></div>
 
-                                    <div className="relative flex items-center bg-[#0a0a0a] rounded-xl border border-white/10 overflow-hidden shadow-inner">
-                                        <LucideSearch className={`ml-4 w-5 h-5 transition-colors duration-300 ${isSearchFocused ? 'text-green-400' : 'text-neutral-500'}`} />
-                                        <input
-                                            type="text"
-                                            value={search}
-                                            onChange={(e) => setSearch(e.target.value)}
-                                            onFocus={() => setIsSearchFocused(true)}
-                                            onBlur={() => setIsSearchFocused(false)}
-                                            placeholder="Buscar modpacks, mods..."
-                                            className="w-full h-14 pl-3 pr-4 bg-transparent text-white placeholder-neutral-500 focus:outline-none text-base font-medium"
-                                        />
-                                        {loading && (
-                                            <div className="pr-4">
-                                                <LucideLoader className="w-5 h-5 animate-spin text-green-500" />
+                                            <div className="relative flex items-center bg-[#0a0a0a] rounded-xl border border-white/10 overflow-hidden shadow-inner">
+                                                <LucideSearch className={`ml-4 w-5 h-5 transition-colors duration-300 ${isSearchFocused ? 'text-green-400' : 'text-neutral-500'}`} />
+                                                <input
+                                                    type="text"
+                                                    value={search}
+                                                    onChange={(e) => setSearch(e.target.value)}
+                                                    onFocus={() => setIsSearchFocused(true)}
+                                                    onBlur={() => setIsSearchFocused(false)}
+                                                    placeholder="Buscar modpacks, mods..."
+                                                    className="w-full h-14 pl-3 pr-4 bg-transparent text-white placeholder-neutral-500 focus:outline-none text-base font-medium"
+                                                />
+                                                {loading && (
+                                                    <div className="pr-4">
+                                                        <LucideLoader className="w-5 h-5 animate-spin text-green-500" />
+                                                    </div>
+                                                )}
                                             </div>
-                                        )}
-                                    </div>
-                                </motion.div>
+                                        </motion.div>
 
-                                {/* Chips Decorativos */}
-                                <div className="flex gap-2 mt-4 justify-center md:justify-start overflow-x-auto pb-1 hide-scrollbar">
-                                    <QuickFilterChip label="Popular" icon={LucideSparkles} onClick={() => { }} />
-                                    <QuickFilterChip label="Nuevos" icon={LucideZap} onClick={() => { }} />
-                                    <QuickFilterChip label="Tech" icon={LucideCpu} onClick={() => setSearch("Tech")} />
-                                    <QuickFilterChip label="Magic" icon={LucideWand2} onClick={() => setSearch("Magic")} />
-                                    <QuickFilterChip label="RPG" icon={LucideGamepad2} onClick={() => setSearch("RPG")} />
+                                        {/* Chips Decorativos */}
+                                        <div className="flex gap-2 mt-4 justify-center md:justify-start overflow-x-auto pb-1 hide-scrollbar">
+                                            <QuickFilterChip label="Popular" icon={LucideSparkles} onClick={() => { }} />
+                                            <QuickFilterChip label="Nuevos" icon={LucideZap} onClick={() => { }} />
+                                            <QuickFilterChip label="Tech" icon={LucideCpu} onClick={() => setSearch("Tech")} />
+                                            <QuickFilterChip label="Magic" icon={LucideWand2} onClick={() => setSearch("Magic")} />
+                                            <QuickFilterChip label="RPG" icon={LucideGamepad2} onClick={() => setSearch("RPG")} />
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    </div>
 
-                    {/* ZONA DE CONTENIDO DINÁMICO */}
-                    {/* Nota: AnimatePresence sin mode="wait" para evitar saltos bruscos */}
-                    <AnimatePresence initial={false}>
-                        {debouncedSearch.trim() !== "" ? (
-                            // --- RESULTADOS DE BÚSQUEDA ---
-                            <motion.div
-                                key="search-results"
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -20 }}
-                                transition={{ duration: 0.3 }}
-                                className="min-h-[50vh]"
-                            >
-                                <div className="flex items-center gap-3 mb-8">
-                                    <div className="p-2 bg-green-500/10 rounded-lg">
-                                        <LucideSearch className="w-5 h-5 text-green-400" />
-                                    </div>
-                                    <h2 className="text-xl font-semibold text-white">
-                                        Resultados para <span className="text-green-400">"{debouncedSearch}"</span>
-                                    </h2>
-                                </div>
-
-                                {loading ? (
-                                    <div className="flex flex-col items-center justify-center py-32 opacity-70">
-                                        <LucideLoader className="w-12 h-12 text-green-500 animate-spin mb-4" />
-                                        <p className="text-neutral-400 animate-pulse">Consultando la biblioteca...</p>
-                                    </div>
-                                ) : (
+                            {/* ZONA DE CONTENIDO DINÁMICO */}
+                            <AnimatePresence initial={false} mode="wait">
+                                {debouncedSearch.trim() !== "" ? (
+                                    // --- RESULTADOS DE BÚSQUEDA ---
                                     <motion.div
-                                        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                                        variants={containerVariants}
-                                        initial="hidden"
-                                        animate="visible"
+                                        key="search-results"
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -20 }}
+                                        transition={{ duration: 0.3 }}
+                                        className="min-h-[50vh]"
                                     >
-                                        {searchResults.length > 0 ? (
-                                            searchResults.map((modpack: any, index) => (
-                                                <motion.div
-                                                    key={modpack.id}
-                                                    variants={itemVariants}
-                                                    custom={index}
-                                                >
-                                                    <ModpackCard
-                                                        modpack={modpack}
-                                                        to={`/modpack/${modpack.id}`}
-                                                    />
-                                                </motion.div>
-                                            ))
-                                        ) : (
-                                            <div className="col-span-full py-24 text-center">
-                                                <div className="bg-neutral-800/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/5">
-                                                    <LucideSearch className="w-10 h-10 text-neutral-500" />
-                                                </div>
-                                                <p className="text-neutral-300 text-lg font-medium">No encontramos nada parecido.</p>
-                                                <p className="text-neutral-500 text-sm mt-1">Intenta buscar términos más generales.</p>
+                                        <div className="flex items-center gap-3 mb-8">
+                                            <div className="p-2 bg-green-500/10 rounded-lg">
+                                                <LucideSearch className="w-5 h-5 text-green-400" />
                                             </div>
+                                            <h2 className="text-xl font-semibold text-white">
+                                                Resultados para <span className="text-green-400">"{debouncedSearch}"</span>
+                                            </h2>
+                                        </div>
+
+                                        {loading ? (
+                                            <div className="flex flex-col items-center justify-center py-32 opacity-70">
+                                                <LucideLoader className="w-12 h-12 text-green-500 animate-spin mb-4" />
+                                                <p className="text-neutral-400 animate-pulse">Consultando la biblioteca...</p>
+                                            </div>
+                                        ) : (
+                                            <motion.div
+                                                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                                                variants={containerVariants}
+                                                initial="hidden"
+                                                animate="visible"
+                                            >
+                                                {searchResults.length > 0 ? (
+                                                    searchResults.map((modpack: any, index) => (
+                                                        <motion.div
+                                                            key={modpack.id}
+                                                            variants={itemVariants}
+                                                            custom={index}
+                                                        >
+                                                            <ModpackCard
+                                                                modpack={modpack}
+                                                                to={`/modpack/${modpack.id}`}
+                                                            />
+                                                        </motion.div>
+                                                    ))
+                                                ) : (
+                                                    <div className="col-span-full py-24 text-center">
+                                                        <div className="bg-neutral-800/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/5">
+                                                            <LucideSearch className="w-10 h-10 text-neutral-500" />
+                                                        </div>
+                                                        <p className="text-neutral-300 text-lg font-medium">No encontramos nada parecido.</p>
+                                                        <p className="text-neutral-500 text-sm mt-1">Intenta buscar términos más generales.</p>
+                                                    </div>
+                                                )}
+                                            </motion.div>
                                         )}
                                     </motion.div>
-                                )}
-                            </motion.div>
-                        ) : (
-                            // --- HOME / CATEGORÍAS ---
-                            <motion.div
-                                key="categories"
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                transition={{ duration: 0.3 }}
-                                className="space-y-8"
-                            >
-                                {initialLoading ? (
-                                    <div className="flex justify-center py-40">
-                                        <LucideLoader className="w-10 h-10 animate-spin text-green-500" />
-                                    </div>
                                 ) : (
-                                    <>
-                                        {/* Recomendados */}
+                                    // --- HOME / CATEGORÍAS ---
+                                    <motion.div
+                                        key="categories"
+                                        initial={{ opacity: 0 }}
+                                        animate={{ opacity: 1 }}
+                                        exit={{ opacity: 0 }}
+                                        transition={{ duration: 0.3 }}
+                                        className="space-y-8"
+                                    >
                                         {session && (
                                             <motion.div variants={itemVariants} initial="hidden" whileInView="visible" viewport={{ once: true }}>
                                                 <RecommendedModpacks
@@ -319,19 +321,17 @@ export const ExploreSection = () => {
                                             </motion.div>
                                         )}
 
-                                        {/* Actividad Reciente */}
                                         <motion.div variants={itemVariants} initial="hidden" whileInView="visible" viewport={{ once: true }}>
                                             <RecentActivity />
                                         </motion.div>
 
-                                        {/* Categorías Horizontales */}
                                         {modpackCategories.map((category: any, index) => (
                                             <motion.div
                                                 key={category.id}
                                                 variants={itemVariants}
                                                 initial="hidden"
                                                 whileInView="visible"
-                                                viewport={{ once: true, margin: "-100px" }} // Efecto de carga al hacer scroll
+                                                viewport={{ once: true, margin: "-100px" }}
                                                 custom={index}
                                             >
                                                 <CategoryHorizontalSection
@@ -344,7 +344,7 @@ export const ExploreSection = () => {
                                             </motion.div>
                                         ))}
 
-                                        {/* Footer Estético Recuperado */}
+                                        {/* Footer */}
                                         <motion.div
                                             initial={{ opacity: 0, y: 20 }}
                                             whileInView={{ opacity: 1, y: 0 }}
@@ -367,12 +367,12 @@ export const ExploreSection = () => {
                                                 Modpack Store &copy; {new Date().getFullYear()}
                                             </p>
                                         </motion.div>
-                                    </>
+                                    </motion.div>
                                 )}
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </motion.div>
+                            </AnimatePresence>
+                        </motion.div>
+                    </motion.div>
+                )}
             </div>
         </div>
     )

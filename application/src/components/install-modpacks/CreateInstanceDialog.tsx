@@ -2,13 +2,13 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useState, useEffect } from "react"
-import { Loader as LucideLoader } from 'lucide-react'
+import { Loader2, Box, Plus } from 'lucide-react'
+import { cn } from "@/lib/utils"
 
 interface CreateInstanceDialogProps {
     isOpen: boolean;
     onClose: () => void;
     modpackName: string;
-    // Puede devolver una promesa para operaciones async
     onConfirmCreate: (instanceName: string) => void | Promise<void>;
 }
 
@@ -21,66 +21,101 @@ export const CreateInstanceDialog = ({
     const [instanceName, setInstanceName] = useState<string>("")
     const [isCreating, setIsCreating] = useState<boolean>(false)
 
-    // Establecer nombre por defecto cuando se abre el diálogo
+    // Resetear y establecer nombre por defecto
     useEffect(() => {
         if (isOpen) {
             setInstanceName(modpackName)
+            setIsCreating(false)
         }
     }, [isOpen, modpackName])
 
+    const handleCreate = async () => {
+        if (!instanceName.trim() || isCreating) return
+
+        try {
+            setIsCreating(true)
+            await onConfirmCreate(instanceName)
+        } catch (err) {
+            console.error('Error creating instance:', err)
+            // Aquí podrías mostrar un toast de error si lo deseas
+        } finally {
+            setIsCreating(false)
+        }
+    }
+
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-md bg-zinc-900 border-zinc-800 text-white">
-                <DialogHeader>
-                    <DialogTitle>Crear nueva instancia de {modpackName}</DialogTitle>
-                    <DialogDescription className="text-zinc-400">
-                        Ingresa un nombre para la nueva instancia.
-                    </DialogDescription>
-                </DialogHeader>
-                <div className="flex flex-col gap-4 py-4">
-                    <Input
-                        value={instanceName}
-                        onChange={(e) => setInstanceName(e.target.value)}
-                        placeholder="Nombre de la instancia"
-                        className="bg-zinc-800 border-zinc-700 text-white"
-                        disabled={isCreating}
-                    />
+        <Dialog open={isOpen} onOpenChange={(val) => !val && !isCreating && onClose()}>
+            <DialogContent className="sm:max-w-md bg-[#0a0a0a] border-white/10 p-0 gap-0 shadow-2xl overflow-hidden">
+
+                {/* Header Estilizado */}
+                <div className="relative p-6 pb-4 border-b border-white/5 bg-gradient-to-b from-white/[0.02] to-transparent">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
+                            <Box className="w-5 h-5 text-purple-400" />
+                            Nueva Instancia
+                        </DialogTitle>
+                        <DialogDescription className="text-neutral-400">
+                            Creando una copia aislada de <span className="text-white font-medium">{modpackName}</span>.
+                        </DialogDescription>
+                    </DialogHeader>
                 </div>
-                <DialogFooter>
+
+                {/* Body */}
+                <div className="p-6 space-y-4">
+                    <div className="space-y-2">
+                        <label className="text-[10px] uppercase font-bold text-neutral-500 tracking-wider ml-1">
+                            Nombre de la Instancia
+                        </label>
+                        <div className="relative group">
+                            <Input
+                                value={instanceName}
+                                onChange={(e) => setInstanceName(e.target.value)}
+                                placeholder="Ej: Mi Mundo Survival"
+                                className="bg-[#121212] border-white/10 text-white placeholder:text-neutral-700 focus:border-purple-500/50 focus:ring-purple-500/20 h-12 pl-4 transition-all"
+                                disabled={isCreating}
+                                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                                autoFocus
+                            />
+                        </div>
+                        <p className="text-xs text-neutral-600 ml-1">
+                            Se guardará en tu carpeta local de instancias.
+                        </p>
+                    </div>
+                </div>
+
+                {/* Footer */}
+                <DialogFooter className="p-4 bg-white/[0.02] border-t border-white/5 sm:justify-between gap-3">
                     <Button
-                        variant="outline"
-                        className="bg-zinc-800 text-white hover:bg-zinc-700"
+                        variant="ghost"
                         onClick={onClose}
+                        disabled={isCreating}
+                        className="text-neutral-500 hover:text-white hover:bg-white/5"
                     >
                         Cancelar
                     </Button>
+
                     <Button
-                        variant="default"
-                        className="bg-indigo-600 hover:bg-indigo-700"
-                        onClick={async () => {
-                            if (!instanceName.trim() || isCreating) return
-                            try {
-                                setIsCreating(true)
-                                await onConfirmCreate(instanceName)
-                            } catch (err) {
-                                // Dejar que el padre maneje errores visuales; aquí solo restauramos estado
-                                console.error('Error creating instance:', err)
-                            } finally {
-                                setIsCreating(false)
-                            }
-                        }}
+                        onClick={handleCreate}
                         disabled={!instanceName.trim() || isCreating}
+                        className={cn(
+                            "min-w-[120px] bg-purple-600 hover:bg-purple-500 text-white font-semibold shadow-lg transition-all",
+                            isCreating ? "opacity-80 cursor-not-allowed" : "hover:scale-[1.02]"
+                        )}
                     >
                         {isCreating ? (
                             <>
-                                <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                 Creando...
                             </>
                         ) : (
-                            'Crear'
+                            <>
+                                <Plus className="h-4 w-4 mr-2" />
+                                Crear
+                            </>
                         )}
                     </Button>
                 </DialogFooter>
+
             </DialogContent>
         </Dialog>
     )

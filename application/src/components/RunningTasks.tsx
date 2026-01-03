@@ -1,6 +1,8 @@
 import { useTasksContext } from "@/stores/TasksContext";
 import { LucideCheck, LucideInfo, LucideRefreshCcw, LucideTrash2, LucideX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { cn } from "@/lib/utils";
 
 export const RunningTasks = () => {
     const { tasks, hasRunningTasks, taskCount, syncTasks } = useTasksContext();
@@ -9,7 +11,6 @@ export const RunningTasks = () => {
 
     const toggleMenu = () => {
         setOpenMenu(!openMenu);
-        // Sync tasks when opening the menu to ensure we have the latest state
         if (!openMenu) {
             syncTasks().catch(console.error);
         }
@@ -37,98 +38,119 @@ export const RunningTasks = () => {
         };
     }, [openMenu]);
 
-    // Return null if there are no running tasks
     if (!hasRunningTasks && taskCount === 0) return null;
 
-    const baseClasses = "flex items-center justify-center size-9 aspect-square hover:bg-neutral-800 cursor-pointer";
-
-    // Helper function to get status icon
+    // --- LOGICA DE ESTADO (Mantenida de la versión mejorada) ---
     const getStatusIcon = (status: string) => {
         switch (status) {
-            case "Completed":
-                return <LucideCheck size={16} className="text-green-500" />;
-            case "Failed":
-                return <LucideX size={16} className="text-red-500" />;
-            case "Cancelled":
-                return <LucideTrash2 size={16} className="text-yellow-500" />;
-            case "Running":
-                return <LucideRefreshCcw size={16} className="animate-spin" />;
-            default:
-                return <LucideInfo size={16} />;
+            case "Completed": return <LucideCheck size={16} className="text-emerald-500" />;
+            case "Failed": return <LucideX size={16} className="text-red-500" />;
+            case "Cancelled": return <LucideTrash2 size={16} className="text-amber-500" />;
+            case "Running": return <LucideRefreshCcw size={16} className="text-blue-500 animate-spin" />;
+            default: return <LucideInfo size={16} className="text-neutral-400" />;
         }
     };
 
+    const getStatusColor = (status: string) => {
+        switch (status) {
+            case "Completed": return "bg-emerald-500";
+            case "Failed": return "bg-red-500";
+            case "Cancelled": return "bg-amber-500";
+            case "Running": return "bg-blue-500";
+            default: return "bg-neutral-500";
+        }
+    };
+
+    const baseClasses = "flex items-center justify-center size-9 aspect-square hover:bg-neutral-800 cursor-pointer ";
+
     return (
         <div className="relative self-center" ref={containerRef}>
+
+            {/* --- TRIGGER ORIGINAL RESTAURADO --- */}
             <button
                 onClick={toggleMenu}
-                className={`relative ${baseClasses}`}
+                className={`relative ${baseClasses} ${openMenu ? 'bg-neutral-800' : ''}`}
                 title="Tareas en progreso"
                 aria-label="Tareas en progreso"
             >
                 {taskCount >= 1 && (
-                    <span className="absolute top-1 -right-1 bg-sky-600 size-4 text-xs text-white rounded-full px-1">
+                    <span className="absolute top-0.5 -right-0.5 bg-sky-600 size-4 text-[10px] flex items-center justify-center text-white rounded-full">
                         {taskCount}
                     </span>
                 )}
-                <LucideRefreshCcw className={`size-4 ${hasRunningTasks ? "animate-duration-[1500ms] animate-spin-clockwise animate-iteration-count-infinite" : ""} text-white`} />
+                <LucideRefreshCcw
+                    className={cn(
+                        "size-4 text-white",
+                        hasRunningTasks ? "animate-spin duration-[1500ms]" : ""
+                    )}
+                />
             </button>
 
-            <div
-                style={{
-                    opacity: openMenu ? 1 : 0,
-                    visibility: openMenu ? "visible" : "hidden",
-                    transform: openMenu ? "translateY(0)" : "translateY(-5px)",
-                    transition: "opacity 0.2s ease, visibility 0.2s ease, transform 0.2s ease",
-                }}
-                className="absolute right-0 mt-2 w-96 bg-neutral-900 border border-neutral-700 rounded shadow-lg z-50 p-2"
-            >
-                <div className="text-sm text-white flex flex-col">
-                    <div className="py-1 px-2 font-medium border-b border-neutral-700 mb-2">
-                        Tareas activas ({taskCount})
-                    </div>
+            {/* --- MENÚ MEJORADO --- */}
+            <AnimatePresence>
+                {openMenu && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 5, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 5, scale: 0.95 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-[#121212] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 origin-top-right"
+                    >
+                        {/* Header del Menú */}
+                        <div className="px-4 py-3 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
+                            <span className="text-sm font-semibold text-white">Actividad</span>
+                            <span className="text-xs font-medium text-neutral-500 bg-white/5 px-2 py-0.5 rounded-full">
+                                {taskCount}
+                            </span>
+                        </div>
 
-                    {tasks.length === 0 ? (
-                        <div className="text-neutral-400 text-center py-4">
-                            No hay tareas en progreso
-                        </div>
-                    ) : (
-                        <div className="max-h-64 overflow-y-auto">
-                            {tasks.map((task) => (
-                                <div key={task.id} className="py-2 px-2 hover:bg-neutral-800 rounded flex flex-col w-full">
-                                    <div className="flex justify-between items-center">
-                                        <div className="flex items-center gap-2">
-                                            {getStatusIcon(task.status)}
-                                            <span className="font-medium">{task.label}</span>
-                                        </div>
-                                        <span className="text-xs text-neutral-400">
-                                            {task.progress.toFixed(1)}%
-                                        </span>
-                                    </div>
-                                    {task.message && (
-                                        <div className="ml-6 text-xs text-neutral-400 break-words whitespace-normal overflow-wrap-anywhere">
-                                            {task.message}
-                                        </div>
-                                    )}
-                                    <div className="pl-6">
-                                        <div className="mt-1 w-full bg-neutral-800 h-1 rounded-full">
-                                            <div
-                                                className={`h-1 rounded-full transition-all duration-300 ${
-                                                    task.status === "Completed" ? "bg-green-600" :
-                                                    task.status === "Failed" ? "bg-red-600" :
-                                                    task.status === "Cancelled" ? "bg-yellow-600" :
-                                                    "bg-sky-600"
-                                                }`}
-                                                style={{ width: `${Math.max(0, Math.min(100, task.progress))}%` }}
-                                            ></div>
-                                        </div>
-                                    </div>
+                        {/* Lista de Tareas */}
+                        <div className="max-h-[320px] overflow-y-auto custom-scrollbar p-2 space-y-1">
+                            {tasks.length === 0 ? (
+                                <div className="flex flex-col items-center justify-center py-8 text-neutral-500 gap-2">
+                                    <LucideCheck className="w-8 h-8 opacity-20" />
+                                    <p className="text-sm">Todo en orden.</p>
                                 </div>
-                            ))}
+                            ) : (
+                                tasks.map((task) => (
+                                    <div key={task.id} className="p-3 rounded-lg hover:bg-white/5 transition-colors group">
+                                        <div className="flex items-start justify-between gap-3 mb-2">
+                                            <div className="flex items-center gap-2.5 min-w-0">
+                                                <div className="shrink-0 mt-0.5">
+                                                    {getStatusIcon(task.status)}
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-medium text-neutral-200 truncate pr-2">
+                                                        {task.label}
+                                                    </p>
+                                                    {task.message && (
+                                                        <p className="text-xs text-neutral-500 truncate mt-0.5">
+                                                            {task.message}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <span className="text-xs font-mono text-neutral-500 shrink-0">
+                                                {Math.round(task.progress)}%
+                                            </span>
+                                        </div>
+
+                                        {/* Barra de Progreso */}
+                                        <div className="h-1 w-full bg-neutral-800 rounded-full overflow-hidden">
+                                            <motion.div
+                                                initial={{ width: 0 }}
+                                                animate={{ width: `${Math.max(5, Math.min(100, task.progress))}%` }}
+                                                transition={{ duration: 0.3 }}
+                                                className={cn("h-full rounded-full", getStatusColor(task.status))}
+                                            />
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
-                    )}
-                </div>
-            </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };

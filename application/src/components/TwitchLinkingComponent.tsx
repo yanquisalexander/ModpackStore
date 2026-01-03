@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
-import { LucideExternalLink, LucideUnlink } from 'lucide-react';
+import { LucideExternalLink, LucideUnlink, LucideLoader2, LucideCheck } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from "@/consts";
 import { listen } from "@tauri-apps/api/event";
 import { MdiTwitch } from "@/icons/MdiTwitch";
-import { Card, CardContent } from "@/components/ui/card";
+import { motion, AnimatePresence } from "motion/react";
+import { cn } from "@/lib/utils";
 
 interface TwitchStatus {
   linked: boolean;
@@ -21,28 +22,21 @@ export const TwitchLinkingComponent = () => {
   const [unlinking, setUnlinking] = useState(false);
   const { sessionTokens } = useAuthentication();
 
-  // Fetch current Twitch status
+  // --- LOGIC (Mantenida intacta) ---
   const fetchTwitchStatus = async () => {
     try {
       const token = sessionTokens?.accessToken;
       if (!token) {
-        // Not authenticated locally — Twitch cannot be linked
         setTwitchStatus({ linked: false });
         return;
       }
-
       const response = await fetch(`${API_ENDPOINT}/auth/twitch/status`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (response.ok) {
         const status = await response.json();
-        console.log('Fetched Twitch status:', status);
         setTwitchStatus(status);
       } else {
-        console.error('Failed to fetch Twitch status');
         setTwitchStatus({ linked: false });
       }
     } catch (error) {
@@ -51,30 +45,23 @@ export const TwitchLinkingComponent = () => {
     }
   };
 
-  // Start Twitch OAuth flow
   const handleLinkTwitch = async () => {
     setLoading(true);
     try {
       await invoke('start_twitch_auth');
-      toast.success('Twitch authorization started. Please complete the process in your browser.');
-
-      // Poll for completion or listen for events
-      // The Rust backend will emit events when the linking is complete
+      toast.info('Autorización iniciada. Revisa tu navegador.');
     } catch (error) {
-      console.error('Error starting Twitch auth:', error);
-      toast.error('Failed to start Twitch authorization');
+      toast.error('Error al iniciar autorización');
     } finally {
       setLoading(false);
     }
   };
 
-  // Unlink Twitch account
   const handleUnlinkTwitch = async () => {
     setUnlinking(true);
     try {
       const token = sessionTokens?.accessToken;
       if (!token) throw new Error('Not authenticated');
-
       const response = await fetch(`${API_ENDPOINT}/auth/twitch/unlink`, {
         method: 'POST',
         headers: {
@@ -82,133 +69,122 @@ export const TwitchLinkingComponent = () => {
           'Content-Type': 'application/json',
         },
       });
-
       if (response.ok) {
         setTwitchStatus({ linked: false });
-        toast.success('Tu cuenta de Twitch ha sido desvinculada con éxito');
+        toast.success('Cuenta de Twitch desvinculada');
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.message || 'No se pudo desvincular la cuenta de Twitch');
+        toast.error('No se pudo desvincular la cuenta');
       }
     } catch (error) {
-      console.error('Error unlinking Twitch:', error);
-      toast.error('No se pudo desvincular la cuenta de Twitch');
+      toast.error('Error al desvincular');
     } finally {
       setUnlinking(false);
     }
   };
+
   useEffect(() => {
     fetchTwitchStatus();
-
-    // Listen for Twitch auth success events
-    const handleTwitchAuthSuccess = () => {
-      toast.success('Twitch account linked successfully!');
-      fetchTwitchStatus(); // Refresh status
-    };
-
-    // listen returns a Promise<UnlistenFn>, keep the promise and call the returned unlisten function in cleanup
-    const unlistenPromise = listen('twitch-auth-success', handleTwitchAuthSuccess);
-
-    // Add event listener for Twitch auth events (you might need to adjust this based on your event system)
-
+    const unlistenPromise = listen('twitch-auth-success', () => {
+      toast.success('Cuenta de Twitch vinculada exitosamente');
+      fetchTwitchStatus();
+    });
     return () => {
-      unlistenPromise
-        .then((unlisten) => {
-          try {
-            unlisten();
-          } catch (err) {
-            console.error('Error during unlisten:', err);
-          }
-        })
-        .catch((err) => {
-          console.error('Failed to subscribe/listen to twitch-auth-success event:', err);
-        });
+      unlistenPromise.then((unlisten) => unlisten()).catch(console.error);
     };
-    // Re-run when tokens change so component reflects current authenticated user
   }, [sessionTokens]);
+
+  // --- RENDER ---
 
   if (!twitchStatus) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <MdiTwitch className="text-[#9146FF]" />
-            <h3 className="text-lg font-semibold text-white">Integración de Twitch</h3>
-          </div>
-          <div className="text-neutral-400">Cargando estado de Twitch...</div>
-        </CardContent>
-      </Card>
+      <div className="bg-[#151515] border border-white/5 rounded-xl p-6 h-[200px] flex items-center justify-center animate-pulse">
+        <LucideLoader2 className="w-8 h-8 text-[#9146FF] animate-spin" />
+      </div>
     );
   }
 
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <MdiTwitch className="text-[#9146FF]" />
-          <h3 className="text-lg font-semibold text-white">Integración de Twitch</h3>
+    <div className="relative group overflow-hidden bg-[#151515] border border-[#9146FF]/20 rounded-xl p-6 transition-all hover:border-[#9146FF]/40">
+      {/* Background Glow */}
+      <div className="absolute inset-0 bg-[#9146FF]/5 group-hover:bg-[#9146FF]/10 transition-colors pointer-events-none" />
+
+      <div className="relative flex flex-col h-full justify-between gap-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-[#9146FF]/20 rounded-xl text-[#9146FF] ring-1 ring-[#9146FF]/30">
+              <MdiTwitch className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-white">Twitch</h3>
+              <div className="flex items-center gap-2 mt-1">
+                <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px]", twitchStatus.linked ? "bg-green-500 shadow-green-500/50" : "bg-neutral-500")} />
+                <span className={cn("text-xs font-medium", twitchStatus.linked ? "text-green-400" : "text-neutral-400")}>
+                  {twitchStatus.linked ? `Conectado` : "No conectado"}
+                </span>
+              </div>
+            </div>
+          </div>
+          {twitchStatus.linked && (
+            <div className="hidden sm:block text-xs font-mono text-[#9146FF] bg-[#9146FF]/10 px-2 py-1 rounded border border-[#9146FF]/20">
+              {twitchStatus.twitchUsername}
+            </div>
+          )}
         </div>
 
-        {twitchStatus.linked ? (
-          <div>
-            <div className="flex items-center space-x-2 mb-4">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              <span className="text-green-400 font-medium">Conectado</span>
-            </div>
-
-            {twitchStatus.twitchId && (
-              <div className="text-sm text-muted-foreground mb-4">
-                ID de Twitch: {twitchStatus.twitchId} ({twitchStatus.twitchUsername || 'unknown'})
+        {/* Content Area with Animation */}
+        <AnimatePresence mode="wait">
+          {twitchStatus.linked ? (
+            <motion.div
+              key="linked"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="pt-2"
+            >
+              <p className="text-neutral-400 text-sm mb-4 leading-relaxed">
+                Tienes acceso a los modpacks exclusivos para suscriptores y contenido anticipado.
+              </p>
+              <Button
+                onClick={handleUnlinkTwitch}
+                disabled={unlinking}
+                variant="ghost"
+                size="sm"
+                className="text-red-400 hover:text-red-300 hover:bg-red-500/10 px-0 h-auto font-normal"
+              >
+                {unlinking ? <LucideLoader2 className="w-3 h-3 animate-spin mr-2" /> : <LucideUnlink className="w-3 h-3 mr-2" />}
+                Desvincular cuenta
+              </Button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="unlinked"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-4"
+            >
+              <div className="space-y-2 pt-2">
+                <div className="flex items-center gap-2 text-xs text-neutral-300">
+                  <LucideCheck className="w-3 h-3 text-[#9146FF]" /> Acceso a modpacks de suscriptores
+                </div>
+                <div className="flex items-center gap-2 text-xs text-neutral-300">
+                  <LucideCheck className="w-3 h-3 text-[#9146FF]" /> Insignia de Supporter
+                </div>
               </div>
-            )}
 
-            <p className="text-neutral-300 text-sm mb-4">
-              Tu cuenta de Twitch está conectada. Ahora puedes acceder a modpacks exclusivos para suscriptores de los creadores a los que estés suscrito.
-            </p>
-
-            <Button
-              onClick={handleUnlinkTwitch}
-              disabled={unlinking}
-              variant="destructive"
-              size="sm"
-              className="flex items-center space-x-2"
-            >
-              <LucideUnlink size={16} />
-              <span>{unlinking ? 'Desvinculando...' : 'Desvincular Twitch'}</span>
-            </Button>
-          </div>
-        ) : (
-          <div>
-            <div className="flex items-center space-x-2 mb-4">
-              <div className="w-2 h-2 bg-neutral-500 rounded-full"></div>
-              <span className="text-neutral-400 font-medium">No conectado</span>
-            </div>
-
-            <p className="text-neutral-300 text-sm mb-4">
-              Vincula tu cuenta de Twitch para acceder a modpacks exclusivos para suscriptores de tus creadores favoritos.
-            </p>
-
-            <div className="space-y-2 mb-4">
-              <div className="text-xs text-neutral-400">Beneficios de vincular tu cuenta de Twitch:</div>
-              <ul className="text-xs text-neutral-300 space-y-1 ml-4">
-                <li>• Acceder a modpacks solo para suscriptores</li>
-                <li>• Apoyar a tus creadores favoritos</li>
-                <li>• Contenido exclusivo y acceso anticipado</li>
-              </ul>
-            </div>
-
-            <Button
-              onClick={handleLinkTwitch}
-              disabled={loading}
-              className="flex items-center space-x-2 bg-purple-600 hover:bg-purple-700"
-              size="sm"
-            >
-              <LucideExternalLink size={16} />
-              <span>{loading ? 'Conectando...' : 'Vincular cuenta de Twitch'}</span>
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              <Button
+                onClick={handleLinkTwitch}
+                disabled={loading}
+                className="w-full bg-[#9146FF] hover:bg-[#772ce8] text-white font-medium transition-all shadow-[0_0_20px_rgba(145,70,255,0.15)] hover:shadow-[0_0_25px_rgba(145,70,255,0.3)]"
+              >
+                {loading ? <LucideLoader2 className="w-4 h-4 mr-2 animate-spin" /> : <LucideExternalLink className="w-4 h-4 mr-2" />}
+                Conectar Twitch
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
   );
 };

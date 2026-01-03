@@ -10,13 +10,13 @@ import { useTasksContext } from "@/stores/TasksContext";
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
 import { useConnection } from "@/utils/ConnectionContext";
 import { invoke } from "@tauri-apps/api/core";
-import { LucidePackageOpen } from "lucide-react";
+import { LucidePackageOpen, LucidePlus, LucideImport } from "lucide-react";
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner";
 import type { MrpackManifest, MrpackCompatibility } from "@/types/mrpack";
 import { useActionLimit } from "@/hooks/useUserFlags";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-
+import { motion, AnimatePresence } from "motion/react";
 
 export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) => {
     const { setTitleBarState } = useGlobalContext()
@@ -38,7 +38,6 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
             setInstances(instances)
         } catch (error) {
             console.error('Error fetching instances:', error)
-            // In offline mode, we can still show an empty list or cached data
             setInstances([])
         } finally {
             setIsLoading(false)
@@ -47,18 +46,16 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
 
     useEffect(() => {
         fetchInstances()
-    }, []) // Sin dependencias para que se ejecute solo al montar
-
-    console.log({ allowed, limit, remaining })
+    }, [])
 
     useEffect(() => {
-        if (offlineMode) return // Prevents setting title bar state if in offline mode
+        if (offlineMode) return
         setTitleBarState({
             title: "Mis instancias",
             icon: LucidePackageOpen,
             canGoBack: true,
-            customIconClassName: "bg-yellow-500/10",
-            opaque: true,
+            customIconClassName: "bg-teal-500/20 text-teal-400", // Adjusted to match theme
+            opaque: false,
         });
 
         trackSectionView("my-instances")
@@ -80,7 +77,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
         )
     }, [])
 
-    // Drag and drop handlers for .mrpack files
+    // Drag and drop handlers
     const handleDragOver = useCallback((e: React.DragEvent) => {
         e.preventDefault()
         e.stopPropagation()
@@ -90,6 +87,8 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
     const handleDragLeave = useCallback((e: React.DragEvent) => {
         e.preventDefault()
         e.stopPropagation()
+        // Simple check to avoid flickering when dragging over child elements
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
         setIsDragging(false)
     }, [])
 
@@ -112,8 +111,6 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
         }
 
         const mrpackFile = mrpackFiles[0]
-
-        console.log('Archivo .mrpack detectado:', mrpackFile)
         const filePath = (mrpackFile as any).path || ''
 
         if (!filePath) {
@@ -122,32 +119,17 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
         }
 
         try {
-            // Validate and read manifest
-            const manifestData = await invoke<MrpackManifest>('validate_mrpack_file', {
-                mrpackPath: filePath,
-            })
-
-            // Check compatibility
-            const compatibilityData = await invoke<MrpackCompatibility>(
-                'check_mrpack_compatibility',
-                { manifest: manifestData }
-            )
+            const manifestData = await invoke<MrpackManifest>('validate_mrpack_file', { mrpackPath: filePath })
+            const compatibilityData = await invoke<MrpackCompatibility>('check_mrpack_compatibility', { manifest: manifestData })
 
             if (!compatibilityData.is_compatible) {
-                toast.error('Modpack no compatible', {
-                    description: compatibilityData.errors.join('\n'),
-                })
+                toast.error('Modpack no compatible', { description: compatibilityData.errors.join('\n') })
                 return
             }
 
-            // Ask user for confirmation
             const instanceName = manifestData.name
-
             toast.promise(
-                invoke<string>('create_instance_from_mrpack', {
-                    mrpackPath: filePath,
-                    instanceName: instanceName,
-                }),
+                invoke<string>('create_instance_from_mrpack', { mrpackPath: filePath, instanceName: instanceName }),
                 {
                     loading: `Importando ${instanceName}...`,
                     success: () => {
@@ -159,79 +141,125 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
             )
         } catch (error) {
             console.error('Error al procesar archivo .mrpack:', error)
-            toast.error('Error al leer el archivo .mrpack', {
-                description: String(error),
-            })
+            toast.error('Error al leer el archivo .mrpack', { description: String(error) })
         }
     }, [])
 
+    // Animation Variants
+    const containerVariants = {
+        hidden: { opacity: 0 },
+        visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+    }
+
+    const itemVariants = {
+        hidden: { y: 20, opacity: 0 },
+        visible: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 100 } }
+    }
 
     return (
         <div
-            className="mx-auto max-w-7xl px-8 py-10 overflow-y-auto h-full"
+            className="relative min-h-dvh bg-[#0a0a0a] text-white overflow-hidden"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
         >
-            {isDragging && (
-                <div className="fixed inset-0 bg-purple-500/20 backdrop-blur-sm z-50 flex items-center justify-center pointer-events-none">
-                    <div className="bg-gray-900/90 border-2 border-dashed border-purple-400 rounded-xl p-8 text-center">
-                        <LucidePackageOpen className="h-16 w-16 text-purple-400 mx-auto mb-4" />
-                        <p className="text-xl font-semibold text-purple-300">
-                            Suelta el archivo .mrpack aquí
-                        </p>
+            {/* Background Glows (Teal Theme) */}
+            <div className="absolute top-0 left-1/4 w-96 h-96 bg-teal-600/10 blur-[120px] rounded-full pointer-events-none" />
+            <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-emerald-600/10 blur-[120px] rounded-full pointer-events-none" />
+
+            {/* Drag & Drop Overlay */}
+            <AnimatePresence>
+                {isDragging && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md p-8 pointer-events-none"
+                    >
+                        <div className="w-full h-full border-4 border-dashed border-teal-500/50 rounded-3xl flex flex-col items-center justify-center gap-6 bg-teal-500/5 animate-pulse">
+                            <div className="p-6 rounded-full bg-teal-500/20">
+                                <LucideImport className="h-16 w-16 text-teal-400" />
+                            </div>
+                            <h2 className="text-3xl font-bold text-teal-200">Suelta tu .mrpack aquí</h2>
+                            <p className="text-teal-400/70">Importaremos tu modpack automáticamente</p>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            <div className="relative z-10 mx-auto max-w-7xl px-6 py-12 md:px-12 h-full overflow-y-auto custom-scrollbar">
+
+                {/* Header */}
+                <header className="mb-12 border-b border-white/5 pb-6">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 rounded-lg bg-teal-500/10 border border-teal-500/20">
+                            <LucidePackageOpen className="w-6 h-6 text-teal-400" />
+                        </div>
+                        <h1 className="tracking-tight inline font-semibold text-3xl bg-gradient-to-b from-teal-200 to-teal-500 bg-clip-text text-transparent">
+                            Mis Instancias
+                        </h1>
                     </div>
-                </div>
-            )}
+                    <p className="text-neutral-400 text-sm max-w-xl leading-relaxed">
+                        Aquí vive tu colección de Minecraft. Juega, gestiona y crea nuevas aventuras.
+                    </p>
+                </header>
 
-            <header className="flex flex-col mb-16">
-                <h1 className="tracking-tight inline font-semibold text-2xl bg-gradient-to-b from-teal-200 to-teal-500 bg-clip-text text-transparent">
-                    Mis instancias
-                </h1>
-                <p className="text-gray-400 text-base max-w-2xl">
-                    Aquí puedes ver y gestionar todas tus instancias de Modpack Store.
-                </p>
-            </header>
+                {/* Content */}
+                {isLoading ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-4">
+                        <ArmadilloLoading className="w-16" />
+                        <p className="text-neutral-200 font-minecraft-ten tracking-widest text-normal uppercase ">Cargando instancias...</p>
+                    </div>
+                ) : (
+                    <motion.div
+                        variants={containerVariants}
+                        initial="hidden"
+                        animate="visible"
+                        className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+                    >
+                        {/* Lista de Instancias */}
+                        {instances.filter(instance => instance != null).map((instance) => (
+                            <motion.div key={instance.instanceId} variants={itemVariants}>
+                                <InstanceCard
+                                    instance={instance}
+                                    isBootstrapping={isBootstrapping(instance.instanceId)}
+                                    onInstanceUpdated={handleInstanceUpdated}
+                                    onInstanceDeleted={fetchInstances}
+                                    running={isRunning(instance.instanceId)}
+                                />
+                            </motion.div>
+                        ))}
 
-            {/* {
-                !allowed && (
-                    <Alert variant="destructive" className="mb-6">
-                        <AlertDescription className="font-medium">
-                            Has alcanzado el límite de instancias permitidas para tu plan ({limit}).
-                            Por favor, elimina algunas instancias existentes para crear nuevas o considera actualizar tu plan.
-                        </AlertDescription>
-                    </Alert>
-                )
-            } */}
-            {isLoading ? (
-                <div className="flex flex-col items-center justify-center h-64">
-                    <ArmadilloLoading className="h-14" />
-                    <p className="text-neutral-400 font-minecraft-ten tracking-wider text-sm mt-2">Cargando instancias...</p>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {instances.filter(instance => instance != null).map((instance) => (
-                        <InstanceCard
-                            key={instance.instanceId}
-                            instance={instance}
-                            isBootstrapping={isBootstrapping(instance.instanceId)}
-                            onInstanceUpdated={handleInstanceUpdated}
-                            onInstanceDeleted={fetchInstances}
-                            running={isRunning(instance.instanceId)}
-                        />
-                    ))}
-                    {
-                        (!offlineMode || hasInternetAccess) && (
+                        {/* Botones de Acción (Siempre al final, con estilo de tarjeta) */}
+                        {(!offlineMode || hasInternetAccess) && (
                             <>
-                                <CreateInstanceDialog
-                                    instanceNames={instances.map((i) => i.instanceName)}
-                                    onInstanceCreated={fetchInstances} />
-                                <ImportMrpackDialog onInstanceCreated={fetchInstances} />
+                                <motion.div variants={itemVariants} className="h-full min-h-[180px]">
+                                    <CreateInstanceDialog
+                                        instanceNames={instances.map((i) => i.instanceName)}
+                                        onInstanceCreated={fetchInstances}
+                                    />
+                                </motion.div>
+                                <motion.div variants={itemVariants} className="h-full min-h-[180px]">
+                                    <ImportMrpackDialog onInstanceCreated={fetchInstances} />
+                                </motion.div>
                             </>
-                        )
-                    }
-                </div>
-            )}
-        </div >
+                        )}
+                    </motion.div>
+                )}
+
+                {/* Empty State (Si no hay instancias y no está cargando) */}
+                {!isLoading && instances.length === 0 && (
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
+                        className="mt-8 flex flex-col items-center justify-center p-8 text-center"
+                    >
+                        <p className="text-neutral-500 mb-2">Aún no tienes instancias creadas.</p>
+                        <p className="text-teal-400 text-sm flex items-center gap-2">
+                            <LucidePlus className="w-4 h-4" /> Comienza creando una arriba
+                        </p>
+                    </motion.div>
+                )}
+            </div>
+        </div>
     )
 }

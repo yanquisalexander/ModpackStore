@@ -4,19 +4,25 @@ import {
     LucideVerified,
     LucideVolume2,
     LucideVolumeX,
-    LucideChevronDown,
-    LucideFolder,
-    LucideFile,
-    LucideChevronRight,
+    LucideFolderOpen,
     LucideFileJson,
     LucideFileText,
     LucideFileArchive,
     LucideFileImage,
-    LucideRotateCcw
+    LucideCalendar,
+    LucideBox,
+    LucideCpu,
+    LucideInfo,
+    LucideDownload,
+    LucideChevronDown,
+    LucideChevronRight,
+    LucideFolder,
+    LucideFile,
+    LucideClock
 } from "lucide-react";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { motion, useScroll, useTransform } from "motion/react";
+import { motion, useScroll, useTransform, AnimatePresence } from "motion/react";
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
 import { ExternalLinkHandler } from '@/components/ExternalLinkHandler';
 import { invoke } from "@tauri-apps/api/core";
@@ -31,174 +37,60 @@ import { useAuthentication } from "@/stores/AuthContext";
 import { getModpackById } from "@/services/getModpacks";
 import { getVoteCounts, getUserVotes, VoteCounts } from "@/services/votes";
 import { API_ENDPOINT } from "@/consts";
+import { cn } from "@/lib/utils";
 
-// Función helper para formatear la información del modloader
+// --- UTILS ---
 const formatLoaderInfo = (version: ModpackVersionPublic): string => {
     const loaderType = version.loaderType || version.modLoader || "unknown";
-    const loaderVersion = version.loaderVersion || "desconocida";
-
-    // Retornamos un string formateado según el tipo de loader
-    return `${loaderType} ${loaderVersion}`;
+    const loaderVersion = version.loaderVersion || "";
+    return `${loaderType.charAt(0).toUpperCase() + loaderType.slice(1)} ${loaderVersion}`;
 };
 
-// --- Hook para acceso a modpack ---
-
-// Estado y lógica para verificar el acceso del usuario a un modpack específico
-const useModpackAccess = (modpackId: string, requiresTwitchSubscription: boolean) => {
-    const [accessState, setAccessState] = useState<{
-        canAccess: boolean;
-        loading: boolean;
-        reason?: string;
-        requiredChannels?: string[];
-    }>({
-        canAccess: true,
-        loading: true
-    });
-    const { session, sessionTokens } = useAuthentication();
-
-    useEffect(() => {
-        if (!requiresTwitchSubscription) {
-            setAccessState({
-                canAccess: true,
-                loading: false
-            });
-            return;
-        }
-
-        const checkAccess = async () => {
-            try {
-                const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpackId}/check-access`, {
-                    method: 'GET',
-                    headers: sessionTokens ? {
-                        'Authorization': `Bearer ${sessionTokens.accessToken}`,
-                    } : {},
-                });
-
-                if (!response.ok) {
-                    throw new Error('Failed to check access');
-                }
-
-                const data = await response.json();
-                // Debug: log API response to help diagnose mismatches
-                console.debug('check-access response', data);
-
-                // Normalize server response: support { canAccess } or { hasAccess }
-                let canAccess = typeof data.canAccess !== 'undefined' ? data.canAccess : (typeof data.hasAccess !== 'undefined' ? data.hasAccess : false);
-
-                // If server returned a list of subscribedChannels, infer access when it's non-empty
-                const hasSubscribedChannels = Array.isArray(data.subscribedChannels) && data.subscribedChannels.length > 0;
-                if (!canAccess && hasSubscribedChannels) {
-                    // If user is subscribed to any required channel, consider they have access
-                    canAccess = true;
-                }
-
-                const requiredChannels = data.requiredChannels ?? (Array.isArray(data.subscribedChannels) ? data.subscribedChannels.map((c: any) => c.username || c.displayName || c.id) : undefined);
-                const reason = data.reason ?? data.message;
-
-                setAccessState({
-                    canAccess,
-                    loading: false,
-                    reason,
-                    requiredChannels
-                });
-            } catch (error) {
-                console.error('Error checking modpack access:', error);
-                setAccessState({
-                    canAccess: false,
-                    loading: false,
-                    reason: 'Error checking access'
-                });
-            }
-        };
-
-        checkAccess();
-    }, [modpackId, requiresTwitchSubscription, session, sessionTokens]);
-
-    return accessState;
-};
-
-// --- Helper Components & Types for File Tree ---
-
-// Types for our tree structure
-interface FileNodeData {
-    type: 'file';
-    data: ModpackVersionPublic['files'][0];
-}
-
-interface FolderNodeData {
-    type: 'folder';
-    children: { [key: string]: TreeNode };
-}
-
+// --- FILE EXPLORER COMPONENTS ---
+interface FileNodeData { type: 'file'; data: any; }
+interface FolderNodeData { type: 'folder'; children: { [key: string]: TreeNode }; }
 type TreeNode = FileNodeData | FolderNodeData;
 
-// Helper function to get a specific icon based on file extension
-const getFileIcon = (fileName: string) => {
-    const extension = fileName.split('.').pop()?.toLowerCase();
-    switch (extension) {
-        case 'json':
-            return <LucideFileJson className="size-4 mr-2 text-yellow-400 flex-shrink-0" />;
-        case 'jar':
-        case 'zip':
-            return <LucideFileArchive className="size-4 mr-2 text-orange-400 flex-shrink-0" />;
-        case 'txt':
-        case 'md':
-        case 'cfg':
-        case 'properties':
-            return <LucideFileText className="size-4 mr-2 text-blue-400 flex-shrink-0" />;
-        case 'png':
-        case 'jpg':
-        case 'jpeg':
-        case 'gif':
-        case 'webp':
-            return <LucideFileImage className="size-4 mr-2 text-purple-400 flex-shrink-0" />;
-        default:
-            return <LucideFile className="size-4 mr-2 text-gray-400 flex-shrink-0" />;
-    }
+const FileIcon = ({ name }: { name: string }) => {
+    const ext = name.split('.').pop()?.toLowerCase();
+    if (['json', 'toml'].includes(ext!)) return <LucideFileJson className="size-4 text-yellow-400 shrink-0" />;
+    if (['jar', 'zip'].includes(ext!)) return <LucideFileArchive className="size-4 text-orange-400 shrink-0" />;
+    if (['txt', 'md', 'cfg', 'properties'].includes(ext!)) return <LucideFileText className="size-4 text-blue-400 shrink-0" />;
+    if (['png', 'jpg', 'webp'].includes(ext!)) return <LucideFileImage className="size-4 text-purple-400 shrink-0" />;
+    return <LucideFile className="size-4 text-neutral-500 shrink-0" />;
 };
 
-// Recursive component to render a node in the file tree
-const FileTreeNode = ({ name, node, expandedFolders, setExpandedFolders, path }: {
-    name: string;
-    node: TreeNode;
-    expandedFolders: { [key: string]: boolean };
-    setExpandedFolders: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>;
-    path: string;
-}) => {
-    if (node.type === 'folder') {
-        const isExpanded = expandedFolders[path];
-        const toggleExpand = () => {
-            setExpandedFolders(prev => ({ ...prev, [path]: !isExpanded }));
-        };
+const FileTreeItem = ({ name, node, depth = 0 }: { name: string, node: TreeNode, depth?: number }) => {
+    const [isOpen, setIsOpen] = useState(depth < 1);
 
+    if (node.type === 'folder') {
         return (
-            <div>
-                <div onClick={toggleExpand} className="flex items-center cursor-pointer hover:bg-white/5 p-1 rounded transition-colors">
-                    {isExpanded
-                        ? <LucideChevronDown className="size-4 mr-2 text-[var(--muted-foreground)] flex-shrink-0" />
-                        : <LucideChevronRight className="size-4 mr-2 text-[var(--muted-foreground)] flex-shrink-0" />
-                    }
-                    <LucideFolder className="size-4 mr-2 text-sky-400 flex-shrink-0" />
-                    <span className="text-[var(--foreground)]">{name}</span>
+            <div className="select-none">
+                <div
+                    className={cn(
+                        "flex items-center gap-1.5 py-1.5 px-2 rounded-md cursor-pointer transition-colors text-sm hover:bg-white/5",
+                        isOpen ? "text-neutral-200" : "text-neutral-400"
+                    )}
+                    style={{ paddingLeft: `${depth * 16 + 8}px` }}
+                    onClick={() => setIsOpen(!isOpen)}
+                >
+                    <span className="opacity-50">
+                        {isOpen ? <LucideChevronDown size={14} /> : <LucideChevronRight size={14} />}
+                    </span>
+                    <LucideFolder className={cn("size-4 shrink-0", isOpen ? "text-blue-400" : "text-blue-400/70")} />
+                    <span className="truncate">{name}</span>
                 </div>
-                {isExpanded && (
-                    <div className="pl-6 border-l border-white/10 ml-2">
+
+                {isOpen && (
+                    <div>
                         {Object.entries(node.children)
-                            .sort(([aName, aNode], [bName, bNode]) => {
-                                // Sort folders before files, then alphabetically
+                            .sort(([aName, aNode]: any, [bName, bNode]: any) => {
                                 if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
                                 if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
                                 return aName.localeCompare(bName);
                             })
                             .map(([childName, childNode]) => (
-                                <FileTreeNode
-                                    key={childName}
-                                    name={childName}
-                                    node={childNode}
-                                    expandedFolders={expandedFolders}
-                                    setExpandedFolders={setExpandedFolders}
-                                    path={`${path}/${childName}`}
-                                />
+                                <FileTreeItem key={childName} name={childName} node={childNode} depth={depth + 1} />
                             ))}
                     </div>
                 )}
@@ -206,753 +98,375 @@ const FileTreeNode = ({ name, node, expandedFolders, setExpandedFolders, path }:
         );
     }
 
-    // It's a file
     return (
-        <div className="flex items-center p-1 ml-4">
-            <div className='w-4 mr-2'></div> {/* Indent spacer */}
-            {getFileIcon(name)}
-            <span className="text-[var(--muted-foreground)]">{name}</span>
+        <div
+            className="flex items-center gap-2 py-1.5 px-2 text-sm text-neutral-400 hover:text-white hover:bg-white/5 rounded-md cursor-default"
+            style={{ paddingLeft: `${depth * 16 + 28}px` }}
+        >
+            <FileIcon name={name} />
+            <span className="truncate">{name}</span>
         </div>
     );
 };
 
-// --- Main Component ---
+// --- MAIN COMPONENT ---
 
 export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
-    const { session } = useAuthentication();
+    const { session, sessionTokens } = useAuthentication();
+    const { titleBarState, setTitleBarState } = useGlobalContext();
 
-    const [pageState, setPageState] = useState({
-        loading: true,
-        error: false,
-        errorMessage: "",
-        modpackData: null as ModpackDataOverview | null,
-    });
-
-    const [isMuted, setIsMuted] = useState(true);
-    const [showVideo, setShowVideo] = useState(false);
-    const [videoLoaded, setVideoLoaded] = useState(false);
+    // UI Refs
     const videoRef = useRef<HTMLVideoElement>(null);
-    const bannerContainerRef = useRef<HTMLDivElement>(null);
-    const [localInstancesOfModpack, setLocalInstancesOfModpack] = useState<TauriCommandReturns["get_instances_by_modpack_id"]>([]);
+    const { scrollY } = useScroll();
+    const bannerY = useTransform(scrollY, [0, 500], [0, 100]);
 
-    // Version management state
+    // Data State
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [modpack, setModpack] = useState<ModpackDataOverview | null>(null);
     const [versions, setVersions] = useState<ModpackVersionPublic[]>([]);
     const [selectedVersionId, setSelectedVersionId] = useState<string>("latest");
-    const [versionsLoading, setVersionsLoading] = useState(true);
-
-    // Vote state
+    const [localInstances, setLocalInstances] = useState<TauriCommandReturns["get_instances_by_modpack_id"]>([]);
     const [voteCounts, setVoteCounts] = useState<VoteCounts | null>(null);
     const [userVote, setUserVote] = useState<'like' | 'dislike' | 'none'>('none');
-    const [votesLoading, setVotesLoading] = useState(true);
 
-    // State for the file tree view
-    const [expandedFolders, setExpandedFolders] = useState<{ [key: string]: boolean }>({});
+    // Media State
+    const [showVideo, setShowVideo] = useState(false);
+    const [videoLoaded, setVideoLoaded] = useState(false);
+    const [isMuted, setIsMuted] = useState(true);
 
-    // Hook para verificar acceso a Twitch
-    const { canAccess: userCanAccess, loading: accessLoading } = useModpackAccess(modpackId, pageState.modpackData?.requiresTwitchSubscription || false);
+    const [canAccess, setCanAccess] = useState(true);
+    const [accessLoading, setAccessLoading] = useState(false);
 
-    const { titleBarState, setTitleBarState } = useGlobalContext();
-    const { scrollY } = useScroll();
+    // --- FETCH DATA ---
+    useEffect(() => {
+        const load = async () => {
+            try {
+                setLoading(true);
+                const [mpData, vData, iData, votes] = await Promise.all([
+                    getModpackById(modpackId),
+                    getModpackVersions(modpackId),
+                    invoke<TauriCommandReturns["get_instances_by_modpack_id"]>("get_instances_by_modpack_id", { modpackId }),
+                    getVoteCounts(modpackId)
+                ]);
 
-    // Transformaciones basadas en el scroll para el efecto parallax
-    const bannerY = useTransform(scrollY, [0, 500], [0, 150]);
-    const bannerScale = useTransform(scrollY, [0, 300], [1.05, 1.15]);
-    const bannerOpacity = useTransform(scrollY, [0, 300], [1, 0.3]);
+                setModpack(mpData as unknown as ModpackDataOverview);
+                const validVersions = getNonArchivedVersions(vData);
+                setVersions(validVersions);
+                if (validVersions.length > 0) setSelectedVersionId("latest");
 
-    // Helper functions for version management
-    const getSelectedVersion = (): ModpackVersionPublic | null => {
-        if (selectedVersionId === "latest") {
-            return getLatestVersion(versions);
-        }
-        return versions.find(v => v.id === selectedVersionId) || null;
-    };
+                setLocalInstances(iData);
+                setVoteCounts(votes);
 
-    const selectedVersion = getSelectedVersion();
+                if (session) {
+                    const uVotes = await getUserVotes();
+                    setUserVote(uVotes.votes[modpackId] || 'none');
+                }
+
+                if ((mpData as any).trailerUrl) setTimeout(() => setShowVideo(true), 2500);
+
+            } catch (e: any) {
+                setError(e.message || "Error cargando modpack");
+            } finally {
+                setLoading(false);
+            }
+        };
+        load();
+    }, [modpackId, session]);
+
+    // Access Check
+    useEffect(() => {
+        if (!modpack?.requiresTwitchSubscription) return;
+        const check = async () => {
+            setAccessLoading(true);
+            try {
+                const res = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpackId}/check-access`, {
+                    headers: sessionTokens ? { 'Authorization': `Bearer ${sessionTokens.accessToken}` } : {}
+                });
+                const data = await res.json();
+                setCanAccess(data.canAccess || data.hasAccess || false);
+            } catch { setCanAccess(false); } finally { setAccessLoading(false); }
+        };
+        check();
+    }, [modpack, sessionTokens]);
+
+    // Titlebar
+    useEffect(() => {
+        setTitleBarState({ ...titleBarState, opaque: false, title: modpack?.name || "", canGoBack: { history: true }, icon: undefined });
+    }, [modpack]);
+
+    // Computed
+    const selectedVersion = useMemo(() => {
+        if (selectedVersionId === "latest") return getLatestVersion(versions);
+        return versions.find(v => v.id === selectedVersionId);
+    }, [selectedVersionId, versions]);
 
     const fileTree = useMemo(() => {
-        if (!selectedVersion || !selectedVersion.files) return {};
-
-        const buildFileTree = (files: typeof selectedVersion.files): { [key: string]: TreeNode } => {
-            const tree: { [key: string]: TreeNode } = {};
-            files.forEach(fileData => {
-                const pathParts = fileData.path.split('/');
-                let currentLevel: any = tree;
-
-                pathParts.forEach((part, index) => {
-                    if (index === pathParts.length - 1) {
-                        currentLevel[part] = { type: 'file', data: fileData };
-                    } else {
-                        if (!currentLevel[part]) {
-                            currentLevel[part] = { type: 'folder', children: {} };
-                        }
-                        currentLevel = currentLevel[part].children;
-                    }
-                });
+        if (!selectedVersion?.files) return {};
+        const tree: any = {};
+        selectedVersion.files.forEach((f: any) => {
+            const parts = f.path.split('/');
+            let current = tree;
+            parts.forEach((part: string, i: number) => {
+                if (i === parts.length - 1) current[part] = { type: 'file', data: f };
+                else {
+                    if (!current[part]) current[part] = { type: 'folder', children: {} };
+                    current = current[part].children;
+                }
             });
-            return tree;
-        };
-
-        return buildFileTree(selectedVersion.files);
+        });
+        return tree;
     }, [selectedVersion]);
 
-    useEffect(() => {
-        // Expand top-level folders by default when the tree changes
-        const initialExpansionState: { [key: string]: boolean } = {};
-        Object.keys(fileTree).forEach(key => {
-            if (fileTree[key].type === 'folder') {
-                initialExpansionState[key] = true;
-            }
-        });
-        setExpandedFolders(initialExpansionState);
-    }, [fileTree]);
+    if (loading) return <div className="h-screen flex items-center justify-center"><LucideLoader className="animate-spin text-white" /></div>;
+    if (error || !modpack) return <div className="h-screen flex items-center justify-center text-red-400">Error: {error}</div>;
 
-
-    useEffect(() => {
-        setTitleBarState({
-            ...titleBarState,
-            canGoBack: {
-                history: true
-            },
-            opaque: true,
-            title: pageState.modpackData?.name || "Modpack Overview",
-            icon: pageState.modpackData?.iconUrl || "/images/modpack-fallback.webp",
-            customIconClassName: "rounded-sm",
-        });
-    }, [pageState.modpackData]);
-
-    useEffect(() => {
-        const fetchLocalInstances = async () => {
-            try {
-                const instances = await invoke<TauriCommandReturns["get_instances_by_modpack_id"]>("get_instances_by_modpack_id", { modpackId });
-                setLocalInstancesOfModpack(instances);
-                console.log("Local instances of modpack:", instances);
-            } catch (err) {
-                console.error("Failed to fetch local instances:", err);
-            }
-        };
-
-        fetchLocalInstances();
-    }, [modpackId]);
-
-    // Efecto para cargar el video con retraso
-    useEffect(() => {
-        if (pageState.loading || !pageState.modpackData?.trailerUrl) return;
-
-        const timer = setTimeout(() => {
-            setShowVideo(true);
-        }, 3000);
-
-        return () => clearTimeout(timer);
-    }, [pageState.loading, pageState.modpackData]);
-
-    // Efecto para manejar la visibilidad del video y pausarlo cuando no es visible
-    useEffect(() => {
-        if (!videoRef.current || !bannerContainerRef.current || !showVideo) return;
-
-        const observer = new IntersectionObserver(
-            ([entry]) => {
-                if (entry.isIntersecting) {
-                    if (videoLoaded) {
-                        videoRef.current?.play();
-                    }
-                } else {
-                    videoRef.current?.pause();
-                }
-            },
-            { threshold: 0.1 }
-        );
-
-        observer.observe(bannerContainerRef.current);
-
-        return () => {
-            if (bannerContainerRef.current) {
-                observer.unobserve(bannerContainerRef.current);
-            }
-        };
-    }, [pageState.loading, showVideo, videoLoaded]);
-
-    useEffect(() => {
-        const fetchModpack = async () => {
-            try {
-                const modpack = await getModpackById(modpackId);
-                setPageState({
-                    loading: false,
-                    error: false,
-                    errorMessage: "",
-                    modpackData: modpack as unknown as ModpackDataOverview
-                });
-            } catch (err: any) {
-                setPageState({
-                    loading: false,
-                    error: true,
-                    errorMessage: err?.message || "Failed to load modpack",
-                    modpackData: null
-                });
-            }
-        };
-
-        const fetchVersions = async () => {
-            try {
-                setVersionsLoading(true);
-                const fetchedVersions = await getModpackVersions(modpackId);
-                const nonArchivedVersions = getNonArchivedVersions(fetchedVersions);
-                setVersions(nonArchivedVersions);
-
-                // Set default selection to latest if available
-                if (nonArchivedVersions.length > 0) {
-                    setSelectedVersionId("latest");
-                }
-            } catch (err) {
-                console.error("Failed to fetch versions:", err);
-                setVersions([]);
-            } finally {
-                setVersionsLoading(false);
-            }
-        };
-
-        fetchModpack();
-        fetchVersions();
-    }, [modpackId]);
-
-    // Load votes after modpack is loaded
-    useEffect(() => {
-        const fetchVotes = async () => {
-            if (!pageState.modpackData) return;
-
-            try {
-                setVotesLoading(true);
-
-                // Load vote counts
-                const counts = await getVoteCounts(modpackId);
-                setVoteCounts(counts);
-
-                // Load user vote if authenticated
-                if (session) {
-                    const userVotes = await getUserVotes();
-                    const userVoteForModpack = userVotes.votes[modpackId] || 'none';
-                    setUserVote(userVoteForModpack);
-                }
-            } catch (error) {
-                console.error('Failed to load votes:', error);
-                // Set defaults
-                setVoteCounts({ modpackId, likes: 0, dislikes: 0, total: 0 });
-                setUserVote('none');
-            } finally {
-                setVotesLoading(false);
-            }
-        };
-
-        fetchVotes();
-    }, [pageState.modpackData, modpackId, session]);
-
-    const toggleMute = () => {
-        if (videoRef.current) {
-            videoRef.current.muted = !videoRef.current.muted;
-            setIsMuted(!isMuted);
-        }
-    };
-
-    const handleVideoLoaded = () => {
-        setVideoLoaded(true);
-        if (videoRef.current && bannerContainerRef.current) {
-            const observer = new IntersectionObserver(
-                ([entry]) => {
-                    if (entry.isIntersecting) {
-                        videoRef.current?.play();
-                    }
-                },
-                { threshold: 0.1 }
-            );
-            observer.observe(bannerContainerRef.current);
-            return () => {
-                if (bannerContainerRef.current) {
-                    observer.unobserve(bannerContainerRef.current);
-                }
-            };
-        }
-    };
-
-    const handleVideoEnd = () => {
-        // Back again to banner image
-        setShowVideo(false);
-        setVideoLoaded(false);
-    };
-
-    if (pageState.loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen w-full">
-                <LucideLoader className="size-10 animate-spin text-[var(--foreground)]" />
-            </div>
-        );
-    }
-
-    if (pageState.error) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen w-full text-[var(--destructive)]">
-                <p className="text-lg font-semibold">Error:</p>
-                <p>{pageState.errorMessage}</p>
-            </div>
-        );
-    }
-
-    if (!pageState.modpackData) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen w-full text-[var(--destructive)]">
-                <p className="text-lg font-semibold">Error:</p>
-                <p>Modpack no encontrado.</p>
-            </div>
-        );
-    }
-
-    const { modpackData } = pageState;
-    const { showUserAsPublisher } = modpackData;
-
-    // Creamos una copia del publisher para mostrar el usuario si es necesario
-    let displayPublisher = { ...modpackData.publisher } as NonNullable<ModpackDataOverview["publisher"]>;
-    const originalPublisherName = displayPublisher.publisherName;
-
-    // Si debemos mostrar el usuario como publisher, cambiamos el nombre
-    if (showUserAsPublisher && modpackData.creatorUser) {
-        displayPublisher = {
-            ...displayPublisher,
-            publisherName: modpackData.creatorUser.username || "Desconocido",
-        };
-    }
-
-    const hasVideo = modpackData.trailerUrl && modpackData.trailerUrl.length > 0;
+    const publisherName = modpack.showUserAsPublisher && modpack.creatorUser ? modpack.creatorUser.username : modpack.publisher?.publisherName || "Desconocido";
 
     return (
-        <div className="relative w-full h-full">
-            {/* Banner con parallax usando Framer Motion */}
-            <div
-                ref={bannerContainerRef}
-                className="absolute inset-0 z-11 overflow-hidden w-full h-[60vh] aspect-video"
-            >
-                <motion.div
-                    className="absolute inset-0 w-full h-full"
-                    style={{
-                        y: bannerY,
-                        scale: bannerScale,
-                        opacity: bannerOpacity
-                    }}
-                >
-                    {/* Banner de imagen siempre presente */}
+        <div className="relative w-full min-h-screen bg-[#050505] text-white overflow-x-hidden">
+
+            {/* 1. HERO SECTION (BANNER + HEADER) */}
+            <div className="relative w-full h-[40vh] bg-neutral-900 overflow-hidden">
+                <motion.div style={{ y: bannerY }} className="absolute inset-0 w-full h-full">
                     <div
-                        className={`w-full h-full animate-fade-in bg-cover bg-center transition-opacity duration-1000 ${showVideo && videoLoaded ? 'opacity-0' : 'opacity-100'}`}
-                        style={{ backgroundImage: `url(${modpackData.bannerUrl})` }}
+                        className={`absolute inset-0 bg-cover bg-center transition-opacity duration-700 ${showVideo && videoLoaded ? 'opacity-0' : 'opacity-100'}`}
+                        style={{ backgroundImage: `url(${modpack.bannerUrl})` }}
                     />
-
-                    {/* Video con fade in cuando está listo */}
-                    {hasVideo && showVideo && (
-                        <>
-                            <div className={`absolute inset-0 w-full h-full transition-opacity duration-1000 ${videoLoaded ? 'opacity-100' : 'opacity-0'}`}>
-                                <video
-                                    ref={videoRef}
-                                    muted
-                                    playsInline
-                                    autoPlay
-                                    onEnded={handleVideoEnd}
-                                    className="w-full h-full object-cover"
-                                    src={modpackData.trailerUrl}
-                                    onLoadedData={handleVideoLoaded}
-                                />
-                            </div>
-
-                            {/* Botón visible siempre que haya video y esté activo */}
-                            <button
-                                onClick={toggleMute}
-                                className="cursor-pointer absolute top-4 right-8 p-2 bg-black/50 backdrop-blur-sm rounded-full z-999"
-                            >
-                                {isMuted ? (
-                                    <LucideVolumeX className="size-6 text-white" />
-                                ) : (
-                                    <LucideVolume2 className="size-6 text-white" />
-                                )}
-                            </button>
-                        </>
+                    {modpack.trailerUrl && showVideo && (
+                        <video
+                            ref={videoRef}
+                            src={modpack.trailerUrl}
+                            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-1000 ${videoLoaded ? 'opacity-100' : 'opacity-0'}`}
+                            autoPlay muted={isMuted} loop playsInline
+                            onLoadedData={() => setVideoLoaded(true)}
+                        />
                     )}
-
+                    <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/50 to-transparent" />
                 </motion.div>
 
-                {/* Capa de gradiente */}
-                <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-[var(--background)] pointer-events-none" />
+                {/* Mute Button */}
+                {showVideo && videoLoaded && (
+                    <button onClick={() => { setIsMuted(!isMuted); if (videoRef.current) videoRef.current.muted = !isMuted; }} className="absolute top-20 right-6 p-2.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10 hover:bg-white/10 transition-colors z-20">
+                        {isMuted ? <LucideVolumeX size={20} /> : <LucideVolume2 size={20} />}
+                    </button>
+                )}
             </div>
 
-            {/* Contenido principal - con scroll normal */}
-            <div className="relative z-10 min-h-screen">
-                <motion.main
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5 }}
-                    className="px-4 py-8 md:px-12 lg:px-24"
-                >
-                    <div className="flex flex-col gap-6 pt-[60vh]">
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.1 }}
-                            className="flex flex-col md:flex-row md:items-center gap-4"
-                        >
-                            <div className="flex items-center gap-4 flex-1">
-                                <img
-                                    src={modpackData.iconUrl ?? "/images/modpack-fallback.webp"}
-                                    onError={(e) => {
-                                        e.currentTarget.onerror = null; // Prevent infinite loop
-                                        e.currentTarget.src = "/images/modpack-fallback.webp"; // Fallback image
-                                    }}
-                                    alt={`${modpackData.name} icon`}
-                                    className="w-20 h-20 rounded-2xl shadow-md"
-                                />
-                                <div>
-                                    <h1 className="text-4xl font-bold text-[var(--foreground)]">{modpackData.name}</h1>
-                                    <div className="flex items-center gap-2 text-[var(--foreground)] text-sm">
-                                        <span>{displayPublisher.publisherName}</span>
+            {/* 2. CONTENT CONTAINER (Single Column) */}
+            <div className="relative z-10 max-w-5xl mx-auto px-6 -mt-20 pb-24">
 
-                                        {/* Mostramos el verificado solo si no estamos mostrando el usuario como publisher */}
-                                        {!showUserAsPublisher && displayPublisher.verified && (
-                                            <LucideVerified className="w-4 h-4 text-blue-400" />
-                                        )}
+                {/* HEADER INFO */}
+                <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-end mb-8">
+                    <motion.img
+                        initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                        src={modpack.iconUrl || "/images/modpack-fallback.webp"}
+                        className="w-28 h-28 sm:w-40 sm:h-40 rounded-2xl shadow-2xl border-4 border-[#050505] bg-[#121212] object-cover shrink-0"
+                    />
 
-                                        {/* Badge de Partner */}
-                                        {!showUserAsPublisher && displayPublisher.partnered && (
-                                            <span className="bg-yellow-400 text-black text-xs font-medium px-2 py-0.5 rounded-md ml-2">
-                                                Partner
-                                            </span>
-                                        )}
-
-                                        {/* Badge de Afiliado cuando el publisher es un socio de hosting */}
-                                        {showUserAsPublisher && displayPublisher.isHostingPartner && (
-                                            <span className="bg-purple-500 text-white text-xs font-medium px-2 py-0.5 rounded-md ml-2 flex items-center">
-                                                Afiliado de {originalPublisherName} {
-                                                    displayPublisher.verified && (
-                                                        <LucideVerified className="w-4 h-4 text-white  ml-1" />
-                                                    )
-                                                }
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
+                    <div className="flex-1 pb-1 w-full">
+                        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }}>
+                            <div className="flex items-center gap-2 mb-1 text-neutral-300 font-medium text-sm">
+                                <span>{publisherName}</span>
+                                {modpack.publisher?.verified && <LucideVerified className="size-3.5 text-blue-400" />}
                             </div>
-
-                            {/* Controles a la derecha: requisitos de Twitch + botón */}
-                            <div className="flex flex-col items-end gap-3 w-full md:w-auto">
-                                {modpackData.requiresTwitchSubscription && !modpackData.isPasswordProtected && (
-                                    <div className="w-full md:max-w-sm">
-                                        <TwitchRequirements
-                                            requiresTwitchSubscription={modpackData.requiresTwitchSubscription}
-                                            requiredTwitchChannels={modpackData.requiredTwitchChannels || []}
-                                            userHasTwitchLinked={Boolean(session?.twitchId)}
-                                            modpackId={modpackId}
-                                        />
-                                    </div>
-                                )}
-
-                                {/* Vote Buttons and Install Button aligned */}
-                                <div className="flex items-center gap-3 w-full md:w-auto">
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ duration: 0.6, delay: 0.15 }}
-                                    >
-                                        <VoteButtons
-                                            modpackId={modpackId}
-                                            showCounts={true}
-                                            initialCounts={voteCounts || undefined}
-                                            initialVote={userVote || 'none'}
-                                        />
-                                    </motion.div>
-
-                                    {/* Botón de instalación */}
-                                    {versions.length > 0 && (
-                                        <InstallButton
-                                            modpackId={modpackId}
-                                            modpackName={modpackData.name!}
-                                            localInstances={localInstancesOfModpack}
-                                            acquisitionMethod={modpackData.acquisitionMethod ||
-                                                (modpackData.isPasswordProtected ? 'password' :
-                                                    modpackData.requiresTwitchSubscription ? 'twitch_sub' :
-                                                        modpackData.isPaid ? 'paid' : 'free')
-                                            }
-                                            isPasswordProtected={modpackData.isPasswordProtected}
-                                            isPaid={modpackData.isPaid}
-                                            isFree={modpackData.isFree}
-                                            price={modpackData.price}
-                                            requiresTwitchSubscription={modpackData.requiresTwitchSubscription}
-                                            requiredTwitchChannels={modpackData.requiredTwitchChannels}
-                                            selectedVersionId={selectedVersionId}
-                                            disabled={modpackData.requiresTwitchSubscription && !accessLoading && !userCanAccess}
-                                        />
-                                    )}
-                                </div>
-                            </div>
+                            {/* Titulo moderado */}
+                            <h1 className="text-3xl sm:text-4xl font-black text-white leading-tight drop-shadow-xl mb-4 truncate">
+                                {modpack.name}
+                            </h1>
                         </motion.div>
 
-                        {/* Draft modpack banner */}
-                        {modpackData.status === 'draft' && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.6, delay: 0.15 }}
-                                className="bg-yellow-500/20 border border-yellow-500/50 backdrop-blur-md rounded-lg p-4"
-                            >
-                                <p className="text-yellow-200 text-center font-medium">
-                                    Estás previsualizando un modpack no disponible al público general.
-                                </p>
-                            </motion.div>
-                        )}
-
-                        {/* Tabs */}
                         <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.6, delay: 0.2 }}
+                            initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }}
+                            className="flex flex-wrap items-center gap-3"
                         >
-                            <Tabs defaultValue="overview" className="w-full pb-16">
-                                <TabsList className="w-full justify-start bg-black/40 backdrop-blur-md">
-                                    <TabsTrigger value="overview">Descripción</TabsTrigger>
-                                    <TabsTrigger value="files">Archivos de Modpack</TabsTrigger>
-                                    <TabsTrigger value="changelog">Changelog</TabsTrigger>
-                                    <TabsTrigger value="versions">Versiones</TabsTrigger>
-                                    <TabsTrigger value="recommended">Recomendados</TabsTrigger>
-                                </TabsList>
+                            {versions.length > 0 && (
+                                <InstallButton
+                                    modpackId={modpackId}
+                                    modpackName={modpack.name!}
+                                    localInstances={localInstances}
+                                    acquisitionMethod={modpack.acquisitionMethod || 'free'}
+                                    isPasswordProtected={modpack.isPasswordProtected}
+                                    isPaid={modpack.isPaid}
+                                    isFree={modpack.isFree}
+                                    price={modpack.price}
+                                    requiresTwitchSubscription={modpack.requiresTwitchSubscription}
+                                    requiredTwitchChannels={modpack.requiredTwitchChannels}
+                                    selectedVersionId={selectedVersionId}
+                                    disabled={modpack.requiresTwitchSubscription && !accessLoading && !canAccess}
+                                />
+                            )}
+                            <VoteButtons modpackId={modpackId} showCounts initialCounts={voteCounts || undefined} initialVote={userVote} />
+                        </motion.div>
+                    </div>
+                </div>
 
-                                <TabsContent value="overview" className="mt-6">
-                                    <h2 className="text-xl font-semibold text-[var(--foreground)]">Descripción</h2>
-                                    <ExternalLinkHandler className="prose prose-sm dark:prose-invert max-w-none space-y-1
-                                        prose-h2:text-sm prose-h2:uppercase prose-h2:font-bold prose-h2:text-indigo-400
-                                        prose-hr:border-gray-700
-                                        prose-p:text-[var(--foreground)] prose-li:text-[var(--foreground)] mt-2">
-                                        {modpackData.description || "Este modpack aún no tiene una descripción."}
-                                    </ExternalLinkHandler>
-                                </TabsContent>
+                {/* 3. STATS STRIP (Horizontal) */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+                    {[
+                        { label: "Versión", value: selectedVersion?.version || "N/A", icon: LucideBox },
+                        { label: "Loader", value: selectedVersion ? formatLoaderInfo(selectedVersion) : "N/A", icon: LucideCpu },
+                        { label: "Minecraft", value: selectedVersion?.mcVersion || "N/A", icon: LucideBox },
+                        { label: "Actualizado", value: selectedVersion?.releaseDate ? new Date(selectedVersion.releaseDate).toLocaleDateString() : "N/A", icon: LucideClock },
+                    ].map((item, i) => (
+                        <div key={i} className="bg-[#121212]/50 backdrop-blur-md border border-white/5 rounded-xl p-3 flex items-center gap-3">
+                            <div className="p-2 bg-white/5 rounded-lg text-neutral-400">
+                                <item.icon size={16} />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-wider">{item.label}</p>
+                                <p className="text-sm font-medium text-white truncate">{item.value}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
 
-                                <TabsContent value="files" className="mt-6">
-                                    {selectedVersion && selectedVersion.files && selectedVersion.files.length > 0 ? (
-                                        <div className="bg-black/20 rounded-lg p-4 font-mono text-sm space-y-1 border border-white/10">
+                {/* Twitch Warning */}
+                {modpack.requiresTwitchSubscription && !modpack.isPasswordProtected && (
+                    <div className="mb-8">
+                        <TwitchRequirements
+                            requiresTwitchSubscription={true}
+                            requiredTwitchChannels={modpack.requiredTwitchChannels || []}
+                            userHasTwitchLinked={Boolean(session?.twitchId)}
+                            modpackId={modpackId}
+                        />
+                    </div>
+                )}
+
+                {/* 4. TABS & CONTENT */}
+                <Tabs defaultValue="overview" className="w-full">
+                    <TabsList className="w-full justify-start bg-transparent border-b border-white/10 rounded-none p-0 h-auto mb-6 gap-6">
+                        {["overview", "files", "changelog", "versions"].map(tab => (
+                            <TabsTrigger
+                                key={tab}
+                                value={tab}
+                                className="px-0 py-3 rounded-none bg-transparent border-b-2 border-transparent data-[state=active]:border-purple-500 data-[state=active]:text-white text-neutral-400 text-sm font-medium transition-all hover:text-neutral-200 data-[state=active]:shadow-none"
+                            >
+                                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+
+                    <div className="min-h-[300px]">
+                        {/* OVERVIEW */}
+                        <TabsContent value="overview" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <div className="bg-[#121212] border border-white/5 rounded-2xl p-6 md:p-8">
+                                <ExternalLinkHandler className="prose prose-invert prose-p:text-neutral-300 prose-headings:text-white prose-a:text-purple-400 max-w-none">
+                                    {modpack.description || "Sin descripción disponible."}
+                                </ExternalLinkHandler>
+                            </div>
+                        </TabsContent>
+
+                        {/* FILES */}
+                        <TabsContent value="files" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <div className="bg-[#0f0f0f] border border-white/5 rounded-2xl overflow-hidden flex flex-col h-[600px]">
+                                <div className="bg-[#181818] border-b border-white/5 p-3 flex justify-between items-center px-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-full max-w-[200px]">
+                                            <Select value={selectedVersionId} onValueChange={setSelectedVersionId}>
+                                                <SelectTrigger className="h-8 text-xs bg-black/40 border-white/10"><SelectValue /></SelectTrigger>
+                                                <SelectContent className="bg-[#1a1a1a] border-white/10 text-white">
+                                                    <SelectItem value="latest">Última versión</SelectItem>
+                                                    {versions.map(v => <SelectItem key={v.id} value={v.id}>{v.version}</SelectItem>)}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    </div>
+                                    <span className="text-xs text-neutral-500">{selectedVersion?.files?.length || 0} archivos</span>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-2 custom-scrollbar bg-[#0a0a0a]">
+                                    {selectedVersion?.files && selectedVersion.files.length > 0 ? (
+                                        <div className="flex flex-col">
                                             {Object.entries(fileTree)
-                                                .sort(([aName, aNode], [bName, bNode]) => {
-                                                    // Sort folders before files, then alphabetically
+                                                .sort(([aName, aNode]: any, [bName, bNode]: any) => {
                                                     if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
                                                     if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
                                                     return aName.localeCompare(bName);
                                                 })
                                                 .map(([name, node]) => (
-                                                    <FileTreeNode
-                                                        key={name}
-                                                        name={name}
-                                                        node={node}
-                                                        expandedFolders={expandedFolders}
-                                                        setExpandedFolders={setExpandedFolders}
-                                                        path={name}
-                                                    />
-                                                ))}
+                                                    <FileTreeItem key={name} name={name} node={node as TreeNode} />
+                                                ))
+                                            }
                                         </div>
                                     ) : (
-                                        <p className="text-[var(--muted-foreground)]">No hay archivos disponibles para esta versión.</p>
+                                        <div className="flex flex-col items-center justify-center h-full text-neutral-500 gap-2">
+                                            <LucideFolderOpen size={40} className="opacity-20" />
+                                            <p>No hay archivos listados.</p>
+                                        </div>
                                     )}
-                                </TabsContent>
+                                </div>
+                            </div>
+                        </TabsContent>
 
+                        {/* CHANGELOG */}
+                        <TabsContent value="changelog" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <div className="bg-[#121212] border border-white/5 rounded-2xl p-6 md:p-8">
+                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                                    <h2 className="text-lg font-bold text-white">Cambios en v{selectedVersion?.version}</h2>
+                                    <Select value={selectedVersionId} onValueChange={setSelectedVersionId}>
+                                        <SelectTrigger className="w-[180px] bg-white/5 border-white/10"><SelectValue /></SelectTrigger>
+                                        <SelectContent className="bg-[#1a1a1a] border-white/10 text-white">
+                                            <SelectItem value="latest">Última versión</SelectItem>
+                                            {versions.map(v => <SelectItem key={v.id} value={v.id}>{v.version}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="prose prose-invert prose-sm max-w-none p-4 rounded-xl bg-black/20 border border-white/5">
+                                    <ExternalLinkHandler>
+                                        {selectedVersion?.changelog || "Sin registro de cambios para esta versión."}
+                                    </ExternalLinkHandler>
+                                </div>
+                            </div>
+                        </TabsContent>
 
-                                <TabsContent value="changelog" className="mt-6">
-                                    <div className="space-y-4">
-                                        {/* Version selector */}
-                                        <div className="flex items-center gap-4">
-                                            <label className="text-[var(--foreground)] text-sm font-medium">Versión:</label>
-                                            <Select
-                                                value={selectedVersionId}
-                                                onValueChange={setSelectedVersionId}
-                                                disabled={versionsLoading || versions.length === 0}
-                                            >
-                                                <SelectTrigger className="w-48 bg-black/40 border-white/20 text-white">
-                                                    <SelectValue placeholder="Seleccionar versión" />
-                                                </SelectTrigger>
-                                                <SelectContent className="bg-zinc-900 border-zinc-700 text-white">
-                                                    <SelectItem value="latest" className="focus:bg-zinc-800">
-                                                        Última versión (latest)
-                                                    </SelectItem>
-                                                    {versions.map((version) => (
-                                                        <SelectItem
-                                                            key={version.id}
-                                                            value={version.id}
-                                                            className="focus:bg-zinc-800"
-                                                        >
-                                                            {version.version} - MC {version.mcVersion} • {formatLoaderInfo(version)}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                        {/* VERSIONS */}
+                        <TabsContent value="versions" className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+                            <div className="space-y-2">
+                                {versions.map(v => {
+                                    const isSelected = selectedVersionId === v.id || (selectedVersionId === "latest" && getLatestVersion(versions)?.id === v.id);
+                                    return (
+                                        <div
+                                            key={v.id}
+                                            onClick={() => setSelectedVersionId(v.id)}
+                                            className={`group flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${isSelected
+                                                    ? 'bg-purple-500/10 border-purple-500/50'
+                                                    : 'bg-[#121212] border-white/5 hover:border-white/20'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-4">
+                                                <div className={`p-2.5 rounded-lg ${isSelected ? 'bg-purple-500 text-white' : 'bg-white/5 text-neutral-400 group-hover:bg-white/10'}`}>
+                                                    <LucideBox size={20} />
+                                                </div>
+                                                <div>
+                                                    <h3 className={`font-bold ${isSelected ? 'text-purple-300' : 'text-white'}`}>{v.version}</h3>
+                                                    <p className="text-xs text-neutral-500 font-mono mt-0.5">MC {v.mcVersion} • {formatLoaderInfo(v)}</p>
+                                                </div>
+                                            </div>
+
+                                            <div className="text-right">
+                                                <span className="text-xs text-neutral-500 block mb-1">
+                                                    {v.releaseDate ? new Date(v.releaseDate).toLocaleDateString() : 'N/A'}
+                                                </span>
+                                                {v.status === 'published' && (
+                                                    <span className="px-2 py-0.5 rounded bg-green-500/10 text-green-400 text-[10px] font-bold uppercase tracking-wider">
+                                                        Estable
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
-
-                                        {versionsLoading ? (
-                                            <div className="flex items-center justify-center py-8">
-                                                <LucideLoader className="size-6 animate-spin text-[var(--foreground)]" />
-                                                <span className="ml-2 text-[var(--muted-foreground)]">Cargando changelog...</span>
-                                            </div>
-                                        ) : (
-                                            <>
-                                                {(() => {
-                                                    if (!selectedVersion) {
-                                                        return (
-                                                            <p className="text-[var(--muted-foreground)]">No hay changelog disponible para esta versión.</p>
-                                                        )
-                                                    }
-
-
-                                                    return (
-                                                        <div className="space-y-6">
-                                                            {/* Selected version info */}
-                                                            <div className="bg-black/20 rounded-lg p-4 border border-white/10">
-                                                                <div className="flex items-center justify-between">
-                                                                    <div>
-                                                                        <h3 className="text-lg font-semibold text-[var(--foreground)]">
-                                                                            {selectedVersion.version}
-                                                                        </h3>
-                                                                        <p className="text-[var(--muted-foreground)] text-sm">
-                                                                            Minecraft {selectedVersion.mcVersion} • {formatLoaderInfo(selectedVersion)}
-                                                                        </p>
-                                                                    </div>
-                                                                    <div className="text-right">
-                                                                        <p className="text-[var(--muted-foreground)] text-sm">
-                                                                            {selectedVersion.releaseDate
-                                                                                ? new Date(selectedVersion.releaseDate).toLocaleDateString()
-                                                                                : 'Fecha no disponible'
-                                                                            }
-                                                                        </p>
-                                                                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${selectedVersion.status === 'published' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                                                                            {selectedVersion.status === 'published' ? 'Publicado' : selectedVersion.status}
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-
-
-                                                            {/* Full changelog */}
-                                                            <div className="bg-black/20 rounded-lg p-4 border border-white/10">
-                                                                <h4 className="text-[var(--foreground)] font-medium mb-3">Changelog Completo</h4>
-                                                                <ExternalLinkHandler className="prose prose-sm dark:prose-invert max-w-none space-y-1
-                                                                    prose-h2:text-sm prose-h2:uppercase prose-h2:font-bold prose-h2:text-indigo-400
-                                                                    prose-hr:border-gray-700
-                                                                    prose-p:text-[var(--foreground)] prose-li:text-[var(--foreground)]">
-                                                                    {selectedVersion.changelog || "No hay changelog para esta versión."}
-                                                                </ExternalLinkHandler>
-                                                            </div>
-                                                        </div>
-                                                    )
-                                                })()}
-                                            </>
-                                        )}
-                                    </div>
-                                </TabsContent>
-
-                                <TabsContent value="versions" className="mt-6">
-                                    <div className="space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <h2 className="text-xl font-semibold text-[var(--foreground)]">Versiones Disponibles</h2>
-                                            <span className="text-[var(--muted-foreground)] text-sm">
-                                                {versions.length} versión{versions.length !== 1 ? 'es' : ''} disponible{versions.length !== 1 ? 's' : ''}
-                                            </span>
-                                        </div>
-
-                                        {versionsLoading ? (
-                                            <div className="flex items-center justify-center py-8">
-                                                <LucideLoader className="size-6 animate-spin text-[var(--foreground)]" />
-                                                <span className="ml-2 text-[var(--muted-foreground)]">Cargando versiones...</span>
-                                            </div>
-                                        ) : versions.length === 0 ? (
-                                            <div className="text-center py-8">
-                                                <p className="text-[var(--muted-foreground)]">No hay versiones disponibles para este modpack.</p>
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-3">
-                                                {versions
-                                                    .sort((a, b) => {
-                                                        // Sort by release date, most recent first
-                                                        const dateA = new Date(a.releaseDate || a.createdAt)
-                                                        const dateB = new Date(b.releaseDate || b.createdAt)
-                                                        return dateB.getTime() - dateA.getTime()
-                                                    })
-                                                    .map((version) => {
-                                                        const isLatest = getLatestVersion(versions)?.id === version.id
-                                                        const isSelected = selectedVersionId === version.id ||
-                                                            (selectedVersionId === "latest" && isLatest)
-
-                                                        return (
-                                                            <div
-                                                                key={version.id}
-                                                                className={`bg-black/20 rounded-lg p-4 border transition-all cursor-pointer hover:bg-black/30 ${isSelected
-                                                                    ? 'border-blue-500/50 bg-blue-900/10'
-                                                                    : 'border-white/10'
-                                                                    }`}
-                                                                onClick={() => setSelectedVersionId(version.id)}
-                                                            >
-                                                                <div className="flex items-start justify-between">
-                                                                    <div className="flex-1">
-                                                                        <div className="flex items-center gap-3 mb-2">
-                                                                            <h3 className="text-lg font-semibold text-[var(--foreground)]">
-                                                                                {version.version}
-                                                                            </h3>
-                                                                            {isLatest && (
-                                                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                                                                                    Última
-                                                                                </span>
-                                                                            )}
-                                                                            {isSelected && (
-                                                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                                                                    Seleccionada
-                                                                                </span>
-                                                                            )}
-
-                                                                            {
-                                                                                isLatest && isSelected && (
-                                                                                    <span className="ml-auto self-end flex items-center gap-1 rounded-full bg-orange-100 border text-sm border-orange-700/30 text-orange-500 font-medium px-2">
-                                                                                        <LucideRotateCcw size={14} />
-                                                                                        Actualizaciones automáticas
-                                                                                    </span>
-                                                                                )
-                                                                            }
-                                                                        </div>
-
-                                                                        <div className="grid grid-cols-2 gap-4 text-sm text-[var(--muted-foreground)] mb-3">
-                                                                            <div>
-                                                                                <span className="text-[var(--muted-foreground)]">Minecraft:</span> {version.mcVersion}
-                                                                            </div>
-                                                                            <div>
-                                                                                <span className="text-[var(--muted-foreground)]">Loader:</span> {formatLoaderInfo(version)}
-                                                                            </div>
-                                                                            <div>
-                                                                                <span className="text-[var(--muted-foreground)]">Publicado:</span> {
-                                                                                    version.releaseDate
-                                                                                        ? new Date(version.releaseDate).toLocaleDateString()
-                                                                                        : 'Fecha no disponible'
-                                                                                }
-                                                                            </div>
-                                                                            <div>
-                                                                                <span className="text-[var(--muted-foreground)]">Estado:</span> {
-                                                                                    version.status === 'published' ? 'Publicado' : version.status
-                                                                                }
-                                                                            </div>
-                                                                        </div>
-
-
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        )
-                                                    })
-                                                }
-                                            </div>
-                                        )}
-                                    </div>
-                                </TabsContent>
-
-                                <TabsContent value="recommended" className="mt-6">
-                                    <RelatedModpacks modpackId={modpackId} limit={12} />
-                                </TabsContent>
-                            </Tabs>
-                        </motion.div>
+                                    )
+                                })}
+                            </div>
+                        </TabsContent>
                     </div>
-                </motion.main>
+                </Tabs>
+
+                {/* 5. FOOTER RECOMMENDED */}
+                <div className="mt-16 pt-8 border-t border-white/5">
+                    <h3 className="text-lg font-bold mb-6 text-white">También te podría interesar</h3>
+                    <RelatedModpacks modpackId={modpackId} limit={4} className="px-0" />
+                </div>
+
             </div>
         </div>
     );

@@ -1,358 +1,296 @@
 import { useAuthentication } from "@/stores/AuthContext";
 import { TwitchLinkingComponent } from "@/components/TwitchLinkingComponent";
 import { PatreonLinkingComponent } from "@/components/PatreonLinkingComponent";
-import { LucideUser, LucideMail, LucideCalendar, LucideShield, LucideSettings, LucideChevronRight, LucideHelpCircle, LucideTicket, LucideCopy, LucideCheck, LucidePlus } from "lucide-react";
+import {
+  LucideUser, LucideMail, LucideCalendar, LucideShield, LucideSettings,
+  LucideTicket, LucideCopy, LucideCheck, LucideExternalLink, LucideLayoutGrid
+} from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGlobalContext } from "@/stores/GlobalContext";
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { DiscordIcon } from "@/icons/DiscordIcon";
 import { Link, useLocation, Outlet } from "react-router-dom";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "motion/react";
+import { cn } from "@/lib/utils";
+
+// --- COMPONENTS ---
+
+const SidebarItem = ({ to, icon: Icon, label, isActive }: { to: string, icon: any, label: string, isActive: boolean }) => (
+  <Link to={to} className="relative group block w-full">
+    {isActive && (
+      <motion.div
+        layoutId="active-profile-tab"
+        className="absolute inset-0 bg-white/10 rounded-xl"
+        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+      />
+    )}
+    <div className={cn(
+      "relative flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-200",
+      isActive ? "text-white" : "text-neutral-400 hover:text-white hover:bg-white/5"
+    )}>
+      <Icon className={cn("w-5 h-5", isActive ? "text-purple-400" : "text-neutral-500 group-hover:text-neutral-300")} />
+      <span className="font-medium text-sm">{label}</span>
+    </div>
+  </Link>
+);
+
+const InfoCard = ({ icon: Icon, label, value, subValue }: { icon: any, label: string, value: string, subValue?: string }) => (
+  <div className="bg-[#151515] border border-white/5 rounded-xl p-4 flex items-start gap-4 hover:border-white/10 transition-colors">
+    <div className="p-2.5 rounded-lg bg-white/5 text-neutral-400">
+      <Icon className="w-5 h-5" />
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-0.5">{label}</p>
+      <p className="text-sm font-medium text-white truncate">{value}</p>
+      {subValue && <p className="text-xs text-neutral-500 mt-0.5">{subValue}</p>}
+    </div>
+  </div>
+);
+
+// --- SECTIONS ---
+
+export const ProfileInformation = () => {
+  const { session } = useAuthentication();
+  const [copiedId, setCopiedId] = useState(false);
+
+  if (!session) return null;
+
+  const copyUserId = async () => {
+    if (!session.id) return;
+    try {
+      await navigator.clipboard.writeText(session.id);
+      setCopiedId(true);
+      toast.success("ID copiado");
+      setTimeout(() => setCopiedId(false), 2000);
+    } catch (err) {
+      toast.error("Error al copiar");
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+      className="space-y-6"
+    >
+      {/* Header Banner */}
+      <div className="relative overflow-hidden rounded-2xl bg-[#121212] border border-white/10 p-8 flex flex-col md:flex-row items-center gap-6 md:gap-8">
+        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-blue-500/10 opacity-50" />
+
+        {/* Avatar with Glow */}
+        <div className="relative shrink-0">
+          <div className="absolute inset-0 bg-purple-500/30 blur-2xl rounded-full" />
+          <img
+            src={session.avatarUrl || "https://github.com/shadcn.png"}
+            alt="Avatar"
+            className="relative w-24 h-24 rounded-full border-4 border-[#121212] shadow-xl object-cover"
+          />
+          <div className="absolute bottom-1 right-1 bg-green-500 w-5 h-5 rounded-full border-4 border-[#121212]" title="Online" />
+        </div>
+
+        {/* User Info */}
+        <div className="relative text-center md:text-left space-y-2 flex-1">
+          <div className="flex flex-col md:flex-row items-center gap-3">
+            <h2 className="text-2xl font-bold text-white">{session.username}</h2>
+            <Badge className="bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border-purple-500/50 uppercase text-[10px] tracking-wider px-2 py-0.5">
+              {session.role || "Usuario"}
+            </Badge>
+          </div>
+
+          <div className="flex items-center gap-2 justify-center md:justify-start bg-black/20 w-fit px-3 py-1 rounded-full border border-white/5 mx-auto md:mx-0">
+            <span className="text-xs text-neutral-500 font-mono">ID: {session.id}</span>
+            <button onClick={copyUserId} className="text-neutral-400 hover:text-white transition-colors">
+              {copiedId ? <LucideCheck className="w-3 h-3 text-green-400" /> : <LucideCopy className="w-3 h-3" />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Grid Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <InfoCard
+          icon={LucideMail}
+          label="Correo Electrónico"
+          value={session.email}
+          subValue="Verificado"
+        />
+        <InfoCard
+          icon={LucideCalendar}
+          label="Miembro Desde"
+          value={new Date(session.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
+        />
+        <InfoCard
+          icon={LucideShield}
+          label="Nivel de Acceso"
+          value={session.isAdmin?.() ? 'Administrador Total' : 'Acceso Estándar'}
+        />
+        <InfoCard
+          icon={LucideLayoutGrid}
+          label="Publisher Status"
+          value={session.publisherMemberships?.length ? `${session.publisherMemberships.length} Organizaciones` : 'Sin publicar'}
+        />
+      </div>
+    </motion.div>
+  );
+};
+
+export const IntegrationsSection = () => {
+  const { session } = useAuthentication();
+  if (!session) return null;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+      <div className="flex flex-col gap-1">
+        <h2 className="text-xl font-bold text-white">Conexiones</h2>
+        <p className="text-sm text-neutral-400">Gestiona las aplicaciones conectadas a tu cuenta.</p>
+      </div>
+
+      <div className="grid gap-4">
+        {/* Discord (Core) */}
+        <div className="relative group overflow-hidden bg-[#151515] border border-indigo-500/20 rounded-xl p-6 transition-all hover:border-indigo-500/40">
+          <div className="absolute inset-0 bg-indigo-500/5 group-hover:bg-indigo-500/10 transition-colors" />
+          <div className="relative flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-[#5865F2]/20 rounded-xl text-[#5865F2]">
+                <DiscordIcon className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-white">Discord</h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+                  <span className="text-xs text-green-400 font-medium">Conectado como {session.username}</span>
+                </div>
+              </div>
+            </div>
+            {session.discordId && (
+              <span className="hidden sm:block text-xs font-mono text-neutral-600 bg-black/20 px-2 py-1 rounded">
+                {session.discordId}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Other Integrations */}
+        <div className="grid md:grid-cols-2 gap-4">
+          <TwitchLinkingComponent />
+          <PatreonLinkingComponent />
+        </div>
+      </div>
+    </motion.div>
+  );
+};
+
+export const HelpSection = () => (
+  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="h-full flex items-center justify-center min-h-[400px]">
+    <div className="text-center space-y-4 max-w-md">
+      <div className="mx-auto w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-6">
+        <LucideTicket className="w-8 h-8 text-neutral-400" />
+      </div>
+      <h2 className="text-xl font-bold text-white">Centro de Ayuda</h2>
+      <p className="text-neutral-400 text-sm leading-relaxed">
+        ¿Tienes problemas con tu cuenta o necesitas reportar un bug?
+        Nuestro sistema de tickets está integrado para ayudarte.
+      </p>
+      <div className="pt-4">
+        <Button asChild className="bg-white text-black hover:bg-neutral-200">
+          <Link to="/profile/tickets">
+            Abrir Ticket de Soporte <LucideExternalLink className="ml-2 w-4 h-4" />
+          </Link>
+        </Button>
+      </div>
+    </div>
+  </motion.div>
+);
+
+// --- MAIN LAYOUT ---
 
 export const ProfileView = () => {
   const { session } = useAuthentication();
   const { setTitleBarState, titleBarState } = useGlobalContext();
   const location = useLocation();
 
-  // Get current section from URL
-  const getCurrentSection = () => {
-    const path = location.pathname;
-
-    // Map of URL patterns to section names
-    const sectionMap: Record<string, string> = {
-      '/integrations': 'integrations',
-      '/tickets': 'tickets',
-      '/help': 'help'
-    };
-
-    // Find matching section or default to 'profile'
-    for (const [pattern, section] of Object.entries(sectionMap)) {
-      if (path.endsWith(pattern)) {
-        return section;
-      }
-    }
-
+  // Determine active tab
+  const getActiveTab = () => {
+    if (location.pathname.includes('/integrations')) return 'integrations';
+    if (location.pathname.includes('/tickets')) return 'tickets';
+    if (location.pathname.includes('/help')) return 'help';
     return 'profile';
   };
-
-  const activeSection = getCurrentSection();
+  const activeTab = getActiveTab();
 
   useEffect(() => {
     setTitleBarState({
       ...titleBarState,
-      title: "Mi Perfil",
+      title: "Configuración",
       canGoBack: true,
-      icon: LucideUser,
+      icon: LucideSettings,
       opaque: true,
-      customIconClassName: "text-white"
+      customIconClassName: "text-purple-400 bg-purple-500/10"
     });
   }, []);
 
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="mt-2 text-muted-foreground">Cargando perfil...</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="container mx-auto p-4">
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Sidebar */}
-        <div className="lg:col-span-1">
-          <Card className="h-fit">
-            <CardContent className="p-6">
-              <div className="space-y-6">
-                {/* Profile Header */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <LucideUser className="h-5 w-5 text-primary" />
-                    <h2 className="font-semibold">Perfil de Usuario</h2>
-                    <Badge variant="secondary" className="text-xs">
-                      {session.role?.toUpperCase()}
-                    </Badge>
-                  </div>
-                  <p className="text-sm text-muted-foreground">
-                    Gestiona tu cuenta y integraciones
-                  </p>
-                </div>
-
-                <Separator />
-
-                {/* Quick Actions */}
-                <nav className="space-y-2">
-                  <Link
-                    to="/profile"
-                    className={`
-                      w-full flex items-center gap-3 p-3 rounded-lg transition-colors
-                      ${activeSection === 'profile'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted/50'
-                      }
-                    `}
-                  >
-                    <LucideUser className="h-4 w-4" />
-                    <div className="flex-1 text-left">
-                      <div className="font-medium text-sm">Información Personal</div>
-                      <div className={`text-xs ${activeSection === 'profile' ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                        }`}>
-                        Datos de tu cuenta
-                      </div>
-                    </div>
-                    {activeSection === 'profile' && <LucideChevronRight className="h-4 w-4" />}
-                  </Link>
-
-                  <Link
-                    to="/profile/integrations"
-                    className={`
-                      w-full flex items-center gap-3 p-3 rounded-lg transition-colors
-                      ${activeSection === 'integrations'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted/50'
-                      }
-                    `}
-                  >
-                    <LucideSettings className="h-4 w-4" />
-                    <div className="flex-1 text-left">
-                      <div className="font-medium text-sm">Integraciones</div>
-                      <div className={`text-xs ${activeSection === 'integrations' ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                        }`}>
-                        Conecta tus cuentas
-                      </div>
-                    </div>
-                    {activeSection === 'integrations' && <LucideChevronRight className="h-4 w-4" />}
-                  </Link>
-
-                  <Link
-                    to="/profile/tickets"
-                    className={`
-                      w-full flex items-center gap-3 p-3 rounded-lg transition-colors
-                      ${activeSection === 'tickets'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted/50'
-                      }
-                    `}
-                  >
-                    <LucideTicket className="h-4 w-4" />
-                    <div className="flex-1 text-left">
-                      <div className="font-medium text-sm">Mis Tickets</div>
-                      <div className={`text-xs ${activeSection === 'tickets' ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                        }`}>
-                        Soporte técnico
-                      </div>
-                    </div>
-                    {activeSection === 'tickets' && <LucideChevronRight className="h-4 w-4" />}
-                  </Link>
-
-                  <Link
-                    to="/profile/help"
-                    className={`
-                      w-full flex items-center gap-3 p-3 rounded-lg transition-colors
-                      ${activeSection === 'help'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'hover:bg-muted/50'
-                      }
-                    `}
-                  >
-                    <LucideHelpCircle className="h-4 w-4" />
-                    <div className="flex-1 text-left">
-                      <div className="font-medium text-sm">Ayuda</div>
-                      <div className={`text-xs ${activeSection === 'help' ? 'text-primary-foreground/70' : 'text-muted-foreground'
-                        }`}>
-                        Soporte y ayuda
-                      </div>
-                    </div>
-                    {activeSection === 'help' && <LucideChevronRight className="h-4 w-4" />}
-                  </Link>
-                </nav>
-
-                <Separator />
-
-                {/* Quick Stats */}
-                <div className="space-y-3">
-                  <h3 className="text-sm font-medium">Estadísticas Rápidas</h3>
-
-                  <div>
-                    <div className="text-xs text-muted-foreground">Estado de Publisher</div>
-                    <div className="text-sm font-medium">
-                      {session.publisherMemberships && session.publisherMemberships.length > 0
-                        ? `Publisher (${session.publisherMemberships.length} publisher${session.publisherMemberships.length > 1 ? 's' : ''})`
-                        : 'Usuario Regular'
-                      }
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-xs text-muted-foreground">Tipo de Cuenta</div>
-                    <div className="text-sm font-medium">
-                      {session.isAdmin?.() ? 'Administrador' : 'Usuario Estándar'}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Main Content */}
-        <div className="lg:col-span-3">
-          <Outlet />
-        </div>
-      </div>
+  if (!session) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
+      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500" />
     </div>
   );
-};
-
-// Separate components for each section
-export const ProfileInformation = () => {
-  const { session } = useAuthentication();
-  const [copiedId, setCopiedId] = useState(false);
-
-  const copyUserId = async () => {
-    if (!session?.id) return;
-
-    try {
-      await navigator.clipboard.writeText(session.id);
-      setCopiedId(true);
-      toast.success("ID copiado al portapapeles");
-      setTimeout(() => setCopiedId(false), 2000);
-    } catch (err) {
-      toast.error("Error al copiar el ID");
-    }
-  };
-
-  if (!session) return null;
 
   return (
-    <Card>
-      <CardContent className="p-6">
-        <h2 className="text-xl font-semibold mb-6 flex items-center space-x-2">
-          <LucideUser size={20} />
-          <span>Información del Perfil</span>
-        </h2>
+    <div className="min-h-screen bg-[#0a0a0a] text-white">
+      <div className="max-w-6xl mx-auto p-6 md:p-8">
 
-        <div className="flex items-center space-x-4 mb-6">
-          <img
-            src={session.avatarUrl}
-            alt="Avatar"
-            className="w-16 h-16 rounded-lg object-cover"
-          />
-          <div>
-            <h3 className="text-lg font-medium">{session.username}</h3>
-            <div className="flex items-center gap-2">
-              <p className="text-muted-foreground">ID de Usuario: {session.id}</p>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={copyUserId}
-                className="h-6 w-6 p-0"
-              >
-                {copiedId ? (
-                  <LucideCheck className="h-3 w-3 text-green-600" />
-                ) : (
-                  <LucideCopy className="h-3 w-3" />
-                )}
-              </Button>
-            </div>
-          </div>
+        {/* Title Mobile */}
+        <div className="md:hidden mb-6">
+          <h1 className="text-2xl font-bold text-white">Mi Cuenta</h1>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="flex items-center space-x-3">
-            <LucideMail className="text-muted-foreground" size={16} />
-            <div>
-              <div className="text-sm text-muted-foreground">Correo Electrónico</div>
-              <div className="font-medium">{session.email}</div>
-            </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+          {/* SIDEBAR NAVIGATION */}
+          <div className="lg:col-span-3 space-y-6">
+            <nav className="space-y-1">
+              <p className="px-4 text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2">General</p>
+              <SidebarItem
+                to="/profile"
+                icon={LucideUser}
+                label="Perfil"
+                isActive={activeTab === 'profile'}
+              />
+              <SidebarItem
+                to="/profile/integrations"
+                icon={LucideLayoutGrid}
+                label="Integraciones"
+                isActive={activeTab === 'integrations'}
+              />
+            </nav>
+
+            <nav className="space-y-1">
+              <p className="px-4 text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2">Soporte</p>
+              <SidebarItem
+                to="/profile/tickets"
+                icon={LucideTicket}
+                label="Tickets"
+                isActive={activeTab === 'tickets'}
+              />
+              {/* Help is visually separate but kept here logic-wise */}
+            </nav>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <LucideCalendar className="text-muted-foreground" size={16} />
-            <div>
-              <div className="text-sm text-muted-foreground">Miembro desde</div>
-              <div className="font-medium">
-                {new Date(session.createdAt).toLocaleDateString()}
+          {/* MAIN CONTENT AREA */}
+          <div className="lg:col-span-9">
+            <div className="bg-[#0f0f0f] border border-white/5 rounded-2xl p-1 min-h-[600px] shadow-2xl relative overflow-hidden">
+              {/* Decorative background blur */}
+              <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/5 blur-[100px] rounded-full pointer-events-none" />
+
+              <div className="relative p-6 md:p-8 h-full">
+                <Outlet />
               </div>
             </div>
           </div>
 
-          <div className="flex items-center space-x-3">
-            <LucideShield className="text-muted-foreground" size={16} />
-            <div>
-              <div className="text-sm text-muted-foreground">Rol</div>
-              <div className="font-medium capitalize">{session.role}</div>
-            </div>
-          </div>
         </div>
-      </CardContent>
-    </Card>
-  );
-};
-
-export const IntegrationsSection = () => {
-  const { session } = useAuthentication();
-
-  if (!session) return null;
-
-  return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-semibold">Integraciones de Cuenta</h2>
-
-      {/* Discord Integration Status */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <DiscordIcon className="size-6 text-indigo-500" />
-            <h3 className="text-lg font-semibold">Integración con Discord</h3>
-          </div>
-
-          <div className="flex items-center space-x-2 mb-2">
-            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-            <span className="text-green-400 font-medium">Conectado</span>
-          </div>
-
-          {session.discordId && (
-            <div className="text-sm text-muted-foreground">
-              ID de Discord: {session.discordId}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Twitch Integration */}
-      <TwitchLinkingComponent />
-
-      {/* Patreon Integration */}
-      <PatreonLinkingComponent />
+      </div>
     </div>
-  );
-};
-
-export const HelpSection = () => {
-  return (
-    <Card>
-      <CardContent className="p-6">
-        <h3 className="text-lg font-semibold mb-4">¿Necesitas Ayuda?</h3>
-        <p className="text-muted-foreground text-sm mb-4">
-          ¿Tienes problemas con tus integraciones o configuración de cuenta?
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          asChild
-        >
-          <Link to="/profile/tickets">
-            Ver Mis Tickets
-          </Link>
-        </Button>
-      </CardContent>
-    </Card>
   );
 };

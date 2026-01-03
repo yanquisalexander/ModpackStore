@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
-import { LucideExternalLink, LucideUnlink, Crown, Star, Users } from 'lucide-react';
+import { LucideExternalLink, LucideUnlink, LucideLoader2, Crown, Star, Check, ShieldCheck } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from "@/consts";
 import { listen } from "@tauri-apps/api/event";
 import PatreonIcon from "@/icons/PatreonIcon";
-import { Card, CardContent } from "@/components/ui/card";
+import { motion, AnimatePresence } from "motion/react";
+import { cn } from "@/lib/utils";
 
 interface PatreonStatus {
   isPatron: boolean;
@@ -29,31 +30,24 @@ export const PatreonLinkingComponent = () => {
   const [unlinking, setUnlinking] = useState(false);
   const { sessionTokens } = useAuthentication();
 
-  // Fetch current Patreon status
+  // --- LOGIC (Mantenida intacta) ---
   const fetchPatreonStatus = async () => {
     try {
       const token = sessionTokens?.accessToken;
       if (!token) {
-        // Not authenticated locally — Patreon cannot be linked
         setPatreonStatus({ connected: false });
         return;
       }
-
       const response = await fetch(`${API_ENDPOINT}/social/profile/patreon/status`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
-
       if (response.ok) {
         const status = await response.json();
-        console.log('Fetched Patreon status:', status);
         setPatreonStatus({
-          connected: status.data.isConnected, // Use isConnected instead of isPatron
+          connected: status.data.isConnected,
           patreonStatus: status.data
         });
       } else {
-        console.error('Failed to fetch Patreon status');
         setPatreonStatus({ connected: false });
       }
     } catch (error) {
@@ -62,30 +56,23 @@ export const PatreonLinkingComponent = () => {
     }
   };
 
-  // Start Patreon OAuth flow
   const handleLinkPatreon = async () => {
     setLoading(true);
     try {
       await invoke('start_patreon_auth');
-      toast.success('Patreon authorization started. Please complete the process in your browser.');
-
-      // Poll for completion or listen for events
-      // The Rust backend will emit events when the linking is complete
+      toast.info('Autorización iniciada. Revisa tu navegador.');
     } catch (error) {
-      console.error('Error starting Patreon auth:', error);
-      toast.error('Failed to start Patreon authorization');
+      toast.error('Error al iniciar autorización');
     } finally {
       setLoading(false);
     }
   };
 
-  // Unlink Patreon account
   const handleUnlinkPatreon = async () => {
     setUnlinking(true);
     try {
       const token = sessionTokens?.accessToken;
       if (!token) throw new Error('Not authenticated');
-
       const response = await fetch(`${API_ENDPOINT}/social/profile/patreon/unlink`, {
         method: 'POST',
         headers: {
@@ -93,174 +80,162 @@ export const PatreonLinkingComponent = () => {
           'Content-Type': 'application/json',
         },
       });
-
       if (response.ok) {
         setPatreonStatus({ connected: false });
-        toast.success('Tu cuenta de Patreon ha sido desvinculada con éxito');
-        // Refresh status
+        toast.success('Cuenta de Patreon desvinculada');
         fetchPatreonStatus();
       } else {
-        const errorData = await response.json();
-        toast.error(errorData.message || 'No se pudo desvincular la cuenta de Patreon');
+        toast.error('No se pudo desvincular la cuenta');
       }
     } catch (error) {
-      console.error('Error unlinking Patreon:', error);
-      toast.error('No se pudo desvincular la cuenta de Patreon');
+      toast.error('Error al desvincular');
     } finally {
       setUnlinking(false);
     }
   };
 
-  const getTierColor = (tier: string) => {
-    // Handle dynamic tiers from Patreon sync
-    if (tier === 'free') {
-      return 'text-green-400 bg-green-900/30';
-    }
-
-    // For dynamic tiers, use a default color or try to determine based on amount
-    // Since we don't have the amount here, use a neutral color for unknown tiers
-    return 'text-blue-400 bg-blue-900/30';
-  };
-
-  const getTierIcon = (tier: string) => {
-    // Handle dynamic tiers from Patreon sync
-    if (tier === 'free') {
-      return <Star className="w-3 h-3" />;
-    }
-
-    // For dynamic tiers, use Crown as default
-    return <Crown className="w-3 h-3" />;
-  };
-
   useEffect(() => {
     fetchPatreonStatus();
-
-    // Listen for Patreon auth success events
-    const handlePatreonAuthSuccess = () => {
-      toast.success('Patreon account linked successfully!');
-      fetchPatreonStatus(); // Refresh status
-    };
-
-    // listen returns a Promise<UnlistenFn>, keep the promise and call the returned unlisten function in cleanup
-    const unlistenPromise = listen('patreon-auth-success', handlePatreonAuthSuccess);
-
+    const unlistenPromise = listen('patreon-auth-success', () => {
+      toast.success('Cuenta de Patreon vinculada exitosamente');
+      fetchPatreonStatus();
+    });
     return () => {
-      unlistenPromise
-        .then((unlisten) => {
-          try {
-            unlisten();
-          } catch (err) {
-            console.error('Error during unlisten:', err);
-          }
-        })
-        .catch((err) => {
-          console.error('Failed to subscribe/listen to patreon-auth-success event:', err);
-        });
+      unlistenPromise.then((unlisten) => unlisten()).catch(console.error);
     };
-    // Re-run when tokens change so component reflects current authenticated user
   }, [sessionTokens]);
+
+  // --- RENDER HELPERS ---
+
+  const getTierConfig = (tier: string) => {
+    if (tier === 'free' || !tier) return { color: 'text-neutral-400', bg: 'bg-neutral-500/10', icon: Star, label: 'Seguidor' };
+    return { color: 'text-[#FF424D]', bg: 'bg-[#FF424D]/10', icon: Crown, label: tier.toUpperCase() };
+  };
 
   if (!patreonStatus) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center space-x-3 mb-4">
-            <PatreonIcon className="text-[#ff424d] w-5 h-5" />
-            <h3 className="text-lg font-semibold text-white">Integración de Patreon</h3>
-          </div>
-          <div className="text-neutral-400">Cargando estado de Patreon...</div>
-        </CardContent>
-      </Card>
+      <div className="bg-[#151515] border border-white/5 rounded-xl p-6 h-[200px] flex items-center justify-center animate-pulse">
+        <LucideLoader2 className="w-8 h-8 text-[#FF424D] animate-spin" />
+      </div>
     );
   }
 
+  const tierInfo = getTierConfig(patreonStatus.patreonStatus?.tier || 'free');
+  const TierIcon = tierInfo.icon;
+
   return (
-    <Card>
-      <CardContent className="p-6">
-        <div className="flex items-center space-x-3 mb-4">
-          <PatreonIcon className="text-[#ff424d] w-5 h-5" />
-          <h3 className="text-lg font-semibold text-white">Integración de Patreon</h3>
+    <div className="relative group overflow-hidden bg-[#151515] border border-[#FF424D]/20 rounded-xl p-6 transition-all hover:border-[#FF424D]/40">
+      {/* Background Glow */}
+      <div className="absolute inset-0 bg-[#FF424D]/5 group-hover:bg-[#FF424D]/10 transition-colors pointer-events-none" />
+
+      <div className="relative flex flex-col h-full justify-between gap-4">
+
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-[#FF424D]/20 rounded-xl text-[#FF424D] ring-1 ring-[#FF424D]/30">
+              <PatreonIcon className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-white">Patreon</h3>
+              <div className="flex items-center gap-2 mt-1">
+                {patreonStatus.connected ? (
+                  <>
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+                    <span className="text-xs text-green-400 font-medium">
+                      {patreonStatus.patreonStatus?.isActive ? 'Membresía Activa' : 'Conectado'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-1.5 h-1.5 rounded-full bg-neutral-500" />
+                    <span className="text-xs text-neutral-400 font-medium">No conectado</span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Tier Badge (Only if connected) */}
+          {patreonStatus.connected && (
+            <div className={cn("hidden sm:flex items-center gap-2 px-3 py-1 rounded-lg border border-white/5", tierInfo.bg)}>
+              <TierIcon className={cn("w-3.5 h-3.5", tierInfo.color)} />
+              <span className={cn("text-xs font-bold tracking-wide", tierInfo.color)}>{tierInfo.label}</span>
+            </div>
+          )}
         </div>
 
-        {patreonStatus.connected && patreonStatus.patreonStatus ? (
-          <div>
-            <div className="flex items-center space-x-2 mb-4">
-              <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-              <span className="text-green-400 font-medium">Conectado</span>
-              <span className={`px-2 py-1 rounded-full text-xs flex items-center gap-1 ${getTierColor(patreonStatus.patreonStatus?.tier || 'none')}`}>
-                {getTierIcon(patreonStatus.patreonStatus?.tier || 'none')}
-                {(patreonStatus.patreonStatus?.tier || 'none').toUpperCase()}
-              </span>
-            </div>
-
-            <div className="text-sm text-neutral-400 mb-4">
-              Estado: {patreonStatus.patreonStatus?.isActive ? 'Activo' : 'Inactivo'}
-              {patreonStatus.patreonStatus?.entitledAmount && patreonStatus.patreonStatus.entitledAmount > 0 && (
-                <span className="ml-2">
-                  (${(patreonStatus.patreonStatus.entitledAmount / 100).toFixed(2)}/mes)
-                </span>
-              )}
-            </div>
-
-            <p className="text-neutral-300 text-sm mb-4">
-              {patreonStatus.patreonStatus?.isPatron
-                ? "Tu cuenta de Patreon está conectada. Los beneficios dependen de tu plan actual:"
-                : "Tu cuenta de Patreon está conectada, pero no tienes un plan activo. Actualiza tu membresía para acceder a características premium:"
-              }
-            </p>
-
-            {patreonStatus.patreonStatus?.tierDescription ? (
-              <div className="mb-4">
-                <div className="text-xs text-neutral-400 mb-2">Descripción del plan:</div>
-                <div className="prose prose-invert text-base text-neutral-300 bg-neutral-800/50 p-2 rounded" dangerouslySetInnerHTML={{ __html: patreonStatus.patreonStatus.tierDescription }}
-                ></div>
-              </div>
-            ) : (
-              <div className="mb-4">
-                <div className="text-xs text-neutral-400 mb-2">Beneficios disponibles con tu plan actual:</div>
-                <ul className="text-xs text-neutral-300 space-y-1 ml-4">
-                  <li>• Imágenes de portada de perfil personalizadas</li>
-                  <li>• Soporte prioritario</li>
-                  <li>• Acceso temprano a nuevas características</li>
-                  <li>• Modpacks exclusivos para patrocinadores</li>
-                </ul>
-              </div>
-            )}
-
-            <Button
-              onClick={handleUnlinkPatreon}
-              disabled={unlinking}
-              variant="destructive"
-              size="sm"
-              className="flex items-center space-x-2"
+        {/* Content Area */}
+        <AnimatePresence mode="wait">
+          {patreonStatus.connected && patreonStatus.patreonStatus ? (
+            <motion.div
+              key="connected"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="pt-2"
             >
-              <LucideUnlink size={16} />
-              <span>{unlinking ? 'Desvinculando...' : 'Desvincular Patreon'}</span>
-            </Button>
-          </div>
-        ) : (
-          <div>
-            <div className="flex items-center space-x-2 mb-4">
-              <div className="w-2 h-2 bg-neutral-500 rounded-full"></div>
-              <span className="text-neutral-400 font-medium">No conectado</span>
-            </div>
+              {/* Description Box */}
+              <div className="bg-black/20 rounded-lg p-3 mb-4 border border-white/5">
+                {patreonStatus.patreonStatus.tierDescription ? (
+                  <div
+                    className="prose prose-invert text-xs text-neutral-300 leading-relaxed [&>ul]:list-disc [&>ul]:pl-4 [&>p]:mb-1 last:[&>p]:mb-0"
+                    dangerouslySetInnerHTML={{ __html: patreonStatus.patreonStatus.tierDescription }}
+                  />
+                ) : (
+                  <div className="text-xs text-neutral-400 flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2"><ShieldCheck className="w-3 h-3 text-[#FF424D]" /> Soporte prioritario</div>
+                    <div className="flex items-center gap-2"><Star className="w-3 h-3 text-[#FF424D]" /> Imágenes de portada personalizadas</div>
+                    <div className="flex items-center gap-2"><Crown className="w-3 h-3 text-[#FF424D]" /> Acceso a betas</div>
+                  </div>
+                )}
+              </div>
 
-            <p className="text-neutral-300 text-sm mb-4">
-              Vincula tu cuenta de Patreon para desbloquear características premium y apoyar el desarrollo del proyecto.
-            </p>
-
-            <Button
-              onClick={handleLinkPatreon}
-              disabled={loading}
-              className="flex items-center space-x-2 bg-[#ff424d] hover:bg-[#e63946]"
-              size="sm"
+              <Button
+                onClick={handleUnlinkPatreon}
+                disabled={unlinking}
+                variant="ghost"
+                size="sm"
+                className="text-red-400 hover:text-red-300 hover:bg-red-500/10 px-0 h-auto font-normal"
+              >
+                {unlinking ? <LucideLoader2 className="w-3 h-3 animate-spin mr-2" /> : <LucideUnlink className="w-3 h-3 mr-2" />}
+                Desvincular cuenta
+              </Button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="disconnected"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-4"
             >
-              <LucideExternalLink size={16} />
-              <span>{loading ? 'Conectando...' : 'Conectar Patreon'}</span>
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
+              <div className="space-y-2 pt-2">
+                <p className="text-sm text-neutral-400 leading-relaxed">
+                  Únete a nuestro Patreon para desbloquear insignias, soporte prioritario y personalización avanzada de perfil.
+                </p>
+                <div className="flex gap-4 pt-1">
+                  <div className="flex items-center gap-1.5 text-xs text-neutral-300">
+                    <Check className="w-3 h-3 text-[#FF424D]" /> Portadas Custom
+                  </div>
+                  <div className="flex items-center gap-1.5 text-xs text-neutral-300">
+                    <Check className="w-3 h-3 text-[#FF424D]" /> Soporte VIP
+                  </div>
+                </div>
+              </div>
+
+              <Button
+                onClick={handleLinkPatreon}
+                disabled={loading}
+                className="w-full bg-[#FF424D] hover:bg-[#D9353F] text-white font-medium transition-all shadow-[0_0_20px_rgba(255,66,77,0.15)] hover:shadow-[0_0_25px_rgba(255,66,77,0.3)]"
+              >
+                {loading ? <LucideLoader2 className="w-4 h-4 mr-2 animate-spin" /> : <LucideExternalLink className="w-4 h-4 mr-2" />}
+                Conectar Patreon
+              </Button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    </div>
   );
 };

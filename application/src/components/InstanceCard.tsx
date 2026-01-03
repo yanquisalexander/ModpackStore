@@ -1,15 +1,18 @@
-import { Link } from "react-router-dom";
-import { LucidePlay, LucideHardDrive, LucideMoreVertical, LucideSettings, LucideTrash2, LucideDownload, LucideRefreshCw, LucideGamepad2, LucideFolderSymlink, LucidePackageOpen, LucideStar, LucideUpload } from "lucide-react"
-import { useState, useEffect } from "react"
+import { Link, useNavigate } from "react-router-dom";
+import {
+    LucidePlay, LucideHardDrive, LucideSettings, LucideTrash2, LucideGamepad2,
+    LucideFolderSymlink, LucidePackageOpen, LucideStar, LucideUpload, LucideRefreshCw, LucideLoader2
+} from "lucide-react";
+import { useState, useEffect } from "react";
 import {
     ContextMenu,
     ContextMenuContent,
     ContextMenuItem,
     ContextMenuSeparator,
     ContextMenuTrigger,
-} from "@/components/ui/context-menu"
-import { toast } from "sonner"
-import { playSound } from "@/utils/sounds"
+} from "@/components/ui/context-menu";
+import { toast } from "sonner";
+import { playSound } from "@/utils/sounds";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -19,378 +22,273 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { invoke } from "@tauri-apps/api/core"
-import { emit } from "@tauri-apps/api/event"
-import { useNavigate } from "react-router-dom";
+} from "@/components/ui/alert-dialog";
+import { invoke } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
+import { save } from "@tauri-apps/plugin-dialog";
+import { cn } from "@/lib/utils";
 
-//                            onDelete={() => openDeleteDialog(instance)}
-
-
-export const InstanceCard = ({ instance, className = "", running, onInstanceUpdated, onInstanceDeleted, isBootstrapping }: { instance: any, className?: string, running?: boolean, onInstanceUpdated: (updatedInstance: any) => void, onInstanceDeleted: () => void, isBootstrapping: boolean }) => {
-    const [isOpen, setIsOpen] = useState(false)
-    const [showDeleteAlert, setShowDeleteAlert] = useState(false)
-    const [isDeleting, setIsDeleting] = useState(false)
-    const [isFavorite, setIsFavorite] = useState(instance.favorite || false)
-
-    const navigate = useNavigate()
+export const InstanceCard = ({
+    instance,
+    className = "",
+    running,
+    onInstanceUpdated,
+    onInstanceDeleted,
+    isBootstrapping
+}: {
+    instance: any,
+    className?: string,
+    running?: boolean,
+    onInstanceUpdated: (updatedInstance: any) => void,
+    onInstanceDeleted: () => void,
+    isBootstrapping: boolean
+}) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isFavorite, setIsFavorite] = useState(instance.favorite || false);
+    const navigate = useNavigate();
 
     useEffect(() => {
-        setIsFavorite(instance.favorite || false)
-    }, [instance.favorite])
+        setIsFavorite(instance.favorite || false);
+    }, [instance.favorite]);
 
     const handleToggleFavorite = async () => {
         try {
-            await invoke('toggle_favorite', { instanceId: instance.instanceId })
-            const newFavorite = !isFavorite
-            setIsFavorite(newFavorite)
-            // Actualizar la instancia en el estado padre
-            onInstanceUpdated({ ...instance, favorite: newFavorite })
+            const newFavorite = !isFavorite;
+            setIsFavorite(newFavorite);
+            await invoke('toggle_favorite', { instanceId: instance.instanceId });
+            onInstanceUpdated({ ...instance, favorite: newFavorite });
         } catch (error) {
-            console.error('Error toggling favorite:', error)
-            toast.error('Error al cambiar favorito')
-        }
-    }
-
-    const handleDeleteInstance = async () => {
-        if (isDeleting) return; // Prevenir múltiples clics
-
-        setIsDeleting(true);
-        try {
-            await invoke('remove_instance', { instanceId: instance.instanceId })
-            // Si la instancia era favorita, emitir evento para actualizar la lista de favoritos
-            if (isFavorite) {
-                await emit('favorite_updated');
-            }
-            //playSound("SUCCESS_NOTIFICATION")
-            toast.success('Instancia eliminada correctamente')
-            onInstanceDeleted()
-        } catch (error) {
-            playSound("ERROR_NOTIFICATION")
-            console.error('Error al eliminar instancia:', error)
-            toast.error(`Error al eliminar instancia: ${(error as any)?.message || 'Error desconocido'}`)
-        } finally {
-            setIsDeleting(false)
-            setShowDeleteAlert(false)
-        }
-    }
-
-    const handleOpenSettings = () => {
-        navigate(`/prelaunch/${instance.instanceId}?showSettings=true`)
-        setIsOpen(false)
-    }
-
-    const handleCreateShortcut = () => {
-        invoke('create_shortcut', { instanceId: instance.instanceId })
-            .then(() => {
-                toast.success('Acceso directo creado correctamente')
-            })
-            .catch((error) => {
-                playSound("ERROR_NOTIFICATION")
-                console.error('Error al crear acceso directo:', error)
-                toast.error(`Error al crear acceso directo: ${(error as any)?.message || 'Error desconocido'}`)
-            })
-    }
-
-    const handleExportToMrpack = async () => {
-        try {
-            // Use save dialog from @tauri-apps/plugin-dialog
-            const { save } = await import('@tauri-apps/plugin-dialog');
-
-            const filePath = await save({
-                defaultPath: `${instance.instanceName}.mrpack`,
-                filters: [{
-                    name: 'Modrinth Modpack',
-                    extensions: ['mrpack']
-                }]
-            });
-
-            if (!filePath) {
-                // User cancelled
-                return;
-            }
-
-            await invoke('export_instance_to_mrpack', {
-                instanceId: instance.instanceId,
-                outputPath: filePath
-            });
-
-            toast.success('Instancia exportada correctamente');
-        } catch (error) {
-            playSound("ERROR_NOTIFICATION")
-            console.error('Error al exportar instancia:', error)
-            toast.error(`Error al exportar instancia: ${(error as any)?.message || 'Error desconocido'}`)
-        }
-    }
-
-    const handleContextAction = (action: string) => {
-        if (action === "settings") {
-            handleOpenSettings()
-            return
-        }
-
-        if (action === "create_shortcut") {
-            handleCreateShortcut()
-            return
-        }
-
-        if (action === "export_mrpack") {
-            handleExportToMrpack()
-            return
-        }
-
-        playSound("ERROR_NOTIFICATION")
-        toast("Acción no implementada", {
-            description: `La acción "${action}" no está implementada en este momento.`,
-            duration: 3000,
-            action: {
-                label: "Cerrar",
-                onClick: () => toast.dismiss(),
-            },
-        })
-    }
-
-    const installationType = instance.modpackId ? "modpack" : "local";
-
-    const badgeIcon = installationType === "modpack" ? (
-        <LucidePackageOpen className="h-4 w-4" />
-    ) : (
-        <LucideHardDrive className="h-4 w-auto" />
-    );
-
-    const formatLoaderName = (loaderType: string) => {
-        switch (loaderType.toLowerCase()) {
-            case 'vanilla':
-                return 'Vanilla';
-            case 'forge':
-                return 'Forge';
-            case 'fabric':
-                return 'Fabric';
-            case 'neoforge':
-                return 'NeoForge';
-            case 'quilt':
-                return 'Quilt';
-            default:
-                return loaderType.charAt(0).toUpperCase() + loaderType.slice(1);
+            console.error('Error toggling favorite:', error);
+            toast.error('Error al cambiar favorito');
+            setIsFavorite(!isFavorite);
         }
     };
 
+    const handleDeleteInstance = async () => {
+        if (isDeleting) return;
+        setIsDeleting(true);
+        try {
+            await invoke('remove_instance', { instanceId: instance.instanceId });
+            if (isFavorite) await emit('favorite_updated');
+            toast.success('Instancia eliminada correctamente');
+            onInstanceDeleted();
+        } catch (error) {
+            playSound("ERROR_NOTIFICATION");
+            toast.error(`Error al eliminar instancia: ${(error as any)?.message || 'Error desconocido'}`);
+        } finally {
+            setIsDeleting(false);
+            setShowDeleteAlert(false);
+        }
+    };
+
+    const handleExportToMrpack = async () => {
+        try {
+            const filePath = await save({
+                defaultPath: `${instance.instanceName}.mrpack`,
+                filters: [{ name: 'Modrinth Modpack', extensions: ['mrpack'] }]
+            });
+            if (!filePath) return;
+
+            await invoke('export_instance_to_mrpack', { instanceId: instance.instanceId, outputPath: filePath });
+            toast.success('Instancia exportada correctamente');
+        } catch (error) {
+            playSound("ERROR_NOTIFICATION");
+            toast.error(`Error al exportar: ${(error as any)?.message}`);
+        }
+    };
+
+    const handleContextAction = (action: string) => {
+        if (action === "settings") {
+            navigate(`/prelaunch/${instance.instanceId}?showSettings=true`);
+            setIsOpen(false);
+        } else if (action === "create_shortcut") {
+            invoke('create_shortcut', { instanceId: instance.instanceId })
+                .then(() => toast.success('Acceso directo creado'))
+                .catch((e) => toast.error(`Error: ${e.message}`));
+        } else if (action === "export_mrpack") {
+            handleExportToMrpack();
+        } else {
+            toast.info("Acción no disponible");
+        }
+    };
+
+    const installationType = instance.modpackId ? "modpack" : "local";
+
+    const formatLoaderName = (loaderType: string) => {
+        if (!loaderType) return '';
+        const lower = loaderType.toLowerCase();
+        if (lower === 'vanilla') return 'Vanilla';
+        return lower.charAt(0).toUpperCase() + lower.slice(1);
+    };
+
+    const loaderText = instance.loaderType && instance.loaderType !== 'vanilla'
+        ? `${formatLoaderName(instance.loaderType)} ${instance.loaderVersion}`
+        : instance.forgeVersion ? `Forge ${instance.forgeVersion}` : null;
+
     return (
         <>
-            <ContextMenu onOpenChange={setIsOpen} modal={false}>
+            <ContextMenu onOpenChange={setIsOpen}>
                 <ContextMenuTrigger asChild>
-                    <article className={`z-10 group relative overflow-hidden rounded-xl border border-white/20 h-full
-                      transition 
-                      before:left-1/2 before:bottom-0 before:-translate-x-1/2 before:w-full before:h-1/2 
-                      before:rounded-full before:bg-black before:absolute before:translate-y-full 
-                      hover:before:translate-y-1/2 before:blur-3xl before:-z-10 before:transition before:duration-200 
-                      after:left-0 after:bottom-0 after:-translate-x-full after:after:translate-y-full 
-                      hover:after:-translate-x-1/2 hover:after:translate-y-1/2 after:w-2/2 after:aspect-square 
-                      after:rounded-2xl after:bg-black after:absolute after:blur-3xl hover:after:opacity-40 
-                      after:-z-10 after:opacity-0 after:transition after:duration-200 ${className} ${isOpen ? 'ring-2 ring-sky-500 ring-offset-2 ring-offset-black' : ''}`}>
+                    <div className={cn(
+                        "group relative aspect-video overflow-hidden rounded-2xl border border-white/5 bg-[#121212] transition-all duration-300 hover:border-white/20 hover:shadow-2xl hover:-translate-y-1 select-none cursor-pointer",
+                        className,
+                        isOpen && "ring-2 ring-purple-500/50"
+                    )}>
 
-                        <Link
-                            draggable={false}
-                            to={`/prelaunch/${instance.instanceId}`} className="flex aspect-video flex-col h-full p-4">
-                            {/* Background image */}
-                            <img
-                                {...isBootstrapping && { "data-bootstraping": true }}
-                                src={instance.bannerUrl || "/images/modpack-fallback.webp"}
-                                onError={(e) => { e.currentTarget.src = "/images/modpack-fallback.webp" }}
-                                className="absolute inset-0 -z-20 transform-gpu animate-fade-in object-cover w-full h-full rounded-xl transition duration-500 group-hover:scale-105 group-hover:opacity-80 data-[bootstraping]:opacity-50 data-[bootstraping]:blur-sm data-[bootstraping]:grayscale"
-                                alt={instance.instanceName}
-                            />
+                        <Link to={`/prelaunch/${instance.instanceId}`} className="block w-full h-full">
 
-                            {/* 
-                                Running badge, pero a la inversa (Se debe mostrar cuando no es hover)
-                            */}
+                            {/* --- BACKGROUND --- */}
+                            <div className="absolute inset-0 overflow-hidden">
+                                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent z-10 transition-opacity duration-300 group-hover:via-black/50" />
+                                <img
+                                    src={instance.bannerUrl || "/images/modpack-fallback.webp"}
+                                    alt={instance.instanceName}
+                                    onError={(e) => { e.currentTarget.src = "/images/modpack-fallback.webp" }}
+                                    className={cn(
+                                        "h-full w-full object-cover transition-transform duration-700 group-hover:scale-110",
+                                        isBootstrapping && "opacity-50 grayscale blur-sm"
+                                    )}
+                                />
+                            </div>
 
-                            {
-                                running && (
-                                    <div className="opacity-100 flex transition flex-col gap-2 flex-1 absolute top-4 left-3">
-                                        <div className="flex justify-end items-center flex-wrap gap-2 transition opacity-100 -translate-y-1 group-hover:translate-y-0 group-hover:opacity-0 duration-300">
-                                            <span className="backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium bg-green-600 text-white border-white/10">
-                                                <LucideGamepad2 className="h-4 w-auto" />
-                                                Corriendo
-                                            </span>
+                            {/* --- CONTENT (Bottom) --- */}
+                            <div className="absolute bottom-0 left-0 w-full p-5 z-20">
+                                {/* Usamos translate para mover el título hacia arriba al hacer hover */}
+                                <div className="transform transition-all duration-300 translate-y-6 group-hover:translate-y-0">
+
+                                    {/* TITULO: Peso corregido a semibold */}
+                                    <h3 className="text-white font-semibold text-lg leading-tight mb-1 truncate drop-shadow-md pr-8">
+                                        {instance.instanceName}
+                                    </h3>
+
+                                    {/* META INFO: Oculta por defecto (opacity-0), aparece en hover */}
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-300 font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-75">
+                                        <span>MC {instance.minecraftVersion}</span>
+                                        {loaderText && (
+                                            <>
+                                                <span className="w-1 h-1 rounded-full bg-gray-500" />
+                                                <span>{loaderText}</span>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {/* PLAY BUTTON: Se expande en hover */}
+                                    <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-300 ease-out mt-0 group-hover:mt-3 opacity-0 group-hover:opacity-100">
+                                        <div className="overflow-hidden">
+                                            <div className="w-full flex items-center justify-center gap-2 bg-white text-black font-bold py-2 rounded-lg hover:bg-neutral-200 transition-colors shadow-lg">
+                                                <LucidePlay className="w-4 h-4 fill-black" /> Jugar Ahora
+                                            </div>
                                         </div>
                                     </div>
-                                )
-                            }
-
-
-
-                            <div className="opacity-100 flex transition flex-col gap-2 flex-1">
-                                <div className="flex justify-end items-center flex-wrap gap-2 transition group-hover:opacity-100 -translate-y-1 group-hover:translate-y-0 opacity-0 duration-300">
-                                    <span className={`backdrop-blur-2xl text-xs border rounded-full inline-flex items-center gap-1 py-1 px-2 font-medium border-white/10 ${installationType === "modpack"
-                                        ? "bg-orange-100 text-orange-600"
-                                        : "bg-blue-100 text-blue-600"
-                                        }`}>
-                                        {badgeIcon}
-                                        {installationType === "modpack" ? "Modpack" : "Local"}
-                                    </span>
                                 </div>
                             </div>
-
-                            {/* Title and actions section */}
-                            <div className="flex flex-wrap gap-y-6 items-end justify-between mt-8 transition group-hover:opacity-100 translate-y-1 group-hover:translate-y-0 opacity-0 duration-300">
-                                <div>
-                                    <h2 className="text-lg mt-auto text-white leading-snug font-medium text-balance max-w-[28ch] group-hover:text-sky-200">
-                                        {instance.instanceName}
-                                    </h2>
-                                    <div className="flex flex-col justify-center gap-0.5 mt-1 text-sm text-gray-300">
-                                        <p className="text-xs text-gray-400">
-                                            Minecraft {instance.minecraftVersion}
-                                        </p>
-                                        {
-                                            (instance.loaderType && instance.loaderVersion && instance.loaderType.toLowerCase() !== 'vanilla') && (
-                                                <p className="text-xs text-gray-400">
-                                                    {formatLoaderName(instance.loaderType)} {instance.loaderVersion}
-                                                </p>
-                                            )
-                                        }
-                                        {
-                                            (!instance.loaderType || !instance.loaderVersion) && instance.forgeVersion && (
-                                                <p className="text-xs text-gray-400">
-                                                    Forge {instance.forgeVersion}
-                                                </p>
-                                            )
-                                        }
-                                    </div>
-
-                                </div>
-                                <span className="text-white rounded-lg bg-gray-800/20 border border-gray-400/40 py-2 px-4 flex items-center gap-1.5 group-hover:scale-105 transition text-sm group-hover:bg-gray-800/80">
-                                    <LucidePlay className="h-4 w-auto" />
-                                    Jugar
-                                </span>
-
-                            </div>
-                            {/* 
-                                    Indeterminate loading animation for bootstraping
-                                */}
-                            {
-                                isBootstrapping && (
-                                    <div className="absolute inset-0 flex items-center justify-center rounded-xl group-hover:opacity-0 opacity-100 transition duration-500">
-                                        <LucideRefreshCw className="size-8 animate-duration-[1500ms] animate-spin text-white" />
-                                    </div>
-                                )
-                            }
                         </Link>
 
-                        <div className="absolute top-2 right-2 z-30">
+                        {/* --- OVERLAYS --- */}
+
+                        <div className="absolute top-3 left-3 z-20 flex flex-col gap-2 items-start pointer-events-none">
+                            {running && (
+                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/90 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wide border border-white/10 shadow-lg animate-pulse">
+                                    <LucideGamepad2 className="w-3 h-3" /> En Ejecución
+                                </span>
+                            )}
+                            {isBootstrapping && (
+                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/90 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wide border border-white/10 shadow-lg">
+                                    <LucideRefreshCw className="w-3 h-3 animate-spin" /> Iniciando...
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Actions (Fuera del Link) */}
+                        <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
+
+                            {/* Badges Tipo: Ahora ocultos por defecto, solo visibles en hover */}
+                            <span className={cn(
+                                "flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide backdrop-blur-md border transition-all duration-300 pointer-events-none",
+                                installationType === "modpack"
+                                    ? "bg-purple-500/20 text-purple-200 border-purple-500/30"
+                                    : "bg-orange-500/20 text-orange-200 border-orange-500/30",
+                                "opacity-0 -translate-y-2 group-hover:opacity-100 group-hover:translate-y-0"
+                            )}>
+                                {installationType === "modpack" ? <LucidePackageOpen className="w-3 h-3" /> : <LucideHardDrive className="w-3 h-3" />}
+                                {installationType === "modpack" ? "Modpack" : "Local"}
+                            </span>
+
+                            {/* Favorito */}
                             <button
-                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleToggleFavorite(); }}
-                                className="p-1 rounded-full bg-black/50 hover:bg-black/70 transition"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleToggleFavorite();
+                                }}
+                                className={cn(
+                                    "p-1.5 rounded-full backdrop-blur-md border transition-all duration-200 hover:scale-110 cursor-pointer z-40",
+                                    isFavorite
+                                        ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-400 opacity-100 shadow-[0_0_10px_rgba(234,179,8,0.2)]"
+                                        : "bg-black/40 border-white/10 text-white/50 opacity-0 -translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:bg-black/60 hover:text-white"
+                                )}
+                                title={isFavorite ? "Quitar de favoritos" : "Añadir a favoritos"}
                             >
-                                <LucideStar className={`h-4 w-4 ${isFavorite ? 'text-yellow-400 fill-yellow-400' : 'text-white'}`} />
+                                <LucideStar className={cn("w-4 h-4", isFavorite && "fill-yellow-400")} />
                             </button>
                         </div>
-                    </article>
+
+                    </div>
                 </ContextMenuTrigger>
-                <ContextMenuContent className="w-64 text-gray-100">
 
-                    <ContextMenuItem
-                        onClick={() => handleContextAction("settings")}
-                        className="hover:bg-neutral-800 focus:bg-neutral-800 cursor-pointer"
-                    >
-                        <LucideSettings className="mr-2 h-4 w-4" />
-                        <span>Configurar</span>
+                <ContextMenuContent className="w-56 bg-[#1a1a1a] border-white/10 text-gray-200 p-1.5 rounded-xl shadow-xl">
+                    <ContextMenuItem onClick={() => handleContextAction("settings")} className="rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+                        <LucideSettings className="mr-2 h-4 w-4 text-purple-400" /> Configuración
                     </ContextMenuItem>
-
-                    <ContextMenuItem
-                        onClick={() => handleContextAction("create_shortcut")}
-                        className="hover:bg-neutral-800 focus:bg-neutral-800 cursor-pointer"
-                    >
-                        <LucideFolderSymlink className="mr-2 h-4 w-4" />
-                        <span>Crear acceso directo</span>
+                    <ContextMenuItem onClick={() => handleContextAction("create_shortcut")} className="rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+                        <LucideFolderSymlink className="mr-2 h-4 w-4 text-blue-400" /> Crear acceso directo
                     </ContextMenuItem>
-
                     {installationType === "local" && (
-                        <ContextMenuItem
-                            onClick={() => handleContextAction("export_mrpack")}
-                            className="hover:bg-neutral-800 focus:bg-neutral-800 cursor-pointer"
-                        >
-                            <LucideUpload className="mr-2 h-4 w-4" />
-                            <span>Exportar como .mrpack</span>
+                        <ContextMenuItem onClick={() => handleContextAction("export_mrpack")} className="rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+                            <LucideUpload className="mr-2 h-4 w-4 text-green-400" /> Exportar .mrpack
                         </ContextMenuItem>
                     )}
-                    {/* 
-                    <ContextMenuItem
-                        onClick={() => handleContextAction("backup")}
-                        className="hover:bg-neutral-800 focus:bg-neutral-800 cursor-pointer"
-                    >
-                        <LucideDownload className="mr-2 h-4 w-4" />
-                        <span>Crear copia de seguridad</span>
-                    </ContextMenuItem> */}
-
-                    <ContextMenuSeparator className="bg-neutral-800" />
-
+                    <ContextMenuSeparator className="bg-white/10 my-1" />
                     <ContextMenuItem
                         onClick={() => {
-                            if (running) {
-                                playSound("ERROR_NOTIFICATION")
-                                toast.warning("No puedes eliminar una instancia que está en ejecución")
-                                return
-                            }
-
-                            if (isBootstrapping) {
-                                playSound("ERROR_NOTIFICATION")
-                                toast.warning("No puedes eliminar una instancia que está en proceso de instalación")
-                                return
-                            }
-
-                            if (isDeleting) {
-                                playSound("ERROR_NOTIFICATION")
-                                toast.warning("Ya se está eliminando esta instancia")
-                                return
-                            }
-
-                            setShowDeleteAlert(true)
+                            if (running || isBootstrapping || isDeleting) return;
+                            setShowDeleteAlert(true);
                         }}
-                        className="hover:bg-red-700 focus:bg-red-700 text-red-400 hover:text-white focus:text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled={isDeleting}
+                        disabled={running || isBootstrapping || isDeleting}
+                        className="rounded-lg hover:bg-red-500/20 focus:bg-red-500/20 text-red-400 hover:text-red-300 focus:text-red-300 cursor-pointer"
                     >
-                        <LucideTrash2 className="mr-2 h-4 w-4 text-inherit" />
-                        <span>{isDeleting ? 'Eliminando...' : 'Eliminar instancia'}</span>
+                        <LucideTrash2 className="mr-2 h-4 w-4" />
+                        {isDeleting ? "Eliminando..." : "Eliminar instancia"}
                     </ContextMenuItem>
                 </ContextMenuContent>
             </ContextMenu>
 
+            {/* Alert Dialog */}
             <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
-                <AlertDialogContent className="bg-neutral-900 border-neutral-700 text-white">
+                <AlertDialogContent className="bg-[#0a0a0a] border-white/10 text-white sm:max-w-[400px]">
                     <AlertDialogHeader>
-                        <AlertDialogTitle className="text-white">¿Eliminar instancia?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-gray-300">
-                            ¿Estás seguro de que deseas eliminar la instancia <span className="font-semibold text-white">{instance.instanceName}</span>? Esta acción no se puede deshacer.
+                        <AlertDialogTitle>¿Eliminar instancia?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-neutral-400">
+                            Estás a punto de borrar <span className="text-white font-medium">{instance.instanceName}</span>.
+                            Esta acción eliminará todos los archivos, mundos y datos de forma permanente.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel
-                            className="bg-neutral-800 text-white border-neutral-700 hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            disabled={isDeleting}
-                        >
+                        <AlertDialogCancel disabled={isDeleting} className="bg-transparent border-white/10 text-neutral-300 hover:bg-white/5 hover:text-white hover:border-white/20">
                             Cancelar
                         </AlertDialogCancel>
                         <AlertDialogAction
-                            className="bg-red-700 text-white hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-                            onClick={(e) => {
-                                e.preventDefault();
-                                handleDeleteInstance();
-                            }}
+                            onClick={(e) => { e.preventDefault(); handleDeleteInstance(); }}
                             disabled={isDeleting}
+                            className="bg-red-600 hover:bg-red-700 text-white border-0"
                         >
-                            {isDeleting ? (
-                                <div className="flex items-center gap-2">
-                                    <LucideRefreshCw className="h-4 w-4 animate-spin" />
-                                    Eliminando...
-                                </div>
-                            ) : (
-                                'Eliminar'
-                            )}
+                            {isDeleting ? <LucideLoader2 className="w-4 h-4 animate-spin" /> : "Eliminar"}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
         </>
-    )
-}
+    );
+};

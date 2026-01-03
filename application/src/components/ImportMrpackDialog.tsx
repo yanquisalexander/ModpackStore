@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open as tauriOpen } from "@tauri-apps/plugin-dialog";
-import { Import, Loader2, Check, AlertCircle, Package } from "lucide-react";
+import { Import, Loader2, Check, AlertCircle, Package, FileUp, Box, Cpu, Layers, FileJson } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -17,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { MrpackManifest, MrpackCompatibility } from "@/types/mrpack";
+import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "motion/react";
 
 interface ImportMrpackDialogProps {
   onInstanceCreated: () => void;
@@ -33,79 +35,45 @@ export const ImportMrpackDialog = ({ onInstanceCreated }: ImportMrpackDialogProp
   const handleSelectFile = async () => {
     try {
       const selected = await tauriOpen({
-        filters: [
-          {
-            name: "Modrinth Modpack",
-            extensions: ["mrpack"],
-          },
-        ],
+        filters: [{ name: "Modrinth Modpack", extensions: ["mrpack"] }],
       });
 
       if (selected) {
         const path = Array.isArray(selected) ? selected[0] : selected;
         setMrpackPath(path);
 
-        // Validate and read manifest
-        const manifestData = await invoke<MrpackManifest>("validate_mrpack_file", {
-          mrpackPath: path,
-        });
-
+        const manifestData = await invoke<MrpackManifest>("validate_mrpack_file", { mrpackPath: path });
         setManifest(manifestData);
         setInstanceName(manifestData.name);
 
-        // Check compatibility
-        const compatibilityData = await invoke<MrpackCompatibility>(
-          "check_mrpack_compatibility",
-          { manifest: manifestData }
-        );
-
+        const compatibilityData = await invoke<MrpackCompatibility>("check_mrpack_compatibility", { manifest: manifestData });
         setCompatibility(compatibilityData);
 
         if (!compatibilityData.is_compatible) {
-          toast.error("Modpack no compatible", {
-            description: compatibilityData.errors.join("\n"),
-          });
+          toast.error("Modpack no compatible", { description: compatibilityData.errors.join("\n") });
         }
       }
     } catch (error) {
       console.error("Error al seleccionar archivo:", error);
-      toast.error("Error al leer el archivo .mrpack", {
-        description: String(error),
-      });
+      toast.error("Error al leer el archivo .mrpack");
     }
   };
 
   const handleImport = async () => {
-    if (!mrpackPath || !manifest || !compatibility?.is_compatible) {
-      toast.error("No se puede importar el modpack");
-      return;
-    }
-
-    if (!instanceName.trim()) {
-      toast.error("El nombre de la instancia no puede estar vacío");
-      return;
-    }
+    if (!mrpackPath || !manifest || !compatibility?.is_compatible || !instanceName.trim()) return;
 
     setIsImporting(true);
-
     try {
-      // Call Tauri command to create instance from mrpack
-      const instanceId = await invoke<string>("create_instance_from_mrpack", {
+      await invoke<string>("create_instance_from_mrpack", {
         mrpackPath: mrpackPath,
         instanceName: instanceName,
       });
 
-      toast.success("Modpack importado exitosamente", {
-        description: `Instancia ${instanceName} creada correctamente`,
-      });
-
-      // Reset form
+      toast.success("Modpack importado exitosamente");
       handleClose();
       onInstanceCreated();
     } catch (error) {
-      toast.error("Error al importar modpack", {
-        description: String(error),
-      });
+      toast.error("Error al importar modpack", { description: String(error) });
     } finally {
       setIsImporting(false);
     }
@@ -113,193 +81,193 @@ export const ImportMrpackDialog = ({ onInstanceCreated }: ImportMrpackDialogProp
 
   const handleClose = () => {
     setOpen(false);
-    setMrpackPath(null);
-    setManifest(null);
-    setCompatibility(null);
-    setInstanceName("");
-  };
-
-  const handleOpenChange = (isOpen: boolean) => {
-    if (!isOpen) {
-      handleClose();
-    } else {
-      setOpen(isOpen);
-    }
+    setTimeout(() => {
+      setMrpackPath(null);
+      setManifest(null);
+      setCompatibility(null);
+      setInstanceName("");
+    }, 300);
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button
-          className="cursor-pointer aspect-video z-10 group relative overflow-hidden rounded-xl border border-dashed border-white/20 h-auto flex flex-col items-center justify-center
-                    transition duration-300 hover:border-purple-400/50 hover:bg-gray-800/30"
-        >
-          <div className="flex flex-col items-center gap-3">
-            <div className="p-3 rounded-full bg-gray-800/80 group-hover:bg-purple-900/40 transition">
-              <Import className="h-8 w-8 text-gray-400 group-hover:text-purple-300" />
+        <button className="group relative h-[160px] w-full overflow-hidden rounded-xl border border-dashed border-white/10 bg-[#0a0a0a] hover:bg-white/[0.02] hover:border-purple-500/30 transition-all duration-200">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <div className="p-3 rounded-full bg-white/5 group-hover:bg-purple-500/10 transition-colors border border-white/5 group-hover:border-purple-500/20">
+              <Import className="h-6 w-6 text-neutral-400 group-hover:text-purple-400 transition-colors" />
             </div>
-            <span className="text-gray-400 group-hover:text-purple-300 font-medium">
-              Importar .mrpack
-            </span>
+            <div className="text-center">
+              <span className="block text-sm font-semibold text-neutral-300 group-hover:text-white">Importar .mrpack</span>
+              <span className="text-xs text-neutral-500">Desde archivo local</span>
+            </div>
           </div>
         </button>
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-[600px] dark max-h-[80vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="from-[#9f4eff] to-[#542fff] bg-clip-text text-transparent bg-gradient-to-b">
-            Importar Modpack de Modrinth
-          </DialogTitle>
-          <DialogDescription>
-            Selecciona un archivo .mrpack para crear una nueva instancia
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="sm:max-w-[500px] bg-[#0a0a0a] border-white/10 p-0 gap-0 shadow-2xl overflow-hidden">
 
-        <div className="grid gap-4 py-4">
-          {!mrpackPath ? (
-            <Button onClick={handleSelectFile} className="w-full">
-              Seleccionar archivo .mrpack
-            </Button>
-          ) : (
-            <>
-              {/* Display manifest info */}
-              <div className="space-y-2">
-                <Label>Archivo seleccionado</Label>
-                <div className="text-sm text-muted-foreground break-all">
-                  {mrpackPath}
-                </div>
-              </div>
-
-              {manifest && (
-                <>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Modpack</Label>
-                      <div className="text-sm font-medium">{manifest.name}</div>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Versión</Label>
-                      <div className="text-sm font-medium">{manifest.versionId}</div>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Minecraft</Label>
-                      <div className="text-sm font-medium">
-                        {manifest.dependencies.minecraft}
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-xs text-muted-foreground">Loader</Label>
-                      <div className="text-sm font-medium capitalize">
-                        {compatibility?.loader || "vanilla"}
-                      </div>
-                    </div>
-                  </div>
-
-                  {manifest.summary && (
-                    <div className="space-y-2">
-                      <Label className="text-xs text-muted-foreground">Descripción</Label>
-                      <p className="text-sm text-muted-foreground">{manifest.summary}</p>
-                    </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Archivos</Label>
-                    <div className="text-sm font-medium">
-                      {manifest.files.length} mod(s)
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {compatibility && (
-                <>
-                  {/* Compatibility warnings */}
-                  {compatibility.warnings.length > 0 && (
-                    <Alert className="bg-yellow-900/20 border-yellow-700/50">
-                      <AlertCircle className="h-4 w-4 text-yellow-300" />
-                      <AlertTitle className="text-yellow-300">Advertencias</AlertTitle>
-                      <AlertDescription className="text-yellow-200">
-                        <ul className="list-disc list-inside space-y-1">
-                          {compatibility.warnings.map((warning, index) => (
-                            <li key={index} className="text-sm">
-                              {warning}
-                            </li>
-                          ))}
-                        </ul>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {/* Compatibility errors */}
-                  {compatibility.errors.length > 0 && (
-                    <Alert className="bg-red-900/20 border-red-700/50">
-                      <AlertCircle className="h-4 w-4 text-red-300" />
-                      <AlertTitle className="text-red-300">Errores</AlertTitle>
-                      <AlertDescription className="text-red-200">
-                        <ul className="list-disc list-inside space-y-1">
-                          {compatibility.errors.map((error, index) => (
-                            <li key={index} className="text-sm">
-                              {error}
-                            </li>
-                          ))}
-                        </ul>
-                      </AlertDescription>
-                    </Alert>
-                  )}
-
-                  {/* Success indicator */}
-                  {compatibility.is_compatible && (
-                    <Alert className="bg-green-900/20 border-green-700/50">
-                      <Check className="h-4 w-4 text-green-300" />
-                      <AlertTitle className="text-green-300">Compatible</AlertTitle>
-                      <AlertDescription className="text-green-200">
-                        Este modpack es compatible con ModpackStore
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </>
-              )}
-
-              {/* Instance name input */}
-              <div className="space-y-2">
-                <Label htmlFor="instanceName">Nombre de la instancia</Label>
-                <Input
-                  id="instanceName"
-                  value={instanceName}
-                  onChange={(e) => setInstanceName(e.target.value)}
-                  placeholder="Mi instancia"
-                  disabled={!compatibility?.is_compatible}
-                />
-              </div>
-            </>
-          )}
+        {/* HEADER */}
+        <div className="p-6 border-b border-white/5 bg-gradient-to-b from-purple-500/[0.05] to-transparent">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
+              <Package className="w-5 h-5 text-purple-400" />
+              Importar Modpack
+            </DialogTitle>
+            <DialogDescription className="text-neutral-400">
+              Crea una instancia a partir de un archivo de Modrinth.
+            </DialogDescription>
+          </DialogHeader>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={isImporting}>
+        <div className="p-6">
+          <AnimatePresence mode="wait">
+            {!mrpackPath ? (
+              /* ESTADO 1: SELECCIONAR ARCHIVO */
+              <motion.div
+                key="select"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <div
+                  onClick={handleSelectFile}
+                  className="border-2 border-dashed border-white/10 rounded-2xl p-10 flex flex-col items-center justify-center cursor-pointer hover:border-purple-500/50 hover:bg-purple-500/5 transition-all group"
+                >
+                  <div className="p-4 rounded-full bg-white/5 mb-4 group-hover:scale-110 transition-transform">
+                    <FileUp className="w-8 h-8 text-neutral-400 group-hover:text-purple-400" />
+                  </div>
+                  <p className="text-sm font-medium text-white mb-1">Haz clic para buscar</p>
+                  <p className="text-xs text-neutral-500">Soporta archivos .mrpack</p>
+                </div>
+              </motion.div>
+            ) : (
+              /* ESTADO 2: DETALLES DEL MODPACK */
+              <motion.div
+                key="details"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-6"
+              >
+                {/* MANIFEST CARD */}
+                {manifest && (
+                  <div className="bg-[#151515] border border-white/10 rounded-xl p-4 space-y-4">
+                    <div className="flex items-start justify-between border-b border-white/5 pb-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-white leading-tight">{manifest.name}</h3>
+                        <p className="text-xs text-purple-400 font-mono mt-1">{manifest.versionId}</p>
+                      </div>
+                      <div className="p-2 bg-purple-500/10 rounded-lg text-purple-400">
+                        <Package className="w-5 h-5" />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-2.5 rounded-lg bg-black/20 border border-white/5 flex items-center gap-3">
+                        <Box className="w-4 h-4 text-neutral-500" />
+                        <div>
+                          <p className="text-[10px] text-neutral-500 uppercase font-bold">Minecraft</p>
+                          <p className="text-sm text-white font-medium">{manifest.dependencies.minecraft}</p>
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-black/20 border border-white/5 flex items-center gap-3">
+                        <Cpu className="w-4 h-4 text-neutral-500" />
+                        <div>
+                          <p className="text-[10px] text-neutral-500 uppercase font-bold">Loader</p>
+                          <p className="text-sm text-white font-medium capitalize">{compatibility?.loader || "Vanilla"}</p>
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-black/20 border border-white/5 flex items-center gap-3 col-span-2">
+                        <Layers className="w-4 h-4 text-neutral-500" />
+                        <div>
+                          <p className="text-[10px] text-neutral-500 uppercase font-bold">Contenido</p>
+                          <p className="text-sm text-white font-medium">{manifest.files.length} archivos incluidos</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ALERTS & STATUS */}
+                {compatibility && (
+                  <div className="space-y-3">
+                    {!compatibility.is_compatible && (
+                      <Alert className="bg-red-900/20 border-red-500/30">
+                        <AlertCircle className="h-4 w-4 text-red-400" />
+                        <AlertTitle className="text-red-400">Incompatible</AlertTitle>
+                        <AlertDescription className="text-red-200/80 text-xs mt-1">
+                          {compatibility.errors[0] || "Este modpack tiene errores críticos."}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    {compatibility.warnings.length > 0 && (
+                      <Alert className="bg-yellow-900/20 border-yellow-500/30">
+                        <AlertCircle className="h-4 w-4 text-yellow-400" />
+                        <AlertTitle className="text-yellow-400">Advertencia</AlertTitle>
+                        <AlertDescription className="text-yellow-200/80 text-xs mt-1">
+                          {compatibility.warnings.length} advertencias detectadas (puedes continuar).
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    {compatibility.is_compatible && compatibility.warnings.length === 0 && (
+                      <div className="flex items-center gap-2 text-green-400 text-xs bg-green-500/10 px-3 py-2 rounded-lg border border-green-500/20">
+                        <Check className="w-4 h-4" />
+                        Verificación exitosa. Listo para importar.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* INPUT NAME */}
+                <div className="space-y-2">
+                  <Label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">Nombre de la Instancia</Label>
+                  <Input
+                    value={instanceName}
+                    onChange={(e) => setInstanceName(e.target.value)}
+                    className="bg-[#151515] border-white/10 focus:border-purple-500/50 text-white h-11"
+                    disabled={!compatibility?.is_compatible}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* FOOTER */}
+        <DialogFooter className="p-6 pt-2 bg-[#0a0a0a] sm:justify-between gap-3 border-t border-white/5">
+          <Button
+            variant="ghost"
+            onClick={handleClose}
+            disabled={isImporting}
+            className="text-neutral-500 hover:text-white hover:bg-white/5"
+          >
             Cancelar
           </Button>
+
           {mrpackPath && (
             <Button
               onClick={handleImport}
-              disabled={
-                !compatibility?.is_compatible || !instanceName.trim() || isImporting
-              }
+              disabled={!compatibility?.is_compatible || !instanceName.trim() || isImporting}
+              className="bg-purple-600 hover:bg-purple-500 text-white min-w-[120px] font-bold shadow-lg shadow-purple-900/20"
             >
               {isImporting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Importando...
+                  Importando
                 </>
               ) : (
                 <>
-                  <Package className="mr-2 h-4 w-4" />
+                  <Import className="mr-2 h-4 w-4" />
                   Instalar
                 </>
               )}
             </Button>
           )}
         </DialogFooter>
+
       </DialogContent>
     </Dialog>
   );

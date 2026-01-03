@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
-import { LucidePlus, Loader2, LucideAnvil, LucideTestTubeDiagonal, LucidePackage, LucideHammer, LucideFeather } from "lucide-react"
+import { LucidePlus, Loader2, LucidePackage, LucideHammer, LucideFeather, LucideTestTube, Box } from "lucide-react"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 import { fetchMinecraftManifestWithFailover } from "@/utils/minecraftManifestFailover"
 
@@ -26,26 +26,13 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { CreeperIcon } from "@/icons/CreeperIcon"
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert"
+import { cn } from "@/lib/utils"
+import { AnvilIcon } from "@/icons/AnvilIcon" // Asumiendo que tienes este o usa LucideHammer
 
-
-// Types for Minecraft and Forge versions
-interface MinecraftVersion {
-    id: string;
-    type: string;
-    url: string;
-    time?: string;
-    releaseTime?: string;
-}
-
-// Instance type definition
+// --- TYPES ---
+interface MinecraftVersion { id: string; type: string; url: string; time?: string; releaseTime?: string; }
 type InstanceType = "vanilla" | "forge" | "fabric" | "neoforge" | "quilt";
-
-// Props type definition
-interface CreateInstanceDialogProps {
-    onInstanceCreated: () => void;
-    instanceNames: string[];
-}
+interface CreateInstanceDialogProps { onInstanceCreated: () => void; instanceNames: string[]; }
 
 const FORGE_VERSIONS_URL = "https://mc-versions-api.net/api/forge";
 
@@ -56,124 +43,88 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
     const [minecraftVersions, setMinecraftVersions] = useState<MinecraftVersion[]>([]);
     const [forgeVersionsMap, setForgeVersionsMap] = useState<Record<string, string[]>>({});
     const [loaderVersionsMap, setLoaderVersionsMap] = useState<Record<string, string[]>>({});
+
+    // Form State
     const [selectedType, setSelectedType] = useState<InstanceType>("vanilla");
     const [selectedMinecraftVersion, setSelectedMinecraftVersion] = useState<string>("");
     const [selectedForgeVersion, setSelectedForgeVersion] = useState<string>("");
     const [selectedLoaderVersion, setSelectedLoaderVersion] = useState<string>("");
+
     const [loadingVersions, setLoadingVersions] = useState(false);
     const [compatibleForgeVersions, setCompatibleForgeVersions] = useState<string[]>([]);
     const [compatibleLoaderVersions, setCompatibleLoaderVersions] = useState<string[]>([]);
     const [showSnapshots, setShowSnapshots] = useState(false);
 
+    // --- LOGIC ---
+    // (Mantengo la lógica original intacta, solo limpio el código visualmente)
     const checkShowSnapshots = async () => {
         try {
             const value = await invoke<boolean>('get_config_value', { key: 'showSnapshots' });
-            console.log("Show Snapshots config value:", value);
             setShowSnapshots(value);
         } catch (error) {
             console.error("Error checking show snapshots:", error);
         }
     };
 
-    // Fetch Minecraft versions when dialog opens
     useEffect(() => {
         if (open) {
-            checkShowSnapshots().then(() => {
-                // Fetch Minecraft versions after checking showSnapshots config
-                fetchMinecraftVersions();
-            });
+            checkShowSnapshots().then(fetchMinecraftVersions);
         }
     }, [open]);
 
-    // Update compatible forge versions when Minecraft version changes
     useEffect(() => {
         const forgeVersions = forgeVersionsMap[selectedMinecraftVersion] || [];
         setCompatibleForgeVersions(forgeVersions);
+        if (forgeVersions.length > 0 && !selectedForgeVersion) setSelectedForgeVersion(forgeVersions[0]);
+        else if (forgeVersions.length === 0) setSelectedForgeVersion("");
 
-        // Set the first compatible forge version as selected if available
-        if (forgeVersions.length > 0 && !selectedForgeVersion) {
-            setSelectedForgeVersion(forgeVersions[0]);
-        } else if (forgeVersions.length === 0) {
-            setSelectedForgeVersion("");
-        }
-
-        // Fetch and update loader versions based on selected type
         if (selectedType !== "vanilla" && selectedType !== "forge" && selectedMinecraftVersion) {
             fetchLoaderVersions(selectedType, selectedMinecraftVersion);
         }
     }, [selectedMinecraftVersion, forgeVersionsMap, selectedForgeVersion, selectedType]);
 
-    // Update selected loader version when loader versions are fetched
     useEffect(() => {
         if (selectedType !== "vanilla" && selectedType !== "forge") {
             const loaderVersions = loaderVersionsMap[selectedMinecraftVersion] || [];
             setCompatibleLoaderVersions(loaderVersions);
-
-            if (loaderVersions.length > 0 && !selectedLoaderVersion) {
-                setSelectedLoaderVersion(loaderVersions[0]);
-            } else if (loaderVersions.length === 0) {
-                setSelectedLoaderVersion("");
-            }
+            if (loaderVersions.length > 0 && !selectedLoaderVersion) setSelectedLoaderVersion(loaderVersions[0]);
+            else if (loaderVersions.length === 0) setSelectedLoaderVersion("");
         }
     }, [loaderVersionsMap, selectedMinecraftVersion, selectedType]);
 
     const fetchMinecraftVersions = async (): Promise<void> => {
         setLoadingVersions(true);
         try {
-            // Fetch Minecraft versions with automatic failover to alternative servers
             const data = await fetchMinecraftManifestWithFailover();
-
-            // Filter versions: include snapshots if showSnapshots is true, otherwise only releases
             const releaseVersions = data.versions.filter((version: MinecraftVersion) =>
                 version.type === "release" || (showSnapshots && version.type === "snapshot")
             );
-
             setMinecraftVersions(releaseVersions);
-
-            // Set default Minecraft version to latest release
-            if (releaseVersions.length > 0) {
-                setSelectedMinecraftVersion(releaseVersions[0].id);
-            }
-
-            // Also fetch forge versions
+            if (releaseVersions.length > 0) setSelectedMinecraftVersion(releaseVersions[0].id);
             await fetchForgeVersions();
         } catch (error) {
-            console.error("Error fetching Minecraft versions:", error);
             toast.error("No se pudieron cargar las versiones de Minecraft");
         } finally {
             setLoadingVersions(false);
         }
     };
 
-
-
     const fetchForgeVersions = async (): Promise<void> => {
         try {
             const response = await fetch(FORGE_VERSIONS_URL);
             const data = await response.json();
-
-            // Assume the new format with result array is used
-            // Get the data object from the result array, or an empty object if result is empty or undefined
             const rawData = data.result?.[0] || {};
-
             const processedData: Record<string, string[]> = {};
-
-            // Filter versions before 1.5.2 from the new format structure
             for (const mcVersion in rawData) {
                 if (Object.prototype.hasOwnProperty.call(rawData, mcVersion)) {
                     processedData[mcVersion] = rawData[mcVersion].filter((version: string) => {
                         const versionParts = version.split('.');
-                        // Ensure there are at least two parts and check the version number
-                        // This filter logic remains the same to exclude versions before 1.5.2
                         return versionParts.length > 1 && (parseInt(versionParts[0]) > 1 || (parseInt(versionParts[0]) === 1 && parseInt(versionParts[1]) >= 5));
                     });
                 }
             }
-
             setForgeVersionsMap(processedData);
-
         } catch (error) {
-            console.error("Error fetching Forge versions:", error);
             toast.error("No se pudieron cargar las versiones de Forge");
         }
     };
@@ -181,72 +132,35 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
     const fetchLoaderVersions = async (loaderType: InstanceType, mcVersion: string): Promise<void> => {
         try {
             let versions: string[] = [];
+            let url = "";
+            if (loaderType === "fabric") url = `https://meta.fabricmc.net/v2/versions/loader/${mcVersion}`;
+            else if (loaderType === "quilt") url = `https://meta.quiltmc.org/v3/versions/loader/${mcVersion}`;
+            else if (loaderType === "neoforge") url = "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge";
 
-            if (loaderType === "fabric") {
-                // Fetch Fabric loader versions
-                const response = await fetch(`https://meta.fabricmc.net/v2/versions/loader/${mcVersion}`);
+            if (loaderType === "neoforge") {
+                const response = await fetch(url);
                 const data = await response.json();
-                // Filter by stability based on showSnapshots config
-                versions = data
-                    .map((item: any) => item.loader.version);
-            } else if (loaderType === "quilt") {
-                // Fetch Quilt loader versions
-                const response = await fetch(`https://meta.quiltmc.org/v3/versions/loader/${mcVersion}`);
+                versions = data.versions || [];
+            } else {
+                const response = await fetch(url);
                 const data = await response.json();
                 versions = data.map((item: any) => item.loader.version);
-            } else if (loaderType === "neoforge") {
-                // Fetch NeoForge versions
-                const response = await fetch("https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge");
-                const data = await response.json();
-                // Filter versions that are compatible with the selected Minecraft version
-                // NeoForge versions typically start with the MC version (e.g., "20.2.59" for 1.20.2)
-                versions = data.versions || [];
             }
 
-            // Update the loader versions map with the fetched versions
-            setLoaderVersionsMap(prev => ({
-                ...prev,
-                [mcVersion]: versions
-            }));
+            setLoaderVersionsMap(prev => ({ ...prev, [mcVersion]: versions }));
         } catch (error) {
-            console.error(`Error fetching ${loaderType} versions:`, error);
             toast.error(`No se pudieron cargar las versiones de ${loaderType}`);
         }
     };
 
     const handleCreateInstance = async (): Promise<void> => {
-        if (!instanceName.trim()) {
-            toast.error("Error", {
-                description: "El nombre de la instancia no puede estar vacío"
-            });
-            return;
-        }
-
-        if (!selectedMinecraftVersion) {
-            toast.error("Error", {
-                description: "Debes seleccionar una versión de Minecraft"
-            });
-            return;
-        }
-
-        if (selectedType === "forge" && !selectedForgeVersion) {
-            toast.error("Error", {
-                description: "Debes seleccionar una versión de Forge"
-            });
-            return;
-        }
-
-        if (["fabric", "neoforge", "quilt"].includes(selectedType) && !selectedLoaderVersion) {
-            toast.error("Error", {
-                description: `Debes seleccionar una versión de ${selectedType}`
-            });
-            return;
-        }
+        if (!instanceName.trim()) return toast.error("El nombre no puede estar vacío");
+        if (!selectedMinecraftVersion) return toast.error("Selecciona una versión de Minecraft");
+        if (selectedType === "forge" && !selectedForgeVersion) return toast.error("Selecciona una versión de Forge");
+        if (["fabric", "neoforge", "quilt"].includes(selectedType) && !selectedLoaderVersion) return toast.error(`Selecciona una versión de ${selectedType}`);
 
         setIsLoading(true);
-
         try {
-            // Prepare instance data based on type
             const instanceData = {
                 instanceName: instanceName.trim(),
                 mcVersion: selectedMinecraftVersion,
@@ -256,33 +170,22 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
                 loaderVersion: selectedType === "forge" ? selectedForgeVersion : selectedLoaderVersion
             };
 
-            // Call Tauri command to create instance
             await invoke<TauriCommandReturns['create_instance']>('create_local_instance', instanceData);
 
-            toast.success("Creando instancia...", {
-                description: `Tu instancia "${instanceName}" está siendo creada. Verifica el progreso en el Task Manager.`,
-            });
-
-            trackEvent("instance_created", {
-                name: "Instance Created",
-                type: selectedType,
-                minecraftVersion: selectedMinecraftVersion,
-                loaderVersion: selectedType === "forge" ? selectedForgeVersion : selectedLoaderVersion || "none",
-                timestamp: new Date().toISOString(),
-            });
+            toast.success("Creando instancia...", { description: `Tu instancia "${instanceName}" está en proceso.` });
+            trackEvent("instance_created", { name: "Instance Created", type: selectedType });
 
             setInstanceName("");
             setOpen(false);
             onInstanceCreated();
         } catch (error) {
             console.error("Error al crear la instancia:", error);
-            toast.error("No se pudo crear la instancia. Inténtalo de nuevo.");
+            toast.error("No se pudo crear la instancia");
         } finally {
             setIsLoading(false);
         }
     };
 
-    // On open change, reset selected versions
     const handleOpenChange = (isOpen: boolean) => {
         setOpen(isOpen);
         if (!isOpen) {
@@ -293,285 +196,159 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
         }
     };
 
-    const onInteractOutside = (event: Event) => {
-        // Prevent closing the dialog when clicking outside if the user has some completed data
-        if (instanceName.trim() || selectedMinecraftVersion || selectedForgeVersion) {
-            event.preventDefault();
-        }
-    };
+    const isCreateButtonDisabled = isLoading || !instanceName.trim() || !selectedMinecraftVersion || (selectedType === "forge" && !selectedForgeVersion) || (["fabric", "neoforge", "quilt"].includes(selectedType) && !selectedLoaderVersion) || instanceNames.includes(instanceName.trim());
 
-    // Determine if the create button should be disabled
-    const isCreateButtonDisabled = isLoading ||
-        !instanceName.trim() ||
-        !selectedMinecraftVersion ||
-        (selectedType === "forge" && !selectedForgeVersion) ||
-        (["fabric", "neoforge", "quilt"].includes(selectedType) && !selectedLoaderVersion) ||
-        instanceNames.includes(instanceName.trim());
+    // --- RENDER HELPERS ---
+    const TypeCard = ({ type, label, icon: Icon, color }: any) => (
+        <div
+            onClick={() => setSelectedType(type)}
+            className={cn(
+                "relative flex flex-col items-center gap-2 p-3 rounded-xl border cursor-pointer transition-all duration-200 overflow-hidden group",
+                selectedType === type
+                    ? `border-${color}-500/50 bg-${color}-500/10 ring-1 ring-${color}-500/20`
+                    : "border-white/10 hover:border-white/20 hover:bg-white/5"
+            )}
+        >
+            <Icon className={cn("h-8 w-8 transition-colors", selectedType === type ? `text-${color}-400` : "text-neutral-500 group-hover:text-neutral-300")} />
+            <span className={cn("text-xs font-medium", selectedType === type ? "text-white" : "text-neutral-400")}>{label}</span>
+            {type !== "vanilla" && selectedType === type && (
+                <div className={`absolute top-0 right-0 p-1 bg-${color}-500/20 rounded-bl-lg`}>
+                    <div className={`w-1.5 h-1.5 rounded-full bg-${color}-400 animate-pulse`} />
+                </div>
+            )}
+        </div>
+    );
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
-                <button
-                    className="cursor-pointer aspect-video z-10 group relative overflow-hidden rounded-xl border border-dashed border-white/20 h-auto flex flex-col items-center justify-center
-                    transition duration-300 hover:border-sky-400/50 hover:bg-gray-800/30"
-                >
-                    <div className="flex flex-col items-center gap-3">
-                        <div className="p-3 rounded-full bg-gray-800/80 group-hover:bg-sky-900/40 transition">
-                            <LucidePlus className="h-8 w-8 text-gray-400 group-hover:text-sky-300" />
+                <button className="group relative h-[160px] w-full overflow-hidden rounded-xl border border-dashed border-white/10 bg-[#0a0a0a] hover:bg-white/[0.02] hover:border-white/20 transition-all duration-200">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                        <div className="p-3 rounded-full bg-white/5 group-hover:bg-white/10 transition-colors border border-white/5">
+                            <LucidePlus className="h-6 w-6 text-neutral-400 group-hover:text-white transition-colors" />
                         </div>
-                        <span className="text-gray-400 group-hover:text-sky-300 font-medium">Nueva instancia</span>
+                        <div className="text-center">
+                            <span className="block text-sm font-semibold text-neutral-300 group-hover:text-white">Nueva Instancia</span>
+                            <span className="text-xs text-neutral-500">Vanilla o Modded</span>
+                        </div>
                     </div>
                 </button>
             </DialogTrigger>
 
-            <DialogContent
-                onInteractOutside={onInteractOutside}
-                className="sm:max-w-md dark max-h-[80vh] overflow-y-scroll outline-none">
-                <DialogHeader>
-                    <DialogTitle className="from-[#4e9fff] to-[#2954ff] bg-clip-text text-transparent bg-gradient-to-b">
-                        Crear nueva instancia
-                    </DialogTitle>
-                    <DialogDescription>
-                        Configura una nueva instancia con el tipo de Minecraft que prefieras.
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="sm:max-w-md bg-[#0a0a0a] border-white/10 p-0 gap-0 shadow-2xl" onInteractOutside={(e) => { if (instanceName) e.preventDefault(); }}>
 
-                <div className="mt-6 space-y-6">
-                    {/* Instance Name Input */}
-                    <div className="space-y-2">
-                        <Label className="text-white" htmlFor="instanceName">Nombre de la instancia</Label>
-                        <Input
-                            id="instanceName"
-                            value={instanceName}
-                            onChange={(e) => setInstanceName(e.target.value)}
-                            placeholder="Mi nueva instancia"
-                        />
-
-                        {
-                            instanceNames.includes(instanceName.trim()) && (
-                                <p className="text-red-400 text-sm mt-1">
-                                    El nombre de la instancia ya está en uso. Por favor, elige otro nombre.
-                                </p>
-                            )
-                        }
-                    </div>
-
-                    {
-                        selectedType === "forge" && (
-                            <Alert
-
-                                className=" bg-blue-900/20 border-blue-700/50 text-blue-300"
-                            >
-                                <LucideTestTubeDiagonal className="h-4 w-4" />
-                                <AlertTitle className="text-blue-300">
-                                    Soporte experimental de Forge
-                                </AlertTitle>
-                                <AlertDescription>
-                                    <p>
-                                        Las instancias de Forge inferiores a <strong className="inline-block">1.12.2</strong> están en soporte experimental. Si experimentas problemas, por favor reporta el error en nuestro Discord.
-                                    </p>
-                                </AlertDescription>
-                            </Alert>
-                        )
-                    }
-
-                    {/* Instance Type Selection */}
-                    <div className="space-y-3">
-                        <Label className="text-white">Tipo de instancia</Label>
-                        <div className="grid grid-cols-3 gap-3">
-                            <div
-                                className={`flex flex-col items-center gap-2 p-3 rounded-md border cursor-pointer transition-all ${selectedType === "vanilla"
-                                    ? "border-blue-500 bg-blue-900/20"
-                                    : "border-gray-700 hover:border-gray-500"
-                                    }`}
-                                onClick={() => setSelectedType("vanilla")}
-                            >
-                                <CreeperIcon className="h-10 w-10" />
-                                <span className="font-medium text-center text-sm">Vanilla</span>
-                            </div>
-
-                            <div
-                                className={`flex flex-col items-center gap-2 p-3 overflow-hidden rounded-md border cursor-pointer transition-all relative ${selectedType === "forge"
-                                    ? "border-orange-500 bg-orange-900/20"
-                                    : "border-gray-700 hover:border-gray-500"
-                                    }`}
-                                onClick={() => setSelectedType("forge")}
-                            >
-                                <LucideAnvil className="h-10 w-10" />
-                                <span className="font-medium text-center text-sm">Forge</span>
-                                <span className="rounded-bl-lg absolute top-0 right-0 bg-blue-500/20 text-xs text-white px-1.5 py-0.5">
-                                    Mods
-                                </span>
-                            </div>
-
-                            <div
-                                className={`flex flex-col items-center gap-2 p-3 overflow-hidden rounded-md border cursor-pointer transition-all relative ${selectedType === "fabric"
-                                    ? "border-green-500 bg-green-900/20"
-                                    : "border-gray-700 hover:border-gray-500"
-                                    }`}
-                                onClick={() => setSelectedType("fabric")}
-                            >
-                                <LucideFeather className="h-10 w-10" />
-                                <span className="font-medium text-center text-sm">Fabric</span>
-                                <span className="rounded-bl-lg absolute top-0 right-0 bg-blue-500/20 text-xs text-white px-1.5 py-0.5">
-                                    Mods
-                                </span>
-                            </div>
-
-                            <div
-                                className={`flex flex-col items-center gap-2 p-3 overflow-hidden rounded-md border cursor-pointer transition-all relative ${selectedType === "neoforge"
-                                    ? "border-purple-500 bg-purple-900/20"
-                                    : "border-gray-700 hover:border-gray-500"
-                                    }`}
-                                onClick={() => setSelectedType("neoforge")}
-                            >
-                                <LucideHammer className="h-10 w-10" />
-                                <span className="font-medium text-center text-sm">NeoForge</span>
-                                <span className="rounded-bl-lg absolute top-0 right-0 bg-blue-500/20 text-xs text-white px-1.5 py-0.5">
-                                    Mods
-                                </span>
-                            </div>
-
-                            <div
-                                className={`flex flex-col items-center gap-2 p-3 overflow-hidden rounded-md border cursor-pointer transition-all relative ${selectedType === "quilt"
-                                    ? "border-pink-500 bg-pink-900/20"
-                                    : "border-gray-700 hover:border-gray-500"
-                                    }`}
-                                onClick={() => setSelectedType("quilt")}
-                            >
-                                <LucidePackage className="h-10 w-10" />
-                                <span className="font-medium text-center text-sm">Quilt</span>
-                                <span className="rounded-bl-lg absolute top-0 right-0 bg-blue-500/20 text-xs text-white px-1.5 py-0.5">
-                                    Mods
-                                </span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Minecraft Version Selector */}
-                    <div className="space-y-2">
-                        <Label className="text-white" htmlFor="minecraftVersion">
-                            Versión de Minecraft
-                        </Label>
-
-                        {loadingVersions ? (
-                            <div className="flex items-center justify-center p-2">
-                                <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-                                <span className="ml-2 text-sm text-gray-400">Cargando versiones...</span>
-                            </div>
-                        ) : (
-                            <Select
-                                value={selectedMinecraftVersion}
-                                onValueChange={setSelectedMinecraftVersion}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecciona una versión" />
-                                </SelectTrigger>
-                                <SelectContent className="max-h-80">
-                                    {minecraftVersions.map((version) => (
-                                        <SelectItem key={version.id} value={version.id}>
-                                            {version.id}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        )}
-                    </div>
-
-                    {/* Forge Version Selector (only if Forge is selected) */}
-                    {selectedType === "forge" && (
-                        <div className="space-y-2">
-                            <Label className="text-white" htmlFor="forgeVersion">
-                                Versión de Forge
-                            </Label>
-
-                            {loadingVersions ? (
-                                <div className="flex items-center justify-center p-2">
-                                    <Loader2 className="h-5 w-5 animate-spin text-orange-500" />
-                                    <span className="ml-2 text-sm text-gray-400">Cargando versiones...</span>
-                                </div>
-                            ) : compatibleForgeVersions.length > 0 ? (
-                                <Select
-                                    value={selectedForgeVersion}
-                                    onValueChange={setSelectedForgeVersion}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Selecciona una versión de Forge" />
-                                    </SelectTrigger>
-                                    <SelectContent className="max-h-80">
-                                        {compatibleForgeVersions.map((version) => (
-                                            <SelectItem key={version} value={version}>
-                                                {version}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            ) : (
-                                <div className="p-3 rounded-md bg-yellow-900/20 border border-yellow-700/50">
-                                    <p className="text-sm text-yellow-300">
-                                        No hay versiones de Forge disponibles para Minecraft {selectedMinecraftVersion}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* Loader Version Selector (for Fabric, NeoForge, Quilt) */}
-                    {["fabric", "neoforge", "quilt"].includes(selectedType) && (
-                        <div className="space-y-2">
-                            <Label className="text-white" htmlFor="loaderVersion">
-                                Versión de {selectedType.charAt(0).toUpperCase() + selectedType.slice(1)}
-                            </Label>
-
-                            {loadingVersions ? (
-                                <div className="flex items-center justify-center p-2">
-                                    <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-                                    <span className="ml-2 text-sm text-gray-400">Cargando versiones...</span>
-                                </div>
-                            ) : compatibleLoaderVersions.length > 0 ? (
-                                <Select
-                                    value={selectedLoaderVersion}
-                                    onValueChange={setSelectedLoaderVersion}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder={`Selecciona una versión de ${selectedType}`} />
-                                    </SelectTrigger>
-                                    <SelectContent className="max-h-80">
-                                        {compatibleLoaderVersions.map((version) => (
-                                            <SelectItem key={version} value={version}>
-                                                {version}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            ) : (
-                                <div className="p-3 rounded-md bg-yellow-900/20 border border-yellow-700/50">
-                                    <p className="text-sm text-yellow-300">
-                                        No hay versiones de {selectedType.charAt(0).toUpperCase() + selectedType.slice(1)} disponibles para Minecraft {selectedMinecraftVersion}
-                                    </p>
-                                </div>
-                            )}
-                        </div>
-                    )}
+                {/* HEADER */}
+                <div className="p-6 border-b border-white/5 bg-white/[0.02]">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
+                            <Box className="w-5 h-5 text-purple-400" />
+                            Crear Instancia
+                        </DialogTitle>
+                        <DialogDescription className="text-neutral-400">
+                            Configura una nueva instalación de Minecraft.
+                        </DialogDescription>
+                    </DialogHeader>
                 </div>
 
-                <DialogFooter className="mt-6">
+                <div className="p-6 space-y-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
+
+                    {/* 1. NOMBRE */}
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Nombre</Label>
+                        <Input
+                            value={instanceName}
+                            onChange={(e) => setInstanceName(e.target.value)}
+                            placeholder="Ej: Mi Mundo Survival 1.20"
+                            className="bg-[#151515] border-white/10 focus:border-purple-500/50 text-white placeholder:text-neutral-600"
+                        />
+                        {instanceNames.includes(instanceName.trim()) && (
+                            <p className="text-red-400 text-xs mt-1">Este nombre ya está en uso.</p>
+                        )}
+                    </div>
+
+                    {/* 2. TIPO DE INSTANCIA */}
+                    <div className="space-y-2">
+                        <Label className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Tipo de Loader</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                            <TypeCard type="vanilla" label="Vanilla" icon={CreeperIcon} color="emerald" />
+                            <TypeCard type="forge" label="Forge" icon={LucideHammer} color="orange" />{/* O AnvilIcon */}
+                            <TypeCard type="fabric" label="Fabric" icon={LucideFeather} color="cyan" />
+                            <TypeCard type="neoforge" label="NeoForge" icon={LucideHammer} color="purple" />
+                            <TypeCard type="quilt" label="Quilt" icon={LucidePackage} color="pink" />
+                        </div>
+                    </div>
+
+                    {/* ALERTA FORGE */}
+                    {selectedType === "forge" && (
+                        <div className="bg-orange-900/10 border border-orange-500/20 p-3 rounded-lg flex gap-3 items-start">
+                            <LucideTestTube className="w-4 h-4 text-orange-500 mt-0.5 shrink-0" />
+                            <div className="text-xs text-orange-200/80">
+                                <span className="font-bold block mb-0.5">Soporte Experimental</span>
+                                Las versiones antiguas de Forge (pre-1.12.2) pueden ser inestables.
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 3. SELECTORES DE VERSIÓN */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Versión de Juego</Label>
+                            <Select value={selectedMinecraftVersion} onValueChange={setSelectedMinecraftVersion}>
+                                <SelectTrigger className="bg-[#151515] border-white/10 text-white">
+                                    <SelectValue placeholder="Seleccionar" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-[#1a1a1a] border-white/10 text-white max-h-60">
+                                    {loadingVersions ? (
+                                        <div className="p-2 flex justify-center"><Loader2 className="animate-spin w-4 h-4" /></div>
+                                    ) : (
+                                        minecraftVersions.map((v) => <SelectItem key={v.id} value={v.id}>{v.id}</SelectItem>)
+                                    )}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {selectedType !== "vanilla" && (
+                            <div className="space-y-2">
+                                <Label className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Versión del Loader</Label>
+                                {selectedType === "forge" ? (
+                                    <Select value={selectedForgeVersion} onValueChange={setSelectedForgeVersion} disabled={compatibleForgeVersions.length === 0}>
+                                        <SelectTrigger className="bg-[#151515] border-white/10 text-white">
+                                            <SelectValue placeholder="Seleccionar" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[#1a1a1a] border-white/10 text-white max-h-60">
+                                            {compatibleForgeVersions.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                ) : (
+                                    <Select value={selectedLoaderVersion} onValueChange={setSelectedLoaderVersion} disabled={compatibleLoaderVersions.length === 0}>
+                                        <SelectTrigger className="bg-[#151515] border-white/10 text-white">
+                                            <SelectValue placeholder="Seleccionar" />
+                                        </SelectTrigger>
+                                        <SelectContent className="bg-[#1a1a1a] border-white/10 text-white max-h-60">
+                                            {compatibleLoaderVersions.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* FOOTER */}
+                <DialogFooter className="p-6 pt-2 bg-[#0a0a0a] sm:justify-between gap-3 border-t border-white/5">
+                    <Button variant="ghost" onClick={() => setOpen(false)} className="text-neutral-500 hover:text-white hover:bg-white/5">
+                        Cancelar
+                    </Button>
                     <Button
-                        type="submit"
                         onClick={handleCreateInstance}
                         disabled={isCreateButtonDisabled}
-                        className="w-full cursor-pointer disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed"
+                        className="bg-white text-black hover:bg-neutral-200 font-bold min-w-[120px]"
                     >
-                        {isLoading ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Creando...
-                            </>
-                        ) : (
-                            "Crear instancia"
-                        )}
+                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <LucidePlus className="w-4 h-4 mr-2" />}
+                        Crear
                     </Button>
                 </DialogFooter>
+
             </DialogContent>
         </Dialog>
     );

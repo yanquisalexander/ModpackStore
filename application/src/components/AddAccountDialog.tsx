@@ -1,17 +1,17 @@
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
-import { LucideUser, Loader2 } from "lucide-react"
+import { open } from "@tauri-apps/plugin-shell" // <--- IMPORTANTE: Para abrir enlaces en Tauri
+import { LucideUser, Loader2, CheckCircle2, Copy, ExternalLink, ShieldCheck, Gamepad2, WifiOff, X } from "lucide-react"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
-    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
+    DialogDescription
 } from "@/components/ui/dialog"
 import {
     Tabs,
@@ -25,12 +25,12 @@ import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import { MicrosoftIcon } from "@/icons/MicrosoftIcon"
 import { Progress } from "@/components/ui/progress"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { CheckCircle } from "lucide-react"
 import { trackEvent } from "@aptabase/web"
 import { playSound } from "@/utils/sounds"
+import { cn } from "@/lib/utils"
+import { motion, AnimatePresence } from "motion/react"
 
-// Tipos para eventos de autenticación
+// --- TIPOS ---
 interface AuthProgressEvent {
     step: 'device_code' | 'waiting_auth' | 'microsoft_token' | 'xbox_auth' | 'xsts_token' | 'minecraft_auth' | 'profile' | 'complete';
     message: string;
@@ -48,283 +48,249 @@ interface MicrosoftAccount {
     account_type: string;
 }
 
-export const AddAccountDialog = ({
-    onAccountAdded
-}: {
-    onAccountAdded: () => void
-}) => {
-    const [open, setOpen] = useState(false)
+export const AddAccountDialog = ({ onAccountAdded }: { onAccountAdded: () => void }) => {
+    const [openDialog, setOpenDialog] = useState(false)
     const [username, setUsername] = useState("")
     const [isLoading, setIsLoading] = useState(false)
+
+    // Estado Microsoft
     const [microsoftLoading, setMicrosoftLoading] = useState(false)
     const [authProgress, setAuthProgress] = useState<AuthProgressEvent | null>(null)
     const [authCode, setAuthCode] = useState<string | null>(null)
     const [verificationUrl, setVerificationUrl] = useState<string | null>(null)
 
-    console.log('authProgress', authProgress)
-
-    // Configurar escuchadores de eventos para la autenticación con Microsoft
+    // --- LOGICA DE EVENTOS (Igual que antes) ---
     useEffect(() => {
-        // Escuchar eventos de progreso de autenticación
-        const progressUnlisten = listen<AuthProgressEvent>("microsoft-auth-progress", (event) => {
+        const unlistenProgress = listen<AuthProgressEvent>("microsoft-auth-progress", (event) => {
             setAuthProgress(event.payload);
             if (event.payload.step === 'waiting_auth' && event.payload.user_code) {
-                setAuthCode(event.payload.user_code || null);
+                setAuthCode(event.payload.user_code);
                 setVerificationUrl(event.payload.verification_url || null);
             }
         });
 
-        // Escuchar eventos de éxito de autenticación
-        const successUnlisten = listen<MicrosoftAccount>("microsoft-auth-account-saved", async (event) => {
-            const account = event.payload;
+        const unlistenSuccess = listen<MicrosoftAccount>("microsoft-auth-account-saved", async (event) => {
             setMicrosoftLoading(false);
             setAuthProgress(null);
-
-
-            toast.success("Cuenta añadida", {
-                description: `Se ha añadido la cuenta de Microsoft ${account.username} correctamente`,
-                duration: 10000,
-            });
-
-            trackEvent("microsoft_account_added", {
-                name: "Microsoft Account Added",
-                timestamp: new Date().toISOString(),
-            });
-
+            toast.success(`Cuenta conectada: ${event.payload.username}`);
+            playSound("SUCCESS");
             onAccountAdded();
+            setOpenDialog(false);
         });
 
-        // Escuchar eventos de error de autenticación
-        const errorUnlisten = listen<string>("microsoft-auth-error", (event) => {
-            const errorMessage = event.payload;
-            playSound("ERROR_NOTIFICATION")
-            toast.error("Error de autenticación", {
-                description: errorMessage,
-                duration: 10000,
-            });
+        const unlistenError = listen<string>("microsoft-auth-error", (event) => {
+            playSound("ERROR_NOTIFICATION");
+            toast.error(event.payload);
             setMicrosoftLoading(false);
             setAuthProgress(null);
         });
 
-        // Limpieza de escuchadores al desmontar
         return () => {
-            progressUnlisten.then(unlisten => unlisten());
-            successUnlisten.then(unlisten => unlisten());
-            errorUnlisten.then(unlisten => unlisten());
+            unlistenProgress.then(f => f());
+            unlistenSuccess.then(f => f());
+            unlistenError.then(f => f());
         };
     }, [onAccountAdded]);
 
-    const handleAddOfflineAccount = async () => {
-        if (!username.trim()) {
-            toast.error("Error", {
-                description: "El nombre de usuario no puede estar vacío"
-            })
-            return
-        }
-
-        setIsLoading(true)
-
+    // --- ACCIONES ---
+    const handleOpenLink = async (url: string) => {
         try {
-            await invoke<TauriCommandReturns['add_offline_account']>('add_offline_account', { username: username.trim() })
-
-            toast("Cuenta añadida", {
-                description: `Se ha añadido la cuenta ${username} correctamente`,
-            })
-
-            trackEvent("offline_account_added", {
-                name: "Offline Account Added",
-                timestamp: new Date().toISOString(),
-            });
-
-            setUsername("")
-            setOpen(false)
-            onAccountAdded()
-        } catch (error) {
-            console.error("Error al añadir cuenta offline:", error)
-            toast.error("No se pudo añadir la cuenta. Inténtalo de nuevo.")
-        } finally {
-            setIsLoading(false)
+            await open(url); // Usamos la API de Tauri
+        } catch (e) {
+            console.error("Error abriendo link:", e);
+            toast.error("No se pudo abrir el navegador. Copia el enlace manualmente.");
         }
-    }
+    };
 
-    const handleMicrosoftLogin = async () => {
-        trackEvent("microsoft_auth_start", {
-            name: "Microsoft Auth Start",
-            timestamp: new Date().toISOString(),
-        });
+    const handleAddOffline = async () => {
+        if (!username.trim()) return;
+        setIsLoading(true);
+        try {
+            await invoke('add_offline_account', { username: username.trim() });
+            toast.success("Cuenta offline añadida");
+            onAccountAdded();
+            setOpenDialog(false);
+            setUsername("");
+        } catch (e) {
+            toast.error("Error al crear cuenta");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleStartMicrosoft = async () => {
         setAuthCode(null);
         setMicrosoftLoading(true);
         setAuthProgress(null);
-
         try {
-            // Invocar el comando de Rust para iniciar la autenticación
             await invoke("start_microsoft_auth");
-            // El proceso continuará en los escuchadores de eventos
-        } catch (error) {
-            console.error("Error al iniciar la autenticación con Microsoft:", error);
-            toast.error("No se pudo iniciar la autenticación. Inténtalo de nuevo.", {
-                duration: 10000,
-            });
-            playSound("ERROR_NOTIFICATION")
+        } catch {
             setMicrosoftLoading(false);
+            toast.error("No se pudo iniciar el servicio de autenticación");
         }
-    }
+    };
 
-    const renderMicrosoftAuthProgress = () => {
-        if (!authProgress) return null;
-
-        // Mostrar siempre el código de autorización si está disponible
-        // independientemente del paso actual
-        const showAuthCode = authCode && authProgress.step !== 'complete';
-
-        return (
-            <div className="space-y-4 mt-4">
-                {/* Sección del código de autorización - siempre visible si existe */}
-                {showAuthCode && (
-                    <div className="bg-gray-800 rounded-md p-4">
-                        <h4 className="text-sm font-medium mb-2">Ingresa este código en Microsoft:</h4>
-                        <div className="bg-gray-700 rounded p-3 flex items-center justify-center">
-                            <Input
-                                readOnly
-                                value={authCode}
-                                className="text-xl font-mono tracking-widest text-white">
-                            </Input>
-                        </div>
-                        <p className="text-sm text-gray-400 mt-3 mb-2">
-                            Ve a la siguiente dirección y sigue las instrucciones:
-                        </p>
-
-                        <a
-                            href={verificationUrl!}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="block w-full bg-blue-600 hover:bg-blue-700 text-center py-2 rounded text-white"
-                        >
-                            Abrir página de verificación
-                        </a>
-                    </div>
-                )}
-
-                {/* Barra de progreso - siempre visible */}
-                <div className="space-y-2">
-                    <div className="flex justify-between mb-1">
-                        <p className="text-sm text-gray-300">{authProgress.message}</p>
-                        <span className="text-sm text-gray-400">{authProgress.percentage}%</span>
-                    </div>
-                    <Progress value={authProgress.percentage} />
-
-                    {authProgress.step === 'complete' && (
-                        <Alert className="bg-green-900/20 border-green-700 mt-3">
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                            <AlertDescription className="text-green-300">
-                                Autenticación completada con éxito
-                            </AlertDescription>
-                        </Alert>
-                    )}
-                </div>
-            </div>
-        );
-    }
+    const copyCode = () => {
+        if (authCode) {
+            navigator.clipboard.writeText(authCode);
+            toast.success("Código copiado al portapapeles");
+        }
+    };
 
     return (
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={openDialog} onOpenChange={setOpenDialog}>
             <DialogTrigger asChild>
-                <button
-                    className="cursor-pointer z-10 group relative overflow-hidden rounded-xl border border-dashed border-white/20 h-64 flex flex-col items-center justify-center
-                    transition duration-300 hover:border-sky-400/50 hover:bg-gray-800/30"
-                >
-                    <div className="flex flex-col items-center gap-3">
-                        <div className="p-3 rounded-full bg-gray-800/80 group-hover:bg-sky-900/40 transition">
-                            <LucideUser className="h-8 w-8 text-gray-400 group-hover:text-sky-300" />
+                <button className="group relative h-[160px] w-full overflow-hidden rounded-xl border border-dashed border-white/10 bg-[#0a0a0a] hover:bg-white/[0.02] hover:border-white/20 transition-all duration-200">
+                    <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                        <div className="p-3 rounded-full bg-white/5 group-hover:bg-white/10 transition-colors border border-white/5">
+                            <LucideUser className="h-6 w-6 text-neutral-400 group-hover:text-white transition-colors" />
                         </div>
-                        <span className="text-gray-400 group-hover:text-sky-300 font-medium">Añadir cuenta</span>
+                        <div className="text-center">
+                            <span className="block text-sm font-semibold text-neutral-300 group-hover:text-white">Añadir Cuenta</span>
+                            <span className="text-xs text-neutral-500">Microsoft o Offline</span>
+                        </div>
                     </div>
                 </button>
             </DialogTrigger>
 
-            <DialogContent className="sm:max-w-md dark">
-                <DialogHeader>
-                    <DialogTitle className="from-[#bcfe47] to-[#05cc2a] bg-clip-text text-transparent bg-gradient-to-b">Añadir una nueva cuenta</DialogTitle>
-                    <DialogDescription>
-                        Elige el tipo de cuenta que deseas añadir para jugar en los modpacks.
-                    </DialogDescription>
-                </DialogHeader>
+            <DialogContent className="sm:max-w-md bg-[#0a0a0a] border-white/10 p-0 gap-0 shadow-2xl">
 
-                <Tabs defaultValue="offline" className="mt-4">
-                    <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="offline">Cuenta Offline</TabsTrigger>
-                        <TabsTrigger value="microsoft">Cuenta Microsoft</TabsTrigger>
-                    </TabsList>
+                {/* Header Clásico y Ordenado */}
+                <div className="p-6 border-b border-white/5 bg-white/[0.02]">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
+                            Añadir Cuenta
+                        </DialogTitle>
+                        <DialogDescription className="text-neutral-400">
+                            Conecta tu cuenta para acceder a los servidores y skins.
+                        </DialogDescription>
+                    </DialogHeader>
+                </div>
 
-                    <TabsContent value="offline" className="mt-4 space-y-4">
-                        <div className="space-y-2">
-                            <Label className="text-white" htmlFor="username">Nombre de usuario</Label>
-                            <Input
-                                id="username"
-                                value={username}
-                                onChange={(e) => {
-                                    // Prevent spacing and special characters
-                                    const value = e.target.value.replace(/[^a-zA-Z0-9_]/g, "")
-                                    setUsername(value)
-                                }}
-                                placeholder="Ingresa tu nombre de usuario"
-                            />
-                            <p className="text-sm text-gray-400">
-                                Las cuentas offline te permiten jugar sin verificación pero con funcionalidades limitadas.
-                            </p>
-                        </div>
+                <div className="p-6">
+                    <Tabs defaultValue="offline" className="w-full">
+                        <TabsList className="grid w-full grid-cols-2 bg-[#151515] border border-white/5 mb-6">
+                            <TabsTrigger value="offline" className="data-[state=active]:bg-[#252525] data-[state=active]:text-white transition-all">
+                                <WifiOff className="w-4 h-4 mr-2" /> Offline
+                            </TabsTrigger>
+                            <TabsTrigger value="microsoft" className="data-[state=active]:bg-[#252525] data-[state=active]:text-white transition-all">
+                                <MicrosoftIcon className="w-4 h-4 mr-2" /> Microsoft
+                            </TabsTrigger>
+                        </TabsList>
 
-                        <DialogFooter className="mt-6">
-                            <Button
-                                type="submit"
-                                onClick={handleAddOfflineAccount}
-                                disabled={isLoading}
-                                className="w-full cursor-pointer disabled:bg-gray-700 disabled:text-gray-400 disabled:cursor-not-allowed"
-                            >
-                                {isLoading ? "Añadiendo..." : "Añadir cuenta offline"}
-                            </Button>
-                        </DialogFooter>
-                    </TabsContent>
-
-                    <TabsContent value="microsoft" className="mt-4">
-                        <div className="flex flex-col items-center justify-center py-4 space-y-4">
-                            {!microsoftLoading && !authProgress ? (
-                                <>
-                                    <div className="p-3 rounded-full bg-blue-900/40">
-                                        <MicrosoftIcon className="h-8 w-8" />
-                                    </div>
-                                    <div className="text-center">
-                                        <h3 className="text-lg font-medium text-neutral-50">Iniciar sesión con Microsoft</h3>
-                                        <p className="text-sm text-gray-400 mt-2 mb-6">
-                                            Conecta tu cuenta de Microsoft para acceder a todas las funcionalidades de Minecraft Premium.
-                                        </p>
-                                    </div>
-
-                                    <Button
-                                        onClick={handleMicrosoftLogin}
-                                        className="bg-blue-600 hover:bg-blue-700"
+                        {/* --- MICROSOFT --- */}
+                        <TabsContent value="microsoft" className="mt-0 focus-visible:outline-none min-h-[220px]">
+                            <AnimatePresence mode="wait">
+                                {!microsoftLoading && !authProgress ? (
+                                    <motion.div
+                                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                        className="flex flex-col items-center text-center space-y-5 py-2"
                                     >
-                                        Iniciar con Microsoft
-                                    </Button>
-                                </>
-                            ) : (
-                                <div className="w-full">
-                                    <div className="flex items-center space-x-2 mb-4">
-                                        <MicrosoftIcon className="h-5 w-5" />
-                                        <h3 className="text-lg font-medium text-neutral-50">Autenticación con Microsoft</h3>
-                                    </div>
-
-                                    {microsoftLoading && !authProgress ? (
-                                        <div className="flex flex-col items-center py-8">
-                                            <Loader2 className="h-8 w-8 text-blue-500 animate-spin mb-4" />
-                                            <p className="text-gray-300">Iniciando proceso de autenticación...</p>
+                                        <div className="p-4 rounded-full bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20">
+                                            <MicrosoftIcon className="w-8 h-8" />
                                         </div>
-                                    ) : renderMicrosoftAuthProgress()}
+                                        <div className="space-y-1">
+                                            <h3 className="text-base font-semibold text-white">Iniciar Sesión Segura</h3>
+                                            <p className="text-sm text-neutral-400 px-4">
+                                                Usaremos el navegador para autenticarte con los servidores de Microsoft.
+                                            </p>
+                                        </div>
+                                        <Button
+                                            onClick={handleStartMicrosoft}
+                                            className="w-full bg-[#00a4ef] hover:bg-[#0078d4] text-white font-medium"
+                                        >
+                                            Iniciar Sesión
+                                        </Button>
+                                    </motion.div>
+                                ) : (
+                                    <motion.div
+                                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                                        className="space-y-5"
+                                    >
+                                        {/* ETAPA DE CODIGO */}
+                                        {authCode && authProgress?.step !== 'complete' ? (
+                                            <div className="bg-[#151515] border border-white/10 rounded-xl p-5 text-center shadow-inner">
+                                                <p className="text-xs text-neutral-400 mb-3 uppercase tracking-wider font-bold">Código de Dispositivo</p>
+
+                                                <div
+                                                    onClick={copyCode}
+                                                    className="group flex items-center justify-center gap-3 text-3xl font-mono font-bold text-white bg-black/30 py-3 rounded-lg border border-white/5 cursor-pointer hover:border-blue-500/50 hover:text-blue-400 transition-all mb-4 relative overflow-hidden"
+                                                >
+                                                    {authCode}
+                                                    <div className="absolute inset-0 bg-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                </div>
+
+                                                <p className="text-sm text-neutral-400 mb-4">
+                                                    Ingresa este código en la página de Microsoft.
+                                                </p>
+
+                                                <Button
+                                                    variant="outline"
+                                                    className="w-full border-blue-500/20 text-blue-400 hover:bg-blue-500/10 hover:text-blue-300"
+                                                    onClick={() => handleOpenLink(verificationUrl!)}
+                                                >
+                                                    Abrir Página de Login <ExternalLink className="w-3 h-3 ml-2" />
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            // ETAPA DE CARGA GENERAL
+                                            <div className="flex flex-col items-center justify-center py-10 space-y-4">
+                                                <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
+                                                <p className="text-sm text-neutral-400 animate-pulse">Conectando con Microsoft...</p>
+                                            </div>
+                                        )}
+
+                                        {/* BARRA DE ESTADO */}
+                                        <div className="space-y-2">
+                                            <div className="flex justify-between text-xs font-medium text-neutral-500">
+                                                <span>{authProgress?.message || "Procesando..."}</span>
+                                                <span>{Math.round(authProgress?.percentage || 0)}%</span>
+                                            </div>
+                                            <Progress value={authProgress?.percentage || 0} className="h-1.5 bg-white/5" />
+                                        </div>
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </TabsContent>
+
+                        {/* --- OFFLINE --- */}
+                        <TabsContent value="offline" className="mt-0 focus-visible:outline-none min-h-[220px]">
+                            <motion.div
+                                initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                className="space-y-5"
+                            >
+                                <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-lg flex gap-3">
+                                    <WifiOff className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />
+                                    <p className="text-xs text-yellow-200/80 leading-relaxed">
+                                        Modo sin conexión. No podrás entrar a servidores premium ni ver skins.
+                                    </p>
                                 </div>
-                            )}
-                        </div>
-                    </TabsContent>
-                </Tabs>
+
+                                <div className="space-y-2">
+                                    <Label className="text-neutral-300 ml-1">Nombre de Usuario</Label>
+                                    <div className="relative">
+                                        <Gamepad2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
+                                        <Input
+                                            value={username}
+                                            onChange={(e) => setUsername(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
+                                            placeholder="Ej: Steve"
+                                            className="pl-10 bg-[#151515] border-white/10 text-white focus:border-white/20 h-11"
+                                            onKeyDown={(e) => e.key === 'Enter' && handleAddOffline()}
+                                        />
+                                    </div>
+                                </div>
+
+                                <Button
+                                    onClick={handleAddOffline}
+                                    disabled={isLoading || !username.trim()}
+                                    className="w-full bg-neutral-800 hover:bg-neutral-700 text-white border border-white/5 h-11 mt-2"
+                                >
+                                    {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : "Crear Cuenta"}
+                                </Button>
+                            </motion.div>
+                        </TabsContent>
+                    </Tabs>
+                </div>
             </DialogContent>
         </Dialog>
     )
