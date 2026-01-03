@@ -145,7 +145,7 @@ export class PaymentService {
             });
 
             // Route to PublisherSubscriptionService if it's a subscription event
-            if (webhookPayload.eventType.startsWith('subscription.') || 
+            if (webhookPayload.eventType.startsWith('subscription.') ||
                 (webhookPayload.eventType === 'payment.completed' && webhookPayload.metadata?.publisherId)) {
                 console.log('[PAYMENT_WEBHOOK] Routing to PublisherSubscriptionService');
                 await PublisherSubscriptionService.handleWebhook(webhookPayload);

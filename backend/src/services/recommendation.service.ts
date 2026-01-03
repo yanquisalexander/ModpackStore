@@ -21,7 +21,7 @@ export class RecommendationService {
     private static readonly MIN_COMMON_VOTES = 3; // Minimum common votes for similarity calculation
     private static readonly RECOMMENDATIONS_PER_USER = 20; // Number of recommendations to generate per user
     private static readonly MIN_SCORE_THRESHOLD = 0.1; // Minimum score to include in recommendations
-    
+
     // Fallback scoring constants
     private static readonly POPULAR_BASE_SCORE = 1.0;
     private static readonly POPULAR_DECAY_RATE = 0.05;
@@ -34,7 +34,7 @@ export class RecommendationService {
      */
     static async generateAllRecommendations(): Promise<void> {
         console.log("[RECOMMENDATION] Starting batch recommendation generation...");
-        
+
         // Get all users who have voted
         const allVotes = await ModpackVote.find();
         const userIds = [...new Set(allVotes.map(v => v.userId))];
@@ -43,14 +43,14 @@ export class RecommendationService {
 
         // Build user-item matrix
         const matrix = await this.buildUserItemMatrix();
-        
+
         // Generate recommendations for each user
         let processedCount = 0;
         for (const userId of userIds) {
             try {
                 await this.generateRecommendationsForUser(userId, matrix);
                 processedCount++;
-                
+
                 if (processedCount % 10 === 0) {
                     console.log(`[RECOMMENDATION] Processed ${processedCount}/${userIds.length} users`);
                 }
@@ -231,8 +231,8 @@ export class RecommendationService {
         const recommendations: Partial<UserRecommendation>[] = [];
 
         for (const modpackId in scores) {
-            const normalizedScore = weights[modpackId] > 0 
-                ? scores[modpackId] / weights[modpackId] 
+            const normalizedScore = weights[modpackId] > 0
+                ? scores[modpackId] / weights[modpackId]
                 : 0;
 
             if (normalizedScore >= this.MIN_SCORE_THRESHOLD) {
@@ -311,8 +311,8 @@ export class RecommendationService {
         const voteCounts = await ModpackVote.createQueryBuilder("vote")
             .select("vote.modpackId", "modpackId")
             .addSelect("SUM(CASE WHEN vote.vote = 1 THEN 1 ELSE 0 END)", "likes")
-            .where("vote.modpackId NOT IN (:...excludeIds)", { 
-                excludeIds: excludeIds.length > 0 ? excludeIds : [this.EMPTY_UUID] 
+            .where("vote.modpackId NOT IN (:...excludeIds)", {
+                excludeIds: excludeIds.length > 0 ? excludeIds : [this.EMPTY_UUID]
             })
             .groupBy("vote.modpackId")
             .orderBy("likes", "DESC")
@@ -331,7 +331,28 @@ export class RecommendationService {
                 status: ModpackStatus.PUBLISHED,
                 visibility: ModpackVisibility.PUBLIC
             },
-            relations: ["publisher", "creatorUser"]
+            relations: ["publisher", "creatorUser"],
+            select: {
+                id: true,
+                name: true,
+                slug: true,
+                shortDescription: true,
+                iconUrl: true,
+                bannerUrl: true,
+                featured: true,
+                createdAt: true,
+                publisher: {
+                    id: true,
+                    publisherName: true,
+                    logoUrl: true,
+                    verified: true
+                },
+                creatorUser: {
+                    id: true,
+                    username: true,
+                    avatarUrl: true
+                }
+            }
         });
     }
 
@@ -349,6 +370,27 @@ export class RecommendationService {
                 visibility: ModpackVisibility.PUBLIC
             },
             relations: ["publisher", "creatorUser"],
+            select: {
+                id: true,
+                name: true,
+                slug: true,
+                shortDescription: true,
+                iconUrl: true,
+                bannerUrl: true,
+                featured: true,
+                createdAt: true,
+                publisher: {
+                    id: true,
+                    publisherName: true,
+                    logoUrl: true,
+                    verified: true
+                },
+                creatorUser: {
+                    id: true,
+                    username: true,
+                    avatarUrl: true
+                }
+            },
             order: { createdAt: "DESC" },
             take: limit
         });
@@ -410,7 +452,28 @@ export class RecommendationService {
                 status: ModpackStatus.PUBLISHED,
                 visibility: ModpackVisibility.PUBLIC
             },
-            relations: ["publisher", "creatorUser"]
+            relations: ["publisher", "creatorUser"],
+            select: {
+                id: true,
+                name: true,
+                slug: true,
+                shortDescription: true,
+                iconUrl: true,
+                bannerUrl: true,
+                featured: true,
+                createdAt: true,
+                publisher: {
+                    id: true,
+                    publisherName: true,
+                    logoUrl: true,
+                    verified: true
+                },
+                creatorUser: {
+                    id: true,
+                    username: true,
+                    avatarUrl: true
+                }
+            }
         });
 
         // Sort by the order in relatedModpackIds

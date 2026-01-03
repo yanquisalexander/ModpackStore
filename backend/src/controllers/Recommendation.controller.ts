@@ -26,7 +26,7 @@ export class RecommendationController {
             const modpacks = recommendations.map(r => r.modpack);
 
             // Check if recommendations are from fallback
-            const isFallback = recommendations.length > 0 && 
+            const isFallback = recommendations.length > 0 &&
                 (recommendations[0].algorithm === 'popular' || recommendations[0].algorithm === 'new');
 
             return c.json({

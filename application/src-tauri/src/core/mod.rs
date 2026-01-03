@@ -17,6 +17,7 @@ pub mod modpackstore_auth;
 pub mod mrpack_handler;
 pub mod network_utilities;
 pub mod onboarding;
+pub mod play_history;
 pub mod prelaunch_appearance;
 pub mod tasks_manager;
 pub mod theme_manager;

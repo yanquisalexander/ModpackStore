@@ -42,12 +42,39 @@ export class UserRecommendation extends BaseEntity {
 
     // Static method to get recommendations for a user
     static async getRecommendationsForUser(
-        userId: string, 
+        userId: string,
         limit: number = 10
     ): Promise<UserRecommendation[]> {
         return await UserRecommendation.find({
             where: { userId },
             relations: ["modpack", "modpack.publisher", "modpack.creatorUser"],
+            select: {
+                userId: true,
+                modpackId: true,
+                score: true,
+                algorithm: true,
+                modpack: {
+                    id: true,
+                    name: true,
+                    slug: true,
+                    shortDescription: true,
+                    iconUrl: true,
+                    bannerUrl: true,
+                    featured: true,
+                    createdAt: true,
+                    publisher: {
+                        id: true,
+                        publisherName: true,
+                        logoUrl: true,
+                        verified: true
+                    },
+                    creatorUser: {
+                        id: true,
+                        username: true,
+                        avatarUrl: true
+                    }
+                }
+            },
             order: { score: "DESC" },
             take: limit
         });
@@ -61,7 +88,7 @@ export class UserRecommendation extends BaseEntity {
     // Static method to bulk insert recommendations
     static async bulkInsert(recommendations: Partial<UserRecommendation>[]): Promise<void> {
         if (recommendations.length === 0) return;
-        
+
         await UserRecommendation.save(recommendations);
     }
 }

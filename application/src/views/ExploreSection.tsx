@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "motion/react"
 import { FeaturedSlideshow } from "@/components/FeaturedSlideshow"
 import { JavaStatusBanner } from "@/components/JavaStatusBanner"
 import { RecommendedModpacks } from "@/components/modpack/RecommendedModpacks"
+import { RecentActivity } from "@/components/home/RecentActivity"
 import { useOnboarding } from "@/hooks/useOnboarding"
 import { useAuthentication } from "@/stores/AuthContext"
 
@@ -46,23 +47,22 @@ const Greeting = ({ username }: { username: string | null }) => {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.5 }}
-                className="flex items-center gap-2"
             >
-                <span className="text-2xl md:text-3xl font-bold text-white tracking-tight">
+                <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight leading-none">
                     {saludo},
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#bcfe47] to-[#05cc2a] ml-2">
-                        {nombre || ` ${username}`}
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#bcfe47] to-[#05cc2a] ml-1">
+                        {nombre.trim() || username}
                     </span>
-                </span>
-                <motion.span
-                    className="text-2xl"
-                    animate={{ rotate: [0, 10, -10, 0] }}
-                    transition={{ repeat: Infinity, repeatDelay: 5, duration: 2 }}
-                >
-                    {emoji}
-                </motion.span>
+                    <motion.span
+                        className="text-2xl md:text-3xl inline-block select-none"
+                        animate={{ rotate: [0, 10, -10, 0] }}
+                        transition={{ repeat: Infinity, repeatDelay: 5, duration: 2 }}
+                    >
+                        {emoji}
+                    </motion.span>
+                </h1>
             </motion.div>
-            <p className="text-neutral-400 text-sm mt-1 font-medium">
+            <p className="text-neutral-400 text-sm mt-2 font-medium">
                 ¿Qué aventura toca hoy?
             </p>
         </div>
@@ -165,7 +165,7 @@ export const ExploreSection = () => {
             y: 0,
             opacity: 1,
             scale: 1,
-            transition: { type: "spring", stiffness: 100, damping: 15 }
+            transition: { type: "spring" as const, stiffness: 100, damping: 15 }
         }
     }
 
@@ -182,7 +182,6 @@ export const ExploreSection = () => {
                 <div className="relative w-full">
                     <FeaturedSlideshow slides={featuredSlides} />
                     {/* Gradiente de fusión mejorado */}
-                    <div className="absolute bottom-0 left-0 w-full h-48 bg-gradient-to-t from-[#121212] via-[#121212]/80 to-transparent pointer-events-none" />
                 </div>
 
                 <motion.div
@@ -301,7 +300,7 @@ export const ExploreSection = () => {
                                 animate={{ opacity: 1 }}
                                 exit={{ opacity: 0 }}
                                 transition={{ duration: 0.3 }}
-                                className="space-y-16"
+                                className="space-y-8"
                             >
                                 {initialLoading ? (
                                     <div className="flex justify-center py-40">
@@ -319,6 +318,11 @@ export const ExploreSection = () => {
                                                 />
                                             </motion.div>
                                         )}
+
+                                        {/* Actividad Reciente */}
+                                        <motion.div variants={itemVariants} initial="hidden" whileInView="visible" viewport={{ once: true }}>
+                                            <RecentActivity />
+                                        </motion.div>
 
                                         {/* Categorías Horizontales */}
                                         {modpackCategories.map((category: any, index) => (
@@ -345,7 +349,7 @@ export const ExploreSection = () => {
                                             initial={{ opacity: 0, y: 20 }}
                                             whileInView={{ opacity: 1, y: 0 }}
                                             viewport={{ once: true }}
-                                            className="pt-20 pb-32 flex flex-col items-center justify-center text-center group"
+                                            className="pt-20 flex flex-col items-center justify-center text-center group"
                                         >
                                             <div className="relative">
                                                 <div className="absolute inset-0 bg-green-500/20 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />

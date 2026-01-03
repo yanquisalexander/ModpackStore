@@ -171,7 +171,7 @@ impl InstanceLauncher {
     /// This is the core of crash detection.
     // --- Process Monitoring ---
 
-    fn monitor_process(instance: Arc<MinecraftInstance>, mut child: Child) {
+    fn monitor_process(instance: Arc<MinecraftInstance>, mut child: Child, session_id: i64) {
         let instance_id = instance.instanceId.clone();
         let emitter_launcher = Self {
             instance: Arc::clone(&instance),
@@ -255,6 +255,19 @@ impl InstanceLauncher {
                         "[Monitor: {}] Process exited with code {}",
                         instance.instanceId, exit_code
                     );
+
+                    // Record session end only if it was a clean exit
+                    if session_id != -1 && exit_code == 0 {
+                        if let Err(e) =
+                            crate::core::play_history::PlayHistoryManager::get_instance()
+                                .record_session_end(session_id)
+                        {
+                            error!(
+                                "[Monitor: {}] Failed to record session end: {}",
+                                instance.instanceId, e
+                            );
+                        }
+                    }
 
                     // --- Lógica de Detección de Crash ---
                     let mut crash_source = "NORMAL_EXIT";
@@ -454,7 +467,22 @@ impl InstanceLauncher {
                     child_process.id()
                 );
                 self.emit_status(EVENT_LAUNCHED, "Minecraft se está ejecutando.", None);
-                Self::monitor_process(Arc::clone(&self.instance), child_process);
+
+                // Record session start
+                let session_id = crate::core::play_history::PlayHistoryManager::get_instance()
+                    .record_session_start(
+                        &self.instance.instanceId,
+                        Some(self.instance.minecraftVersion.clone()),
+                    )
+                    .unwrap_or_else(|e| {
+                        error!(
+                            "[Launch Thread: {}] Failed to record session start: {}",
+                            self.instance.instanceId, e
+                        );
+                        -1
+                    });
+
+                Self::monitor_process(Arc::clone(&self.instance), child_process, session_id);
 
                 // Handle closing the launcher if configured
                 self.handle_close_on_launch();
