@@ -41,7 +41,7 @@
   },
   "productName": "Modpack Store",
   "mainBinaryName": "ModpackStore",
-  "version": "1.0.116",
+  "version": "1.0.117",
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {
     "updater": {
@@ -95,6 +95,7 @@
         "resizable": false,
         "fullscreen": false,
         "decorations": false,
+        "acceptFirstMouse": true,
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
