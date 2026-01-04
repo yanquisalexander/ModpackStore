@@ -158,7 +158,7 @@ export const LibrarySection = () => {
                 <div className="min-h-[400px]">
                     {isLoading ? (
                         <div className="flex flex-col items-center justify-center h-64 gap-4">
-                            <ArmadilloLoading className="h-16 w-16" />
+                            <ArmadilloLoading className="w-16" />
                             <p className="text-neutral-500 text-sm font-medium animate-pulse">Sincronizando biblioteca...</p>
                         </div>
                     ) : error ? (
