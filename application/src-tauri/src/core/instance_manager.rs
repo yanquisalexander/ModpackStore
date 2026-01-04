@@ -1786,7 +1786,7 @@ pub async fn create_instance_from_mrpack(
 
     log::info!("Downloading mods from Modrinth...");
     // Download mods to minecraft/mods/ subdirectory
-    if let Err(e) = download_mrpack_mods(&manifest, &instance_dir).await {
+    if let Err(e) = download_mrpack_mods(&manifest, &instance_dir, Some(task_id.clone())).await {
         update_task(
             &task_id,
             TaskStatus::Failed,

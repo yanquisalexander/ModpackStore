@@ -1,0 +1,75 @@
+---
+const features = [
+  {
+    title: "Instalación en un Click",
+    description:
+      "Olvídate de configuraciones complejas. Instala cualquier modpack con un solo click y empieza a jugar al instante.",
+    icon: "⚡",
+  },
+  {
+    title: "Gestión de Instancias",
+    description:
+      "Mantén tus mundos organizados. Crea múltiples instancias separadas para diferentes modpacks sin conflictos.",
+    icon: "🎮",
+  },
+  {
+    title: "Optimización Automática",
+    description:
+      "El lanzador ajusta automáticamente la configuración de Java y memoria para el mejor rendimiento posible.",
+    icon: "🚀",
+  },
+  {
+    title: "Seguridad Primero",
+    description:
+      "Todos los mods y modpacks son verificados. Juega tranquilo sabiendo que tu PC está segura.",
+    icon: "🛡️",
+  },
+  {
+    title: "Soporte para Creadores",
+    description:
+      "Herramientas dedicadas para creadores de modpacks. Publica, actualiza y monetiza tu contenido fácilmente.",
+    icon: "💎",
+  },
+  {
+    title: "Comunidad Activa",
+    description:
+      "Únete a miles de jugadores. Comparte tus experiencias, encuentra amigos y descubre nuevos servidores.",
+    icon: "🌍",
+  },
+];
+---
+
+<section id="features" class="py-24 relative">
+  <div
+    class="absolute inset-0 bg-gradient-to-b from-transparent via-ms-green/5 to-transparent pointer-events-none"
+  >
+  </div>
+
+  <div class="max-w-screen-xl mx-auto px-4 relative z-10">
+    <div class="text-center mb-16">
+      <h2 class="text-3xl md:text-5xl font-bold text-white mb-6">
+        Todo lo que necesitas
+      </h2>
+      <p class="text-gray-400 max-w-2xl mx-auto text-lg">
+        Modpack Store está diseñado para eliminar las barreras técnicas y
+        dejarte disfrutar de lo que realmente importa: jugar Minecraft.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {
+        features.map((feature) => (
+          <div class="p-8 glass-card rounded-2xl hover:bg-white/5 transition-all duration-300 group border border-white/5 hover:border-ms-green/30">
+            <div class="w-14 h-14 bg-ms-green/10 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-ms-green/20 group-hover:scale-110 transition-all duration-300 text-ms-green shadow-[0_0_15px_rgba(39,206,64,0.1)]">
+              {feature.icon}
+            </div>
+            <h3 class="text-xl font-bold text-white mb-3 group-hover:text-ms-green transition-colors">
+              {feature.title}
+            </h3>
+            <p class="text-gray-400 leading-relaxed">{feature.description}</p>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</section>

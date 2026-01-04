@@ -1,0 +1,231 @@
+---
+import {
+  Menu,
+  X,
+  Download,
+  Home,
+  Sparkles,
+  Users,
+  HelpCircle,
+} from "lucide-preact";
+
+const links = [
+  { label: "Inicio", url: "/", icon: Home },
+  { label: "Características", url: "#features", icon: Sparkles },
+  { label: "Creadores", url: "#creators", icon: Users },
+  { label: "FAQ", url: "#faq", icon: HelpCircle },
+];
+
+const currentPath = Astro.url.pathname;
+
+// Estilos base
+const navLinkBase =
+  "relative flex items-center gap-2 px-4 py-2 group transition-all duration-300 rounded-full hover:bg-white/5";
+const textStyle =
+  "font-medium text-sm tracking-wide transition-colors relative z-10";
+const activeText = "text-ms-green drop-shadow-[0_0_8px_rgba(39,206,64,0.5)]";
+const inactiveText = "text-gray-400 group-hover:text-white";
+const underlineColor = "bg-ms-green";
+---
+
+<header
+  id="site-header"
+  class="fixed top-0 left-0 right-0 z-50 w-full transition-all duration-300 py-6"
+>
+  {/* LA ISLA FLOTANTE */}
+  <div
+    id="nav-island"
+    class="mx-auto flex items-center justify-between px-4 md:px-6 py-3 transition-all duration-300 w-[95%] max-w-6xl rounded-2xl border border-white/5 bg-background/60 backdrop-blur-xl shadow-lg"
+  >
+    {/* --- IZQUIERDA (Logo) --- */}
+    <div class="flex items-center gap-4">
+      <a
+        href="/"
+        class="flex items-center gap-3 group transition-transform hover:scale-105"
+      >
+        <div class="relative">
+          <div
+            class="absolute -inset-1 bg-ms-green rounded-full blur opacity-25 group-hover:opacity-75 transition duration-200"
+          >
+          </div>
+          <img src="/favicon.svg" class="relative h-8 w-8" alt="Logo" />
+        </div>
+        <span
+          class="hidden md:block font-bold text-lg tracking-tight text-white"
+        >
+          Modpack<span class="text-ms-green">Store</span>
+        </span>
+      </a>
+    </div>
+
+    {/* --- CENTRO (Nav Links) --- */}
+    <nav
+      class="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2"
+    >
+      {
+        links.map((link) => (
+          <a href={link.url} class={navLinkBase}>
+            <span
+              class={`${textStyle} ${currentPath === link.url ? activeText : inactiveText}`}
+            >
+              {link.label}
+            </span>
+
+            {/* Underline animado */}
+            <span
+              class={`absolute bottom-1 left-1/2 -translate-x-1/2 h-[2px] ${underlineColor} rounded-full transition-all duration-300 ${currentPath === link.url ? "w-1/2 opacity-100 shadow-[0_0_10px_currentColor]" : "w-0 opacity-0 group-hover:w-1/3 group-hover:opacity-100"}`}
+            />
+          </a>
+        ))
+      }
+    </nav>
+
+    {/* --- DERECHA (Actions) --- */}
+    <div class="flex items-center gap-3">
+      <a
+        href="#download"
+        class="hidden md:flex items-center gap-2 px-5 py-2 bg-ms-green hover:bg-green-500 text-white text-sm font-bold rounded-xl transition-all shadow-[0_0_15px_rgba(39,206,64,0.3)] hover:shadow-[0_0_25px_rgba(39,206,64,0.5)] hover:scale-105"
+      >
+        <Download size={16} />
+        <span>Descargar</span>
+      </a>
+
+      <button
+        id="mobile-menu-btn"
+        class="md:hidden p-2 text-gray-400 hover:text-white hover:bg-white/10 rounded-full transition-colors"
+      >
+        <Menu size={24} />
+      </button>
+    </div>
+  </div>
+</header>
+
+{/* --- MENU MÓVIL --- */}
+<div id="mobile-drawer" class="fixed inset-0 z-[60] hidden pointer-events-none">
+  <div
+    id="drawer-bg"
+    class="absolute inset-0 bg-black/80 backdrop-blur-sm opacity-0 transition-opacity duration-300 pointer-events-auto"
+  >
+  </div>
+
+  <nav
+    id="drawer-panel"
+    class="absolute top-0 right-0 h-full w-[80%] max-w-xs bg-card border-l border-white/10 shadow-2xl transform translate-x-full transition-transform duration-300 pointer-events-auto pt-8 flex flex-col"
+  >
+    <div class="px-6 flex justify-between items-center mb-8">
+      <span class="font-bold text-xl text-white tracking-tight">
+        Modpack<span class="text-ms-green">Store</span>
+      </span>
+      <button
+        id="close-drawer"
+        class="text-gray-400 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors"
+      >
+        <X size={24} />
+      </button>
+    </div>
+
+    <div class="flex-1 overflow-y-auto px-4 space-y-2">
+      {
+        links.map((link) => (
+          <a
+            href={link.url}
+            class={`flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-lg transition-colors ${currentPath === link.url ? "bg-ms-green/10 text-ms-green" : "text-gray-400 hover:bg-white/5 hover:text-white"}`}
+          >
+            <link.icon size={20} />
+            {link.label}
+          </a>
+        ))
+      }
+
+      <div class="mt-6 pt-6 border-t border-white/10">
+        <a
+          href="#download"
+          class="flex items-center justify-center gap-2 w-full px-5 py-3 bg-ms-green hover:bg-green-500 text-white font-bold rounded-xl transition-all shadow-lg"
+        >
+          <Download size={20} />
+          Descargar App
+        </a>
+      </div>
+    </div>
+  </nav>
+</div>
+
+<style>
+  @reference "../styles/global.css";
+  /* ESTILOS ACTIVOS POR JS (SCROLL) */
+  :global(#site-header.is-scrolled) {
+    @apply py-2;
+  }
+
+  :global(#site-header.is-scrolled #nav-island) {
+    @apply bg-background/80 backdrop-blur-2xl border-white/10 shadow-2xl max-w-4xl py-2;
+  }
+</style>
+
+<script>
+  // Inline simple selector helper
+  const $ = (selector: string) => document.querySelector(selector);
+
+  document.addEventListener("astro:page-load", () => {
+    const header = $("#site-header");
+    const mobileBtn = $("#mobile-menu-btn");
+    const closeBtn = $("#close-drawer");
+    const drawer = $("#mobile-drawer");
+    const drawerBg = $("#drawer-bg");
+    const drawerPanel = $("#drawer-panel");
+    const body = document.body;
+
+    // 1. Lógica de Scroll
+    const handleScroll = () => {
+      if (window.scrollY > 20) {
+        header?.classList.add("is-scrolled");
+      } else {
+        header?.classList.remove("is-scrolled");
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+
+    // 2. Lógica de Menú Móvil
+    const openMenu = () => {
+      drawer?.classList.remove("hidden");
+      // Small delay to allow display:block to apply before opacity transition
+      setTimeout(() => {
+        drawerBg?.classList.remove("opacity-0");
+        drawerPanel?.classList.remove("translate-x-full");
+      }, 10);
+      body.style.overflow = "hidden";
+    };
+
+    const closeMenu = () => {
+      drawerBg?.classList.add("opacity-0");
+      drawerPanel?.classList.add("translate-x-full");
+      setTimeout(() => {
+        drawer?.classList.add("hidden");
+        body.style.overflow = "";
+      }, 300);
+    };
+
+    mobileBtn?.addEventListener("click", openMenu);
+    closeBtn?.addEventListener("click", closeMenu);
+    drawerBg?.addEventListener("click", closeMenu);
+
+    // Close menu when clicking a link
+    const drawerLinks = drawerPanel?.querySelectorAll("a");
+    drawerLinks?.forEach((link) => {
+      link.addEventListener("click", closeMenu);
+    });
+  });
+
+  // Fallback for initial load if View Transitions are not used or first load
+  if (
+    document.readyState === "complete" ||
+    document.readyState === "interactive"
+  ) {
+    document.dispatchEvent(new Event("astro:page-load"));
+  } else {
+    document.addEventListener("DOMContentLoaded", () =>
+      document.dispatchEvent(new Event("astro:page-load"))
+    );
+  }
+</script>

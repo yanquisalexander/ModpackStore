@@ -8,6 +8,8 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 use zip::write::{FileOptions, ZipWriter};
 use zip::ZipArchive;
+use crate::core::modpack_file_manager::DownloadManager;
+use crate::core::tasks_manager::{update_task, TaskStatus};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MrpackManifest {
@@ -306,6 +308,7 @@ async fn download_file_from_url(url: &str, output_path: &Path) -> Result<(), Str
 pub async fn download_mrpack_mods(
     manifest: &MrpackManifest,
     instance_dir: &Path,
+    task_id: Option<String>,
 ) -> Result<(), String> {
     // Download to minecraft/mods/ subdirectory to match standard instance structure
     let mods_dir = instance_dir.join("minecraft").join("mods");
@@ -329,14 +332,53 @@ pub async fn download_mrpack_mods(
 
     log::info!("Downloading {} mods...", client_mods.len());
 
-    // Download mods sequentially to avoid overwhelming the server
-    for (i, mod_file) in client_mods.iter().enumerate() {
-        log::info!("Downloading mod {}/{}", i + 1, client_mods.len());
-
-        download_mod_file(mod_file, &mods_dir)
-            .await
-            .map_err(|e| format!("Failed to download {}: {}", mod_file.path, e))?;
+    // Prepare files for DownloadManager
+    let mut files_to_download = Vec::new();
+    
+    for mod_file in &client_mods {
+        let file_name = Path::new(&mod_file.path)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .ok_or("Invalid file name")?;
+            
+        let output_path = mods_dir.join(file_name);
+        
+        // Use the first download URL available
+        if let Some(url) = mod_file.downloads.first() {
+            files_to_download.push((
+                url.clone(),
+                output_path,
+                mod_file.hashes.sha1.clone()
+            ));
+        } else {
+            log::warn!("No download URL for mod: {}", mod_file.path);
+        }
     }
+
+    if files_to_download.is_empty() {
+        return Ok(());
+    }
+
+    // Use DownloadManager
+    let download_manager = DownloadManager::with_concurrency(4);
+    let task_id_clone = task_id.clone();
+
+    download_manager.download_files_parallel_with_progress(
+        files_to_download,
+        move |current, total, message| {
+            if let Some(ref tid) = task_id_clone {
+                // Map progress to 20-30% range (approximate)
+                let progress = 20.0 + ((current as f32 / total as f32) * 10.0);
+                update_task(
+                    tid,
+                    TaskStatus::Running,
+                    progress,
+                    &format!("Descargando mods: {} ({}/{})", message, current, total),
+                    None,
+                );
+            }
+        }
+    ).await.map_err(|e| format!("Failed to download mods: {}", e))?;
 
     Ok(())
 }

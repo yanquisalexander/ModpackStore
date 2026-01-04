@@ -2,7 +2,7 @@
 use crate::config::get_config_manager;
 use crate::core::bootstrap::loaders::ModLoaderInstaller;
 use crate::core::bootstrap::{
-    download::{download_file, download_forge_libraries, download_libraries},
+    download::{download_file, download_forge_libraries, download_libraries, download_libraries_enhanced},
     filesystem::{create_launcher_profiles, create_minecraft_directories, extract_natives},
     manifest::{
         build_forge_installer_url, get_java_version_requirement, get_version_details,
@@ -435,7 +435,15 @@ impl InstanceBootstrap {
             "instance-downloading-libraries",
             "Descargando librerías",
         );
-        download_libraries(&self.client, &version_details, &libraries_dir, instance)
+        
+        // Use enhanced download manager for libraries
+        tokio::runtime::Runtime::new()
+            .expect("Failed to create Tokio runtime")
+            .block_on(download_libraries_enhanced(
+                instance,
+                &version_details,
+                &libraries_dir
+            ))
             .map_err(|e| format!("Error downloading libraries: {}", e))?;
 
         // Update task status - 60%
