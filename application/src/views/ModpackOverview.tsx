@@ -138,6 +138,18 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     const [canAccess, setCanAccess] = useState(true);
     const [accessLoading, setAccessLoading] = useState(false);
 
+    // --- SCROLL HANDLING ---
+    useEffect(() => {
+        // Force scroll to top when modpackId changes or loading finishes
+        window.scrollTo({ top: 0, behavior: 'instant' });
+    }, [modpackId]);
+
+    useEffect(() => {
+        if (!loading) {
+            window.scrollTo({ top: 0, behavior: 'instant' });
+        }
+    }, [loading]);
+
     // --- FETCH DATA ---
     useEffect(() => {
         const load = async () => {
@@ -429,8 +441,8 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                             key={v.id}
                                             onClick={() => setSelectedVersionId(v.id)}
                                             className={`group flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${isSelected
-                                                    ? 'bg-purple-500/10 border-purple-500/50'
-                                                    : 'bg-[#121212] border-white/5 hover:border-white/20'
+                                                ? 'bg-purple-500/10 border-purple-500/50'
+                                                : 'bg-[#121212] border-white/5 hover:border-white/20'
                                                 }`}
                                         >
                                             <div className="flex items-center gap-4">
