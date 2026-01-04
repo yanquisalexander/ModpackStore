@@ -39,31 +39,38 @@ const features = [
 ];
 ---
 
-<section id="features" class="py-24 relative">
+<section id="features" class="py-24 relative overflow-hidden">
   <div
-    class="absolute inset-0 bg-gradient-to-b from-transparent via-ms-green/5 to-transparent pointer-events-none"
+    class="absolute inset-0 bg-gradient-to-b from-transparent via-ms-primary/5 to-transparent pointer-events-none"
   >
   </div>
 
   <div class="max-w-screen-xl mx-auto px-4 relative z-10">
-    <div class="text-center mb-16">
-      <h2 class="text-3xl md:text-5xl font-bold text-white mb-6">
+    <div class="text-center mb-16" id="features-header">
+      <h2
+        class="text-3xl md:text-5xl font-bold text-white mb-6 opacity-0 translate-y-10"
+      >
         Todo lo que necesitas
       </h2>
-      <p class="text-gray-400 max-w-2xl mx-auto text-lg">
+      <p
+        class="text-gray-400 max-w-2xl mx-auto text-lg opacity-0 translate-y-10"
+      >
         Modpack Store está diseñado para eliminar las barreras técnicas y
         dejarte disfrutar de lo que realmente importa: jugar Minecraft.
       </p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div
+      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+      id="features-grid"
+    >
       {
         features.map((feature) => (
-          <div class="p-8 glass-card rounded-2xl hover:bg-white/5 transition-all duration-300 group border border-white/5 hover:border-ms-green/30">
-            <div class="w-14 h-14 bg-ms-green/10 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-ms-green/20 group-hover:scale-110 transition-all duration-300 text-ms-green shadow-[0_0_15px_rgba(39,206,64,0.1)]">
+          <div class="feature-card p-8 glass-card rounded-2xl hover:bg-white/5 transition-all duration-300 group border border-white/5 hover:border-ms-primary/30 opacity-0 translate-y-10">
+            <div class="w-14 h-14 bg-ms-primary/10 rounded-xl flex items-center justify-center text-2xl mb-6 group-hover:bg-ms-primary/20 group-hover:scale-110 transition-all duration-300 text-ms-primary shadow-[0_0_15px_rgba(99,102,241,0.1)]">
               {feature.icon}
             </div>
-            <h3 class="text-xl font-bold text-white mb-3 group-hover:text-ms-green transition-colors">
+            <h3 class="text-xl font-bold text-white mb-3 group-hover:text-ms-primary transition-colors">
               {feature.title}
             </h3>
             <p class="text-gray-400 leading-relaxed">{feature.description}</p>
@@ -73,3 +80,47 @@ const features = [
     </div>
   </div>
 </section>
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Header animation
+  gsap.to("#features-header h2", {
+    scrollTrigger: {
+      trigger: "#features-header",
+      start: "top 85%",
+    },
+    opacity: 1,
+    y: 0,
+    duration: 1,
+    ease: "power3.out",
+  });
+
+  gsap.to("#features-header p", {
+    scrollTrigger: {
+      trigger: "#features-header",
+      start: "top 80%",
+    },
+    opacity: 1,
+    y: 0,
+    duration: 1,
+    delay: 0.2,
+    ease: "power3.out",
+  });
+
+  // Cards stagger animation
+  gsap.to(".feature-card", {
+    scrollTrigger: {
+      trigger: "#features-grid",
+      start: "top 75%",
+    },
+    opacity: 1,
+    y: 0,
+    duration: 0.8,
+    stagger: 0.15,
+    ease: "power3.out",
+  });
+</script>

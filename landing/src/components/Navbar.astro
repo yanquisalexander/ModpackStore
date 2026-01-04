@@ -23,14 +23,14 @@ const navLinkBase =
   "relative flex items-center gap-2 px-4 py-2 group transition-all duration-300 rounded-full hover:bg-white/5";
 const textStyle =
   "font-medium text-sm tracking-wide transition-colors relative z-10";
-const activeText = "text-ms-green drop-shadow-[0_0_8px_rgba(39,206,64,0.5)]";
+const activeText = "text-ms-primary drop-shadow-[0_0_8px_rgba(99,102,241,0.5)]";
 const inactiveText = "text-gray-400 group-hover:text-white";
-const underlineColor = "bg-ms-green";
+const underlineColor = "bg-ms-primary";
 ---
 
 <header
   id="site-header"
-  class="fixed top-0 left-0 right-0 z-50 w-full transition-all duration-300 py-6"
+  class="fixed top-0 left-0 right-0 z-50 w-full transition-all duration-300 py-6 opacity-0 -translate-y-10"
 >
   {/* LA ISLA FLOTANTE */}
   <div
@@ -45,15 +45,15 @@ const underlineColor = "bg-ms-green";
       >
         <div class="relative">
           <div
-            class="absolute -inset-1 bg-ms-green rounded-full blur opacity-25 group-hover:opacity-75 transition duration-200"
+            class="absolute -inset-1 bg-ms-primary rounded-full blur opacity-25 group-hover:opacity-75 transition duration-200"
           >
           </div>
-          <img src="/favicon.svg" class="relative h-8 w-8" alt="Logo" />
+          <img src="/icon.png" class="relative h-8 w-8 rounded-lg" alt="Logo" />
         </div>
         <span
           class="hidden md:block font-bold text-lg tracking-tight text-white"
         >
-          Modpack<span class="text-ms-green">Store</span>
+          Modpack<span class="text-ms-primary">Store</span>
         </span>
       </a>
     </div>
@@ -84,7 +84,7 @@ const underlineColor = "bg-ms-green";
     <div class="flex items-center gap-3">
       <a
         href="#download"
-        class="hidden md:flex items-center gap-2 px-5 py-2 bg-ms-green hover:bg-green-500 text-white text-sm font-bold rounded-xl transition-all shadow-[0_0_15px_rgba(39,206,64,0.3)] hover:shadow-[0_0_25px_rgba(39,206,64,0.5)] hover:scale-105"
+        class="hidden md:flex items-center gap-2 px-5 py-2 bg-ms-primary hover:bg-ms-primary-light text-white text-sm font-bold rounded-xl transition-all shadow-[0_0_15px_rgba(99,102,241,0.3)] hover:shadow-[0_0_25px_rgba(99,102,241,0.5)] hover:scale-105"
       >
         <Download size={16} />
         <span>Descargar</span>
@@ -99,6 +99,37 @@ const underlineColor = "bg-ms-green";
     </div>
   </div>
 </header>
+
+<script>
+  import { gsap } from "gsap";
+
+  // Navbar entrance
+  gsap.to("#site-header", {
+    opacity: 1,
+    y: 0,
+    duration: 1,
+    delay: 0.5,
+    ease: "power3.out",
+  });
+
+  // Scroll effect
+  const header = document.getElementById("site-header");
+  const navIsland = document.getElementById("nav-island");
+
+  window.addEventListener("scroll", () => {
+    if (window.scrollY > 50) {
+      header?.classList.remove("py-6");
+      header?.classList.add("py-3");
+      navIsland?.classList.remove("w-[95%]");
+      navIsland?.classList.add("w-[90%]");
+    } else {
+      header?.classList.remove("py-3");
+      header?.classList.add("py-6");
+      navIsland?.classList.remove("w-[90%]");
+      navIsland?.classList.add("w-[95%]");
+    }
+  });
+</script>
 
 {/* --- MENU MÓVIL --- */}
 <div id="mobile-drawer" class="fixed inset-0 z-[60] hidden pointer-events-none">

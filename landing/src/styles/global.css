@@ -1,94 +1,57 @@
 @import "tailwindcss";
 @import "@fontsource-variable/jost";
 @import "@fontsource-variable/lexend";
-@import "@fontsource-variable/albert-sans";
 
 @theme {
-  /* Colors */
-  --color-background: oklch(0.145 0 0);
-  --color-foreground: oklch(0.985 0 0);
-  --color-card: oklch(0.205 0 0);
-  --color-card-foreground: oklch(0.985 0 0);
-  --color-popover: oklch(0.205 0 0);
-  --color-popover-foreground: oklch(0.985 0 0);
-  --color-primary: oklch(0.922 0 0);
-  --color-primary-foreground: oklch(0.205 0 0);
-  --color-secondary: oklch(0.269 0 0);
-  --color-secondary-foreground: oklch(0.985 0 0);
-  --color-muted: oklch(0.269 0 0);
-  --color-muted-foreground: oklch(0.708 0 0);
-  --color-accent: oklch(0.269 0 0);
-  --color-accent-foreground: oklch(0.985 0 0);
-  --color-destructive: oklch(0.704 0.191 22.216);
-  --color-border: oklch(1 0 0 / 0.1);
-  --color-input: oklch(1 0 0 / 0.15);
-  --color-ring: oklch(0.556 0 0);
-
-  /* Brand Colors */
-  --color-ms-green: #27ce40;
-  --color-ms-green-dark: #064d2a;
-  --color-twitch: #9146FF;
+  /* Colors - Base Dark Theme */
+  --color-background: #050505;
+  --color-foreground: #ffffff;
+  
+  /* Brand Colors - Blue/Purple Theme */
+  --color-ms-primary: #6366f1;
+  --color-ms-primary-light: #818cf8;
+  --color-ms-primary-dark: #4338ca;
+  --color-ms-secondary: #a855f7;
+  --color-brand-glow: rgba(99, 102, 241, 0.5);
 
   /* Fonts */
   --font-jost: "Jost Variable", sans-serif;
   --font-lexend: "Lexend Variable", sans-serif;
-  --font-albert: "Albert Sans Variable", sans-serif;
-
+  
   /* Animations */
-  --animate-blob: blob 7s infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-slow: pulse-slow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 
-  @keyframes blob {
-    0% {
-      transform: translate(0px, 0px) scale(1);
-    }
-    33% {
-      transform: translate(30px, -50px) scale(1.1);
-    }
-    66% {
-      transform: translate(-20px, 20px) scale(0.9);
-    }
-    100% {
-      transform: translate(0px, 0px) scale(1);
-    }
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+  }
+  
+  @keyframes pulse-slow {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 0.6; }
   }
 }
 
-/* Base styles */
+/* Global Styles */
 body {
-  @apply bg-background text-foreground font-jost;
+  @apply bg-background text-foreground font-jost overflow-x-hidden antialiased;
 }
 
-/* Utilities */
+/* Utilities copiadas y adaptadas de tu componente */
 .glass-panel {
-  background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  @apply bg-[#121212] border border-white/5 shadow-2xl backdrop-blur-md;
 }
 
-.glass-card {
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+.text-gradient-ms {
+  @apply bg-clip-text text-transparent bg-gradient-to-b from-ms-primary-light to-ms-primary;
 }
 
-.text-gradient {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-ms-green to-green-400;
-}
-
-/* Liquid/Glow effects */
-.glow-blob {
+.glow-orb-ms {
   position: absolute;
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(39, 206, 64, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+  background: rgba(99, 102, 241, 0.15);
+  filter: blur(120px);
   border-radius: 50%;
   pointer-events: none;
   z-index: -1;
-  filter: blur(80px);
 }

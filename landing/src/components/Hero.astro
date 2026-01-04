@@ -1,130 +1,306 @@
 ---
-
+// src/components/Hero.astro
 ---
 
-<section class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden">
-  <!-- Background Effects -->
-  <div
-    class="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full z-0 pointer-events-none"
-  >
-    <div
-      class="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-ms-green/20 rounded-full blur-[120px] animate-blob"
-    >
+<section
+  id="hero-section"
+  class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden perspective-distant"
+>
+  <div class="relative z-10 max-w-7xl mx-auto px-4 text-center">
+    <div id="hero-armadillo" class="flex justify-center mb-4 opacity-0">
+      <img
+        src="/armadillo_running.gif"
+        alt="Armadillo running"
+        class="h-12 w-auto opacity-80 hover:opacity-100 transition-opacity"
+      />
     </div>
     <div
-      class="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[100px] animate-blob animation-delay-2000"
-    >
-    </div>
-    <div
-      class="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-ms-green/10 rounded-full blur-[120px] animate-blob animation-delay-4000"
-    >
-    </div>
-  </div>
-
-  <div
-    class="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0))] opacity-20"
-  >
-  </div>
-
-  <div class="relative z-10 max-w-screen-xl mx-auto px-4 text-center">
-    <div
-      class="inline-flex items-center gap-2 px-3 py-1 rounded-full glass-panel mb-8 text-sm text-gray-300 border border-white/10 hover:border-ms-green/50 transition-colors cursor-default"
+      id="hero-badge"
+      class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#121212] border border-white/10 mb-8 animate-fade-in-up hover:border-ms-primary/30 transition-colors cursor-default opacity-0"
     >
       <span class="relative flex h-2 w-2">
         <span
-          class="animate-ping absolute inline-flex h-full w-full rounded-full bg-ms-green opacity-75"
+          class="animate-ping absolute inline-flex h-full w-full rounded-full bg-ms-primary opacity-75"
         ></span>
-        <span class="relative inline-flex rounded-full h-2 w-2 bg-ms-green"
+        <span class="relative inline-flex rounded-full h-2 w-2 bg-ms-primary"
         ></span>
       </span>
-      v1.0.0 Disponible Ahora
+      <span class="text-xs font-medium text-neutral-400 tracking-wide">
+        v1.0.0 Stable <span class="text-neutral-700 mx-2">|</span> Multiplataforma
+      </span>
     </div>
 
     <h1
-      class="mb-6 text-5xl font-extrabold tracking-tight leading-none md:text-6xl lg:text-7xl text-white"
+      id="hero-title"
+      class="mb-6 text-5xl font-lexend font-bold tracking-tight leading-[1.1] md:text-7xl text-white drop-shadow-2xl opacity-0"
     >
-      Tu puerta de entrada al <br />
-      <span class="text-gradient">Multiverso Minecraft</span>
+      Tu universo Minecraft, <br />
+      <span
+        class="bg-clip-text text-transparent bg-gradient-to-b from-ms-primary-light to-ms-secondary"
+      >
+        perfectamente organizado.
+      </span>
     </h1>
+
     <p
-      class="mb-10 text-lg font-normal text-gray-400 lg:text-xl sm:px-16 lg:px-48 max-w-4xl mx-auto"
+      id="hero-desc"
+      class="mb-10 text-lg text-neutral-400 max-w-2xl mx-auto leading-relaxed opacity-0"
     >
-      Descubre, instala y gestiona tus modpacks favoritos con una experiencia <span
-        class="text-white font-medium">moderna</span
-      >, <span class="text-white font-medium">rápida</span> y <span
-        class="text-white font-medium">segura</span
-      >.
+      Modpack Store es el launcher definitivo diseñado para velocidad y
+      estética. Gestiona instancias, importa mrpacks y juega sin distracciones.
     </p>
 
     <div
-      class="flex flex-col space-y-4 sm:flex-row sm:justify-center sm:space-y-0 sm:space-x-4"
+      id="hero-cta"
+      class="flex flex-col sm:flex-row justify-center gap-4 mb-24 opacity-0"
     >
       <a
         href="#download"
-        class="inline-flex justify-center items-center py-4 px-8 text-base font-bold text-center text-white rounded-xl bg-ms-green hover:bg-green-500 focus:ring-4 focus:ring-green-900 transition-all transform hover:scale-105 shadow-[0_0_20px_rgba(39,206,64,0.3)] hover:shadow-[0_0_30px_rgba(39,206,64,0.5)]"
+        class="group relative px-8 py-4 bg-gradient-to-b from-ms-primary to-ms-primary-dark hover:from-ms-primary-light hover:to-ms-primary text-white rounded-xl font-bold text-lg transition-all shadow-[0_0_40px_rgba(99,102,241,0.2)] hover:shadow-[0_0_60px_rgba(99,102,241,0.4)] hover:-translate-y-1"
       >
-        Descargar Gratis
-        <svg
-          class="w-5 h-5 ms-2 -mr-1"
-          fill="currentColor"
-          viewBox="0 0 20 20"
-          xmlns="http://www.w3.org/2000/svg"
-          ><path
-            fill-rule="evenodd"
-            d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z"
-            clip-rule="evenodd"></path></svg
-        >
-      </a>
-      <a
-        href="#features"
-        class="inline-flex justify-center items-center py-4 px-8 text-base font-medium text-center text-white rounded-xl glass-panel hover:bg-white/5 focus:ring-4 focus:ring-gray-700 transition-all"
-      >
-        Explorar Características
+        <span class="flex items-center gap-2">
+          <svg
+            class="w-5 h-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            ><path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+            ></path></svg
+          >
+          Descargar Gratis
+        </span>
       </a>
     </div>
 
-    <!-- App Preview Mockup -->
-    <div class="mt-20 relative mx-auto max-w-5xl">
+    <div
+      id="hero-preview"
+      class="relative mx-auto max-w-5xl perspective-2000 group opacity-0"
+    >
       <div
-        class="absolute -inset-1 bg-gradient-to-r from-ms-green to-blue-600 rounded-2xl blur opacity-20"
+        class="absolute -inset-1 bg-gradient-to-r from-ms-primary via-ms-secondary to-ms-primary rounded-2xl blur-2xl opacity-10 group-hover:opacity-20 transition duration-1000"
       >
       </div>
+
       <div
-        class="relative rounded-xl border border-white/10 bg-background/50 backdrop-blur-xl shadow-2xl overflow-hidden"
+        class="relative bg-[#0a0a0a] rounded-xl border border-white/10 shadow-2xl overflow-hidden transform transition-transform duration-700 hover:scale-[1.01] rotate-x-6 group-hover:rotate-x-0 origin-center"
       >
         <div
-          class="flex items-center px-4 py-3 border-b border-white/5 bg-white/5"
+          class="h-10 bg-[#121212] border-b border-white/5 flex items-center px-4 justify-between"
         >
-          <div class="flex space-x-2">
-            <div class="w-3 h-3 rounded-full bg-red-500/80"></div>
-            <div class="w-3 h-3 rounded-full bg-yellow-500/80"></div>
-            <div class="w-3 h-3 rounded-full bg-green-500/80"></div>
+          <div class="flex gap-2">
+            <div
+              class="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50"
+            >
+            </div>
+            <div
+              class="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50"
+            >
+            </div>
+            <div
+              class="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50"
+            >
+            </div>
           </div>
-          <div class="mx-auto text-xs text-gray-500 font-mono">
+          <div
+            class="text-[10px] font-mono text-neutral-600 uppercase tracking-widest pointer-events-none select-none"
+          >
             Modpack Store
           </div>
+          <div class="w-12"></div>
         </div>
-        <div
-          class="aspect-video bg-card/50 flex items-center justify-center relative overflow-hidden group"
-        >
-          <!-- Placeholder for App Screenshot -->
-          <div
-            class="absolute inset-0 bg-gradient-to-br from-card to-background opacity-50"
-          >
-          </div>
-          <span
-            class="relative z-10 text-gray-500 font-mono text-sm border border-white/10 px-4 py-2 rounded glass-panel"
-          >
-            [Captura de Pantalla de la App]
-          </span>
 
-          <!-- Reflection effect -->
+        <div class="flex h-[450px] md:h-[550px]">
           <div
-            class="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/5 to-white/0 opacity-0 group-hover:opacity-100 transition-opacity duration-700 pointer-events-none transform translate-x-[-100%] group-hover:translate-x-[100%] transition-transform"
+            class="w-16 md:w-64 border-r border-white/5 bg-[#0f0f0f] hidden md:flex flex-col p-4 gap-2"
           >
+            <div
+              class="flex items-center gap-3 mb-6 p-2 rounded-lg bg-white/5 border border-white/5"
+            >
+              <div
+                class="w-8 h-8 rounded-full bg-gradient-to-tr from-ms-primary to-ms-secondary"
+              >
+              </div>
+              <div class="flex-1 space-y-1">
+                <div class="h-2 w-20 bg-white/20 rounded-full"></div>
+                <div class="h-1.5 w-12 bg-white/10 rounded-full"></div>
+              </div>
+            </div>
+
+            <div
+              class="h-10 w-full bg-ms-primary/10 border border-ms-primary/20 rounded-lg flex items-center gap-3 px-3"
+            >
+              <div class="w-5 h-5 rounded bg-ms-primary/50"></div>
+              <div class="w-24 h-2 bg-ms-primary/30 rounded"></div>
+            </div>
+            <div
+              class="h-10 w-full hover:bg-white/5 rounded-lg flex items-center gap-3 px-3 opacity-40"
+            >
+              <div class="w-5 h-5 rounded bg-white/20"></div>
+              <div class="w-16 h-2 bg-white/10 rounded"></div>
+            </div>
+            <div
+              class="h-10 w-full hover:bg-white/5 rounded-lg flex items-center gap-3 px-3 opacity-40"
+            >
+              <div class="w-5 h-5 rounded bg-white/20"></div>
+              <div class="w-20 h-2 bg-white/10 rounded"></div>
+            </div>
+          </div>
+
+          <div class="flex-1 bg-[#0a0a0a] p-6 md:p-8 relative">
+            <div
+              class="flex items-end justify-between mb-8 border-b border-white/5 pb-4"
+            >
+              <div>
+                <div
+                  class="h-8 w-48 bg-gradient-to-r from-ms-primary/20 to-transparent rounded mb-2"
+                >
+                </div>
+                <div class="h-4 w-64 bg-white/5 rounded"></div>
+              </div>
+              <div class="w-8 h-8 rounded bg-teal-500/20"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div
+                class="group/card relative p-4 rounded-xl bg-[#121212] border border-white/5 hover:border-teal-500/30 transition-all cursor-default overflow-hidden"
+              >
+                <div
+                  class="absolute inset-0 bg-gradient-to-b from-teal-500/5 to-transparent opacity-0 group-hover/card:opacity-100 transition"
+                >
+                </div>
+                <div class="flex items-center gap-4 mb-4 relative z-10">
+                  <div
+                    class="w-12 h-12 rounded-lg bg-neutral-800 shrink-0 border border-white/5"
+                  >
+                  </div>
+                  <div>
+                    <div class="h-3 w-24 bg-white/20 rounded mb-2"></div>
+                    <div class="h-2 w-16 bg-white/10 rounded"></div>
+                  </div>
+                </div>
+                <div
+                  class="h-8 w-full bg-teal-600 text-white text-[10px] tracking-wider font-bold rounded-lg flex items-center justify-center opacity-90 group-hover/card:opacity-100 shadow-lg shadow-teal-900/20 transition"
+                >
+                  JUGAR
+                </div>
+              </div>
+
+              <div
+                class="p-4 rounded-xl bg-[#121212] border border-white/5 opacity-50"
+              >
+                <div class="flex items-center gap-4 mb-4">
+                  <div class="w-12 h-12 rounded-lg bg-neutral-800 shrink-0">
+                  </div>
+                  <div>
+                    <div class="h-3 w-20 bg-white/10 rounded mb-2"></div>
+                    <div class="h-2 w-12 bg-white/5 rounded"></div>
+                  </div>
+                </div>
+                <div class="h-8 w-full bg-white/5 rounded-lg"></div>
+              </div>
+
+              <div
+                class="p-4 rounded-xl bg-[#121212] border border-white/5 opacity-50 hidden lg:block"
+              >
+                <div class="flex items-center gap-4 mb-4">
+                  <div class="w-12 h-12 rounded-lg bg-neutral-800 shrink-0">
+                  </div>
+                  <div>
+                    <div class="h-3 w-28 bg-white/10 rounded mb-2"></div>
+                    <div class="h-2 w-14 bg-white/5 rounded"></div>
+                  </div>
+                </div>
+                <div class="h-8 w-full bg-white/5 rounded-lg"></div>
+              </div>
+
+              <div
+                class="p-4 rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 opacity-50"
+              >
+                <div
+                  class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/20 text-xl"
+                >
+                  +
+                </div>
+                <div class="h-2 w-16 bg-white/5 rounded"></div>
+              </div>
+            </div>
+
+            <div
+              class="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#0a0a0a] to-transparent pointer-events-none"
+            >
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
 </section>
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+
+  gsap.registerPlugin(ScrollTrigger);
+
+  // Hero Animation
+  const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+
+  tl.to("#hero-armadillo", { opacity: 1, y: 0, duration: 1, delay: 0.2 })
+    .to("#hero-badge", { opacity: 1, y: 0, duration: 0.8 }, "-=0.6")
+    .to("#hero-title", { opacity: 1, y: 0, duration: 1 }, "-=0.6")
+    .to("#hero-desc", { opacity: 1, y: 0, duration: 1 }, "-=0.8")
+    .to("#hero-cta", { opacity: 1, y: 0, duration: 1 }, "-=0.8")
+    .to(
+      "#hero-preview",
+      {
+        opacity: 1,
+        y: 0,
+        rotationX: 0,
+        duration: 1.5,
+        ease: "expo.out",
+      },
+      "-=1"
+    );
+
+  // Parallax effect on preview
+  gsap.to("#hero-preview", {
+    scrollTrigger: {
+      trigger: "#hero-section",
+      start: "top top",
+      end: "bottom top",
+      scrub: true,
+    },
+    y: 100,
+    scale: 0.95,
+    opacity: 0.8,
+  });
+</script>
+
+<style>
+  #hero-armadillo,
+  #hero-badge,
+  #hero-title,
+  #hero-desc,
+  #hero-cta,
+  #hero-preview {
+    transform: translateY(30px);
+  }
+
+  #hero-preview {
+    transform: translateY(50px) rotateX(10deg);
+  }
+
+  .perspective-2000 {
+    perspective: 2000px;
+  }
+  .rotate-x-6 {
+    transform: rotateX(6deg);
+  }
+  .rotate-x-0 {
+    transform: rotateX(0deg);
+  }
+</style>

@@ -1,0 +1,1 @@
+export const DOWNLOAD_URL = "https://www.patreon.com/posts/modpack-store-0-137960751"
