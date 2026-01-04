@@ -170,6 +170,7 @@ fn validate_type(value: &Value, expected_type: &ConfigValueType) -> Result<(), V
         // Slider suele ser un valor numérico (enteros o flotantes)
         ConfigValueType::Slider => value.is_number(),
         ConfigValueType::Language_Enum => value.is_string(),
+        ConfigValueType::Hotkey => value.is_string(),
     };
 
     if !valid {

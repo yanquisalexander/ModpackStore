@@ -15,6 +15,7 @@ use core::auth::*;
 use serde_json::json;
 use std::process::Command;
 use std::str;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::sync::Mutex;
 use tauri::menu::{Menu, MenuItem};
@@ -23,6 +24,8 @@ use tauri::Wry;
 use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize}; // Necesario para get_window y emit
 use tauri_plugin_log::{Target, TargetKind};
 use tauri_plugin_store::StoreExt;
+use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState, Shortcut};
 
 static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::AppHandle>>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
@@ -44,6 +47,10 @@ struct PendingInstance {
     id: Mutex<Option<String>>,
 }
 
+struct AppState {
+    started_minimized: Mutex<bool>,
+}
+
 #[tauri::command]
 async fn get_git_hash() -> String {
     option_env!("GIT_HASH_BUILD_TIME")
@@ -56,9 +63,17 @@ fn splash_done(app: tauri::AppHandle) {
     let splash_window = app.get_webview_window("splash").unwrap();
     let main_window = app.get_webview_window("main").unwrap();
     splash_window.close().unwrap();
-    main_window.set_focus().unwrap();
-    log::info!("Splash screen closed, main window focused.");
-    main_window.show().unwrap();
+    
+    let state: tauri::State<Arc<AppState>> = app.state();
+    let started_minimized = *state.started_minimized.lock().unwrap();
+
+    if !started_minimized {
+        main_window.set_focus().unwrap();
+        log::info!("Splash screen closed, main window focused.");
+        main_window.show().unwrap();
+    } else {
+        log::info!("Splash screen closed, main window kept hidden (started minimized).");
+    }
 
     let id = {
         let state: tauri::State<Arc<PendingInstance>> = app.state();
@@ -76,6 +91,11 @@ async fn get_running_instances(
     Ok(crate::core::instance_launcher::get_running_instances_list())
 }
 
+#[tauri::command]
+async fn kill_mc_instance(instance_id: String) -> Result<(), String> {
+    crate::core::instance_launcher::kill_instance(instance_id)
+}
+
 pub fn main() {
     let _ = fix_path_env::fix();
 
@@ -91,6 +111,52 @@ pub fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
+        .plugin(tauri_plugin_global_shortcut::Builder::new().with_handler(move |app, shortcut, event| {
+            if event.state == ShortcutState::Pressed {
+                if crate::core::hotkeys::is_fullscreen_active() {
+                     log::info!("Hotkey ignored: fullscreen active");
+                     return;
+                }
+                
+                let shortcut_str = shortcut.to_string();
+                
+                if let Ok(config_mgr) = crate::config::get_config_manager().lock() {
+                    if let Ok(config) = config_mgr.as_ref() {
+                         let open_app_str = config.get("hotkeyOpenApp").and_then(|v| v.as_str()).unwrap_or("Ctrl+Alt+M");
+                         let toggle_overlay_str = config.get("hotkeyToggleOverlay").and_then(|v| v.as_str()).unwrap_or("Ctrl+Shift+I");
+                         let kill_instance_str = config.get("hotkeyKillInstance").and_then(|v| v.as_str()).unwrap_or("Ctrl+Alt+Shift+X");
+                         
+                         log::info!("Hotkey pressed: '{}'. Configured: Open='{}', Overlay='{}', Kill='{}'", shortcut_str, open_app_str, toggle_overlay_str, kill_instance_str);
+
+                         if let Ok(s) = Shortcut::from_str(open_app_str) {
+                             if shortcut == &s {
+                                 crate::core::hotkeys::toggle_main_window(app);
+                                 return;
+                             }
+                         }
+                         
+                         if let Ok(s) = Shortcut::from_str(toggle_overlay_str) {
+                             if shortcut == &s {
+                                 crate::core::hotkeys::toggle_overlay(app);
+                                 return;
+                             }
+                         }
+
+                         if let Ok(s) = Shortcut::from_str(kill_instance_str) {
+                             if shortcut == &s {
+                                 let _ = app.emit("instance:kill", ());
+                                 return;
+                             }
+                         }
+                    } else {
+                        log::error!("Failed to get config reference in hotkey handler");
+                    }
+                } else {
+                    log::error!("Failed to lock config manager in hotkey handler");
+                }
+            }
+        }).build())
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             let _ = app
                 .get_webview_window("main")
@@ -135,6 +201,9 @@ pub fn main() {
         .manage(Arc::new(PendingInstance {
             id: Mutex::new(None),
         }))
+        .manage(Arc::new(AppState {
+            started_minimized: Mutex::new(false),
+        }))
         .setup(|app| {
             log::info!("Starting Modpack Store...");
             log::info!(
@@ -142,6 +211,28 @@ pub fn main() {
                 std::env::consts::OS,
                 std::env::consts::ARCH
             );
+
+            // Check for minimized start
+            let args: Vec<String> = std::env::args().collect();
+            let started_minimized = args.contains(&"--minimized".to_string());
+            
+            if started_minimized {
+                if let Some(splash) = app.get_webview_window("splash") {
+                    let _ = splash.hide();
+                }
+                let state: tauri::State<Arc<AppState>> = app.state();
+                *state.started_minimized.lock().unwrap() = true;
+                
+                 use tauri_plugin_notification::NotificationExt;
+                 let _ = app.notification()
+                    .builder()
+                    .title("Modpack Store")
+                    .body("Modpack Store está corriendo en segundo plano. Usa Ctrl + Alt + M para abrir")
+                    .show();
+            }
+
+            // Register hotkeys
+            crate::core::hotkeys::register_hotkeys(app.handle());
 
             // Store the AppHandle in the static variable
             let mut app_handle = GLOBAL_APP_HANDLE.lock().unwrap();
@@ -189,7 +280,7 @@ pub fn main() {
                         }
                         "show_instances" => {
                             if let Some(window) =
-                                app.get_webview_window("running-instances-tray-window")
+                                app.get_webview_window("instances-overlay")
                             {
                                 // Posicionamiento: Arriba a la derecha
                                 if let Some(monitor) = window.current_monitor().unwrap_or(None) {
@@ -343,7 +434,10 @@ pub fn main() {
             utils::desktop_integration::create_shortcut,
             get_git_hash,
             get_running_instances,
+            kill_mc_instance,
             splash_done,
+            core::hotkeys::reload_hotkeys,
+            core::hotkeys::unregister_hotkeys,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

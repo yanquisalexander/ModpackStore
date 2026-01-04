@@ -88,16 +88,17 @@
         "visible": true
       },
       {
-        "label": "running-instances-tray-window",
+        "label": "instances-overlay",
         "title": "Instancias Activas",
-        "width": 350,
-        "height": 500,
+        "width": 450,
+        "height": 600,
         "resizable": false,
         "fullscreen": false,
         "decorations": false,
         "transparent": true,
         "alwaysOnTop": true,
         "skipTaskbar": true,
+        "center": true,
         "visible": false,
         "shadow": false,
         "url": "tray.html"

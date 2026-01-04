@@ -92,3 +92,39 @@ selectedTheme:
   default: "dark"
   description: "Tema seleccionado por el usuario"
   ui_section: internal # We don't show this in the UI, because the Theme Chooser handles it
+
+startWithSystem:
+  type: boolean
+  default: false
+  description: "Iniciar automáticamente con el sistema"
+  ui_section: general
+
+startMinimizedToTray:
+  type: boolean
+  default: false
+  description: "Iniciar minimizado en la bandeja del sistema"
+  ui_section: general
+
+hotkeysEnabled:
+  type: boolean
+  default: true
+  description: "Habilitar atajos de teclado globales"
+  ui_section: hotkeys
+
+hotkeyOpenApp:
+  type: hotkey
+  default: "Ctrl+Alt+M"
+  description: "Atajo para abrir/ocultar la aplicación"
+  ui_section: hotkeys
+
+hotkeyToggleOverlay:
+  type: hotkey
+  default: "Ctrl+Shift+I"
+  description: "Atajo para mostrar/ocultar el overlay de instancias"
+  ui_section: hotkeys
+
+hotkeyKillInstance:
+  type: hotkey
+  default: "Ctrl+Alt+Shift+X"
+  description: "Atajo para forzar cierre de instancia activa"
+  ui_section: hotkeys

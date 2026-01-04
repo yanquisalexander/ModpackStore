@@ -16,6 +16,7 @@ pub enum ConfigValueType {
     List,
     Slider,
     Language_Enum,
+    Hotkey,
 }
 
 /// Define una entrada de configuración

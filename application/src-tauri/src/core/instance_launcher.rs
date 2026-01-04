@@ -26,6 +26,7 @@ use log::{error, info, warn};
 use regex::Regex;
 use serde::Serialize;
 use serde_json::{json, Value};
+use sysinfo::{Pid, System};
 use tauri::{Emitter, Manager};
 use thiserror::Error;
 
@@ -115,6 +116,7 @@ pub struct RunningInstanceInfo {
     pub name: String,
     pub version: String,
     pub icon: Option<String>,
+    pub pid: u32,
 }
 
 lazy_static! {
@@ -127,6 +129,46 @@ lazy_static! {
 pub fn get_running_instances_list() -> Vec<RunningInstanceInfo> {
     let lock = RUNNING_INSTANCES.lock().unwrap();
     lock.values().cloned().collect()
+}
+
+pub fn kill_instance(instance_id: String) -> Result<(), String> {
+    let pid = {
+        let lock = RUNNING_INSTANCES.lock().unwrap();
+        lock.get(&instance_id).map(|info| info.pid)
+    };
+
+    if let Some(pid) = pid {
+        let mut system = System::new();
+        system.refresh_processes(sysinfo::ProcessesToUpdate::All);
+        
+        if let Some(process) = system.process(Pid::from_u32(pid)) {
+            process.kill();
+            info!("Killed instance {} (PID: {})", instance_id, pid);
+            return Ok(());
+        } else {
+            // Fallback: Try OS command if sysinfo didn't find it (maybe it's a zombie or sysinfo issue)
+             #[cfg(target_os = "windows")]
+            {
+                let _ = Command::new("taskkill")
+                    .args(["/F", "/PID", &pid.to_string()])
+                    .output()
+                    .map_err(|e| e.to_string())?;
+                 info!("Killed instance {} (PID: {}) via taskkill", instance_id, pid);
+                 return Ok(());
+            }
+            #[cfg(not(target_os = "windows"))]
+            {
+                 let _ = Command::new("kill")
+                    .args(["-9", &pid.to_string()])
+                    .output()
+                    .map_err(|e| e.to_string())?;
+                 info!("Killed instance {} (PID: {}) via kill", instance_id, pid);
+                 return Ok(());
+            }
+        }
+    }
+    
+    Err("Instance not found or not running".to_string())
 }
 
 impl InstanceLauncher {
@@ -499,6 +541,7 @@ impl InstanceLauncher {
                             name: self.instance.instanceName.clone(),
                             version: self.instance.minecraftVersion.clone(),
                             icon: self.instance.iconUrl.clone(),
+                            pid: child_process.id(),
                         },
                     );
                 }

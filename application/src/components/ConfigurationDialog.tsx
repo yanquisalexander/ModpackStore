@@ -30,6 +30,7 @@ import { Slider } from "@/components/ui/slider";
 import { ConfigSection } from '@/components/configuration/ConfigSection';
 import { ThemeSelector } from '@/components/theme/ThemeSelector';
 import { WhitelistModeSettings } from '@/components/WhitelistModeSettings';
+import { HotkeyRecorder } from '@/components/configuration/HotkeyRecorder';
 
 // Types
 import type {
@@ -138,6 +139,9 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
             const configToSave = Object.entries(config.values).filter(([key]) => key !== 'selectedTheme');
             await Promise.all(configToSave.map(([key, value]) => invoke('set_config', { key, value })));
 
+            // Recargar hotkeys con la nueva configuración
+            await invoke('reload_hotkeys');
+
             toast.success(t('config.saveSuccess'), { description: t('config.saveSuccessDescription') });
             setConfig(prev => ({ ...prev, saving: false }));
             onClose();
@@ -215,6 +219,8 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                         )}
                     </div>
                 );
+            case "hotkey":
+                return <HotkeyRecorder value={String(value || def.default)} onChange={(val) => handleConfigChange(key, val)} />;
             default:
                 return <Input className={commonClass} value={String(value) || ''} onChange={(e) => handleConfigChange(key, e.target.value)} />;
         }
