@@ -5,11 +5,11 @@ import { ModpackFile, ModpackFileType } from "@/entities/ModpackFile";
 import { ModpackVersionFile } from "@/entities/ModpackVersionFile";
 import { In } from "typeorm";
 import { sendProgressUpdate, sendCompletionUpdate, sendErrorUpdate } from "./realtime.service";
-import JSZip from 'jszip';
 import crypto from 'crypto';
 import { batchUploadToR2 } from './r2UploadService';
 import { path7x } from '7zip-bin';
 import { execSync } from 'child_process';
+import { Readable } from "stream";
 
 export const ALLOWED_FILE_TYPES = ['mods', 'resourcepacks', 'config', 'shaderpacks', 'datapacks', 'extras'];
 export const ALLOWED_ARCHIVE_EXTENSIONS = ['.zip', '.rar', '.7z'];
@@ -20,43 +20,35 @@ if (!fs.existsSync(TEMP_UPLOAD_DIR)) fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: 
 type UploadSource = Buffer | File;
 
 /**
- * Determina si el ZIP contiene un único directorio raíz que coincide con el tipo de archivo.
- * Si es así, devuelve esa ruta para que pueda ser eliminada del path final.
- * @param zip - La instancia de JSZip.
- * @param fileType - El tipo de archivo (ej: 'mods').
- * @returns El path base a eliminar (ej: 'mods/'), o una cadena vacía si no se debe eliminar nada.
+ * Calcula el hash SHA1 de un archivo de forma eficiente usando streams.
  */
-const determineBasePath = (zip: JSZip, fileType: string): string => {
-  // 'extras' siempre se extrae tal cual
-  if (fileType === 'extras') {
-    return '';
-  }
-
-  const topLevelEntries = Object.values(zip.files).filter(file => !file.dir && !file.name.includes('/'));
-
-  // Si hay archivos en la raíz del ZIP, no hay un directorio base que eliminar.
-  if (topLevelEntries.length > 0) {
-    return '';
-  }
-
-  // Obtenemos todos los directorios de primer nivel
-  const rootDirs = new Set<string>();
-  Object.values(zip.files).forEach(file => {
-    if (!file.dir) {
-      const parts = file.name.split('/');
-      if (parts.length > 1) {
-        rootDirs.add(parts[0]);
-      }
-    }
+const calculateFileHash = (filePath: string): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha1');
+    const stream = fs.createReadStream(filePath);
+    stream.on('data', (data) => hash.update(data));
+    stream.on('end', () => resolve(hash.digest('hex')));
+    stream.on('error', (err) => reject(err));
   });
+};
 
-  // Si hay más de un directorio en la raíz, o ninguno, no hacemos nada.
-  // También comprobamos si el nombre del único directorio raíz coincide con el fileType.
-  if (rootDirs.size === 1) {
-    const singleRootDir = rootDirs.values().next().value;
-    if (singleRootDir?.toLowerCase() === fileType.toLowerCase()) {
-      console.log(`Se detectó un directorio raíz coincidente: '${singleRootDir}'. Se eliminará del path final.`);
-      return `${singleRootDir}/`; // Retornamos el prefijo a eliminar, ej: "mods/"
+/**
+ * Determina si el directorio extraído contiene un único directorio raíz que coincide con el tipo de archivo.
+ */
+const determineBasePathFromDir = (extractDir: string, fileType: string): string => {
+  if (fileType === 'extras') return '';
+
+  const entries = fs.readdirSync(extractDir, { withFileTypes: true });
+
+  // Si hay más de un elemento en la raíz, o si el único elemento no es un directorio, no hay base path.
+  // Pero espera, puede haber carpetas ocultas o archivos de sistema como .DS_Store.
+  const visibleEntries = entries.filter(e => !e.name.startsWith('.'));
+
+  if (visibleEntries.length === 1 && visibleEntries[0].isDirectory()) {
+    const dirName = visibleEntries[0].name;
+    if (dirName.toLowerCase() === fileType.toLowerCase()) {
+      console.log(`Se detectó un directorio raíz coincidente: '${dirName}'. Se eliminará del path final.`);
+      return `${dirName}/`;
     }
   }
 
@@ -84,61 +76,20 @@ const detectArchiveType = (filename: string): 'zip' | 'rar' | '7z' | null => {
 
 /**
  * Extrae archivos de un archivo comprimido (ZIP, RAR, 7z) a un directorio temporal.
- * @param archivePath - Ruta al archivo comprimido.
- * @param extractDir - Directorio donde extraer los archivos.
- * @param archiveType - Tipo de archivo ('zip', 'rar', '7z').
- * @returns Array de objetos con información de los archivos extraídos.
+ * Usa 7-Zip para todos los formatos por eficiencia de memoria.
  */
 const extractArchive = async (
   archivePath: string,
   extractDir: string,
   archiveType: 'zip' | 'rar' | '7z'
-): Promise<{ name: string; buffer: Buffer }[]> => {
-  if (archiveType === 'zip') {
-    // Usar JSZip para ZIP
-    const buffer = fs.readFileSync(archivePath);
-    const zip = await JSZip.loadAsync(buffer);
-    const files: { name: string; buffer: Buffer }[] = [];
+): Promise<void> => {
+  const sevenZipPath = path7x;
+  const extractCommand = `"${sevenZipPath}" x "${archivePath}" -o"${extractDir}" -y`;
 
-    for (const [name, file] of Object.entries(zip.files)) {
-      if (!file.dir) {
-        const buffer = await file.async('nodebuffer');
-        files.push({ name, buffer });
-      }
-    }
-
-    return files;
-  } else {
-    // Usar 7zip para RAR y 7z
-    const sevenZipPath = path7x;
-    const extractCommand = `"${sevenZipPath}" x "${archivePath}" -o"${extractDir}" -y`;
-
-    try {
-      execSync(extractCommand, { stdio: 'pipe' });
-    } catch (error) {
-      throw new Error(`Error extracting ${archiveType} file: ${error instanceof Error ? error.message : String(error)}`);
-    }
-
-    // Leer todos los archivos extraídos
-    const files: { name: string; buffer: Buffer }[] = [];
-    const walkDir = (dir: string, basePath: string = '') => {
-      const items = fs.readdirSync(dir);
-      for (const item of items) {
-        const fullPath = path.join(dir, item);
-        const relativePath = path.join(basePath, item).replace(/\\/g, '/');
-        const stat = fs.statSync(fullPath);
-
-        if (stat.isDirectory()) {
-          walkDir(fullPath, relativePath);
-        } else {
-          const buffer = fs.readFileSync(fullPath);
-          files.push({ name: relativePath, buffer });
-        }
-      }
-    };
-
-    walkDir(extractDir);
-    return files;
+  try {
+    execSync(extractCommand, { stdio: 'pipe' });
+  } catch (error) {
+    throw new Error(`Error extracting ${archiveType} file: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
@@ -154,16 +105,27 @@ export const processModpackFileUpload = async (
     throw new Error(`Tipo de archivo no permitido: ${fileType}`);
   }
 
-  const buffer: Buffer =
-    source instanceof Buffer
-      ? source
-      : (typeof File !== "undefined" && source instanceof File)
-        ? Buffer.from(await source.arrayBuffer())
-        : (() => { throw new Error("El tipo de 'source' no es soportado."); })();
-
   const tempPath = path.join(TEMP_UPLOAD_DIR, `${Date.now()}-${filename}`);
   const extractDir = path.join(TEMP_UPLOAD_DIR, `extract-${Date.now()}`);
-  fs.writeFileSync(tempPath, buffer);
+
+  if (source instanceof Buffer) {
+    fs.writeFileSync(tempPath, source);
+  } else if (typeof File !== "undefined" && source instanceof File) {
+    // Optimización: Stream del archivo a disco para evitar cargar todo el ZIP en memoria
+    const writeStream = fs.createWriteStream(tempPath);
+    const webStream = source.stream();
+    const nodeStream = Readable.fromWeb(webStream as any);
+
+    await new Promise<void>((resolve, reject) => {
+      nodeStream.pipe(writeStream);
+      writeStream.on('finish', () => resolve());
+      writeStream.on('error', reject);
+      nodeStream.on('error', reject);
+    });
+  } else {
+    throw new Error("El tipo de 'source' no es soportado.");
+  }
+
   console.log(`Archivo guardado temporalmente: ${tempPath}`);
 
   const task = async () => {
@@ -184,74 +146,68 @@ export const processModpackFileUpload = async (
       // Crear directorio temporal para extracción
       if (!fs.existsSync(extractDir)) fs.mkdirSync(extractDir, { recursive: true });
 
-      // Usar la función de extracción para obtener los archivos en un buffer
-      const extractedFiles = await extractArchive(tempPath, extractDir, archiveType);
+      // Extraer el archivo a disco
+      await extractArchive(tempPath, extractDir, archiveType);
 
-      // Determinar si hay que eliminar un directorio base (solo para ZIP)
-      let basePathToStrip = '';
-      if (archiveType === 'zip') {
-        // Para ZIP, usar la lógica existente con JSZip
-        const zipBuffer = fs.readFileSync(tempPath);
-        const zip = await JSZip.loadAsync(zipBuffer);
-        basePathToStrip = determineBasePath(zip, fileType);
-      } else {
-        // Para RAR/7z, lógica simplificada: si todos los archivos están en un directorio que coincide con fileType, eliminarlo
-        const rootDirs = new Set<string>();
-        extractedFiles.forEach(file => {
-          const parts = file.name.split('/');
-          if (parts.length > 1) {
-            rootDirs.add(parts[0]);
-          }
-        });
-
-        if (rootDirs.size === 1) {
-          const singleRootDir = rootDirs.values().next().value;
-          if (singleRootDir?.toLowerCase() === fileType.toLowerCase()) {
-            basePathToStrip = `${singleRootDir}/`;
-          }
-        }
-      }
+      // Determinar si hay que eliminar un directorio base
+      const basePathToStrip = determineBasePathFromDir(extractDir, fileType);
 
       const fileDbEntries: { path: string; hash: string; size: number }[] = [];
-      const uniqueUploads = new Map<string, { key: string; body: Buffer; contentType: string }>();
+      const uniqueUploads = new Map<string, { key: string; fullPath: string; contentType: string }>();
 
       sendProgressUpdate(modpackId, versionId, `Procesando archivos desde ${archiveType.toUpperCase()}`, { category: fileType, percent: 10 });
 
-      // Procesar cada archivo extraído
-      for (const file of extractedFiles) {
-        const fileBuffer = file.buffer;
+      // Procesar recursivamente el directorio extraído
+      const processDirectory = async (dir: string, currentBasePath: string = "") => {
+        const items = fs.readdirSync(dir, { withFileTypes: true });
+        for (const item of items) {
+          const fullPath = path.join(dir, item.name);
+          const relativePath = path.join(currentBasePath, item.name).replace(/\\/g, '/');
 
-        // OPTIMIZACIÓN: Calcular hash directamente desde el buffer en memoria
-        const hash = crypto.createHash('sha1').update(fileBuffer).digest('hex');
+          if (item.isDirectory()) {
+            await processDirectory(fullPath, relativePath + "/");
+          } else {
+            // Calcular hash y tamaño desde el archivo en disco
+            const hash = await calculateFileHash(fullPath);
+            const size = fs.statSync(fullPath).size;
 
-        // LÓGICA DE RUTAS: Eliminar el prefijo si es necesario y añadir el de la categoría
-        let finalPath = file.name;
-        if (basePathToStrip && finalPath.startsWith(basePathToStrip)) {
-          finalPath = finalPath.substring(basePathToStrip.length);
+            // LÓGICA DE RUTAS: Eliminar el prefijo si es necesario y añadir el de la categoría
+            let finalPath = relativePath;
+            if (basePathToStrip && finalPath.startsWith(basePathToStrip)) {
+              finalPath = finalPath.substring(basePathToStrip.length);
+            }
+
+            // 'extras' no lleva prefijo, los demás sí.
+            const dbPath = fileType === 'extras' ? finalPath : path.join(fileType, finalPath).replace(/\\/g, '/');
+
+            // Ignorar archivos vacíos resultantes de la eliminación del path
+            if (!dbPath) continue;
+
+            fileDbEntries.push({ path: dbPath, hash, size });
+
+            // Preparar para subida a R2, evitando duplicados por hash
+            if (!uniqueUploads.has(hash)) {
+              const hashKey = `${hash.substring(0, 2)}/${hash.substring(2, 4)}/${hash}`;
+              uniqueUploads.set(hash, {
+                key: `resources/files/${hashKey}`,
+                fullPath: fullPath,
+                contentType: "application/octet-stream",
+              });
+            }
+          }
         }
+      };
 
-        // 'extras' no lleva prefijo, los demás sí.
-        const dbPath = fileType === 'extras' ? finalPath : path.join(fileType, finalPath).replace(/\\/g, '/');
-
-        // Ignorar archivos vacíos resultantes de la eliminación del path (ej. el propio directorio)
-        if (!dbPath) continue;
-
-        fileDbEntries.push({ path: dbPath, hash, size: fileBuffer.length });
-
-        // Preparar para subida a R2, evitando duplicados por hash
-        if (!uniqueUploads.has(hash)) {
-          const hashKey = `${hash.substring(0, 2)}/${hash.substring(2, 4)}/${hash}`;
-          uniqueUploads.set(hash, {
-            key: `resources/files/${hashKey}`,
-            body: fileBuffer,
-            contentType: "application/octet-stream",
-          });
-        }
-      }
+      await processDirectory(extractDir);
 
       sendProgressUpdate(modpackId, versionId, `Subiendo ${uniqueUploads.size} archivos únicos`, { category: fileType, percent: 40 });
 
-      const uploadPromises = Array.from(uniqueUploads.values());
+      const uploadPromises = Array.from(uniqueUploads.values()).map(upload => ({
+        key: upload.key,
+        body: fs.createReadStream(upload.fullPath),
+        contentType: upload.contentType,
+      }));
+
       try {
         await batchUploadToR2(uploadPromises, 5); // 5 subidas concurrentes
         console.log(`Subidos ${uploadPromises.length} archivos únicos a R2 (${fileDbEntries.length - uploadPromises.length} duplicados omitidos).`);

@@ -1,23 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'; // Correct import for shadcn/ui
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { API_ENDPOINT } from '@/consts';
 import { useAuthentication } from '@/stores/AuthContext';
 import { toast } from 'sonner';
 import { Modpack } from '@/types/modpacks';
-import { UploadCloud } from 'lucide-react';
+import { UploadCloud, X, Search, Check, AlertTriangle, Lock, DollarSign, Tv } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { basicSetup } from 'codemirror';
 import { CategorySelector } from '@/components/CategorySelector';
-import { ModpackCategoryDisplay } from '@/components/ModpackCategoryDisplay';
 import { ModpackStatusManager } from '@/components/creator/ModpackStatusManager';
 
-// --- Props del componente principal ---
+// --- Interfaces ---
 interface Props {
     isOpen: boolean;
     onClose: () => void;
@@ -25,390 +25,268 @@ interface Props {
     modpack: Modpack | null;
 }
 
-// --- NUEVO: Componente reutilizable para cargar imágenes ---
-interface ImageUploaderProps {
-    label: string;
-    currentImageUrl: string;
-    onFileChange: (file: File | null) => void;
-    id: string;
-}
-
-const ImageUploader: React.FC<ImageUploaderProps> = ({ label, currentImageUrl, onFileChange, id }) => {
+// --- SUB-COMPONENTE: Image Uploader (Optimizado) ---
+const ImageUploader = ({ label, currentImageUrl, onFileChange, id, aspectRatio = "square" }: {
+    label: string,
+    currentImageUrl: string,
+    onFileChange: (file: File | null) => void,
+    id: string,
+    aspectRatio?: "square" | "video"
+}) => {
     const [preview, setPreview] = useState<string | null>(null);
 
-    // Resetear la previsualización si la URL actual cambia (ej. al abrir el diálogo con otro modpack)
-    useEffect(() => {
-        setPreview(null);
-    }, [currentImageUrl]);
+    useEffect(() => { setPreview(null); }, [currentImageUrl]);
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0] || null;
+        const file = e.target.files?.[0];
         if (file) {
-            // Crear una URL local para la previsualización
             setPreview(URL.createObjectURL(file));
             onFileChange(file);
-        } else {
-            setPreview(null);
-            onFileChange(null);
         }
     };
 
+    const clearImage = (e: React.MouseEvent) => {
+        e.preventDefault();
+        setPreview(null);
+        onFileChange(null);
+        // Nota: Esto no borra la imagen del servidor, solo limpia la selección actual o resetea al estado inicial
+    };
+
+    const activeImage = preview || currentImageUrl;
+
     return (
-        <div>
-            <label className="text-sm text-zinc-300 block mb-2">{label}</label>
-            <div className="flex items-center gap-4">
-                <div className="w-24 h-24 bg-zinc-800 border-2 border-dashed border-zinc-700 rounded-md flex items-center justify-center overflow-hidden">
-                    {preview || currentImageUrl ? (
-                        <img src={preview || currentImageUrl} alt={`${label} preview`} className="w-full h-full object-cover" />
-                    ) : (
-                        <UploadCloud className="text-zinc-500" size={32} />
-                    )}
-                </div>
-                <label htmlFor={id} className="cursor-pointer bg-zinc-700 hover:bg-zinc-600 text-white font-bold py-2 px-4 rounded-md transition-colors">
-                    Seleccionar archivo
-                </label>
-                <input
-                    id={id}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                />
+        <div className="group relative">
+            <label className="text-sm font-medium text-zinc-300 block mb-2">{label}</label>
+            <div className={`
+                relative bg-zinc-900 border-2 border-dashed border-zinc-700 hover:border-zinc-500 
+                rounded-lg flex flex-col items-center justify-center overflow-hidden transition-all cursor-pointer
+                ${aspectRatio === 'video' ? 'w-full h-48' : 'size-32'}
+            `}>
+                {activeImage ? (
+                    <>
+                        <img src={activeImage} alt="Preview" className="size-full object-cover" />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            <label htmlFor={id} className="text-xs text-white font-medium cursor-pointer p-2">Cambiar imagen</label>
+                        </div>
+                        {preview && (
+                            <button onClick={clearImage} className="absolute top-2 right-2 bg-red-500/80 p-1 rounded-full text-white hover:bg-red-600 transition-colors z-10">
+                                <X size={14} />
+                            </button>
+                        )}
+                    </>
+                ) : (
+                    <label htmlFor={id} className="flex flex-col items-center gap-2 cursor-pointer w-full h-full justify-center text-zinc-500 hover:text-zinc-300">
+                        <UploadCloud size={32} />
+                        <span className="text-xs">Click para subir</span>
+                    </label>
+                )}
+                <input id={id} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
             </div>
         </div>
     );
 };
 
-
-// --- Componente principal refactorizado ---
+// --- COMPONENTE PRINCIPAL ---
 export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, modpack }) => {
     const { sessionTokens } = useAuthentication();
-
-    // Estado para los campos del formulario
-    const [name, setName] = useState('');
-    const [shortDescription, setShortDescription] = useState('');
-    const [description, setDescription] = useState('');
-    const [visibility, setVisibility] = useState<'public' | 'private' | 'whitelist'>('public');
     const [loading, setLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState("general");
 
-    // NUEVO: Estado para los archivos de imagen
+    // Form States
+    const [formData, setFormData] = useState({
+        name: '',
+        shortDescription: '',
+        description: '',
+        visibility: 'public' as 'public' | 'private' | 'whitelist',
+        price: '',
+        password: '',
+        confirmPassword: '',
+    });
+
+    // Specialized States
     const [iconFile, setIconFile] = useState<File | null>(null);
     const [bannerFile, setBannerFile] = useState<File | null>(null);
-
-    // NUEVO: Estado para prelaunchAppearance
-    const [prelaunchAppearanceJson, setPrelaunchAppearanceJson] = useState('{}');
-
-    // NUEVO: Estado para validar el JSON
-    const [isJsonValid, setIsJsonValid] = useState(true);
-
-    // Estado para categorías
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [primaryCategoryId, setPrimaryCategoryId] = useState<string>('');
-
-    // Estado para el status del modpack
     const [modpackStatus, setModpackStatus] = useState<'draft' | 'published' | 'archived' | 'deleted'>('draft');
 
-    // Estado para access mode
+    // Access Logic
     const [accessMode, setAccessMode] = useState<'free' | 'paid' | 'password'>('free');
-
-    // Estado para pricing (solo edición de precio, no método)
-    const [currentPrice, setCurrentPrice] = useState('');
-    const [newPrice, setNewPrice] = useState('');
-
-    // Estado para contraseña
-    const [newPassword, setNewPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-
-    // Estado para Twitch access mode
     const [twitchAccessEnabled, setTwitchAccessEnabled] = useState(false);
+    const [twitchChannels, setTwitchChannels] = useState<{ id: string; username: string; displayName: string; }[]>([]);
 
-    // Estado para Twitch channels
-    const [twitchChannels, setTwitchChannels] = useState<{
-        id: string;
-        username: string;
-        displayName: string;
-    }[]>([]);
+    // Twitch Search Logic
     const [channelSearchQuery, setChannelSearchQuery] = useState('');
     const [isSearchingChannels, setIsSearchingChannels] = useState(false);
 
-    // Efecto para popular el formulario cuando el modpack cambia
+    // Advanced JSON Logic
+    const [prelaunchJson, setPrelaunchJson] = useState('{}');
+    const [isJsonValid, setIsJsonValid] = useState(true);
+
+    // --- Efecto de Inicialización ---
     useEffect(() => {
-        if (modpack) {
-            setName(modpack.name || '');
-            setShortDescription(modpack.shortDescription || '');
-            setDescription(modpack.description || '');
-            setVisibility((modpack.visibility as any) || 'public');
-            // Resetear los archivos al cambiar de modpack
-            setIconFile(null);
-            setBannerFile(null);
+        if (!modpack) return;
 
-            // Inicializar categorías
-            if (modpack.categories) {
-                const categoryIds = modpack.categories.map(mc => mc.categoryId);
-                const primaryCategory = modpack.categories.find(mc => mc.isPrimary);
-                setSelectedCategories(categoryIds);
-                setPrimaryCategoryId(primaryCategory?.categoryId || '');
-            } else {
-                setSelectedCategories([]);
-                setPrimaryCategoryId('');
-            }
+        setFormData({
+            name: modpack.name || '',
+            shortDescription: modpack.shortDescription || '',
+            description: modpack.description || '',
+            visibility: (modpack.visibility as any) || 'public',
+            price: modpack.price ? parseFloat(modpack.price).toFixed(2) : '0.00',
+            password: '',
+            confirmPassword: '',
+        });
 
-            // Inicializar status
-            setModpackStatus(modpack.status as any || 'draft');
+        // Categorías
+        const catIds = modpack.categories?.map(c => c.categoryId) || [];
+        const primCat = modpack.categories?.find(c => c.isPrimary)?.categoryId || '';
+        setSelectedCategories(catIds);
+        setPrimaryCategoryId(primCat);
+        setModpackStatus(modpack.status as any || 'draft');
 
-            // Inicializar access mode basado en el estado actual
-            if (modpack.isPaid) {
-                setAccessMode('paid');
-            } else if (modpack.password) {
-                setAccessMode('password');
-            } else {
-                setAccessMode('free');
-            }
+        // Access Mode
+        let mode: 'free' | 'paid' | 'password' = 'free';
+        if (modpack.isPaid) mode = 'paid';
+        else if (modpack.password) mode = 'password';
+        setAccessMode(mode);
 
-            // Inicializar Twitch access basado en canales existentes
-            setTwitchAccessEnabled((modpack.twitchChannels && modpack.twitchChannels.length > 0) || false);
+        // Twitch
+        setTwitchChannels(modpack.twitchChannels || []);
+        setTwitchAccessEnabled((modpack.twitchChannels && modpack.twitchChannels.length > 0) || false);
 
-            // Inicializar pricing
-            const price = modpack.price ? parseFloat(modpack.price).toFixed(2) : '0.00';
-            setCurrentPrice(price);
-            setNewPrice(price);
-
-            // Inicializar Twitch channels
-            if (modpack.twitchChannels && Array.isArray(modpack.twitchChannels)) {
-                setTwitchChannels(modpack.twitchChannels);
-            } else {
-                setTwitchChannels([]);
-            }
-
-            // Inicializar el JSON del prelaunchAppearance
-            try {
-                const prelaunchData = modpack.prelaunchAppearance;
-                if (typeof prelaunchData === 'string') {
-                    // Si viene como string, parsearlo y formatearlo
-                    const parsed = JSON.parse(prelaunchData);
-                    setPrelaunchAppearanceJson(JSON.stringify(parsed, null, 2));
-                } else if (prelaunchData && typeof prelaunchData === 'object') {
-                    // Si ya es un objeto, formatearlo
-                    setPrelaunchAppearanceJson(JSON.stringify(prelaunchData, null, 2));
-                } else {
-                    // Si no existe, usar objeto vacío formateado
-                    setPrelaunchAppearanceJson('{}');
-                }
-            } catch (error) {
-                console.warn('Error parsing prelaunchAppearance:', error);
-                setPrelaunchAppearanceJson('{}');
-            }
-        }
-    }, [modpack]);
-
-    // Efecto para manejar cambios en accessMode
-    useEffect(() => {
-        if (accessMode === 'paid' || accessMode === 'password') {
-            setTwitchAccessEnabled(false);
-            setTwitchChannels([]); // Limpiar canales cuando no es gratuito
-        }
-    }, [accessMode]);
-
-    // Efecto para validar el JSON cuando cambia (sin formatear automáticamente)
-    useEffect(() => {
-        if (prelaunchAppearanceJson.trim()) {
-            try {
-                JSON.parse(prelaunchAppearanceJson);
-                setIsJsonValid(true);
-            } catch (error) {
-                setIsJsonValid(false);
-            }
-        } else {
-            setIsJsonValid(true); // Vacío se considera válido
-        }
-    }, [prelaunchAppearanceJson]);
-
-    // Función para formatear el JSON manualmente
-    const formatJson = () => {
-        if (!prelaunchAppearanceJson.trim()) {
-            setPrelaunchAppearanceJson('{}');
-            return;
-        }
-
+        // JSON
         try {
-            const parsed = JSON.parse(prelaunchAppearanceJson);
-            const formatted = JSON.stringify(parsed, null, 2);
-            setPrelaunchAppearanceJson(formatted);
+            const jsonStr = typeof modpack.prelaunchAppearance === 'string'
+                ? modpack.prelaunchAppearance
+                : JSON.stringify(modpack.prelaunchAppearance || {}, null, 2);
+            setPrelaunchJson(jsonStr === 'null' ? '{}' : jsonStr);
+        } catch {
+            setPrelaunchJson('{}');
+        }
+
+        // Reset Files
+        setIconFile(null);
+        setBannerFile(null);
+    }, [modpack, isOpen]);
+
+    // --- Handlers Auxiliares ---
+
+    const handleJsonChange = (val: string) => {
+        setPrelaunchJson(val);
+        try {
+            if (val.trim()) JSON.parse(val);
             setIsJsonValid(true);
-        } catch (error) {
-            toast.error('No se puede formatear: JSON inválido');
+        } catch {
+            setIsJsonValid(false);
         }
     };
 
-    // Funciones para manejo de Twitch channels
-    const searchTwitchChannel = async (query: string) => {
-        if (!query || query.length < 2) return;
+    const formatJson = () => {
+        try {
+            const parsed = JSON.parse(prelaunchJson);
+            setPrelaunchJson(JSON.stringify(parsed, null, 2));
+            setIsJsonValid(true);
+        } catch {
+            toast.error('JSON inválido, no se puede formatear');
+        }
+    };
 
+    const searchTwitchChannel = async () => {
+        if (!channelSearchQuery || channelSearchQuery.length < 2) return;
         setIsSearchingChannels(true);
         try {
-            const response = await fetch(`${API_ENDPOINT}/explore/twitch-channels/search?query=${encodeURIComponent(query)}`);
-            const data = await response.json();
-
-            if (data.channels && data.channels.length > 0) {
+            const res = await fetch(`${API_ENDPOINT}/explore/twitch-channels/search?query=${encodeURIComponent(channelSearchQuery)}`);
+            const data = await res.json();
+            if (data.channels?.[0]) {
                 const channel = data.channels[0];
-                // Verificar que no esté ya añadido
                 if (!twitchChannels.find(c => c.id === channel.id)) {
                     setTwitchChannels(prev => [...prev, channel]);
                     setChannelSearchQuery('');
-                    toast.success(`Canal ${channel.displayName} añadido`);
+                    toast.success(`Canal añadido: ${channel.displayName}`);
                 } else {
-                    toast.error('Este canal ya está añadido');
+                    toast.error('El canal ya está en la lista');
                 }
             } else {
                 toast.error('Canal no encontrado');
             }
-        } catch (error) {
-            console.error('Error searching Twitch channel:', error);
-            toast.error('Error al buscar el canal');
+        } catch {
+            toast.error('Error al buscar canal');
         } finally {
             setIsSearchingChannels(false);
         }
     };
 
-    const removeTwitchChannel = (channelId: string) => {
-        setTwitchChannels(prev => prev.filter(c => c.id !== channelId));
-        toast.success('Canal eliminado');
-    };
-
+    // --- Submit Logic ---
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!modpack) return;
-
         setLoading(true);
+
         try {
-            // CAMBIO: Usar FormData para enviar archivos y datos
-            const formData = new FormData();
+            const submission = new FormData();
 
-            // Añadir campos de texto
-            formData.append('name', name);
-            formData.append('shortDescription', shortDescription);
-            formData.append('description', description);
-            formData.append('visibility', visibility);
-            formData.append('status', modpackStatus);
-            formData.append('acquisitionMethod', accessMode);
+            // Base Data
+            submission.append('name', formData.name);
+            submission.append('shortDescription', formData.shortDescription);
+            submission.append('description', formData.description);
+            submission.append('visibility', formData.visibility);
+            submission.append('status', modpackStatus);
+            submission.append('acquisitionMethod', accessMode);
 
-            // Añadir prelaunchAppearance si es válido
-            if (!isJsonValid) {
-                toast.error('JSON del pre-launch no es válido');
-                setLoading(false);
-                return;
+            // Files
+            if (iconFile) submission.append('icon', iconFile);
+            if (bannerFile) submission.append('banner', bannerFile);
+
+            // Categories
+            submission.append('categories', JSON.stringify(selectedCategories));
+            if (primaryCategoryId) submission.append('primaryCategoryId', primaryCategoryId);
+
+            // JSON
+            if (!isJsonValid) throw new Error("JSON de apariencia inválido");
+            submission.append('prelaunchAppearance', prelaunchJson);
+
+            // Access Logic Specifics
+            if (accessMode === 'free') {
+                if (twitchAccessEnabled && twitchChannels.length === 0) throw new Error("Añade al menos un canal de Twitch o desactiva la restricción.");
+                submission.append('twitchChannels', JSON.stringify(twitchAccessEnabled ? twitchChannels : []));
             }
 
-            try {
-                const prelaunchAppearance = JSON.parse(prelaunchAppearanceJson);
-                formData.append('prelaunchAppearance', JSON.stringify(prelaunchAppearance));
-            } catch (error) {
-                // Este catch es por si acaso, aunque isJsonValid debería prevenirlo
-                toast.error('Error inesperado al procesar el JSON del pre-launch');
-                setLoading(false);
-                return;
+            if (accessMode === 'paid') {
+                const newPrice = parseFloat(formData.price);
+                const currentPrice = parseFloat(modpack.price || '0');
+                if (currentPrice === 0 && newPrice > 0) throw new Error("No puedes convertir un modpack gratuito a pago.");
+                if (newPrice > currentPrice) throw new Error("No puedes aumentar el precio.");
+                submission.append('price', newPrice.toFixed(2));
             }
 
-            // Añadir archivos solo si han sido seleccionados
-            if (iconFile) {
-                formData.append('icon', iconFile);
-            }
-            if (bannerFile) {
-                formData.append('banner', bannerFile);
-            }
-
-            // Añadir categorías
-            formData.append('categories', JSON.stringify(selectedCategories));
-            if (primaryCategoryId) {
-                formData.append('primaryCategoryId', primaryCategoryId);
-            }
-
-            // Validar Twitch access
-            if (accessMode === 'free' && twitchAccessEnabled && twitchChannels.length === 0) {
-                toast.error('Debes añadir al menos un canal de Twitch si activas el acceso restringido.');
-                setLoading(false);
-                return;
-            }
-
-            // Añadir Twitch channels (vacío si no está habilitado o no es gratuito)
-            formData.append('twitchChannels', JSON.stringify((accessMode === 'free' && twitchAccessEnabled) ? twitchChannels : []));
-
-            // Validar y añadir precio si se cambió y el modo es paid
-            if (accessMode === 'paid' && newPrice !== currentPrice) {
-                const newPriceNum = parseFloat(newPrice);
-                const currentPriceNum = parseFloat(currentPrice);
-
-                // Validar restricciones de precio
-                if (currentPriceNum === 0 && newPriceNum > 0) {
-                    toast.error('No se puede convertir un modpack gratuito a de pago.');
-                    setLoading(false);
-                    return;
-                }
-
-                if (newPriceNum > currentPriceNum) {
-                    toast.error(`No se puede aumentar el precio. El precio actual es $${currentPriceNum.toFixed(2)} USD.`);
-                    setLoading(false);
-                    return;
-                }
-
-                if (newPriceNum < 0) {
-                    toast.error('El precio no puede ser negativo.');
-                    setLoading(false);
-                    return;
-                }
-
-                formData.append('price', newPriceNum.toFixed(2));
-            }
-
-            // Validar y añadir contraseña si el modo es password
             if (accessMode === 'password') {
-                if (!newPassword && !modpack?.password) {
-                    toast.error('Debes proporcionar una contraseña para el modo protegido.');
-                    setLoading(false);
-                    return;
-                }
-
-                if (newPassword) {
-                    if (newPassword !== confirmPassword) {
-                        toast.error('Las contraseñas no coinciden.');
-                        setLoading(false);
-                        return;
-                    }
-
-                    if (newPassword.length < 4) {
-                        toast.error('La contraseña debe tener al menos 4 caracteres.');
-                        setLoading(false);
-                        return;
-                    }
-
-                    formData.append('password', newPassword);
+                if (formData.password) {
+                    if (formData.password !== formData.confirmPassword) throw new Error("Las contraseñas no coinciden");
+                    if (formData.password.length < 4) throw new Error("La contraseña es muy corta");
+                    submission.append('password', formData.password);
+                } else if (!modpack.password) {
+                    throw new Error("Debes establecer una contraseña");
                 }
             }
 
-            // Si cambia a free, no enviar precio ni contraseña (se eliminarán automáticamente)
-
+            // API Call
             const res = await fetch(`${API_ENDPOINT}/creators/publishers/${modpack.publisherId}/modpacks/${modpack.id}`, {
                 method: 'PATCH',
-                headers: {
-                    // 'Content-Type' es establecido automáticamente por el navegador con FormData
-                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
-                },
-                body: formData, // Enviar el objeto FormData
+                headers: { 'Authorization': `Bearer ${sessionTokens?.accessToken}` },
+                body: submission,
             });
 
             if (!res.ok) {
-                const err = await res.json().catch(() => null);
-                const message = err?.error || err?.detail || err?.errors?.[0]?.detail || `Error ${res.status}: ${res.statusText}`;
-                toast.error(`Error al actualizar modpack`, { description: String(message) });
-                return; // No continuar si hay error
+                const err = await res.json();
+                throw new Error(err.message || err.error || "Error al actualizar");
             }
 
             toast.success('Modpack actualizado correctamente');
             onClose();
             onSuccess?.();
-        } catch (error) {
-            console.error('Edit modpack error', error);
-            toast.error('Ocurrió un error inesperado al actualizar el modpack.');
+
+        } catch (error: any) {
+            toast.error(error.message || 'Error desconocido');
         } finally {
             setLoading(false);
         }
@@ -416,453 +294,329 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-2xl bg-zinc-900 border-zinc-800 text-white">
-                <DialogHeader>
-                    <DialogTitle>Editar modpack</DialogTitle>
+            <DialogContent className="sm:max-w-3xl bg-zinc-950 border-zinc-800 text-white flex flex-col max-h-[90vh] p-0 gap-0">
+                <DialogHeader className="px-6 py-4 border-b border-zinc-800">
+                    <DialogTitle>Editar Modpack</DialogTitle>
                     <DialogDescription className="text-zinc-400">
-                        Modificar los detalles del modpack "{modpack?.name}".
+                        Gestiona los detalles, apariencia y acceso de "{modpack?.name}".
                     </DialogDescription>
                 </DialogHeader>
 
-                <form onSubmit={handleSubmit} className="space-y-4 p-2 max-h-[70vh] overflow-y-auto">
-                    <div>
-                        <label className="text-sm text-zinc-300 block mb-1">Nombre</label>
-                        <Input value={name} onChange={(e) => setName(e.target.value)} required />
-                    </div>
-
-
-                    {/* NUEVO: Uploader para el icono */}
-                    <ImageUploader
-                        id="icon-upload"
-                        label="Icono"
-                        currentImageUrl={modpack?.iconUrl || ''}
-                        onFileChange={setIconFile}
-                    />
-
-                    {/* NUEVO: Uploader para el banner */}
-                    <ImageUploader
-                        id="banner-upload"
-                        label="Banner"
-                        currentImageUrl={modpack?.bannerUrl || ''}
-                        onFileChange={setBannerFile}
-                    />
-
-                    <div>
-                        <label className="text-sm text-zinc-300 block mb-1">Visibilidad</label>
-                        {/* CAMBIO: Componente Select corregido */}
-                        <Select value={visibility} onValueChange={(v: 'public' | 'private' | 'whitelist') => setVisibility(v)}>
-                            <SelectTrigger className="w-full">
-                                <SelectValue placeholder="Selecciona una visibilidad" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="public">Público</SelectItem>
-                                <SelectItem value="private">Privado</SelectItem>
-                                <SelectItem value="whitelist">Whitelist (Lista de Acceso)</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        {visibility === 'whitelist' && (
-                            <p className="text-xs text-zinc-400 mt-1">
-                                Solo usuarios autorizados en la whitelist podrán acceder a este modpack.
-                            </p>
-                        )}
-                    </div>
-
-                    {/* Access Mode Section */}
-                    <div className="space-y-3 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
-                        <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-medium text-zinc-300">Modo de Adquisición</h3>
-                            <div className="text-xs text-green-400 bg-green-900/20 px-2 py-1 rounded">Obligatorio</div>
+                <form onSubmit={handleSubmit} className="flex-1 overflow-hidden flex flex-col">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
+                        <div className="px-6 pt-2 bg-zinc-900/50 border-b border-zinc-800">
+                            <TabsList className="bg-transparent gap-4 p-0 h-auto">
+                                <TabTriggerItem value="general" label="General" />
+                                <TabTriggerItem value="appearance" label="Apariencia" />
+                                <TabTriggerItem value="access" label="Acceso y Precio" />
+                                <TabTriggerItem value="advanced" label="Avanzado" />
+                            </TabsList>
                         </div>
 
-                        <div className="space-y-3">
-                            <div>
-                                <label className="text-sm text-zinc-300 block mb-2">Selecciona cómo los usuarios accederán al modpack</label>
-                                <Select value={accessMode} onValueChange={(v: 'free' | 'paid' | 'password') => setAccessMode(v)}>
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Selecciona un modo de adquisición" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="free">
-                                            <div className="flex flex-col">
-                                                <span className="font-medium">Gratuito</span>
-                                                <span className="text-xs text-zinc-400">Acceso libre para todos los usuarios</span>
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="paid">
-                                            <div className="flex flex-col">
-                                                <span className="font-medium">De Pago</span>
-                                                <span className="text-xs text-zinc-400">Los usuarios pagan por acceder</span>
-                                            </div>
-                                        </SelectItem>
-                                        <SelectItem value="password">
-                                            <div className="flex flex-col">
-                                                <span className="font-medium">Protegido con Contraseña</span>
-                                                <span className="text-xs text-zinc-400">Acceso mediante contraseña</span>
-                                            </div>
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
+                        <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
 
-                            <div className="text-xs text-zinc-500 bg-zinc-900/50 p-3 rounded border">
-                                {accessMode === 'free' && (
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-green-400">✅</span>
-                                        <span>Modpack gratuito - Los usuarios pueden descargarlo sin costo ni restricciones adicionales.</span>
-                                    </div>
-                                )}
-                                {accessMode === 'paid' && (
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-blue-400">💰</span>
-                                        <span>Modpack de pago - Configura el precio abajo. Los usuarios deben pagar para acceder.</span>
-                                    </div>
-                                )}
-                                {accessMode === 'password' && (
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-orange-400">🔒</span>
-                                        <span>Modpack protegido - Los usuarios necesitan una contraseña para acceder.</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Pricing Section */}
-                    {accessMode === 'paid' && (
-                        <div className="space-y-3 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-sm font-medium text-zinc-300">Gestión de Precios</h3>
-                                <div className="text-xs text-blue-400 bg-blue-900/20 px-2 py-1 rounded">USD</div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <div className="text-sm text-zinc-400">
-                                    <span className="font-medium">Método actual:</span> {' '}
-                                    {modpack?.isPaid ? (
-                                        <span className="text-green-400">De pago</span>
-                                    ) : modpack?.password ? (
-                                        <span className="text-yellow-400">Protegido con contraseña</span>
-                                    ) : (
-                                        <span className="text-blue-400">Gratuito</span>
-                                    )}
-                                </div>
-
-                                {modpack?.isPaid && (
-                                    <div>
-                                        <label className="text-sm text-zinc-300 block mb-1">
-                                            Precio actual: ${currentPrice} USD
-                                        </label>
-                                        <label className="text-sm text-zinc-300 block mb-1">
-                                            Nuevo precio (USD) - Solo se puede mantener o reducir
-                                        </label>
+                            {/* --- TAB: GENERAL --- */}
+                            <TabsContent value="general" className="mt-0 space-y-5">
+                                <div className="grid gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-zinc-300">Nombre del Modpack</label>
                                         <Input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
-                                            max={currentPrice}
-                                            value={newPrice}
-                                            onChange={(e) => setNewPrice(e.target.value)}
-                                            placeholder={currentPrice}
+                                            value={formData.name}
+                                            onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                            className="bg-zinc-900 border-zinc-700 focus:ring-amber-600"
+                                            required
                                         />
-                                        <p className="text-xs text-zinc-400 mt-1">
-                                            ⚠️ Restricciones: No se puede aumentar el precio, solo mantener igual o reducir.
-                                        </p>
                                     </div>
-                                )}
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="space-y-2">
+                                            <label className="text-sm font-medium text-zinc-300">Visibilidad</label>
+                                            <Select
+                                                value={formData.visibility}
+                                                onValueChange={(v: any) => setFormData({ ...formData, visibility: v })}
+                                            >
+                                                <SelectTrigger className="bg-zinc-900 border-zinc-700">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="public">Público</SelectItem>
+                                                    <SelectItem value="private">Privado</SelectItem>
+                                                    <SelectItem value="whitelist">Whitelist</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <ModpackStatusManager
+                                            currentStatus={modpackStatus}
+                                            onStatusChange={setModpackStatus}
+                                            disabled={loading}
+                                            hasPrimaryCategory={!!primaryCategoryId || selectedCategories.length > 0}
+                                        />
+                                    </div>
 
-                                {!modpack?.isPaid && !modpack?.password && (
-                                    <p className="text-xs text-green-400">
-                                        ✅ Modpack gratuito - Los usuarios pueden descargarlo sin costo.
-                                    </p>
-                                )}
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-zinc-300">Descripción Corta</label>
+                                        <Input
+                                            value={formData.shortDescription}
+                                            onChange={e => setFormData({ ...formData, shortDescription: e.target.value })}
+                                            className="bg-zinc-900 border-zinc-700"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-medium text-zinc-300">Descripción Completa</label>
+                                        <Textarea
+                                            value={formData.description}
+                                            onChange={e => setFormData({ ...formData, description: e.target.value })}
+                                            className="bg-zinc-900 border-zinc-700 min-h-[120px]"
+                                        />
+                                    </div>
 
-                                {modpack?.password && (
-                                    <p className="text-xs text-yellow-400">
-                                        🔒 Modpack protegido con contraseña - Los precios no se pueden cambiar para modpacks con contraseña.
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Password Section */}
-                    {accessMode === 'password' && (
-                        <div className="space-y-3 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-sm font-medium text-zinc-300">Gestión de Contraseña</h3>
-                                <div className="text-xs text-orange-400 bg-orange-900/20 px-2 py-1 rounded">Obligatorio</div>
-                            </div>
-
-                            <div className="space-y-2">
-                                <div className="text-sm text-zinc-400">
-                                    <span className="font-medium">Estado actual:</span> {' '}
-                                    {modpack?.password ? (
-                                        <span className="text-yellow-400">Protegido con contraseña</span>
-                                    ) : (
-                                        <span className="text-blue-400">Sin contraseña</span>
-                                    )}
+                                    <div className="pt-4 border-t border-zinc-800">
+                                        <label className="text-sm font-medium text-zinc-300 mb-3 block">Categorías</label>
+                                        <CategorySelector
+                                            selectedCategories={selectedCategories}
+                                            primaryCategoryId={primaryCategoryId}
+                                            onCategoriesChange={setSelectedCategories}
+                                            onPrimaryCategoryChange={setPrimaryCategoryId}
+                                            disabled={loading}
+                                        />
+                                    </div>
                                 </div>
+                            </TabsContent>
 
-                                <div>
-                                    <label className="text-sm text-zinc-300 block mb-1">
-                                        Nueva contraseña (dejar vacío para mantener actual)
-                                    </label>
-                                    <Input
-                                        type="password"
-                                        value={newPassword}
-                                        onChange={(e) => setNewPassword(e.target.value)}
-                                        placeholder="Nueva contraseña"
+                            {/* --- TAB: APARIENCIA --- */}
+                            <TabsContent value="appearance" className="mt-0 space-y-6">
+                                <div className="flex gap-8 items-start">
+                                    <ImageUploader
+                                        id="icon-upload"
+                                        label="Icono (Cuadrado)"
+                                        currentImageUrl={modpack?.iconUrl || ''}
+                                        onFileChange={setIconFile}
+                                    />
+                                    <div className="flex-1">
+                                        <ImageUploader
+                                            id="banner-upload"
+                                            label="Banner Principal (Panorámico)"
+                                            currentImageUrl={modpack?.bannerUrl || ''}
+                                            onFileChange={setBannerFile}
+                                            aspectRatio="video"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="bg-zinc-900/50 p-4 rounded-md border border-zinc-800">
+                                    <h4 className="text-sm font-semibold text-zinc-300 mb-1">Previsualización en Launcher</h4>
+                                    <p className="text-xs text-zinc-500">
+                                        El icono se mostrará estático. Asegúrate de usar imágenes de alta calidad (PNG/JPG).
+                                    </p>
+                                </div>
+                            </TabsContent>
+
+                            {/* --- TAB: ACCESO & PRECIO --- */}
+                            <TabsContent value="access" className="mt-0 space-y-6">
+                                <div className="grid grid-cols-3 gap-4">
+                                    <AccessCard
+                                        active={accessMode === 'free'}
+                                        onClick={() => setAccessMode('free')}
+                                        icon={<Check className="text-green-400" />}
+                                        title="Gratuito"
+                                        desc="Acceso libre para todos"
+                                    />
+                                    <AccessCard
+                                        active={accessMode === 'paid'}
+                                        onClick={() => setAccessMode('paid')}
+                                        icon={<DollarSign className="text-blue-400" />}
+                                        title="De Pago"
+                                        desc="Compra única"
+                                    />
+                                    <AccessCard
+                                        active={accessMode === 'password'}
+                                        onClick={() => setAccessMode('password')}
+                                        icon={<Lock className="text-orange-400" />}
+                                        title="Protegido"
+                                        desc="Requiere contraseña"
                                     />
                                 </div>
 
-                                <div>
-                                    <label className="text-sm text-zinc-300 block mb-1">
-                                        Confirmar nueva contraseña
-                                    </label>
-                                    <Input
-                                        type="password"
-                                        value={confirmPassword}
-                                        onChange={(e) => setConfirmPassword(e.target.value)}
-                                        placeholder="Confirmar contraseña"
-                                    />
-                                </div>
-
-                                {newPassword && confirmPassword && newPassword !== confirmPassword && (
-                                    <p className="text-xs text-red-400">
-                                        Las contraseñas no coinciden.
-                                    </p>
-                                )}
-
-                                <p className="text-xs text-zinc-500 mt-1">
-                                    Si se establece una contraseña, los usuarios necesitarán introducirla para acceder al modpack.
-                                </p>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Twitch Access Section */}
-                    {accessMode === 'free' && (
-                        <div className="space-y-3 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-sm font-medium text-zinc-300">Acceso con Suscripción de Twitch</h3>
-                                <div className="text-xs text-purple-400 bg-purple-900/20 px-2 py-1 rounded">Opcional</div>
-                            </div>
-
-                            <div className="space-y-3">
-                                <div>
-                                    <label className="text-sm text-zinc-300 block mb-2">¿Requiere suscripción de Twitch?</label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div
-                                            className={`flex flex-col items-center gap-2 p-3 rounded-md border cursor-pointer transition-all ${!twitchAccessEnabled
-                                                ? "border-green-500 bg-green-900/20"
-                                                : "border-gray-700 hover:border-gray-500"
-                                                }`}
-                                            onClick={() => setTwitchAccessEnabled(false)}
-                                        >
-                                            <span className="text-lg">🚫</span>
-                                            <span className="font-medium text-sm text-center">Sin restricción</span>
-                                            <span className="text-xs text-zinc-400 text-center">Acceso libre</span>
-                                        </div>
-
-                                        <div
-                                            className={`flex flex-col items-center gap-2 p-3 rounded-md border cursor-pointer transition-all ${twitchAccessEnabled
-                                                ? "border-purple-500 bg-purple-900/20"
-                                                : "border-gray-700 hover:border-gray-500"
-                                                }`}
-                                            onClick={() => setTwitchAccessEnabled(true)}
-                                        >
-                                            <span className="text-lg">📺</span>
-                                            <span className="font-medium text-sm text-center">Requiere Twitch</span>
-                                            <span className="text-xs text-zinc-400 text-center">Suscripción necesaria</span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {twitchAccessEnabled && (
-                                    <div className="space-y-3 pt-3 border-t border-zinc-700">
-                                        <p className="text-xs text-zinc-400">
-                                            Los usuarios necesitarán estar suscritos a al menos uno de estos canales para acceder al modpack.
-                                        </p>
-
-                                        {/* Canal Search */}
-                                        <div className="flex gap-2">
-                                            <Input
-                                                placeholder="Buscar canal de Twitch..."
-                                                value={channelSearchQuery}
-                                                onChange={(e) => setChannelSearchQuery(e.target.value)}
-                                                onKeyPress={(e) => {
-                                                    if (e.key === 'Enter') {
-                                                        e.preventDefault();
-                                                        searchTwitchChannel(channelSearchQuery);
-                                                    }
-                                                }}
-                                                disabled={isSearchingChannels}
-                                            />
+                                {/* Lógica para Gratuito (Twitch) */}
+                                {accessMode === 'free' && (
+                                    <div className="space-y-4 pt-4 border-t border-zinc-800 animate-in fade-in slide-in-from-top-2">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h3 className="font-medium text-zinc-200 flex items-center gap-2">
+                                                    <Tv size={16} className="text-purple-400" /> Restricción por Twitch
+                                                </h3>
+                                                <p className="text-xs text-zinc-500">Requiere suscripción a canales específicos.</p>
+                                            </div>
                                             <Button
                                                 type="button"
-                                                variant="outline"
-                                                onClick={() => searchTwitchChannel(channelSearchQuery)}
-                                                disabled={isSearchingChannels || !channelSearchQuery}
-                                                className="px-3"
+                                                variant={twitchAccessEnabled ? "default" : "outline"}
+                                                className={twitchAccessEnabled ? "bg-purple-600 hover:bg-purple-700" : ""}
+                                                onClick={() => setTwitchAccessEnabled(!twitchAccessEnabled)}
                                             >
-                                                {isSearchingChannels ? '...' : 'Añadir'}
+                                                {twitchAccessEnabled ? "Activado" : "Desactivado"}
                                             </Button>
                                         </div>
 
-                                        {/* Canales añadidos */}
-                                        {twitchChannels.length > 0 && (
-                                            <div className="space-y-2">
-                                                <p className="text-xs text-zinc-300 font-medium">Canales requeridos:</p>
+                                        {twitchAccessEnabled && (
+                                            <div className="bg-purple-950/20 border border-purple-900/50 rounded-lg p-4 space-y-3">
+                                                <div className="flex gap-2">
+                                                    <div className="relative flex-1">
+                                                        <Search className="absolute left-2.5 top-2.5 text-zinc-500" size={14} />
+                                                        <Input
+                                                            placeholder="Buscar canal de Twitch..."
+                                                            className="pl-8 bg-zinc-900 border-zinc-700"
+                                                            value={channelSearchQuery}
+                                                            onChange={(e) => setChannelSearchQuery(e.target.value)}
+                                                            onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), searchTwitchChannel())}
+                                                        />
+                                                    </div>
+                                                    <Button type="button" onClick={searchTwitchChannel} disabled={isSearchingChannels}>
+                                                        {isSearchingChannels ? "..." : "Añadir"}
+                                                    </Button>
+                                                </div>
+
                                                 <div className="flex flex-wrap gap-2">
-                                                    {twitchChannels.map((channel) => (
-                                                        <div
-                                                            key={channel.id}
-                                                            className="flex items-center gap-2 bg-purple-900/20 border border-purple-700/30 rounded px-2 py-1 text-xs"
-                                                        >
+                                                    {twitchChannels.map(channel => (
+                                                        <div key={channel.id} className="bg-purple-900/40 border border-purple-500/30 px-3 py-1 rounded-full text-xs flex items-center gap-2">
                                                             <span className="text-purple-200">{channel.displayName}</span>
-                                                            <span className="text-purple-400">(@{channel.username})</span>
                                                             <button
                                                                 type="button"
-                                                                onClick={() => removeTwitchChannel(channel.id)}
-                                                                className="text-purple-400 hover:text-red-400 ml-1"
+                                                                onClick={() => setTwitchChannels(prev => prev.filter(c => c.id !== channel.id))}
+                                                                className="text-purple-400 hover:text-white"
                                                             >
-                                                                ×
+                                                                <X size={12} />
                                                             </button>
                                                         </div>
                                                     ))}
+                                                    {twitchChannels.length === 0 && <span className="text-xs text-zinc-500 italic">No hay canales añadidos.</span>}
                                                 </div>
                                             </div>
-                                        )}
-
-                                        {twitchChannels.length === 0 && (
-                                            <p className="text-xs text-zinc-500">
-                                                No hay canales añadidos. Los usuarios no podrán acceder al modpack.
-                                            </p>
                                         )}
                                     </div>
                                 )}
 
-                                <div className="text-xs text-zinc-500 bg-zinc-900/50 p-3 rounded border">
-                                    {!twitchAccessEnabled ? (
-                                        <div className="flex items-start gap-2">
-                                            <span className="text-green-400">✅</span>
-                                            <span>Acceso libre - Los usuarios pueden descargar el modpack sin restricciones de Twitch.</span>
+                                {/* Lógica para Pago */}
+                                {accessMode === 'paid' && (
+                                    <div className="bg-blue-950/20 border border-blue-900/50 p-4 rounded-lg space-y-3 animate-in fade-in">
+                                        <div className="flex items-center gap-2 text-blue-400 mb-2">
+                                            <AlertTriangle size={16} />
+                                            <span className="text-xs font-semibold">Política de Precios</span>
                                         </div>
-                                    ) : (
-                                        <div className="flex items-start gap-2">
-                                            <span className="text-purple-400">📺</span>
-                                            <span>Acceso restringido - Los usuarios deben estar suscritos a los canales especificados.</span>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div>
+                                                <label className="text-xs text-zinc-400 block mb-1">Precio Actual (USD)</label>
+                                                <Input disabled value={modpack?.price || "0.00"} className="bg-zinc-900 border-zinc-800" />
+                                            </div>
+                                            <div>
+                                                <label className="text-xs text-zinc-400 block mb-1">Nuevo Precio (USD)</label>
+                                                <Input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    max={modpack?.price}
+                                                    value={formData.price}
+                                                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
+                                                    className="bg-zinc-900 border-blue-900/50 focus:border-blue-500"
+                                                />
+                                            </div>
                                         </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Mensaje cuando no se puede usar Twitch */}
-                    {accessMode !== 'free' && (
-                        <div className="space-y-3 p-4 bg-zinc-800 rounded-lg border border-zinc-700">
-                            <div className="flex items-center gap-2">
-                                <h3 className="text-sm font-medium text-zinc-300">Acceso con Suscripción de Twitch</h3>
-                                <div className="text-xs text-gray-400 bg-gray-900/20 px-2 py-1 rounded">No disponible</div>
-                            </div>
-
-                            <div className="text-xs text-zinc-500 bg-zinc-900/50 p-3 rounded border">
-                                <div className="flex items-start gap-2">
-                                    <span className="text-gray-400">🚫</span>
-                                    <span>El acceso por Twitch solo está disponible para modpacks gratuitos. Cambia el modo de adquisición a "Gratuito" para poder configurar restricciones de Twitch.</span>
-                                </div>
-                            </div>
-                        </div>
-                    )}                    <div>
-                        <label className="text-sm text-zinc-300 block mb-1">Descripción corta</label>
-                        <Input value={shortDescription} onChange={(e) => setShortDescription(e.target.value)} />
-                    </div>
-
-                    <div>
-                        <label className="text-sm text-zinc-300 block mb-1">Descripción completa</label>
-                        <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={5} />
-                    </div>
-
-                    {/* Current Categories Display */}
-                    {modpack?.categories && modpack.categories.length > 0 && (
-                        <ModpackCategoryDisplay
-                            categories={modpack.categories}
-                            className="space-y-2"
-                        />
-                    )}
-
-                    {/* Category Selection */}
-                    <CategorySelector
-                        selectedCategories={selectedCategories}
-                        primaryCategoryId={primaryCategoryId}
-                        onCategoriesChange={setSelectedCategories}
-                        onPrimaryCategoryChange={setPrimaryCategoryId}
-                        disabled={loading}
-                    />
-
-                    {/* Modpack Status Management */}
-                    <ModpackStatusManager
-                        currentStatus={modpackStatus}
-                        onStatusChange={(newStatus) => setModpackStatus(newStatus)}
-                        disabled={loading}
-                        hasPrimaryCategory={!!primaryCategoryId || selectedCategories.length > 0}
-                    />
-
-                    <div>
-                        <div className="flex items-center justify-between mb-2">
-                            <label className="text-sm text-zinc-300">Configuración Pre-Launch (JSON)</label>
-                            <div className="flex items-center gap-2">
-                                {isJsonValid && (
-                                    <span className="text-xs text-green-400 flex items-center gap-1">
-                                        <span className="w-2 h-2 bg-green-400 rounded-full"></span>
-                                        JSON válido
-                                    </span>
+                                        <p className="text-xs text-zinc-500">Solo puedes reducir el precio, no aumentarlo una vez publicado.</p>
+                                    </div>
                                 )}
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={formatJson}
-                                    className="text-xs h-7 px-2"
-                                    disabled={!prelaunchAppearanceJson.trim()}
-                                >
-                                    Formatear JSON
-                                </Button>
-                            </div>
-                        </div>
-                        <div className={`border rounded-md overflow-hidden ${!isJsonValid ? 'border-red-500' : 'border-zinc-700'}`}>
-                            <CodeMirror
-                                value={prelaunchAppearanceJson}
-                                onChange={setPrelaunchAppearanceJson}
-                                height="300px"
-                                extensions={[basicSetup, json(), oneDark]}
-                                theme={oneDark}
-                                className="text-sm"
-                            />
-                        </div>
-                        {!isJsonValid && (
-                            <p className="text-xs text-red-400 mt-1">
-                                JSON no válido. Por favor, corrige la sintaxis.
-                            </p>
-                        )}
-                        <p className="text-xs text-zinc-500 mt-1">
-                            Configura la apariencia del launcher antes de iniciar Minecraft. Usa JSON válido.
-                        </p>
-                    </div>
 
-                    <DialogFooter className="pt-4">
-                        <div className="flex gap-2 justify-end">
-                            <Button type="button" variant="outline" onClick={onClose} disabled={loading}>Cancelar</Button>
-                            <Button type="submit" className="bg-amber-600 hover:bg-amber-700" disabled={loading}>
-                                {loading ? 'Guardando...' : 'Guardar cambios'}
-                            </Button>
+                                {/* Lógica para Password */}
+                                {accessMode === 'password' && (
+                                    <div className="bg-orange-950/20 border border-orange-900/50 p-4 rounded-lg space-y-3 animate-in fade-in">
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-zinc-400">Nueva Contraseña</label>
+                                            <Input
+                                                type="password"
+                                                placeholder="••••••"
+                                                value={formData.password}
+                                                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                                                className="bg-zinc-900 border-zinc-700"
+                                            />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-xs text-zinc-400">Confirmar Contraseña</label>
+                                            <Input
+                                                type="password"
+                                                placeholder="••••••"
+                                                value={formData.confirmPassword}
+                                                onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                                                className={`bg-zinc-900 border-zinc-700 ${formData.password !== formData.confirmPassword ? 'border-red-500/50' : ''}`}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </TabsContent>
+
+                            {/* --- TAB: AVANZADO (JSON) --- */}
+                            <TabsContent value="advanced" className="mt-0 h-full flex flex-col">
+                                <div className="flex items-center justify-between mb-3">
+                                    <div className="flex flex-col">
+                                        <label className="text-sm font-medium text-zinc-300">Configuración Pre-Launch</label>
+                                        <span className="text-xs text-zinc-500">Personalización avanzada de la ventana de carga.</span>
+                                    </div>
+                                    <Button type="button" size="sm" variant="outline" onClick={formatJson} disabled={!isJsonValid}>
+                                        Formatear JSON
+                                    </Button>
+                                </div>
+                                <div className={`border rounded-md overflow-hidden flex-1 ${!isJsonValid ? 'border-red-500' : 'border-zinc-800'}`}>
+                                    <CodeMirror
+                                        value={prelaunchJson}
+                                        onChange={handleJsonChange}
+                                        extensions={[basicSetup, json(), oneDark]}
+                                        theme={oneDark}
+                                        className="text-sm h-full"
+                                        height="300px"
+                                    />
+                                </div>
+                                {!isJsonValid && <p className="text-xs text-red-400 mt-2">Sintaxis JSON inválida.</p>}
+                            </TabsContent>
+
                         </div>
-                    </DialogFooter>
+
+                        <DialogFooter className="px-6 py-4 border-t border-zinc-800 bg-zinc-900/30">
+                            <Button type="button" variant="ghost" onClick={onClose} disabled={loading} className="text-zinc-400 hover:text-white">
+                                Cancelar
+                            </Button>
+                            <Button type="submit" className="bg-amber-600 hover:bg-amber-700 text-white" disabled={loading || !isJsonValid}>
+                                {loading ? 'Guardando...' : 'Guardar Cambios'}
+                            </Button>
+                        </DialogFooter>
+                    </Tabs>
                 </form>
             </DialogContent>
         </Dialog>
     );
 };
+
+// --- Componentes de UI Auxiliares para limpieza ---
+const TabTriggerItem = ({ value, label }: { value: string, label: string }) => (
+    <TabsTrigger
+        value={value}
+        className="data-[state=active]:bg-zinc-800 data-[state=active]:text-white text-zinc-400 rounded-full px-4 py-1.5 text-xs transition-all"
+    >
+        {label}
+    </TabsTrigger>
+);
+
+const AccessCard = ({ active, onClick, icon, title, desc }: any) => (
+    <div
+        onClick={onClick}
+        className={`
+            cursor-pointer border rounded-lg p-4 flex flex-col gap-2 transition-all
+            ${active ? 'bg-zinc-800 border-zinc-600 ring-1 ring-zinc-500' : 'bg-zinc-900/50 border-zinc-800 hover:bg-zinc-800/50'}
+        `}
+    >
+        <div className="flex justify-between items-start">
+            {icon}
+            {active && <div className="size-2 bg-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.5)]"></div>}
+        </div>
+        <div>
+            <div className="font-medium text-sm text-zinc-200">{title}</div>
+            <div className="text-xs text-zinc-500">{desc}</div>
+        </div>
+    </div>
+);
 
 export default EditModpackDialog;
