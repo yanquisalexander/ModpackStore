@@ -922,7 +922,8 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions/
         files: Array<{
             fileHash: string,
             path: string,
-            size: number
+            size: number,
+            side: string
         }>
     }> = [];
 
