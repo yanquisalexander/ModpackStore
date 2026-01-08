@@ -56,7 +56,7 @@ const patchConsoleMethod = (method: keyof Console, logger: (...args: any[]) => v
   };
 };
 
-patchConsoleMethod('error', error);
+//patchConsoleMethod('error', error);
 patchConsoleMethod('warn', warn);
 
 // Componente wrapper para usar el contexto

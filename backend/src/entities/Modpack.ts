@@ -155,6 +155,9 @@ export class Modpack extends BaseEntity {
     @Column({ name: "is_paid", type: "boolean", default: false })
     isPaid: boolean;
 
+    @Column({ name: "allow_server_download", type: "boolean", default: false })
+    allowServerDownload: boolean;
+
     @Column({ name: "price", type: "decimal", precision: 10, scale: 2, default: "0" })
     price: string;
 

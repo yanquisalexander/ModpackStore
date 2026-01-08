@@ -5,7 +5,7 @@ use crate::core::auth::storage;
 use crate::core::bootstrap_error::BootstrapError;
 use crate::core::instance_bootstrap::InstanceBootstrap;
 use crate::core::minecraft::MinecraftPaths;
-use crate::core::minecraft_instance::{self, MinecraftInstance, ModLoaderType};
+use crate::core::minecraft_instance::{self, InstanceType, MinecraftInstance, ModLoaderType};
 use crate::core::modpack_file_manager::ModpackManifest;
 
 use crate::core::tasks_manager::{
@@ -480,7 +480,13 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
     let mut instances = Vec::new();
 
     for entry in entries {
-        let entry = entry.map_err(|e| format!("Error reading entry: {}", e))?;
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                eprintln!("Error reading directory entry: {}", e);
+                continue;
+            }
+        };
         let instance_path = entry.path();
 
         if !instance_path.is_dir() {
@@ -493,11 +499,21 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
             continue;
         }
 
-        let contents =
-            fs::read_to_string(&config_file).map_err(|e| format!("Error reading JSON: {}", e))?;
+        let contents = match fs::read_to_string(&config_file) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("Error reading instance config at {:?}: {}", config_file, e);
+                continue;
+            }
+        };
 
-        let mut instance: MinecraftInstance =
-            from_str(&contents).map_err(|e| format!("Error parsing JSON: {}", e))?;
+        let mut instance: MinecraftInstance = match from_str(&contents) {
+            Ok(i) => i,
+            Err(e) => {
+                eprintln!("Error parsing instance config at {:?}: {}", config_file, e);
+                continue;
+            }
+        };
 
         // Migrate legacy fields for backward compatibility
         instance.migrate_legacy_fields();
@@ -605,6 +621,7 @@ pub async fn create_modpack_instance(
     modpack_id: String,
     version_id: Option<String>,
     password: Option<String>,
+    instance_type: Option<String>,
 ) -> Result<String, String> {
     let task_id = add_task(
         &format!("Creando instancia de modpack: {}", instance_name),
@@ -612,7 +629,8 @@ pub async fn create_modpack_instance(
             "type": "modpack_instance_creation",
             "instanceName": instance_name,
             "modpackId": modpack_id,
-            "versionId": version_id
+            "versionId": version_id,
+            "instanceType": instance_type
         })),
     );
 
@@ -668,19 +686,27 @@ pub async fn create_modpack_instance(
         None,
     );
 
+    // Determinar el target para el manifiesto
+    let target = if instance_type.as_deref() == Some("server") {
+        "server"
+    } else {
+        "client"
+    };
+
     // Obtener manifiesto usando la versión actual (no "latest")
-    let manifest = fetch_modpack_manifest(&modpack_id, &actual_version_id_for_manifest)
-        .await
-        .map_err(|e| {
-            update_task(
-                &task_id,
-                TaskStatus::Failed,
-                0.0,
-                &format!("Error descargando manifiesto: {}", e),
-                None,
-            );
-            e
-        })?;
+    let manifest =
+        fetch_modpack_manifest(&modpack_id, &actual_version_id_for_manifest, Some(target))
+            .await
+            .map_err(|e| {
+                update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error descargando manifiesto: {}", e),
+                    None,
+                );
+                e
+            })?;
 
     let manifest_clone = manifest.clone();
 
@@ -691,6 +717,7 @@ pub async fn create_modpack_instance(
         final_version_id_for_storage.clone(),
         manifest,
         modpack_info,
+        instance_type.clone(),
     )
     .await?;
 
@@ -880,7 +907,12 @@ pub async fn update_modpack_instance(
     // Actualizar versión e información
     instance.modpackVersionId = Some(final_version_id.clone());
 
-    let manifest = fetch_modpack_manifest(&modpack_id, &final_version_id)
+    let target = if instance.is_server() {
+        "server"
+    } else {
+        "client"
+    };
+    let manifest = fetch_modpack_manifest(&modpack_id, &final_version_id, Some(target))
         .await
         .map_err(|e| {
             update_task(
@@ -1360,12 +1392,21 @@ async fn create_modpack_instance_struct(
     final_version_id: String,
     manifest: crate::core::modpack_file_manager::ModpackManifest,
     modpack_info: serde_json::Value,
+    instance_type_arg: Option<String>,
 ) -> Result<MinecraftInstance, String> {
     let instances_dir = get_instances_dir()?;
     let instance_id = uuid::Uuid::new_v4().to_string();
 
     let mut instance = MinecraftInstance::new();
     instance.instanceName = instance_name;
+
+    // Set instance type if provided
+    if let Some(t) = instance_type_arg {
+        if t == "server" {
+            instance.instanceType = crate::core::minecraft_instance::InstanceType::Server;
+        }
+    }
+
     instance.instanceId = instance_id.clone();
     instance.modpackId = Some(modpack_id.clone());
     instance.modpackVersionId = Some(final_version_id);
@@ -1510,11 +1551,15 @@ async fn fetch_modpack_info(modpack_id: &str) -> Result<serde_json::Value, Strin
 pub async fn fetch_modpack_manifest(
     modpack_id: &str,
     version_id: &str,
+    target: Option<&str>,
 ) -> Result<crate::core::modpack_file_manager::ModpackManifest, String> {
     let client = reqwest::Client::new();
     let url = format!(
-        "{}/explore/modpacks/{}/versions/{}",
-        *API_ENDPOINT, modpack_id, version_id
+        "{}/explore/modpacks/{}/versions/{}?target={}",
+        *API_ENDPOINT,
+        modpack_id,
+        version_id,
+        target.unwrap_or("client")
     );
 
     let mut request = client.get(&url);
@@ -1837,6 +1882,7 @@ pub async fn create_instance_from_mrpack(
         favorite: true,
         favorite_order: None,
         ms_nickname: None,
+        instanceType: InstanceType::Client,
     };
 
     instance.save().map_err(|e| {

@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { ExploreSection } from "./views/ExploreSection";
 import { HomeView } from "./views/HomeView";
 import { WhitelistInstancesView } from "./views/WhitelistInstancesView";
+import { ServersSection } from "./views/ServersSection";
+import { ServerDetailView } from "./views/ServerDetailView";
 import { PreLaunchInstance } from "./views/PreLaunchInstance";
 import { useConnection } from "./utils/ConnectionContext";
 import { LucideLoader } from "lucide-react";
@@ -183,6 +185,8 @@ function App() {
         <Route path="/whitelist-instances" element={<WhitelistInstancesView />} />
         <Route path="/library" element={<LibrarySection />} />
         <Route path="/my-instances" element={<MyInstancesSection offlineMode={false} />} />
+        <Route path="/servers" element={<ServersSection />} />
+        <Route path="/server/:instanceId" element={<ServerDetailView />} />
         <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
         <Route path="/modpack/:modpackId" element={<ModpackOverviewPage />} />
         <Route path="/mc-accounts" element={<AccountsSection />} />

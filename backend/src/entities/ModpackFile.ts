@@ -2,6 +2,7 @@ import { Entity, PrimaryColumn, Column, CreateDateColumn, OneToMany, BaseEntity 
 import { ModpackVersionFile } from "./ModpackVersionFile";
 
 export type ModpackFileType = 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'datapacks' | 'extras';
+export type ModpackFileSide = 'client' | 'server' | 'both';
 
 @Entity({ name: "modpack_files" })
 export class ModpackFile extends BaseEntity {

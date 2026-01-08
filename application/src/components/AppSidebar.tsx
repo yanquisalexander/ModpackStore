@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 
 // Iconos
-import { LucideLibrary, LucideServer, LucideUsers, LucideTrash2, LucideShield, LucideLayoutGrid } from "lucide-react";
+import { LucideLibrary, LucideServer, LucideUsers, LucideTrash2, LucideShield, LucideLayoutGrid, LucideGamepad2 } from "lucide-react";
 import GridIcon from "@/icons/GridIcon";
 import { MdiHalloween } from "@/icons/MdiHalloween";
 import { isHalloween } from "@/utils/SPECIAL_DATES";
@@ -251,7 +251,8 @@ export const AppSidebar: React.FC = memo(() => {
         const baseItems = [
             { name: "Explorar", icon: GridIcon, path: "/explore", requiresConnection: true },
             { name: "Biblioteca", icon: LucideLibrary, path: "/library", requiresConnection: true },
-            { name: "Instancias", icon: LucideServer, path: (!isConnected && !isLoadingConnectionCheck) ? "/" : "/my-instances", requiresConnection: false },
+            { name: "Instancias", icon: LucideGamepad2, path: (!isConnected && !isLoadingConnectionCheck) ? "/" : "/my-instances", requiresConnection: false },
+            { name: "Servidores", icon: LucideServer, path: "/servers", requiresConnection: false },
             { name: "Cuentas", icon: LucideUsers, path: "/mc-accounts", requiresConnection: false }
         ];
 
@@ -295,8 +296,8 @@ export const AppSidebar: React.FC = memo(() => {
                             <FavoriteItem
                                 key={fav.instanceId}
                                 fav={fav}
-                                isActive={location.pathname === `/prelaunch/${fav.instanceId}`}
-                                onClick={() => navigate(`/prelaunch/${fav.instanceId}`)}
+                                isActive={location.pathname === (fav.instanceType === 'server' ? `/server/${fav.instanceId}` : `/prelaunch/${fav.instanceId}`)}
+                                onClick={() => navigate(fav.instanceType === 'server' ? `/server/${fav.instanceId}` : `/prelaunch/${fav.instanceId}`)}
                                 onContextMenu={(e) => handleContextMenu(e, fav)}
                             />
                         ))}

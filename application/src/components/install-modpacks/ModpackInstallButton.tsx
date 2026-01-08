@@ -37,6 +37,7 @@ interface InstallButtonProps {
     requiredTwitchChannels?: string[];
     selectedVersionId?: string;
     disabled?: boolean;
+    allowServerDownload?: boolean;
 }
 
 interface ModpackAccess {
@@ -60,7 +61,8 @@ export const InstallButton = ({
     requiresTwitchSubscription = false,
     requiredTwitchChannels = [],
     selectedVersionId,
-    disabled = false
+    disabled = false,
+    allowServerDownload = false
 }: InstallButtonProps) => {
     const [isInstallOptionsOpen, setIsInstallOptionsOpen] = useState<boolean>(false)
     const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState<boolean>(false)
@@ -87,6 +89,7 @@ export const InstallButton = ({
         type: 'update' | 'create' | 'show_options' | 'show_create';
         instanceId?: string;
         instanceName?: string;
+        isServer?: boolean;
     } | null>(null)
 
     const { isModpackInstalling } = useTasksContext()
@@ -212,29 +215,31 @@ export const InstallButton = ({
         }
     }
 
-    const handleConfirmCreate = async (instanceName: string) => {
+    const handleConfirmCreate = async (instanceName: string, isServer: boolean) => {
         // Check access before creating
         if (!hasAccess) {
             setPendingAction({
                 type: 'create',
-                instanceName
+                instanceName,
+                isServer
             });
             setIsCreateDialogOpen(false);
             setIsAcquisitionDialogOpen(true);
             return;
         }
 
-        await executeCreate(instanceName);
+        await executeCreate(instanceName, isServer);
     }
 
-    const executeCreate = async (instanceName: string) => {
+    const executeCreate = async (instanceName: string, isServer: boolean = false) => {
         setIsInstalling(true);
         try {
             await invoke("create_modpack_instance", {
                 instanceName,
                 modpackId,
                 versionId: selectedVersionId,
-                password: null
+                password: null,
+                instanceType: isServer ? "server" : "client"
             });
 
             // Track the installation for analytics
@@ -267,7 +272,7 @@ export const InstallButton = ({
             if (pendingAction.type === 'update' && pendingAction.instanceId) {
                 executeUpdate(pendingAction.instanceId);
             } else if (pendingAction.type === 'create' && pendingAction.instanceName) {
-                executeCreate(pendingAction.instanceName);
+                executeCreate(pendingAction.instanceName, pendingAction.isServer);
             } else if (pendingAction.type === 'show_options') {
                 setIsInstallOptionsOpen(true);
             } else if (pendingAction.type === 'show_create') {
@@ -337,7 +342,7 @@ export const InstallButton = ({
                 onClose={() => setIsCreateDialogOpen(false)}
                 onConfirmCreate={handleConfirmCreate}
                 modpackName={modpackName}
-                modpackId={modpackId}
+                allowServerDownload={allowServerDownload}
             />
 
             <ModpackAcquisitionDialog

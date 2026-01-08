@@ -1,7 +1,9 @@
 import { Link, useNavigate } from "react-router-dom";
 import {
     LucidePlay, LucideHardDrive, LucideSettings, LucideTrash2, LucideGamepad2,
-    LucideFolderSymlink, LucidePackageOpen, LucideStar, LucideUpload, LucideRefreshCw, LucideLoader2
+    LucideFolderSymlink, LucidePackageOpen, LucideStar, LucideUpload, LucideRefreshCw, LucideLoader2,
+    LucideTerminal,
+    LucideServer
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
@@ -48,6 +50,8 @@ export const InstanceCard = ({
     const [isDeleting, setIsDeleting] = useState(false);
     const [isFavorite, setIsFavorite] = useState(instance.favorite || false);
     const navigate = useNavigate();
+
+    const isServer = instance.instanceType === 'server';
 
     useEffect(() => {
         setIsFavorite(instance.favorite || false);
@@ -137,7 +141,7 @@ export const InstanceCard = ({
                         isOpen && "ring-2 ring-purple-500/50"
                     )}>
 
-                        <Link to={`/prelaunch/${instance.instanceId}`} className="block w-full h-full">
+                        <Link to={isServer ? `/server/${instance.instanceId}` : `/prelaunch/${instance.instanceId}`} className="block w-full h-full">
 
                             {/* --- BACKGROUND --- */}
                             <div className="absolute inset-0 overflow-hidden">
@@ -178,7 +182,11 @@ export const InstanceCard = ({
                                     <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-300 ease-out mt-0 group-hover:mt-3 opacity-0 group-hover:opacity-100">
                                         <div className="overflow-hidden">
                                             <div className="w-full flex items-center justify-center gap-2 bg-white text-black font-bold py-2 rounded-lg hover:bg-neutral-200 transition-colors shadow-lg">
-                                                <LucidePlay className="w-4 h-4 fill-black" /> Jugar Ahora
+                                                {isServer ? (
+                                                    <><LucideTerminal className="w-4 h-4" /> Abrir Panel</>
+                                                ) : (
+                                                    <><LucidePlay className="w-4 h-4 fill-black" /> Jugar Ahora</>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -189,6 +197,11 @@ export const InstanceCard = ({
                         {/* --- OVERLAYS --- */}
 
                         <div className="absolute top-3 left-3 z-20 flex flex-col gap-2 items-start pointer-events-none">
+                            {isServer && (
+                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/90 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wide border border-white/10 shadow-lg">
+                                    <LucideServer className="w-3 h-3" /> SERVIDOR
+                                </span>
+                            )}
                             {running && (
                                 <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/90 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wide border border-white/10 shadow-lg animate-pulse">
                                     <LucideGamepad2 className="w-3 h-3" /> En Ejecución

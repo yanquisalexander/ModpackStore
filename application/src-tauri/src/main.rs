@@ -378,6 +378,7 @@ pub fn main() {
             core::instance_manager::toggle_favorite,
             core::instance_manager::update_favorite_order,
             core::instance_manager::get_favorite_instances,
+            core::instance_launcher::send_server_command,
             core::instance_manager::create_local_instance,
             core::instance_manager::create_modpack_instance,
             core::instance_manager::check_modpack_updates,

@@ -121,16 +121,20 @@ impl<'a> NeoForgeInstaller<'a> {
         java_path: &str,
         instance: &MinecraftInstance,
     ) -> Result<(), BootstrapError> {
+        let install_type = if instance.is_server() { "Server" } else { "Client" };
         log::info!(
-            "[Instance: {}] Running NeoForge installer",
-            instance.instanceId
+            "[Instance: {}] Running NeoForge installer ({})",
+            instance.instanceId,
+            install_type
         );
+        
+        let install_arg = if instance.is_server() { "--installServer" } else { "--installClient" };
 
         let mut install_cmd = Command::new(java_path);
         install_cmd
             .arg("-jar")
             .arg(installer_path)
-            .arg("--installClient")
+            .arg(install_arg)
             .arg(minecraft_dir)
             .current_dir(minecraft_dir);
 

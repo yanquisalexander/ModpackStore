@@ -1,6 +1,6 @@
 import { Entity, PrimaryColumn, Column, ManyToOne, JoinColumn, BaseEntity } from "typeorm";
 import { ModpackVersion } from "./ModpackVersion";
-import { ModpackFile } from "./ModpackFile";
+import { ModpackFile, ModpackFileSide } from "./ModpackFile";
 import { ModpackFileType } from "./ModpackFile";
 
 @Entity({ name: "modpack_version_files" })
@@ -17,6 +17,14 @@ export class ModpackVersionFile extends BaseEntity {
 
     @Column({ name: "file_type", type: "varchar", length: 32 })
     fileType: ModpackFileType;
+
+    @Column({
+        name: "side",
+        type: "varchar",
+        length: 16,
+        default: 'both'
+    })
+    side: ModpackFileSide;
 
     // Relations
     @ManyToOne(() => ModpackVersion, modpackVersion => modpackVersion.files, { onDelete: "CASCADE" })

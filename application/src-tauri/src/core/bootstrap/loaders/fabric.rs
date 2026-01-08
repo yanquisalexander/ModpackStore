@@ -58,16 +58,21 @@ impl<'a> FabricInstaller<'a> {
     }
 
     /// Install Fabric loader for the instance (internal implementation)
-    pub fn install_fabric(&self, instance: &MinecraftInstance, versions_dir: &Path) -> Result<(), BootstrapError> {
+    pub fn install_fabric(
+        &self,
+        instance: &MinecraftInstance,
+        versions_dir: &Path,
+    ) -> Result<(), BootstrapError> {
         log::info!(
-            "[Instance: {}] Installing Fabric {} for Minecraft {}",
+            "[Instance: {}] Installing Fabric {} for Minecraft {} (Server Mode: {})",
             instance.instanceId,
             self.loader_version,
-            self.minecraft_version
+            self.minecraft_version,
+            instance.is_server()
         );
 
         // Fetch Fabric profile JSON
-        let fabric_profile = self.fetch_fabric_profile()?;
+        let fabric_profile = self.fetch_fabric_profile(instance.is_server())?;
 
         // Create Fabric version directory
         let fabric_version_name = format!(
@@ -89,13 +94,16 @@ impl<'a> FabricInstaller<'a> {
         let version_json = self.generate_version_json(&fabric_profile, &fabric_version_name)?;
         let version_json_path = fabric_version_dir.join(format!("{}.json", fabric_version_name));
 
-        fs::write(&version_json_path, serde_json::to_string_pretty(&version_json).unwrap())
-            .map_err(|e| {
-                BootstrapError::filesystem_error(
-                    BootstrapStep::CreatingFiles,
-                    format!("Failed to write Fabric version JSON: {}", e),
-                )
-            })?;
+        fs::write(
+            &version_json_path,
+            serde_json::to_string_pretty(&version_json).unwrap(),
+        )
+        .map_err(|e| {
+            BootstrapError::filesystem_error(
+                BootstrapStep::CreatingFiles,
+                format!("Failed to write Fabric version JSON: {}", e),
+            )
+        })?;
 
         log::info!(
             "[Instance: {}] Fabric installation completed successfully",
@@ -106,10 +114,11 @@ impl<'a> FabricInstaller<'a> {
     }
 
     /// Fetch Fabric profile from meta API
-    fn fetch_fabric_profile(&self) -> Result<JsonValue, BootstrapError> {
+    fn fetch_fabric_profile(&self, is_server: bool) -> Result<JsonValue, BootstrapError> {
+        let endpoint = if is_server { "server" } else { "profile" };
         let url = format!(
-            "{}/versions/loader/{}/{}/profile/json",
-            FABRIC_META_URL, self.minecraft_version, self.loader_version
+            "{}/versions/loader/{}/{}/{}/json",
+            FABRIC_META_URL, self.minecraft_version, self.loader_version, endpoint
         );
 
         log::debug!("Fetching Fabric profile from: {}", url);
@@ -124,10 +133,7 @@ impl<'a> FabricInstaller<'a> {
         if !response.status().is_success() {
             return Err(BootstrapError::network_error(
                 BootstrapStep::DownloadingManifest,
-                format!(
-                    "Failed to fetch Fabric profile: HTTP {}",
-                    response.status()
-                ),
+                format!("Failed to fetch Fabric profile: HTTP {}", response.status()),
             ));
         }
 
@@ -139,7 +145,10 @@ impl<'a> FabricInstaller<'a> {
         })?;
 
         let fabric_version: JsonValue = serde_json::from_str(&response_text).map_err(|e| {
-            log::error!("Failed to parse Fabric profile JSON. Response body: {}", response_text);
+            log::error!(
+                "Failed to parse Fabric profile JSON. Response body: {}",
+                response_text
+            );
             BootstrapError::network_error(
                 BootstrapStep::DownloadingManifest,
                 format!("Failed to parse Fabric profile: {}", e),
@@ -161,7 +170,10 @@ impl<'a> FabricInstaller<'a> {
         // Update the id
         if let Some(obj) = version_json.as_object_mut() {
             obj.insert("id".to_string(), JsonValue::String(version_id.to_string()));
-            obj.insert("inheritsFrom".to_string(), JsonValue::String(self.minecraft_version.clone()));
+            obj.insert(
+                "inheritsFrom".to_string(),
+                JsonValue::String(self.minecraft_version.clone()),
+            );
             // Keep other fields as is
         }
 
@@ -196,7 +208,10 @@ impl<'a> super::ModLoaderInstaller for FabricInstaller<'a> {
         libraries_dir: &Path,
         instance: &MinecraftInstance,
     ) -> Result<(), BootstrapError> {
-        log::info!("[Instance: {}] Starting Fabric library download", instance.instanceId);
+        log::info!(
+            "[Instance: {}] Starting Fabric library download",
+            instance.instanceId
+        );
 
         // First, generate the Fabric version JSON if it doesn't exist
         let fabric_version_name = self.get_version_name();
@@ -207,9 +222,12 @@ impl<'a> super::ModLoaderInstaller for FabricInstaller<'a> {
         let version_json_path = fabric_version_dir.join(format!("{}.json", fabric_version_name));
 
         if !version_json_path.exists() {
-            log::info!("[Instance: {}] Generating Fabric version JSON", instance.instanceId);
-            
-            let fabric_profile = self.fetch_fabric_profile()?;
+            log::info!(
+                "[Instance: {}] Generating Fabric version JSON",
+                instance.instanceId
+            );
+
+            let fabric_profile = self.fetch_fabric_profile(instance.is_server())?;
 
             if !fabric_version_dir.exists() {
                 fs::create_dir_all(&fabric_version_dir).map_err(|e| {
@@ -221,69 +239,113 @@ impl<'a> super::ModLoaderInstaller for FabricInstaller<'a> {
             }
 
             let version_json = self.generate_version_json(&fabric_profile, &fabric_version_name)?;
-            fs::write(&version_json_path, serde_json::to_string_pretty(&version_json).unwrap())
-                .map_err(|e| {
-                    BootstrapError::filesystem_error(
-                        BootstrapStep::CreatingFiles,
-                        format!("Failed to write Fabric version JSON: {}", e),
-                    )
-                })?;
+            fs::write(
+                &version_json_path,
+                serde_json::to_string_pretty(&version_json).unwrap(),
+            )
+            .map_err(|e| {
+                BootstrapError::filesystem_error(
+                    BootstrapStep::CreatingFiles,
+                    format!("Failed to write Fabric version JSON: {}", e),
+                )
+            })?;
         }
 
         // Now read the generated Fabric version JSON
         let version_json_content = fs::read_to_string(&version_json_path).map_err(|e| {
-            log::error!("[Instance: {}] Failed to read Fabric version JSON: {}", instance.instanceId, e);
+            log::error!(
+                "[Instance: {}] Failed to read Fabric version JSON: {}",
+                instance.instanceId,
+                e
+            );
             BootstrapError::filesystem_error(
                 BootstrapStep::DownloadingLibraries,
                 format!("Failed to read Fabric version JSON: {}", e),
             )
         })?;
 
-        let version_details: JsonValue = serde_json::from_str(&version_json_content).map_err(|e| {
-            log::error!("[Instance: {}] Failed to parse Fabric version JSON: {}", instance.instanceId, e);
-            BootstrapError::network_error(
-                BootstrapStep::DownloadingLibraries,
-                format!("Failed to parse Fabric version JSON: {}", e),
-            )
-        })?;
+        let version_details: JsonValue =
+            serde_json::from_str(&version_json_content).map_err(|e| {
+                log::error!(
+                    "[Instance: {}] Failed to parse Fabric version JSON: {}",
+                    instance.instanceId,
+                    e
+                );
+                BootstrapError::network_error(
+                    BootstrapStep::DownloadingLibraries,
+                    format!("Failed to parse Fabric version JSON: {}", e),
+                )
+            })?;
 
-        log::info!("[Instance: {}] Successfully parsed Fabric version JSON", instance.instanceId);
+        log::info!(
+            "[Instance: {}] Successfully parsed Fabric version JSON",
+            instance.instanceId
+        );
 
         // Check if libraries exist in the JSON
         if let Some(libraries) = version_details.get("libraries").and_then(|l| l.as_array()) {
-            log::info!("[Instance: {}] Found {} libraries in Fabric version JSON", instance.instanceId, libraries.len());
+            log::info!(
+                "[Instance: {}] Found {} libraries in Fabric version JSON",
+                instance.instanceId,
+                libraries.len()
+            );
             for lib in libraries {
                 if let Some(name) = lib.get("name").and_then(|n| n.as_str()) {
-                    log::info!("[Instance: {}] Fabric library: {}", instance.instanceId, name);
+                    log::info!(
+                        "[Instance: {}] Fabric library: {}",
+                        instance.instanceId,
+                        name
+                    );
                 }
             }
         } else {
-            log::warn!("[Instance: {}] No libraries found in Fabric version JSON", instance.instanceId);
+            log::warn!(
+                "[Instance: {}] No libraries found in Fabric version JSON",
+                instance.instanceId
+            );
         }
 
         // Download the libraries using the standard downloader
-        log::info!("[Instance: {}] About to call download_libraries with {} libraries", instance.instanceId, version_details.get("libraries").and_then(|l| l.as_array()).map(|a| a.len()).unwrap_or(0));
-        let download_result = download_libraries(
-            self.client,
-            &version_details,
-            libraries_dir,
-            instance,
+        log::info!(
+            "[Instance: {}] About to call download_libraries with {} libraries",
+            instance.instanceId,
+            version_details
+                .get("libraries")
+                .and_then(|l| l.as_array())
+                .map(|a| a.len())
+                .unwrap_or(0)
         );
-        
+        let download_result =
+            download_libraries(self.client, &version_details, libraries_dir, instance);
+
         match &download_result {
-            Ok(_) => log::info!("[Instance: {}] download_libraries completed successfully", instance.instanceId),
-            Err(e) => log::error!("[Instance: {}] download_libraries failed: {}", instance.instanceId, e),
+            Ok(_) => log::info!(
+                "[Instance: {}] download_libraries completed successfully",
+                instance.instanceId
+            ),
+            Err(e) => log::error!(
+                "[Instance: {}] download_libraries failed: {}",
+                instance.instanceId,
+                e
+            ),
         }
-        
+
         download_result.map_err(|e| {
-            log::error!("[Instance: {}] Failed to download Fabric libraries: {}", instance.instanceId, e);
+            log::error!(
+                "[Instance: {}] Failed to download Fabric libraries: {}",
+                instance.instanceId,
+                e
+            );
             BootstrapError::network_error(
                 BootstrapStep::DownloadingLibraries,
                 format!("Failed to download Fabric libraries: {}", e),
             )
         })?;
 
-        log::info!("[Instance: {}] Fabric library download completed", instance.instanceId);
+        log::info!(
+            "[Instance: {}] Fabric library download completed",
+            instance.instanceId
+        );
         Ok(())
     }
 
@@ -324,7 +386,7 @@ impl<'a> super::ModLoaderInstaller for FabricInstaller<'a> {
         );
 
         // First generate the Fabric version JSON
-        let fabric_profile = self.fetch_fabric_profile()?;
+        let fabric_profile = self.fetch_fabric_profile(instance.is_server())?;
         let fabric_version_name = format!(
             "fabric-loader-{}-{}",
             self.loader_version, self.minecraft_version
@@ -344,13 +406,16 @@ impl<'a> super::ModLoaderInstaller for FabricInstaller<'a> {
         let version_json = self.generate_version_json(&fabric_profile, &fabric_version_name)?;
         let version_json_path = fabric_version_dir.join(format!("{}.json", fabric_version_name));
 
-        fs::write(&version_json_path, serde_json::to_string_pretty(&version_json).unwrap())
-            .map_err(|e| {
-                BootstrapError::filesystem_error(
-                    BootstrapStep::CreatingFiles,
-                    format!("Failed to write Fabric version JSON: {}", e),
-                )
-            })?;
+        fs::write(
+            &version_json_path,
+            serde_json::to_string_pretty(&version_json).unwrap(),
+        )
+        .map_err(|e| {
+            BootstrapError::filesystem_error(
+                BootstrapStep::CreatingFiles,
+                format!("Failed to write Fabric version JSON: {}", e),
+            )
+        })?;
 
         // Download loader-specific libraries
         self.download_libraries(libraries_dir, instance)?;

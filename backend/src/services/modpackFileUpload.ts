@@ -1,13 +1,13 @@
 import fs from "fs";
 import path from "path";
 import { queue } from "./Queue";
-import { ModpackFile, ModpackFileType } from "@/entities/ModpackFile";
+import { ModpackFile, ModpackFileType, ModpackFileSide } from "@/entities/ModpackFile";
 import { ModpackVersionFile } from "@/entities/ModpackVersionFile";
 import { In } from "typeorm";
 import { sendProgressUpdate, sendCompletionUpdate, sendErrorUpdate } from "./realtime.service";
 import crypto from 'crypto';
 import { batchUploadToR2 } from './r2UploadService';
-import { path7x } from '7zip-bin';
+import { path7za } from '7zip-bin';
 import { execSync } from 'child_process';
 import { Readable } from "stream";
 
@@ -83,7 +83,7 @@ const extractArchive = async (
   extractDir: string,
   archiveType: 'zip' | 'rar' | '7z'
 ): Promise<void> => {
-  const sevenZipPath = path7x;
+  const sevenZipPath = path7za;
   const extractCommand = `"${sevenZipPath}" x "${archivePath}" -o"${extractDir}" -y`;
 
   try {
@@ -99,7 +99,8 @@ export const processModpackFileUpload = async (
   filename: string,
   modpackId: string,
   versionId: string,
-  fileType: (typeof ALLOWED_FILE_TYPES)[number]
+  fileType: (typeof ALLOWED_FILE_TYPES)[number],
+  side: ModpackFileSide = 'both'
 ) => {
   if (!ALLOWED_FILE_TYPES.includes(fileType)) {
     throw new Error(`Tipo de archivo no permitido: ${fileType}`);
@@ -228,7 +229,11 @@ export const processModpackFileUpload = async (
         .filter(fe => !existingHashes.has(fe.hash))
         // Evitar duplicados en el lote de nuevos archivos
         .filter((fe, index, self) => self.findIndex(t => t.hash === fe.hash) === index)
-        .map(fe => ModpackFile.create({ hash: fe.hash, size: fe.size, type: fileType as ModpackFileType }));
+        .map(fe => ModpackFile.create({
+          hash: fe.hash,
+          size: fe.size,
+          type: fileType as ModpackFileType
+        }));
 
       if (newModpackFileEntities.length > 0) {
         await ModpackFile.save(newModpackFileEntities);
@@ -242,6 +247,7 @@ export const processModpackFileUpload = async (
           fileHash: fe.hash,
           path: fe.path,
           fileType: fileType as ModpackFileType,
+          side: side
         })
       );
 

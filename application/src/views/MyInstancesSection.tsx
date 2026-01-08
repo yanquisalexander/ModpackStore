@@ -34,9 +34,11 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
         setIsLoading(true)
         try {
             await sleep(1000) // Simulate a short delay for better UX
-            const instances = await invoke('get_all_instances') as any
-            setInstances(instances)
+            const allInstances = await invoke('get_all_instances') as TauriCommandReturns['get_instance_by_id'][]
+            // Filter out servers from My Instances
+            setInstances(allInstances.filter(inst => inst?.instanceType !== 'server'))
         } catch (error) {
+            console.error(error)
             console.error('Error fetching instances:', error)
             setInstances([])
         } finally {

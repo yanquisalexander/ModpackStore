@@ -29,13 +29,12 @@ pub fn get_version_manifest(
 
     // Fetch new manifest with failover support
     use super::manifest_servers::{fetch_manifest_with_failover, FailoverConfig};
-    
+
     let config = FailoverConfig::default();
-    let manifest = fetch_manifest_with_failover(client, &config)
-        .map_err(|e| {
-            log::error!("[get_version_manifest] Failed to fetch manifest: {}", e);
-            e
-        })?;
+    let manifest = fetch_manifest_with_failover(client, &config).map_err(|e| {
+        log::error!("[get_version_manifest] Failed to fetch manifest: {}", e);
+        e
+    })?;
 
     // Update cache
     *cache = Some((manifest.clone(), current_time));
@@ -68,7 +67,7 @@ pub fn get_version_details(
 
     // Download version details with failover support
     use super::manifest_servers::{fetch_version_json_with_failover, FailoverConfig};
-    
+
     let config = FailoverConfig::default();
     fetch_version_json_with_failover(client, version_url, &config)
 }
@@ -88,21 +87,26 @@ pub fn get_java_version_requirement(version_details: &Value) -> Result<String, S
     Ok(java_major_version)
 }
 
-/// Gets download URLs for client and version JSON files
-pub fn get_download_urls(version_details: &Value) -> Result<(String, String), String> {
-    let client_url = version_details["downloads"]["client"]["url"]
+/// Gets download URLs for client/server and version JSON files
+pub fn get_download_urls(
+    version_details: &Value,
+    is_server: bool,
+) -> Result<(String, String), String> {
+    let jar_type = if is_server { "server" } else { "client" };
+
+    let jar_url = version_details["downloads"][jar_type]["url"]
         .as_str()
-        .ok_or_else(|| "Client download URL not found".to_string())?;
+        .ok_or_else(|| format!("{} download URL not found", jar_type))?;
 
     let version_json_url = version_details["url"]
         .as_str()
         .or_else(|| {
             // Try to extract from the downloads section if direct URL not available
-            version_details["downloads"]["client"]["url"].as_str()
+            version_details["downloads"][jar_type]["url"].as_str()
         })
         .ok_or_else(|| "Version JSON URL not found".to_string())?;
 
-    Ok((client_url.to_string(), version_json_url.to_string()))
+    Ok((jar_url.to_string(), version_json_url.to_string()))
 }
 
 /// Gets asset index information from version details

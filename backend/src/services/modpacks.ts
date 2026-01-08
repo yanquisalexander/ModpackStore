@@ -150,11 +150,11 @@ export const getExploreModpacks = async (): Promise<GroupedModpackResult[]> => {
 
 export const searchModpacks = async (query: string, limit = 25, user?: any): Promise<ModpackForExplore[]> => {
     console.log(`[SERVICE_MODPACKS] Searching modpacks with query: "${query}"`);
-    
+
     // Check if query is a UUID (direct ID search)
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const isUUID = uuidPattern.test(query);
-    
+
     if (isUUID) {
         // Direct ID search with permission handling
         try {
@@ -162,12 +162,12 @@ export const searchModpacks = async (query: string, limit = 25, user?: any): Pro
                 where: { id: query },
                 relations: ["creatorUser", "publisher", "categories", "categories.category"],
             });
-            
+
             if (!modpack) {
                 console.log(`[SERVICE_MODPACKS] Modpack with ID ${query} not found.`);
                 return [];
             }
-            
+
             // Permission checks based on modpack status and visibility
             if (modpack.status === ModpackStatus.DRAFT) {
                 // Draft: only accessible to creator, admins, or team members
@@ -175,7 +175,7 @@ export const searchModpacks = async (query: string, limit = 25, user?: any): Pro
                     console.log(`[SERVICE_MODPACKS] Draft modpack ${query} requires authentication.`);
                     return [];
                 }
-                
+
                 // Check if user is creator
                 if (modpack.creatorUserId === user.id) {
                     console.log(`[SERVICE_MODPACKS] User is creator of draft modpack ${query}.`);
@@ -204,7 +204,7 @@ export const searchModpacks = async (query: string, limit = 25, user?: any): Pro
                 console.log(`[SERVICE_MODPACKS] Modpack ${query} has status: ${modpack.status} and is not searchable.`);
                 return [];
             }
-            
+
             // Return the modpack
             return [{
                 id: modpack.id,
@@ -238,7 +238,7 @@ export const searchModpacks = async (query: string, limit = 25, user?: any): Pro
             throw new Error(`Failed to search modpack by ID: ${error.message}`);
         }
     }
-    
+
     // Regular text search (existing logic)
     try {
         const modpacks = await Modpack.search(query, limit);
@@ -297,6 +297,7 @@ type ModpackDetails = {
     publisher: { id: string; publisherName: string; verified: boolean; partnered: boolean; isHostingPartner: boolean } | null;
     categories: CategoryInModpack[];
     isPasswordProtected: boolean;
+    allowServerDownload: boolean;
     prelaunchAppearance?: any;
     requiredTwitchChannels: string[];
     requiresTwitchSubscription: boolean;
@@ -322,7 +323,7 @@ export const getModpackById = async (modpackId: string, user?: any): Promise<Mod
                 console.log(`[SERVICE_MODPACKS] Draft modpack ${modpackId} requires authentication.`);
                 return null;
             }
-            
+
             // Check if user is creator
             if (modpack.creatorUserId === user.id) {
                 console.log(`[SERVICE_MODPACKS] User is creator of draft modpack ${modpackId}.`);
@@ -386,6 +387,7 @@ export const getModpackById = async (modpackId: string, user?: any): Promise<Mod
             } : null,
             categories: formattedCategories,
             isPasswordProtected: modpack.isPasswordProtected(),
+            allowServerDownload: modpack.allowServerDownload,
             prelaunchAppearance: modpack.prelaunchAppearance,
             requiredTwitchChannels: modpack.getRequiredTwitchCreatorIds(),
             requiresTwitchSubscription: modpack.requiresTwitchSubscription,

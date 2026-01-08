@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -24,12 +24,35 @@ import {
     LucideFileJson,
     LucideFileText,
     LucideFileArchive,
-    LucideFileImage
+    LucideFileImage,
+    LucideMonitor,
+    LucideServer,
+    LucideGlobe,
+    LucideInfo
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { API_ENDPOINT } from '@/consts';
 import { useAuthentication } from '@/stores/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from "@/components/ui/tabs";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Progress } from '@/components/ui/progress';
 import { handleApiError } from '@/lib/utils';
 import { ModpackProcessingStatus } from '@/components/modpack/ModpackProcessingStatus';
@@ -59,6 +82,7 @@ interface ModpackVersionFile {
     fileHash: string;
     path: string;
     fileType?: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras' | 'datapacks'; // NEW: direct fileType on ModpackVersionFile
+    side: 'client' | 'server' | 'both';
     file: {
         type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras'; // DEPRECATED: kept for backward compatibility
     };
@@ -140,20 +164,21 @@ const FileTreeNode: React.FC<{
     path: string;
     versionStatus: string;
     onDelete: (fileHash: string, fileType: string) => void;
-}> = ({ name, node, expandedFolders, setExpandedFolders, path, versionStatus, onDelete }) => {
+    onUpdateSide: (fileHash: string, fileType: string, side: 'client' | 'server' | 'both') => void;
+}> = ({ name, node, expandedFolders, setExpandedFolders, path, versionStatus, onDelete, onUpdateSide }) => {
     if (node.type === 'folder') {
         const isExpanded = expandedFolders[path];
         const toggleExpand = () => setExpandedFolders(prev => ({ ...prev, [path]: !isExpanded }));
 
         return (
             <div>
-                <div onClick={toggleExpand} className="flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded transition-colors">
-                    {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" />}
-                    <LucideFolder className="h-4 w-4 mr-2 text-sky-600 flex-shrink-0" />
+                <div onClick={toggleExpand} className="flex items-center cursor-pointer hover:bg-white/10 p-1 rounded transition-colors group">
+                    {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-gray-400 group-hover:text-gray-200 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-gray-400 group-hover:text-gray-200 flex-shrink-0" />}
+                    <LucideFolder className="h-4 w-4 mr-2 text-sky-500 flex-shrink-0" />
                     <span className="text-gray-200 font-medium">{name}</span>
                 </div>
                 {isExpanded && (
-                    <div className="pl-6 border-l border-gray-200 ml-2">
+                    <div className="pl-6 border-l border-white/5 ml-2 mt-0.5">
                         {Object.entries(node.children)
                             .sort(([aName, aNode], [bName, bNode]) => {
                                 if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
@@ -170,6 +195,7 @@ const FileTreeNode: React.FC<{
                                     path={`${path}/${childName}`}
                                     versionStatus={versionStatus}
                                     onDelete={onDelete}
+                                    onUpdateSide={onUpdateSide}
                                 />
                             ))}
                     </div>
@@ -181,22 +207,66 @@ const FileTreeNode: React.FC<{
     // It's a file
     const fileData = node.data;
     return (
-        <div className="flex items-center justify-between p-1 ml-4 group hover:bg-gray-100 rounded">
-            <div className="flex items-center min-w-0">
+        <div className="flex items-center justify-between p-1 ml-4 group hover:bg-white/10 rounded transition-colors">
+            <div className="flex items-center min-w-0 flex-1">
                 <div className="w-4 mr-2 flex-shrink-0"></div> {/* Indent spacer */}
                 {getFileIcon(name)}
-                <span className="text-gray-400 truncate" title={fileData.path}>{name}</span>
+                <span className="text-gray-300 truncate text-sm" title={fileData.path}>{name}</span>
             </div>
-            {versionStatus !== 'published' && (
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onDelete(fileData.fileHash, fileData.file.type)}
-                    className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                >
-                    <LucideTrash2 className="h-4 w-4" />
-                </Button>
-            )}
+            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <div className="flex items-center">
+                                <Select
+                                    value={fileData.side || 'both'}
+                                    onValueChange={(value: any) => onUpdateSide(fileData.fileHash, fileData.fileType || fileData.file.type, value)}
+                                    disabled={versionStatus === 'published'}
+                                >
+                                    <SelectTrigger className="h-7 w-[90px] text-[10px] px-2 bg-white/5 border-none shadow-none focus:ring-0">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="both">
+                                            <div className="flex items-center gap-2">
+                                                <LucideGlobe className="h-3 w-3" /> Ambos
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="client">
+                                            <div className="flex items-center gap-2">
+                                                <LucideMonitor className="h-3 w-3" /> Cliente
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="server">
+                                            <div className="flex items-center gap-2">
+                                                <LucideServer className="h-3 w-3" /> Servidor
+                                            </div>
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p className="text-xs">
+                                {fileData.side === 'client' ? 'Solo se instalará en el cliente.' :
+                                    fileData.side === 'server' ? 'Solo se instalará en el servidor.' :
+                                        'Se instalará tanto en cliente como en servidor.'}
+                            </p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+
+                {versionStatus !== 'published' && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onDelete(fileData.fileHash, fileData.fileType || fileData.file.type)}
+                        className="h-7 w-7 text-red-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                    >
+                        <LucideTrash2 className="h-4 w-4" />
+                    </Button>
+                )}
+            </div>
         </div>
     );
 };
@@ -218,6 +288,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     const [changelog, setChangelog] = useState('');
     const [uploadingFile, setUploadingFile] = useState(false);
     const [publishing, setPublishing] = useState(false);
+    const [uploadSide, setUploadSide] = useState<'client' | 'server' | 'both'>('both');
     const [uploadDialog, setUploadDialog] = useState<{
         open: boolean;
         type: string;
@@ -259,6 +330,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 path: string;
                 size: number;
                 type: string;
+                side: 'client' | 'server' | 'both';
             }>;
         }>;
         selectedFiles: Array<{
@@ -320,6 +392,43 @@ const PublisherModpackVersionDetailView: React.FC = () => {
             toast.error(error instanceof Error ? error.message : 'Error al cargar los detalles de la versión');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleUpdateSide = async (fileHash: string, fileType: string, side: 'client' | 'server' | 'both') => {
+        if (!version) return;
+
+        try {
+            const res = await fetch(
+                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileType}/${fileHash}/side`,
+                {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ side }),
+                }
+            );
+
+            if (!res.ok) {
+                await handleApiError(res);
+            }
+
+            // Update local state
+            setVersion({
+                ...version,
+                files: version.files.map(f =>
+                    f.fileHash === fileHash && (f.fileType === fileType || f.file.type === fileType)
+                        ? { ...f, side }
+                        : f
+                )
+            });
+
+            toast.success('Entorno del archivo actualizado');
+        } catch (error) {
+            console.error('Error updating file side:', error);
+            toast.error(error instanceof Error ? error.message : 'Error al actualizar el entorno');
         }
     };
 
@@ -466,10 +575,13 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     'Authorization': `Bearer ${sessionTokens?.accessToken}`,
                 },
                 fieldName: 'file',
+                formData: {
+                    side: uploadSide
+                },
                 onProgress: (percentComplete) => {
                     setUploadDialog(prev => ({ ...prev, progress: percentComplete }));
                 },
-                onSuccess: (response) => {
+                onSuccess: () => {
                     setUploadDialog(prev => ({ ...prev, progress: 100 }));
                     toast.success('Archivo subido correctamente');
                     fetchVersionDetails();
@@ -496,6 +608,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         } finally {
             setUploadingFile(false);
             setUploadDialog(prev => ({ ...prev, open: false, file: null, progress: 0 }));
+            setUploadSide('both');
         }
     };
 
@@ -672,7 +785,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         setReuseDialog(prev => ({ ...prev, selectedFiles: [] }));
     };
 
-    const buildFileTree = (files: Array<{ fileHash: string; path: string; size: number }>, type: string): { [key: string]: TreeNode } => {
+    const buildFileTree = (files: Array<{ fileHash: string; path: string; size: number; side?: 'client' | 'server' | 'both' }>, type: string): { [key: string]: TreeNode } => {
         const tree: { [key: string]: TreeNode } = {};
         files.forEach(fileEntry => {
             const pathParts = fileEntry.path.split('/');
@@ -684,6 +797,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                         fileHash: fileEntry.fileHash,
                         path: fileEntry.path,
                         fileType: type as any, // NEW: Set fileType directly
+                        side: fileEntry.side || 'both',
                         file: { type: type as any }, // Keep for backward compatibility
                         size: fileEntry.size
                     };
@@ -784,7 +898,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
 
             return (
                 <div>
-                    <div className="flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded transition-colors">
+                    <div className="flex items-center cursor-pointer hover:bg-white/5 p-1 rounded transition-colors group">
                         <input
                             type="checkbox"
                             checked={allSelected}
@@ -792,17 +906,17 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                 if (el) el.indeterminate = someSelected && !allSelected;
                             }}
                             onChange={handleFolderCheckboxChange}
-                            className="mr-2 rounded border-gray-300"
+                            className="mr-2 rounded border-white/20 bg-transparent"
                         />
                         <div onClick={toggleExpand} className="flex items-center flex-1">
-                            {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-gray-200 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" />}
-                            <LucideFolder className="h-4 w-4 mr-2 text-sky-600 flex-shrink-0" />
-                            <span className="text-gray-800 font-medium">{name}</span>
-                            <span className="text-xs text-gray-500 ml-2">({folderFileHashes.length} archivos)</span>
+                            {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-gray-400 group-hover:text-gray-200 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-gray-400 group-hover:text-gray-200 flex-shrink-0" />}
+                            <LucideFolder className="h-4 w-4 mr-2 text-sky-500 flex-shrink-0" />
+                            <span className="text-gray-200 font-medium">{name}</span>
+                            <span className="text-xs text-gray-400 ml-2">({folderFileHashes.length})</span>
                         </div>
                     </div>
                     {isExpanded && (
-                        <div className="pl-6 border-l border-gray-200 ml-2">
+                        <div className="pl-6 border-l border-white/5 ml-2">
                             {Object.entries(node.children)
                                 .sort(([aName, aNode], [bName, bNode]) => {
                                     if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
@@ -838,31 +952,31 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         );
 
         return (
-            <div className="flex items-center justify-between p-1 ml-4 group hover:bg-gray-100 rounded">
+            <div className="flex items-center justify-between p-1 ml-4 group hover:bg-white/5 rounded transition-colors">
                 <div className="flex items-center min-w-0 flex-1">
                     <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => onToggleSelection(versionId!, fileData.fileHash, fileData.path)}
-                        className="mr-2 rounded border-gray-300 flex-shrink-0"
+                        className="mr-2 rounded border-white/20 bg-transparent flex-shrink-0"
                     />
                     <div className="w-4 mr-2 flex-shrink-0"></div> {/* Indent spacer */}
                     {getFileIcon(name)}
                     <span
-                        className="text-gray-500 truncate"
+                        className="text-gray-300 truncate text-sm"
                         title={`Versión: ${versionId} - Path: ${fileData.path}`} // Show versionId and full path on hover
                     >
                         {name}
                     </span>
                 </div>
-                <div className="text-xs text-gray-500 flex-shrink-0 ml-2">
+                <div className="text-[10px] text-gray-400 flex-shrink-0 ml-2">
                     {formatFileSize(fileData.size || 0)}
                 </div>
             </div>
         );
     };
 
-    const FileSection: React.FC<{
+    const FileTypeManager: React.FC<{
         title: string;
         description: string;
         type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras';
@@ -870,7 +984,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         icon: React.ReactNode;
         versionStatus: string;
         onDeleteFile: (fileHash: string, fileType: string) => void;
-    }> = ({ title, description, type, files, icon, versionStatus, onDeleteFile }) => {
+        onUpdateSide: (fileHash: string, fileType: string, side: 'client' | 'server' | 'both') => void;
+    }> = ({ title, description, type, files, icon, versionStatus, onDeleteFile, onUpdateSide }) => {
         const [expandedFolders, setExpandedFolders] = useState<{ [key: string]: boolean }>({});
 
         const filteredFiles = files.filter(file => {
@@ -918,68 +1033,69 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         }, [fileTree]);
 
         return (
-            <Card
-                className="transition-all duration-200 hover:shadow-md"
+            <div
+                className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300"
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, type)}
             >
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        {icon} {title}
-                        {versionStatus !== 'published' && (
-                            <span className="text-xs text-gray-400 ml-auto font-normal">
-                                Arrastra ZIP aquí
-                            </span>
-                        )}
-                    </CardTitle>
-                    <CardDescription>{description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        {versionStatus === 'draft' && (
-                            <div className="flex flex-col items-center space-y-2">
-                                <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => openUploadDialog(type)} disabled={uploadingFile}>
-                                        <LucideUpload className="h-4 w-4 mr-2" />
-                                        {uploadingFile ? 'Subiendo...' : 'Subir ZIP'}
-                                    </Button>
-                                    <Button variant="secondary" size="sm" onClick={() => openReuseDialog(type)} disabled={uploadingFile}>
-                                        <LucidePackage className="h-4 w-4 mr-2" /> Reutilizar
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-                        {filteredFiles.length > 0 ? (
-                            <div className="space-y-1 mt-4 max-h-60 overflow-y-auto font-mono text-xs border-t pt-4">
-                                {Object.entries(fileTree)
-                                    .sort(([aName, aNode], [bName, bNode]) => {
-                                        if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
-                                        if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
-                                        return aName.localeCompare(bName);
-                                    })
-                                    .map(([name, node]) => (
-                                        <FileTreeNode
-                                            key={name}
-                                            name={name}
-                                            node={node}
-                                            expandedFolders={expandedFolders}
-                                            setExpandedFolders={setExpandedFolders}
-                                            path={name}
-                                            versionStatus={versionStatus}
-                                            onDelete={onDeleteFile}
-                                        />
-                                    ))}
-                            </div>
-                        ) : (
-                            versionStatus !== 'published' && (
-                                <p className="text-xs text-center text-gray-500 mt-2">
-                                    Sube nuevos archivos o reutiliza de versiones anteriores.
-                                </p>
-                            )
-                        )}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <div className="flex items-center gap-2 mb-1">
+                            {icon}
+                            <h3 className="text-lg font-semibold text-white">{title}</h3>
+                        </div>
+                        <p className="text-sm text-gray-400">{description}</p>
                     </div>
-                </CardContent>
-            </Card>
+                    {versionStatus === 'draft' && (
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => openReuseDialog(type)} disabled={uploadingFile} className="h-9">
+                                <LucidePackage className="h-4 w-4 mr-2" /> Reutilizar
+                            </Button>
+                            <Button size="sm" onClick={() => openUploadDialog(type)} disabled={uploadingFile} className="h-9">
+                                <LucideUpload className="h-4 w-4 mr-2" /> Subir ZIP
+                            </Button>
+                        </div>
+                    )}
+                </div>
+
+                <div className="bg-black/20 rounded-xl border border-white/5 p-4 min-h-[400px]">
+                    {filteredFiles.length > 0 ? (
+                        <div className="space-y-1 font-mono text-xs overflow-y-auto max-h-[600px] pr-2 custom-scrollbar">
+                            {Object.entries(fileTree)
+                                .sort(([aName, aNode], [bName, bNode]) => {
+                                    if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
+                                    if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
+                                    return aName.localeCompare(bName);
+                                })
+                                .map(([name, node]) => (
+                                    <FileTreeNode
+                                        key={name}
+                                        name={name}
+                                        node={node}
+                                        expandedFolders={expandedFolders}
+                                        setExpandedFolders={setExpandedFolders}
+                                        path={name}
+                                        versionStatus={versionStatus}
+                                        onDelete={onDeleteFile}
+                                        onUpdateSide={onUpdateSide}
+                                    />
+                                ))}
+                        </div>
+                    ) : (
+                        <div className="h-[400px] flex flex-col items-center justify-center text-center p-8">
+                            <div className="bg-white/5 p-6 rounded-full mb-4">
+                                <LucideUpload className="h-10 w-10 text-gray-500" />
+                            </div>
+                            <h4 className="text-gray-300 font-medium mb-1">No hay archivos aún</h4>
+                            <p className="text-sm text-gray-500 max-w-[250px]">
+                                {versionStatus !== 'published'
+                                    ? "Sube un archivo ZIP o reutiliza archivos de versiones anteriores para comenzar."
+                                    : "Esta versión no contiene archivos en esta categoría."}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
         );
     };
 
@@ -1119,10 +1235,41 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                             <div className="space-y-4">
                                 <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
                                     <LucideFile className="h-5 w-5 text-gray-500" />
-                                    <span className="text-sm font-medium">{uploadDialog.file.name}</span>
+                                    <span className="text-sm font-medium text-gray-700">{uploadDialog.file.name}</span>
                                     <span className="text-xs text-gray-500 ml-auto">
                                         {formatFileSize(uploadDialog.file.size)}
                                     </span>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
+                                        <LucideMonitor className="h-3.5 w-3.5" /> Entorno de instalación
+                                    </label>
+                                    <Select value={uploadSide} onValueChange={(v: any) => setUploadSide(v)}>
+                                        <SelectTrigger className="w-full bg-slate-50 border-slate-200">
+                                            <SelectValue placeholder="Seleccionar entorno" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="both">
+                                                <div className="flex items-center gap-2">
+                                                    <LucideGlobe className="h-4 w-4" /> Ambos (Cliente y Servidor)
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="client">
+                                                <div className="flex items-center gap-2">
+                                                    <LucideMonitor className="h-4 w-4" /> Solo Cliente
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="server">
+                                                <div className="flex items-center gap-2">
+                                                    <LucideServer className="h-4 w-4" /> Solo Servidor
+                                                </div>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-[10px] text-gray-400">
+                                        Define dónde se instalarán los archivos contenidos en este ZIP.
+                                    </p>
                                 </div>
 
                                 {uploadingFile && (
@@ -1246,35 +1393,31 @@ const PublisherModpackVersionDetailView: React.FC = () => {
             </Dialog>
 
             <div className="space-y-6">
-                {/* Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-3xl font-bold text-white">{version.modpack.name}</h1>
-                        <p className="text-gray-400">Versión {version.version}</p>
+                {/* Header with improved hierarchy */}
+                <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-white/5">
+                    <div className="space-y-1">
+                        <div className="flex items-center gap-3">
+                            <h1 className="text-3xl font-bold text-white tracking-tight">{version.modpack.name}</h1>
+                            <Badge variant={getStatusBadgeVariant(version.status)} className="px-3 py-0.5">
+                                {getStatusLabel(version.status)}
+                            </Badge>
+                        </div>
+                        <p className="text-gray-400 flex items-center gap-2">
+                            Versión <code className="bg-white/5 px-1.5 py-0.5 rounded text-sky-400 font-mono text-sm">{version.version}</code>
+                            <span className="text-gray-600">•</span>
+                            <span className="text-sm">Enviada el {new Date(version.createdAt).toLocaleDateString()}</span>
+                        </p>
                     </div>
-                    <div className="flex items-center space-x-4">
+
+                    <div className="flex items-center gap-3">
                         {version.status === 'draft' && (
                             <Button
                                 onClick={() => setPublishDialog(true)}
                                 disabled={publishing}
-                                className="bg-green-600 hover:bg-green-700 text-white"
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-900/20"
                             >
                                 <LucideSend className="h-4 w-4 mr-2" />
-                                {publishing ? 'Publicando...' : 'Publicar'}
-                            </Button>
-                        )}
-
-
-
-                        {/* Action buttons depending on status: draft -> Publish, published -> Archive, archived -> Delete. No actions when deleted */}
-                        {version.status === 'draft' && (
-                            <Button
-                                onClick={() => setPublishDialog(true)}
-                                disabled={publishing}
-                                className="bg-green-600 hover:bg-green-700 text-white"
-                            >
-                                <LucideSend className="h-4 w-4 mr-2" />
-                                {publishing ? 'Publicando...' : 'Publicar'}
+                                {publishing ? 'Publicando...' : 'Publicar Versión'}
                             </Button>
                         )}
 
@@ -1283,7 +1426,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                 onClick={() => setArchiveDialog(true)}
                                 disabled={publishing}
                                 variant="outline"
-                                className="border-sky-300 text-sky-700 hover:bg-sky-50"
+                                className="border-sky-500/30 text-sky-400 hover:bg-sky-500/10"
                             >
                                 <LucideFolder className="h-4 w-4 mr-2" />
                                 Archivar
@@ -1295,62 +1438,19 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                 onClick={() => setDeleteVersionDialog(true)}
                                 disabled={publishing}
                                 variant="destructive"
+                                className="shadow-lg shadow-red-900/20"
                             >
                                 <LucideTrash2 className="h-4 w-4 mr-2" />
-                                Eliminar Versión
+                                Eliminar Permanentemente
                             </Button>
                         )}
-
-                        <Badge variant={getStatusBadgeVariant(version.status)}>
-                            {getStatusLabel(version.status)}
-                        </Badge>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    {/* Main Content */}
-                    <div className="lg:col-span-2 space-y-6">
-                        {/* Version Info */}
-                        <Card>
-                            <CardHeader>
-                                <CardTitle>Información de la Versión</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-500">Versión</label>
-                                        <p className="text-lg font-semibold">{version.version}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-500">Minecraft</label>
-                                        <p className="text-lg">{version.mcVersion}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-500">Forge</label>
-                                        <p className="text-lg">{version.forgeVersion || 'N/A'}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-500">Estado</label>
-                                        <p className="text-lg capitalize">{version.status === 'published' ? 'Publicado' : 'Borrador'}</p>
-                                    </div>
-                                </div>
-                                <Separator />
-                                <div className='grid grid-cols-2 gap-4'>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-500">Creado</label>
-                                        <p>{new Date(version.createdAt).toLocaleString()}</p>
-                                    </div>
-                                    {version.releaseDate && (
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-500">Publicado</label>
-                                            <p>{new Date(version.releaseDate).toLocaleString()}</p>
-                                        </div>
-                                    )}
-                                </div>
-                            </CardContent>
-                        </Card>
-
-                        {/* Processing Status */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Sidebar / Info Column - Moved to Left for better attention to settings */}
+                    <div className="lg:col-span-4 space-y-6 order-2 lg:order-1">
+                        {/* Processing Status - Always visible on top of sidebar */}
                         <ModpackProcessingStatus
                             modpackId={modpackId!}
                             versionId={versionId!}
@@ -1365,115 +1465,176 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                             }}
                         />
 
-                        {/* Changelog */}
-                        <Card>
-                            <CardHeader>
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <CardTitle>Changelog</CardTitle>
-                                        <CardDescription>
-                                            Describe los cambios en esta versión
-                                        </CardDescription>
+                        {/* Version Info Card */}
+                        <Card className="bg-white/5 border-white/10 overflow-hidden">
+                            <CardHeader className="pb-3 border-b border-white/5">
+                                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-400 uppercase tracking-wider">
+                                    <LucideInfo className="h-4 w-4" /> Detalles Técnicos
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-6 space-y-4">
+                                <div className="grid grid-cols-2 gap-y-4 gap-x-2">
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Minecraft</p>
+                                        <p className="text-lg font-medium text-white">{version.mcVersion}</p>
                                     </div>
-                                    {!editingChangelog && version.status === 'draft' ? (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => setEditingChangelog(true)}
-                                        >
-                                            <LucideEdit2 className="h-4 w-4 mr-2" />
-                                            Editar
-                                        </Button>
-                                    ) : editingChangelog ? (
-                                        <div className="flex space-x-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => {
-                                                    setEditingChangelog(false);
-                                                    setChangelog(version.changelog || '');
-                                                }}
-                                            >
-                                                Cancelar
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                onClick={updateChangelog}
-                                            >
-                                                <LucideSave className="h-4 w-4 mr-2" />
-                                                Guardar
-                                            </Button>
-                                        </div>
-                                    ) : null}
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Loader</p>
+                                        <p className="text-lg font-medium text-white">{version.forgeVersion || 'Vanilla'}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Archivos</p>
+                                        <p className="text-lg font-medium text-white">{version.files?.length || 0}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                        <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Estado</p>
+                                        <p className="text-lg font-medium text-white capitalize">{version.status}</p>
+                                    </div>
                                 </div>
+                                <Separator className="bg-white/5" />
+                                <div className="space-y-3">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-gray-500">Creado</span>
+                                        <span className="text-gray-300 font-medium">{new Date(version.createdAt).toLocaleDateString()}</span>
+                                    </div>
+                                    {version.releaseDate && (
+                                        <div className="flex justify-between items-center text-sm">
+                                            <span className="text-gray-500">Publicado</span>
+                                            <span className="text-gray-300 font-medium">{new Date(version.releaseDate).toLocaleDateString()}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Changelog Card */}
+                        <Card className="bg-white/5 border-white/10">
+                            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+                                <CardTitle className="text-sm font-semibold flex items-center gap-2 text-gray-400 uppercase tracking-wider">
+                                    <LucideFileText className="h-4 w-4" /> Changelog
+                                </CardTitle>
+                                {version.status === 'draft' && !editingChangelog && (
+                                    <Button variant="ghost" size="icon" onClick={() => setEditingChangelog(true)} className="h-6 w-6 text-sky-400 hover:text-sky-300 hover:bg-sky-500/10">
+                                        <LucideEdit2 className="h-3.5 w-3.5" />
+                                    </Button>
+                                )}
                             </CardHeader>
                             <CardContent>
                                 {editingChangelog ? (
-                                    <Textarea
-                                        value={changelog}
-                                        onChange={(e) => setChangelog(e.target.value)}
-                                        placeholder="Describe los cambios en esta versión..."
-                                        rows={8}
-                                        className="w-full"
-                                    />
+                                    <div className="space-y-3">
+                                        <Textarea
+                                            value={changelog}
+                                            onChange={(e) => setChangelog(e.target.value)}
+                                            placeholder="¿Qué ha cambiado?"
+                                            rows={8}
+                                            className="bg-black/40 border-white/10 focus:ring-sky-500 text-sm"
+                                        />
+                                        <div className="flex gap-2 justify-end">
+                                            <Button variant="ghost" size="sm" onClick={() => { setEditingChangelog(false); setChangelog(version.changelog || ''); }}>
+                                                Cancelar
+                                            </Button>
+                                            <Button size="sm" onClick={updateChangelog} className="bg-sky-600 hover:bg-sky-700">
+                                                <LucideSave className="h-3 w-3 mr-2" /> Guardar
+                                            </Button>
+                                        </div>
+                                    </div>
                                 ) : (
-                                    <div className="prose max-w-none text-sm p-4 bg-gray-500/10 rounded-md border max-h-60 overflow-auto">
-                                        <pre className="whitespace-pre-wrap font-sans text-gray-100">
-                                            {version.changelog || 'No hay changelog disponible.'}
-                                        </pre>
+                                    <div className="text-sm text-gray-300 whitespace-pre-wrap font-sans bg-black/20 p-4 rounded-lg border border-white/5 max-h-60 overflow-auto custom-scrollbar italic leading-relaxed">
+                                        {version.changelog || 'No se ha proporcionado un registro de cambios.'}
                                     </div>
                                 )}
                             </CardContent>
                         </Card>
                     </div>
 
-                    {/* Sidebar with File Sections */}
-                    <div className="space-y-6">
-                        <FileSection
-                            title="Mods"
-                            description="Archivos para la carpeta /mods"
-                            type="mods"
-                            files={version.files || []}
-                            icon={<LucidePackage className="h-5 w-5" />}
-                            versionStatus={version.status}
-                            onDeleteFile={deleteFile}
-                        />
-                        <FileSection
-                            title="Resource Packs"
-                            description="Archivos para la carpeta /resourcepacks"
-                            type="resourcepacks"
-                            files={version.files || []}
-                            icon={<LucideImage className="h-5 w-5" />}
-                            versionStatus={version.status}
-                            onDeleteFile={deleteFile}
-                        />
-                        <FileSection
-                            title="Config"
-                            description="Archivos para la carpeta /config"
-                            type="config"
-                            files={version.files || []}
-                            icon={<LucideSettings className="h-5 w-5" />}
-                            versionStatus={version.status}
-                            onDeleteFile={deleteFile}
-                        />
-                        <FileSection
-                            title="Shader Packs"
-                            description="Archivos para la carpeta /shaderpacks"
-                            type="shaderpacks"
-                            files={version.files || []}
-                            icon={<LucidePalette className="h-5 w-5" />}
-                            versionStatus={version.status}
-                            onDeleteFile={deleteFile}
-                        />
-                        <FileSection
-                            title="Extras"
-                            description="Archivos para la raíz de .minecraft"
-                            type="extras"
-                            files={version.files || []}
-                            icon={<LucideFolder className="h-5 w-5" />}
-                            versionStatus={version.status}
-                            onDeleteFile={deleteFile}
-                        />
+                    {/* Main Content Column (Tabs) */}
+                    <div className="lg:col-span-8 space-y-6 order-1 lg:order-2">
+                        <Card className="border-white/10 bg-white/5 overflow-hidden">
+                            <Tabs defaultValue="mods" className="w-full">
+                                <div className="px-6 pt-6 pb-2 border-b border-white/5 bg-black/20">
+                                    <TabsList className="bg-white/5 border border-white/10 p-1 w-full justify-start overflow-x-auto h-auto no-scrollbar">
+                                        <TabsTrigger value="mods" className="flex items-center gap-2 py-2 data-[state=active]:bg-sky-600 data-[state=active]:text-white transition-all">
+                                            <LucidePackage className="h-4 w-4" /> Mods
+                                        </TabsTrigger>
+                                        <TabsTrigger value="resourcepacks" className="flex items-center gap-2 py-2 data-[state=active]:bg-sky-600 data-[state=active]:text-white transition-all">
+                                            <LucideImage className="h-4 w-4" /> Resources
+                                        </TabsTrigger>
+                                        <TabsTrigger value="config" className="flex items-center gap-2 py-2 data-[state=active]:bg-sky-600 data-[state=active]:text-white transition-all">
+                                            <LucideSettings className="h-4 w-4" /> Config
+                                        </TabsTrigger>
+                                        <TabsTrigger value="shaderpacks" className="flex items-center gap-2 py-2 data-[state=active]:bg-sky-600 data-[state=active]:text-white transition-all">
+                                            <LucidePalette className="h-4 w-4" /> Shaders
+                                        </TabsTrigger>
+                                        <TabsTrigger value="extras" className="flex items-center gap-2 py-2 data-[state=active]:bg-sky-600 data-[state=active]:text-white transition-all">
+                                            <LucideFolder className="h-4 w-4" /> Extras
+                                        </TabsTrigger>
+                                    </TabsList>
+                                </div>
+
+                                <CardContent className="pt-8">
+                                    <TabsContent value="mods" className="mt-0 outline-none">
+                                        <FileTypeManager
+                                            title="Mods"
+                                            description="Modificaciones de jugabilidad (.jar)"
+                                            type="mods"
+                                            files={version.files || []}
+                                            icon={<LucidePackage className="h-5 w-5 text-sky-400" />}
+                                            versionStatus={version.status}
+                                            onDeleteFile={deleteFile}
+                                            onUpdateSide={handleUpdateSide}
+                                        />
+                                    </TabsContent>
+                                    <TabsContent value="resourcepacks" className="mt-0 outline-none">
+                                        <FileTypeManager
+                                            title="Resource Packs"
+                                            description="Paquetes de texturas y sonidos (.zip)"
+                                            type="resourcepacks"
+                                            files={version.files || []}
+                                            icon={<LucideImage className="h-5 w-5 text-sky-400" />}
+                                            versionStatus={version.status}
+                                            onDeleteFile={deleteFile}
+                                            onUpdateSide={handleUpdateSide}
+                                        />
+                                    </TabsContent>
+                                    <TabsContent value="config" className="mt-0 outline-none">
+                                        <FileTypeManager
+                                            title="Configs"
+                                            description="Archivos de configuración del servidor y mods"
+                                            type="config"
+                                            files={version.files || []}
+                                            icon={<LucideSettings className="h-5 w-5 text-sky-400" />}
+                                            versionStatus={version.status}
+                                            onDeleteFile={deleteFile}
+                                            onUpdateSide={handleUpdateSide}
+                                        />
+                                    </TabsContent>
+                                    <TabsContent value="shaderpacks" className="mt-0 outline-none">
+                                        <FileTypeManager
+                                            title="Shader Packs"
+                                            description="Mejoras visuales y sombreadores"
+                                            type="shaderpacks"
+                                            files={version.files || []}
+                                            icon={<LucidePalette className="h-5 w-5 text-sky-400" />}
+                                            versionStatus={version.status}
+                                            onDeleteFile={deleteFile}
+                                            onUpdateSide={handleUpdateSide}
+                                        />
+                                    </TabsContent>
+                                    <TabsContent value="extras" className="mt-0 outline-none">
+                                        <FileTypeManager
+                                            title="Extras"
+                                            description="Archivos adicionales en la raíz (.minecraft)"
+                                            type="extras"
+                                            files={version.files || []}
+                                            icon={<LucideFolder className="h-5 w-5 text-sky-400" />}
+                                            versionStatus={version.status}
+                                            onDeleteFile={deleteFile}
+                                            onUpdateSide={handleUpdateSide}
+                                        />
+                                    </TabsContent>
+                                </CardContent>
+                            </Tabs>
+                        </Card>
                     </div>
                 </div>
             </div>

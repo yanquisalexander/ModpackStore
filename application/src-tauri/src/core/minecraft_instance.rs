@@ -25,6 +25,19 @@ impl Default for ModLoaderType {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum InstanceType {
+    Client,
+    Server,
+}
+
+impl Default for InstanceType {
+    fn default() -> Self {
+        InstanceType::Client
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MinecraftInstance {
     pub instanceId: String,
@@ -51,6 +64,8 @@ pub struct MinecraftInstance {
     pub favorite_order: Option<i32>,
     #[serde(default)]
     pub ms_nickname: Option<String>, // Custom nickname for ModpackStore auth
+    #[serde(default)]
+    pub instanceType: InstanceType,
 }
 
 impl MinecraftInstance {
@@ -72,6 +87,10 @@ impl MinecraftInstance {
 
     pub fn is_quilt_instance(&self) -> bool {
         matches!(self.loaderType, ModLoaderType::Quilt)
+    }
+
+    pub fn is_server(&self) -> bool {
+        matches!(self.instanceType, InstanceType::Server)
     }
 
     pub fn get_loader_name(&self) -> &str {
@@ -104,6 +123,7 @@ impl MinecraftInstance {
             favorite: false,
             favorite_order: None,
             ms_nickname: None,
+            instanceType: InstanceType::Client,
         }
     }
 

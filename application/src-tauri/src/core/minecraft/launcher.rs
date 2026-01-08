@@ -6,8 +6,8 @@ use crate::core::minecraft::{
     manifest::{ManifestMerger, ManifestParser},
     paths::MinecraftPaths,
 };
-use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
 use crate::core::modpackstore_auth::ModpackStoreAuth;
+use crate::core::{minecraft_account::MinecraftAccount, minecraft_instance::MinecraftInstance};
 use crate::interfaces::game_launcher::GameLauncher;
 use std::process::{Child, Command, Stdio};
 use uuid::Uuid;
@@ -20,10 +20,101 @@ impl MinecraftLauncher {
     pub fn new(instance: MinecraftInstance) -> Self {
         Self { instance }
     }
+
+    fn launch_server(&self) -> Option<Child> {
+        let config_manager = match get_config_manager().lock() {
+            Ok(manager) => manager,
+            Err(_) => return None,
+        };
+
+        let config = match config_manager.as_ref() {
+            Ok(cfg) => cfg,
+            Err(_) => return None,
+        };
+
+        let paths = MinecraftPaths::new(&self.instance, config)?;
+        let game_dir = paths.game_dir();
+
+        // Find server JAR
+        // 1. Check for server.jar
+        // 2. Check for any jar that doesn't look like a mod in the root
+        let mut server_jar = game_dir.join("server.jar");
+        if !server_jar.exists() {
+            // Try to find any jar in the root that might be a server
+            if let Ok(entries) = std::fs::read_dir(&game_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file() && path.extension().map_or(false, |ext| ext == "jar") {
+                        let name = path.file_name().unwrap().to_string_lossy().to_lowercase();
+                        if name.contains("server")
+                            || name.contains("forge")
+                            || name.contains("fabric")
+                            || name.contains("neoforge")
+                        {
+                            server_jar = path;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // If still not found, search in the instance directory (parent of minecraft/ if it exists)
+        if !server_jar.exists() {
+            if let Some(inst_dir) = &self.instance.instanceDirectory {
+                let inst_path = std::path::Path::new(inst_dir);
+                if let Ok(entries) = std::fs::read_dir(inst_path) {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+                        if path.is_file() && path.extension().map_or(false, |ext| ext == "jar") {
+                            let name = path.file_name().unwrap().to_string_lossy().to_lowercase();
+                            if name.contains("server")
+                                || name.contains("forge")
+                                || name.contains("fabric")
+                            {
+                                server_jar = path;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if !server_jar.exists() {
+            log::error!(
+                "[MinecraftLauncher] No server JAR found in {}",
+                game_dir.display()
+            );
+            return None;
+        }
+
+        let mc_memory = config.get_minecraft_memory().unwrap_or(2048);
+
+        let mut command = Command::new(paths.java_path());
+        command
+            .arg(format!("-Xmx{}M", mc_memory))
+            .arg(format!("-Xms{}M", mc_memory / 2))
+            .arg("-jar")
+            .arg(server_jar)
+            .arg("nogui")
+            .current_dir(game_dir)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+
+        log::info!("[MinecraftLauncher] Launching Server: {:?}", command);
+
+        command.spawn().ok()
+    }
 }
 
 impl GameLauncher for MinecraftLauncher {
     fn launch(&self) -> Option<Child> {
+        if self.instance.is_server() {
+            return self.launch_server();
+        }
+
         let config_manager = match get_config_manager().lock() {
             Ok(manager) => manager,
             Err(_) => return None,
@@ -72,13 +163,13 @@ impl GameLauncher for MinecraftLauncher {
             None => {
                 // No account UUID - use ModpackStore auth
                 log::info!("[MinecraftLauncher] No account UUID found, using ModpackStore auth");
-                
+
                 // Get JWT token from store synchronously
                 let app_handle = match crate::GLOBAL_APP_HANDLE.lock() {
                     Ok(guard) => guard.as_ref().cloned(),
                     Err(_) => return None,
                 };
-                
+
                 let access_token = match app_handle {
                     Some(handle) => {
                         match crate::core::instance_manager::get_access_token_sync(&handle) {
@@ -100,18 +191,26 @@ impl GameLauncher for MinecraftLauncher {
                 let ms_auth = ModpackStoreAuth::new(api_endpoint);
 
                 // Get username (ms_nickname if set, otherwise default from session)
-                let username = self.instance.ms_nickname.clone().unwrap_or_else(|| "Player".to_string());
+                let username = self
+                    .instance
+                    .ms_nickname
+                    .clone()
+                    .unwrap_or_else(|| "Player".to_string());
 
                 // For synchronous launcher, we need to block on the async authentication
                 // This is not ideal but maintains compatibility
                 let rt = tokio::runtime::Runtime::new().unwrap();
-                let auth_response = match rt.block_on(ms_auth.authenticate(access_token, Some(username))) {
-                    Ok(response) => response,
-                    Err(e) => {
-                        log::error!("[MinecraftLauncher] Failed to authenticate with ModpackStore: {}", e);
-                        return None;
-                    }
-                };
+                let auth_response =
+                    match rt.block_on(ms_auth.authenticate(access_token, Some(username))) {
+                        Ok(response) => response,
+                        Err(e) => {
+                            log::error!(
+                                "[MinecraftLauncher] Failed to authenticate with ModpackStore: {}",
+                                e
+                            );
+                            return None;
+                        }
+                    };
 
                 // Create temporary MinecraftAccount
                 let account = MinecraftAccount::new(
@@ -177,14 +276,20 @@ impl GameLauncher for MinecraftLauncher {
 
         // Add authlib-injector if using ModpackStore auth
         if self.instance.accountUuid.is_none() {
-            match crate::core::instance_manager::get_authlib_injector_arg_sync(&self.instance, &paths) {
+            match crate::core::instance_manager::get_authlib_injector_arg_sync(
+                &self.instance,
+                &paths,
+            ) {
                 Ok(authlib_arg) => {
                     // Insert authlib-injector as the first JVM argument
                     jvm_args.insert(0, authlib_arg);
                     log::info!("[MinecraftLauncher] Added authlib-injector to JVM arguments");
                 }
                 Err(e) => {
-                    log::error!("[MinecraftLauncher] Failed to get authlib-injector argument: {}", e);
+                    log::error!(
+                        "[MinecraftLauncher] Failed to get authlib-injector argument: {}",
+                        e
+                    );
                     return None;
                 }
             }

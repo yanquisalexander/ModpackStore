@@ -1,5 +1,6 @@
 import { type Context } from 'hono';
 import { getExploreModpacks, getModpackById, searchModpacks, getFeaturedModpacks } from "@/services/modpacks";
+import { resolveModpackVersionFiles } from "@/services/modpackVersionFiles.service";
 import { serializeCollection, serializeResource, serializeError } from "../utils/jsonapi";
 import { ModpackVersion } from "@/entities/ModpackVersion";
 import { ModpackVersionStatus, AcquisitionMethod } from "@/types/enums";
@@ -244,8 +245,11 @@ export class ExploreModpacksController {
                 resolvedVersionId = latestVersion.id;
             }
 
+            // Get target environment from query
+            const target = (c.req.query('target') || 'both') as 'client' | 'server' | 'both';
+
             // Check cache first (only for resolved version IDs, not for "latest")
-            const cachedManifest = await ManifestCacheService.get(modpackId, resolvedVersionId);
+            const cachedManifest = await ManifestCacheService.get(modpackId, resolvedVersionId, target);
 
             if (cachedManifest) {
                 // Generate ETag for cached manifest
@@ -315,6 +319,7 @@ export class ExploreModpacksController {
                         modpackVersionId: true,
                         path: true,
                         fileType: true,
+                        side: true,
                         file: {
                             // Primary key required for nested relation
                             hash: true,
@@ -354,6 +359,14 @@ export class ExploreModpacksController {
                 }
             }
 
+            // Filter files based on target environment
+            let filteredFiles = mpVersion.files;
+            if (target === 'client') {
+                filteredFiles = mpVersion.files.filter(f => f.side !== 'server');
+            } else if (target === 'server') {
+                filteredFiles = mpVersion.files.filter(f => f.side !== 'client');
+            }
+
             // Generate manifest with URLs
             const getDownloadUrl = (hash: string) => new URL(`${hash.slice(0, 2)}/${hash.slice(2, 4)}/${hash}`, DOWNLOAD_PREFIX_URL).toString();
             const manifest = {
@@ -366,16 +379,17 @@ export class ExploreModpacksController {
                 releaseDate: mpVersion.releaseDate,
                 status: mpVersion.status,
                 version: mpVersion.version,
-                files: mpVersion.files.map(file => ({
+                files: filteredFiles.map(file => ({
                     path: file.path,
                     fileHash: file.fileHash,
                     downloadUrl: getDownloadUrl(file.fileHash),
+                    side: file.side || 'both',
                     file: file.file
                 }))
             };
 
             // Cache the manifest (indefinite TTL)
-            await ManifestCacheService.set(modpackId, mpVersion.id, manifest);
+            await ManifestCacheService.set(modpackId, mpVersion.id, manifest, target);
 
             // Generate ETag
             const etag = generateETag(manifest);

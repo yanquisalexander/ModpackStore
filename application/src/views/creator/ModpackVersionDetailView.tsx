@@ -23,12 +23,29 @@ import {
     LucideFileJson,
     LucideFileText,
     LucideFileArchive,
-    LucideFileImage
+    LucideFileImage,
+    LucideMonitor,
+    LucideServer,
+    LucideGlobe,
+    LucideInfo
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { API_ENDPOINT } from '@/consts';
 import { useAuthentication } from '@/stores/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Progress } from '@/components/ui/progress';
 import { handleApiError } from '@/lib/utils';
 import { uploadFileWithUppy } from '@/utils/uppyUpload';
@@ -57,6 +74,7 @@ interface ModpackVersionFile {
     fileHash: string;
     path: string;
     fileType?: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras' | 'datapacks'; // NEW: direct fileType on ModpackVersionFile
+    side: 'client' | 'server' | 'both';
     file: {
         type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras'; // DEPRECATED: kept for backward compatibility
     };
@@ -109,9 +127,10 @@ const FileTreeNode: React.FC<{
     path: string;
     versionStatus: string;
     onDelete: (fileHash: string, fileType: string) => void;
+    onUpdateSide: (fileHash: string, fileType: string, side: 'client' | 'server' | 'both') => void;
     selectedFiles?: Set<string>;
     onToggleSelection?: (fileHash: string) => void;
-}> = ({ name, node, expandedFolders, setExpandedFolders, path, versionStatus, onDelete, selectedFiles, onToggleSelection }) => {
+}> = ({ name, node, expandedFolders, setExpandedFolders, path, versionStatus, onDelete, onUpdateSide, selectedFiles, onToggleSelection }) => {
     if (node.type === 'folder') {
         const isExpanded = expandedFolders[path];
         const toggleExpand = () => setExpandedFolders(prev => ({ ...prev, [path]: !isExpanded }));
@@ -141,6 +160,7 @@ const FileTreeNode: React.FC<{
                                     path={`${path}/${childName}`}
                                     versionStatus={versionStatus}
                                     onDelete={onDelete}
+                                    onUpdateSide={onUpdateSide}
                                 />
                             ))}
                     </div>
@@ -168,16 +188,65 @@ const FileTreeNode: React.FC<{
                 {getFileIcon(name)}
                 <span className="text-gray-700 truncate" title={fileData.path}>{name}</span>
             </div>
-            {versionStatus !== 'published' && (
-                <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onDelete(fileData.fileHash, fileData.file.type)}
-                    className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                >
-                    <LucideTrash2 className="h-4 w-4" />
-                </Button>
-            )}
+            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <div className="flex items-center">
+                                <Select
+                                    value={fileData.side || 'both'}
+                                    onValueChange={(value: any) => onUpdateSide(fileData.fileHash, fileData.file.type, value)}
+                                    disabled={versionStatus === 'published'}
+                                >
+                                    <SelectTrigger className="h-7 w-[90px] text-[10px] px-2 bg-white/50 border-none shadow-none focus:ring-0">
+                                        <div className="flex items-center gap-1">
+                                            {fileData.side === 'client' && <LucideMonitor className="h-3 w-3" />}
+                                            {fileData.side === 'server' && <LucideServer className="h-3 w-3" />}
+                                            {(!fileData.side || fileData.side === 'both') && <LucideGlobe className="h-3 w-3" />}
+                                            <SelectValue />
+                                        </div>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="both">
+                                            <div className="flex items-center gap-2">
+                                                <LucideGlobe className="h-3 w-3" /> Ambos
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="client">
+                                            <div className="flex items-center gap-2">
+                                                <LucideMonitor className="h-3 w-3" /> Cliente
+                                            </div>
+                                        </SelectItem>
+                                        <SelectItem value="server">
+                                            <div className="flex items-center gap-2">
+                                                <LucideServer className="h-3 w-3" /> Servidor
+                                            </div>
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                            <p className="text-xs">
+                                {fileData.side === 'client' ? 'Solo se instalará en el cliente.' :
+                                    fileData.side === 'server' ? 'Solo se instalará en el servidor.' :
+                                        'Se instalará tanto en cliente como en servidor.'}
+                            </p>
+                        </TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+
+                {versionStatus !== 'published' && (
+                    <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => onDelete(fileData.fileHash, fileData.file.type)}
+                        className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                    >
+                        <LucideTrash2 className="h-4 w-4" />
+                    </Button>
+                )}
+            </div>
         </div>
     );
 };
@@ -204,11 +273,13 @@ const ModpackVersionDetailView: React.FC = () => {
         type: string;
         file: File | null;
         progress: number;
+        side: 'client' | 'server' | 'both';
     }>({
         open: false,
         type: '',
         file: null,
-        progress: 0
+        progress: 0,
+        side: 'both'
     });
 
     // New state for file reuse functionality
@@ -243,6 +314,39 @@ const ModpackVersionDetailView: React.FC = () => {
             fetchVersionDetails();
         }
     }, [publisherId, modpackId, versionId]);
+
+    const [editingSide, setEditingSide] = useState<{
+        fileHash: string;
+        type: string;
+        side: 'client' | 'server' | 'both';
+    } | null>(null);
+
+    const updateFileSide = async (fileHash: string, type: string, side: 'client' | 'server' | 'both') => {
+        try {
+            const res = await fetch(
+                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}/${fileHash}/side`,
+                {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ side })
+                }
+            );
+
+            if (!res.ok) {
+                await handleApiError(res);
+                return;
+            }
+
+            toast.success('Entorno de archivo actualizado');
+            fetchVersionDetails();
+        } catch (error) {
+            console.error('Error updating file side:', error);
+            toast.error(error instanceof Error ? error.message : 'Error al actualizar el entorno del archivo');
+        }
+    };
 
     const fetchVersionDetails = async () => {
         setLoading(true);
@@ -327,7 +431,7 @@ const ModpackVersionDetailView: React.FC = () => {
         }
     };
 
-    const handleFileUpload = async (file: File, type: string) => {
+    const handleFileUpload = async (file: File, type: string, side: 'client' | 'server' | 'both' = 'both') => {
         if (!file) return;
 
         if (!file.name.toLowerCase().endsWith('.zip')) {
@@ -346,6 +450,9 @@ const ModpackVersionDetailView: React.FC = () => {
                     'Authorization': `Bearer ${sessionTokens?.accessToken}`,
                 },
                 fieldName: 'file',
+                formData: {
+                    side
+                },
                 onProgress: (percentComplete) => {
                     setUploadDialog(prev => ({ ...prev, progress: percentComplete }));
                 },
@@ -356,7 +463,7 @@ const ModpackVersionDetailView: React.FC = () => {
                 },
                 onError: (error) => {
                     let message = error.message || 'Error al subir el archivo';
-                    
+
                     // Try to parse error message if it contains API error details
                     try {
                         const errorData = JSON.parse(error.message);
@@ -366,7 +473,7 @@ const ModpackVersionDetailView: React.FC = () => {
                     } catch (e) {
                         // Keep original message if parsing fails
                     }
-                    
+
                     toast.error(message);
                 }
             });
@@ -409,7 +516,8 @@ const ModpackVersionDetailView: React.FC = () => {
             open: true,
             type,
             file: null,
-            progress: 0
+            progress: 0,
+            side: 'both'
         });
     };
 
@@ -422,7 +530,7 @@ const ModpackVersionDetailView: React.FC = () => {
 
     const confirmUpload = async () => {
         if (uploadDialog.file) {
-            await handleFileUpload(uploadDialog.file, uploadDialog.type);
+            await handleFileUpload(uploadDialog.file, uploadDialog.type, uploadDialog.side);
         }
     };
 
@@ -554,6 +662,7 @@ const ModpackVersionDetailView: React.FC = () => {
                     const modpackFile: ModpackVersionFile = {
                         fileHash: fileData.fileHash,
                         path: fileData.path,
+                        side: (fileData as any).side || 'both',
                         file: {
                             type: fileData.type as 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras'
                         },
@@ -650,7 +759,8 @@ const ModpackVersionDetailView: React.FC = () => {
         icon: React.ReactNode;
         versionStatus: string;
         onDeleteFile: (fileHash: string, fileType: string) => void;
-    }> = ({ title, description, type, files, icon, versionStatus, onDeleteFile }) => {
+        onUpdateSide: (fileHash: string, fileType: string, side: 'client' | 'server' | 'both') => void;
+    }> = ({ title, description, type, files, icon, versionStatus, onDeleteFile, onUpdateSide }) => {
         const [expandedFolders, setExpandedFolders] = useState<{ [key: string]: boolean }>({});
         const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
         const [isDeleting, setIsDeleting] = useState(false);
@@ -867,6 +977,7 @@ const ModpackVersionDetailView: React.FC = () => {
                                             path={name}
                                             versionStatus={versionStatus}
                                             onDelete={onDeleteFile}
+                                            onUpdateSide={onUpdateSide}
                                             selectedFiles={selectedFiles}
                                             onToggleSelection={toggleFileSelection}
                                         />
@@ -981,6 +1092,24 @@ const ModpackVersionDetailView: React.FC = () => {
                     <div className="w-4 mr-2 flex-shrink-0"></div> {/* Indent spacer */}
                     {getFileIcon(name)}
                     <span className="text-gray-700 truncate" title={fileData.path}>{name}</span>
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div className="ml-2 flex-shrink-0">
+                                    {fileData.side === 'client' && <LucideMonitor className="h-3 w-3 text-gray-400" />}
+                                    {fileData.side === 'server' && <LucideServer className="h-3 w-3 text-gray-400" />}
+                                    {(!fileData.side || fileData.side === 'both') && <LucideGlobe className="h-3 w-3 text-gray-400" />}
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p className="text-[10px]">
+                                    {fileData.side === 'client' ? 'Entorno: Cliente solo' :
+                                        fileData.side === 'server' ? 'Entorno: Servidor solo' :
+                                            'Entorno: Ambos'}
+                                </p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
                 </div>
                 <div className="text-xs text-gray-500 flex-shrink-0 ml-2">
                     {formatFileSize(fileData.size || 0)}
@@ -1057,6 +1186,43 @@ const ModpackVersionDetailView: React.FC = () => {
                                     >
                                         <LucideTrash2 className="h-4 w-4" />
                                     </Button>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-semibold text-gray-500">Entorno de instalación</label>
+                                    <Select
+                                        value={uploadDialog.side}
+                                        onValueChange={(value: any) => setUploadDialog(prev => ({ ...prev, side: value }))}
+                                    >
+                                        <SelectTrigger>
+                                            <div className="flex items-center gap-2">
+                                                {uploadDialog.side === 'client' && <LucideMonitor className="h-4 w-4" />}
+                                                {uploadDialog.side === 'server' && <LucideServer className="h-4 w-4" />}
+                                                {uploadDialog.side === 'both' && <LucideGlobe className="h-4 w-4" />}
+                                                <SelectValue />
+                                            </div>
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="both">
+                                                <div className="flex items-center gap-2">
+                                                    <LucideGlobe className="h-4 w-4" /> Ambos (Cliente y Servidor)
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="client">
+                                                <div className="flex items-center gap-2">
+                                                    <LucideMonitor className="h-4 w-4" /> Solo Cliente
+                                                </div>
+                                            </SelectItem>
+                                            <SelectItem value="server">
+                                                <div className="flex items-center gap-2">
+                                                    <LucideServer className="h-4 w-4" /> Solo Servidor
+                                                </div>
+                                            </SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-[10px] text-gray-400">
+                                        Define dónde se instalará este archivo. Los archivos marcados como solo cliente no se enviarán al servidor de hosting.
+                                    </p>
                                 </div>
 
                                 {uploadingFile && (
@@ -1370,6 +1536,7 @@ const ModpackVersionDetailView: React.FC = () => {
                                 icon={<LucidePackage className="h-5 w-5" />}
                                 versionStatus={version.status}
                                 onDeleteFile={deleteFile}
+                                onUpdateSide={updateFileSide}
                             />
                             <FileSection
                                 title="Resource Packs"
@@ -1379,6 +1546,7 @@ const ModpackVersionDetailView: React.FC = () => {
                                 icon={<LucideImage className="h-5 w-5" />}
                                 versionStatus={version.status}
                                 onDeleteFile={deleteFile}
+                                onUpdateSide={updateFileSide}
                             />
                             <FileSection
                                 title="Config"
@@ -1388,6 +1556,7 @@ const ModpackVersionDetailView: React.FC = () => {
                                 icon={<LucideSettings className="h-5 w-5" />}
                                 versionStatus={version.status}
                                 onDeleteFile={deleteFile}
+                                onUpdateSide={updateFileSide}
                             />
                             <FileSection
                                 title="Shader Packs"
@@ -1397,6 +1566,7 @@ const ModpackVersionDetailView: React.FC = () => {
                                 icon={<LucidePalette className="h-5 w-5" />}
                                 versionStatus={version.status}
                                 onDeleteFile={deleteFile}
+                                onUpdateSide={updateFileSide}
                             />
                             <FileSection
                                 title="Extras"
@@ -1406,6 +1576,7 @@ const ModpackVersionDetailView: React.FC = () => {
                                 icon={<LucideFolder className="h-5 w-5" />}
                                 versionStatus={version.status}
                                 onDeleteFile={deleteFile}
+                                onUpdateSide={updateFileSide}
                             />
                         </div>
                     </div>

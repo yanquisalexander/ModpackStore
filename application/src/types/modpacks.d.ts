@@ -23,6 +23,7 @@ export interface Modpack {
   requiresTwitchSubscription?: boolean;
   twitchChannels?: TwitchChannel[];
   twitchCreatorIds?: string[];
+  allowServerDownload?: boolean;
   // trailerUrl, showUserAsPublisher can be added if needed
 }
 

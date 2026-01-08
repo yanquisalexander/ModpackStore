@@ -117,6 +117,8 @@ pub struct RunningInstanceInfo {
     pub version: String,
     pub icon: Option<String>,
     pub pid: u32,
+    #[serde(skip)]
+    pub stdin: Option<Arc<Mutex<std::process::ChildStdin>>>,
 }
 
 lazy_static! {
@@ -131,6 +133,25 @@ pub fn get_running_instances_list() -> Vec<RunningInstanceInfo> {
     lock.values().cloned().collect()
 }
 
+#[tauri::command]
+pub fn send_server_command(instance_id: String, command: String) -> Result<(), String> {
+    let stdin = {
+        let lock = RUNNING_INSTANCES.lock().unwrap();
+        lock.get(&instance_id).and_then(|info| info.stdin.clone())
+    };
+
+    if let Some(stdin_mutex) = stdin {
+        let mut stdin = stdin_mutex.lock().map_err(|e| e.to_string())?;
+        use std::io::Write;
+        writeln!(stdin, "{}", command).map_err(|e| e.to_string())?;
+        stdin.flush().map_err(|e| e.to_string())?;
+        info!("[Server Command] Sent: {} to {}", command, instance_id);
+        Ok(())
+    } else {
+        Err("Instancia no encontrada o no admite comandos".to_string())
+    }
+}
+
 pub fn kill_instance(instance_id: String) -> Result<(), String> {
     let pid = {
         let lock = RUNNING_INSTANCES.lock().unwrap();
@@ -140,34 +161,37 @@ pub fn kill_instance(instance_id: String) -> Result<(), String> {
     if let Some(pid) = pid {
         let mut system = System::new();
         system.refresh_processes(sysinfo::ProcessesToUpdate::All);
-        
+
         if let Some(process) = system.process(Pid::from_u32(pid)) {
             process.kill();
             info!("Killed instance {} (PID: {})", instance_id, pid);
             return Ok(());
         } else {
             // Fallback: Try OS command if sysinfo didn't find it (maybe it's a zombie or sysinfo issue)
-             #[cfg(target_os = "windows")]
+            #[cfg(target_os = "windows")]
             {
                 let _ = Command::new("taskkill")
                     .args(["/F", "/PID", &pid.to_string()])
                     .output()
                     .map_err(|e| e.to_string())?;
-                 info!("Killed instance {} (PID: {}) via taskkill", instance_id, pid);
-                 return Ok(());
+                info!(
+                    "Killed instance {} (PID: {}) via taskkill",
+                    instance_id, pid
+                );
+                return Ok(());
             }
             #[cfg(not(target_os = "windows"))]
             {
-                 let _ = Command::new("kill")
+                let _ = Command::new("kill")
                     .args(["-9", &pid.to_string()])
                     .output()
                     .map_err(|e| e.to_string())?;
-                 info!("Killed instance {} (PID: {}) via kill", instance_id, pid);
-                 return Ok(());
+                info!("Killed instance {} (PID: {}) via kill", instance_id, pid);
+                return Ok(());
             }
         }
     }
-    
+
     Err("Instance not found or not running".to_string())
 }
 
@@ -256,8 +280,19 @@ impl InstanceLauncher {
                 let reader = BufReader::new(out);
                 for line in reader.lines() {
                     if let Ok(l) = line {
-                        // Opcional: Emitir evento al Frontend para una consola en tiempo real
-                        // emit_console_log(&inst_id, &l, "stdout");
+                        // Emitir evento al Frontend para una consola en tiempo real
+                        if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+                            if let Some(app_handle) = guard.as_ref() {
+                                let _ = app_handle.emit(
+                                    "instance-console-log",
+                                    json!({
+                                        "id": inst_id,
+                                        "message": l,
+                                        "type": "stdout"
+                                    }),
+                                );
+                            }
+                        }
 
                         // Guardar en el buffer circular
                         if let Ok(mut buffer) = stdout_buffer.lock() {
@@ -278,7 +313,18 @@ impl InstanceLauncher {
                 let reader = BufReader::new(err);
                 for line in reader.lines() {
                     if let Ok(l) = line {
-                        // emit_console_log(&inst_id, &l, "stderr");
+                        if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
+                            if let Some(app_handle) = guard.as_ref() {
+                                let _ = app_handle.emit(
+                                    "instance-console-log",
+                                    json!({
+                                        "id": inst_id,
+                                        "message": l,
+                                        "type": "stderr"
+                                    }),
+                                );
+                            }
+                        }
 
                         if let Ok(mut buffer) = stderr_buffer.lock() {
                             if buffer.len() >= 200 {
@@ -524,12 +570,14 @@ impl InstanceLauncher {
         })();
 
         match launch_result {
-            Ok(child_process) => {
+            Ok(mut child_process) => {
                 info!(
                     "[Launch Thread: {}] Minecraft process started (PID: {}).",
                     self.instance.instanceId,
                     child_process.id()
                 );
+
+                let stdin = child_process.stdin.take().map(|s| Arc::new(Mutex::new(s)));
 
                 // Add to running instances registry
                 {
@@ -542,6 +590,7 @@ impl InstanceLauncher {
                             version: self.instance.minecraftVersion.clone(),
                             icon: self.instance.iconUrl.clone(),
                             pid: child_process.id(),
+                            stdin,
                         },
                     );
                 }

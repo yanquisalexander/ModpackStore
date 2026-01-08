@@ -2,11 +2,13 @@
 use crate::config::get_config_manager;
 use crate::core::bootstrap::loaders::ModLoaderInstaller;
 use crate::core::bootstrap::{
-    download::{download_file, download_forge_libraries, download_libraries, download_libraries_enhanced},
+    download::{
+        download_file, download_forge_libraries, download_libraries, download_libraries_enhanced,
+    },
     filesystem::{create_launcher_profiles, create_minecraft_directories, extract_natives},
     manifest::{
-        build_forge_installer_url, get_java_version_requirement, get_version_details,
-        get_version_manifest,
+        build_forge_installer_url, get_download_urls, get_java_version_requirement,
+        get_version_details, get_version_manifest,
     },
     tasks::{
         emit_bootstrap_complete, emit_bootstrap_error, emit_bootstrap_start, emit_status,
@@ -216,8 +218,7 @@ impl InstanceBootstrap {
         // Download version JSON
         let version_json_path = version_dir.join(format!("{}.json", instance.minecraftVersion));
         if !version_json_path.exists() {
-            let version_manifest = self
-                .get_version_manifest()?;
+            let version_manifest = self.get_version_manifest()?;
 
             let versions = version_manifest["versions"]
                 .as_array()
@@ -293,12 +294,46 @@ impl InstanceBootstrap {
             }
         }
 
-        // Download client jar
-        let client_jar_path = version_dir.join(format!("{}.jar", instance.minecraftVersion));
-        if !client_jar_path.exists() {
-            let client_url = version_details["downloads"]["client"]["url"]
+        // Download client or server jar depending on instance type
+        let is_server = instance.is_server();
+        let jar_filename = if is_server {
+            "server.jar".to_string()
+        } else {
+            format!("{}.jar", instance.minecraftVersion)
+        };
+
+        let jar_path = version_dir.join(&jar_filename);
+
+        // Determine what we are downloading for status messages
+        let file_type_desc = if is_server { "servidor" } else { "cliente" };
+        let file_type_key = if is_server {
+            "server_jar"
+        } else {
+            "client_jar"
+        };
+        let status_key = if is_server {
+            "instance-downloading-server"
+        } else {
+            "instance-downloading-client"
+        };
+
+        if !jar_path.exists() {
+            // Use the helper to get the correct URL from the manifest JSON we already parsed
+            // Note: version_details is the parsed JSON of the version manifest
+            // We can reuse get_download_urls logic or just extract manually here since we have the json
+
+            // Extract URL based on type
+            let download_key = if is_server { "server" } else { "client" };
+            let jar_url = version_details["downloads"][download_key]["url"]
                 .as_str()
-                .ok_or_else(|| "Client download URL not found".to_string())?;
+                .ok_or_else(|| {
+                    format!(
+                        "{} download URL not found",
+                        if is_server { "Server" } else { "Client" }
+                    )
+                })?;
+
+            let jar_size = version_details["downloads"][download_key]["size"].as_u64();
 
             // Update task status - 30%
             if let Some(task_id) = &task_id {
@@ -306,36 +341,33 @@ impl InstanceBootstrap {
                     task_id,
                     TaskStatus::Running,
                     30.0,
-                    &format!(
-                        "Descargando cliente Minecraft: {}.jar",
-                        instance.minecraftVersion
-                    ),
+                    &format!("Descargando {} Minecraft: {}", file_type_desc, jar_filename),
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
                         "instanceId": instance.instanceId.clone(),
-                        "fileName": format!("{}.jar", instance.minecraftVersion),
-                        "fileType": "client_jar",
-                        "fileSize": version_details["downloads"]["client"]["size"]
+                        "fileName": jar_filename.clone(),
+                        "fileType": file_type_key,
+                        "fileSize": jar_size
                     })),
                 );
             }
 
             emit_status(
                 instance,
-                "instance-downloading-client",
-                &format!(
-                    "Descargando cliente Minecraft: {}.jar",
-                    instance.minecraftVersion
-                ),
+                status_key,
+                &format!("Descargando {} Minecraft: {}", file_type_desc, jar_filename),
             );
 
-            self.download_file(client_url, &client_jar_path)
-                .map_err(|e| {
-                    self.handle_network_error(
-                        BootstrapStep::DownloadingClientJar,
-                        format!("Error downloading client jar: {}", e),
-                    )
-                })?;
+            self.download_file(jar_url, &jar_path).map_err(|e| {
+                self.handle_network_error(
+                    if is_server {
+                        BootstrapStep::DownloadingServerJar
+                    } else {
+                        BootstrapStep::DownloadingClientJar
+                    },
+                    format!("Error downloading {} jar: {}", file_type_desc, e),
+                )
+            })?;
         } else {
             // Update task status if file already exists
             if let Some(task_id) = &task_id {
@@ -344,13 +376,14 @@ impl InstanceBootstrap {
                     TaskStatus::Running,
                     30.0,
                     &format!(
-                        "Cliente Minecraft ya existe: {}.jar",
-                        instance.minecraftVersion
+                        "{} Minecraft ya existe: {}",
+                        if is_server { "Servidor" } else { "Cliente" },
+                        jar_filename
                     ),
                     Some(serde_json::json!({
                         "instanceName": instance.instanceName.clone(),
                         "instanceId": instance.instanceId.clone(),
-                        "fileName": format!("{}.jar", instance.minecraftVersion),
+                        "fileName": jar_filename.clone(),
                         "status": "already_exists"
                     })),
                 );
@@ -435,14 +468,14 @@ impl InstanceBootstrap {
             "instance-downloading-libraries",
             "Descargando librerías",
         );
-        
+
         // Use enhanced download manager for libraries
         tokio::runtime::Runtime::new()
             .expect("Failed to create Tokio runtime")
             .block_on(download_libraries_enhanced(
                 instance,
                 &version_details,
-                &libraries_dir
+                &libraries_dir,
             ))
             .map_err(|e| format!("Error downloading libraries: {}", e))?;
 
@@ -636,7 +669,8 @@ impl InstanceBootstrap {
         }
 
         // First, bootstrap the vanilla base (this will download/detect Java)
-        let java_path_option = self.bootstrap_vanilla_instance(instance, task_id.clone())
+        let java_path_option = self
+            .bootstrap_vanilla_instance(instance, task_id.clone())
             .map_err(|e| format!("Error configurando base Vanilla: {}", e))?;
 
         // Update task status - 70%
@@ -659,7 +693,8 @@ impl InstanceBootstrap {
         let versions_dir = minecraft_dir.join("versions");
 
         // Get Java path for the Forge installer
-        let java_path = self.find_java_path()
+        let java_path = self
+            .find_java_path()
             .map_err(|e| format!("Error finding Java: {}", e))?;
 
         // Setup Forge installer
@@ -731,7 +766,10 @@ impl InstanceBootstrap {
         instance: &MinecraftInstance,
         task_id: Option<String>,
     ) -> Result<Option<PathBuf>, String> {
-        log::info!("[Instance: {}] Starting Fabric bootstrap", instance.instanceId);
+        log::info!(
+            "[Instance: {}] Starting Fabric bootstrap",
+            instance.instanceId
+        );
 
         use crate::core::bootstrap::loaders::FabricInstaller;
 
@@ -758,7 +796,8 @@ impl InstanceBootstrap {
         }
 
         // First, bootstrap the vanilla base (this will download/detect Java)
-        let java_path_option = self.bootstrap_vanilla_instance(instance, task_id.clone())
+        let java_path_option = self
+            .bootstrap_vanilla_instance(instance, task_id.clone())
             .map_err(|e| format!("Error configurando base Vanilla: {}", e))?;
 
         // Update task status - 70%
@@ -796,11 +835,7 @@ impl InstanceBootstrap {
             );
         }
 
-        emit_status(
-            instance,
-            "instance-installing-fabric",
-            "Instalando Fabric",
-        );
+        emit_status(instance, "instance-installing-fabric", "Instalando Fabric");
 
         // Install Fabric
         let fabric_installer = FabricInstaller::new(
@@ -809,13 +844,15 @@ impl InstanceBootstrap {
             instance.loaderVersion.as_ref().unwrap().clone(),
         );
 
-        fabric_installer.install(&minecraft_dir, &versions_dir, &libraries_dir, instance).map_err(|e| {
-            emit_bootstrap_error(instance, &e);
-            if let Some(task_id) = &task_id {
-                update_task_with_bootstrap_error(task_id, &e);
-            }
-            e.to_string()
-        })?;
+        fabric_installer
+            .install(&minecraft_dir, &versions_dir, &libraries_dir, instance)
+            .map_err(|e| {
+                emit_bootstrap_error(instance, &e);
+                if let Some(task_id) = &task_id {
+                    update_task_with_bootstrap_error(task_id, &e);
+                }
+                e.to_string()
+            })?;
 
         // Update task status - 95%
         if let Some(task_id) = &task_id {
@@ -868,7 +905,8 @@ impl InstanceBootstrap {
         }
 
         // First, bootstrap the vanilla base (this will download/detect Java)
-        let java_path_option = self.bootstrap_vanilla_instance(instance, task_id.clone())
+        let java_path_option = self
+            .bootstrap_vanilla_instance(instance, task_id.clone())
             .map_err(|e| format!("Error configurando base Vanilla: {}", e))?;
 
         // Update task status - 70%
@@ -919,13 +957,15 @@ impl InstanceBootstrap {
             instance.loaderVersion.as_ref().unwrap().clone(),
         );
 
-        neoforge_installer.install(instance, &minecraft_dir, &versions_dir, &java_path).map_err(|e| {
-            emit_bootstrap_error(instance, &e);
-            if let Some(task_id) = &task_id {
-                update_task_with_bootstrap_error(task_id, &e);
-            }
-            e.to_string()
-        })?;
+        neoforge_installer
+            .install(instance, &minecraft_dir, &versions_dir, &java_path)
+            .map_err(|e| {
+                emit_bootstrap_error(instance, &e);
+                if let Some(task_id) = &task_id {
+                    update_task_with_bootstrap_error(task_id, &e);
+                }
+                e.to_string()
+            })?;
 
         // Update task status - 95%
         if let Some(task_id) = &task_id {
@@ -978,7 +1018,8 @@ impl InstanceBootstrap {
         }
 
         // First, bootstrap the vanilla base (this will download/detect Java)
-        let java_path_option = self.bootstrap_vanilla_instance(instance, task_id.clone())
+        let java_path_option = self
+            .bootstrap_vanilla_instance(instance, task_id.clone())
             .map_err(|e| format!("Error configurando base Vanilla: {}", e))?;
 
         // Update task status - 70%
@@ -1015,11 +1056,7 @@ impl InstanceBootstrap {
             );
         }
 
-        emit_status(
-            instance,
-            "instance-installing-quilt",
-            "Instalando Quilt",
-        );
+        emit_status(instance, "instance-installing-quilt", "Instalando Quilt");
 
         // Install Quilt
         let quilt_installer = QuiltInstaller::new(
@@ -1028,13 +1065,15 @@ impl InstanceBootstrap {
             instance.loaderVersion.as_ref().unwrap().clone(),
         );
 
-        quilt_installer.install(instance, &versions_dir).map_err(|e| {
-            emit_bootstrap_error(instance, &e);
-            if let Some(task_id) = &task_id {
-                update_task_with_bootstrap_error(task_id, &e);
-            }
-            e.to_string()
-        })?;
+        quilt_installer
+            .install(instance, &versions_dir)
+            .map_err(|e| {
+                emit_bootstrap_error(instance, &e);
+                if let Some(task_id) = &task_id {
+                    update_task_with_bootstrap_error(task_id, &e);
+                }
+                e.to_string()
+            })?;
 
         // Update task status - 95%
         if let Some(task_id) = &task_id {

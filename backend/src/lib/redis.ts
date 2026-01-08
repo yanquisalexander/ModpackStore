@@ -82,22 +82,22 @@ export class ManifestCacheService {
     /**
      * Generate cache key for a version manifest
      */
-    static getCacheKey(modpackId: string, versionId: string): string {
-        return `${this.KEY_PREFIX}:${modpackId}:manifest:${versionId}`;
+    static getCacheKey(modpackId: string, versionId: string, target: string = 'both'): string {
+        return `${this.KEY_PREFIX}:${modpackId}:manifest:${versionId}:${target}`;
     }
 
     /**
      * Get cached manifest
      */
-    static async get(modpackId: string, versionId: string): Promise<any | null> {
+    static async get(modpackId: string, versionId: string, target: string = 'both'): Promise<any | null> {
         if (!isRedisConnected() || !redis) {
             return null;
         }
 
         try {
-            const key = this.getCacheKey(modpackId, versionId);
+            const key = this.getCacheKey(modpackId, versionId, target);
             const cached = await redis.get(key);
-            
+
             if (cached) {
                 console.log(`[Redis] Cache HIT for ${key}`);
                 return JSON.parse(cached);
@@ -114,18 +114,18 @@ export class ManifestCacheService {
     /**
      * Set cached manifest (indefinite TTL)
      */
-    static async set(modpackId: string, versionId: string, manifest: any): Promise<void> {
+    static async set(modpackId: string, versionId: string, manifest: any, target: string = 'both'): Promise<void> {
         if (!isRedisConnected() || !redis) {
             return;
         }
 
         try {
-            const key = this.getCacheKey(modpackId, versionId);
+            const key = this.getCacheKey(modpackId, versionId, target);
             const value = JSON.stringify(manifest);
-            
+
             // No TTL - manifests never expire (immutable once published)
             await redis.set(key, value);
-            
+
             console.log(`[Redis] Cached manifest: ${key}`);
         } catch (error) {
             console.error('[Redis] Error setting cached manifest:', error);
@@ -141,9 +141,12 @@ export class ManifestCacheService {
         }
 
         try {
-            const key = this.getCacheKey(modpackId, versionId);
-            await redis.del(key);
-            console.log(`[Redis] Invalidated cache: ${key}`);
+            const targets = ['client', 'server', 'both'];
+            for (const target of targets) {
+                const key = this.getCacheKey(modpackId, versionId, target);
+                await redis.del(key);
+                console.log(`[Redis] Invalidated cache: ${key}`);
+            }
         } catch (error) {
             console.error('[Redis] Error invalidating cache:', error);
         }

@@ -1,8 +1,10 @@
 import { Modpack } from "@/entities/Modpack";
 import { ModpackVersion } from "@/entities/ModpackVersion";
 import { ModpackVersionFile } from "@/entities/ModpackVersionFile";
+import { ModpackFile } from "@/entities/ModpackFile";
 import { User } from "@/entities/User";
 import { APIError } from "@/lib/APIError";
+import { isRedisConnected, ManifestCacheService } from "@/lib/redis";
 import { isOrganizationMember, requireAuth, requireCreatorAccess, USER_CONTEXT_KEY } from "@/middlewares/auth.middleware";
 import { ModpackVisibility } from "@/models/Modpack.model";
 import { ALLOWED_FILE_TYPES, processModpackFileUpload } from "@/services/modpackFileUpload";
@@ -242,6 +244,16 @@ ModpackCreatorsRoute.patch(
             } else {
                 // Only free modpacks can require Twitch subscription
                 modpack.requiresTwitchSubscription = false;
+            }
+        }
+
+        // --- Handle allowServerDownload ---
+        if (body.allowServerDownload !== undefined) {
+            const allowServer = body.allowServerDownload;
+            if (typeof allowServer === 'string') {
+                modpack.allowServerDownload = allowServer === 'true';
+            } else if (typeof allowServer === 'boolean') {
+                modpack.allowServerDownload = allowServer;
             }
         }
 
@@ -656,10 +668,10 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
     // Detect breaking changes
     const breakingChanges: Array<{ version: string; mcVersion: string; loaderType: string }> = [];
     const newLoaderType = loaderType || (forgeVersion ? 'forge' : 'vanilla');
-    
+
     for (const prevVersion of previousVersions) {
         const prevLoaderType = prevVersion.loaderType || (prevVersion.forgeVersion ? 'forge' : 'vanilla');
-        
+
         // Check if there's a breaking change (different MC version or different loader type)
         if (prevVersion.mcVersion !== mcVersion || prevLoaderType !== newLoaderType) {
             breakingChanges.push({
@@ -673,7 +685,7 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
     const newVersion = new ModpackVersion();
     newVersion.version = versionName;
     newVersion.mcVersion = mcVersion;
-    
+
     // Handle new loader fields with backward compatibility
     if (loaderType && loaderVersion) {
         newVersion.loaderType = loaderType;
@@ -692,15 +704,15 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
         newVersion.loaderType = 'vanilla' as any;
         newVersion.loaderVersion = null;
     }
-    
+
     newVersion.modpackId = modpack.id;
     newVersion.createdBy = user.id;
 
     await newVersion.save();
 
 
-    return c.json({ 
-        success: true, 
+    return c.json({
+        success: true,
         version: newVersion,
         breakingChanges: breakingChanges.length > 0 ? breakingChanges : undefined
     });
@@ -759,6 +771,7 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions/
                 modpackVersionId: true,
                 path: true,
                 fileType: true,
+                side: true,
                 file: {
                     // Primary key required for nested relation
                     hash: true,
@@ -925,7 +938,8 @@ ModpackCreatorsRoute.get("/publishers/:publisherId/modpacks/:modpackId/versions/
             .map(vf => ({
                 fileHash: vf.fileHash,
                 path: vf.path,
-                size: vf.file.size
+                size: vf.file.size,
+                side: vf.side
             }));
 
         if (filesOfType.length > 0) {
@@ -1007,9 +1021,10 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
             modpackVersionId: versionId,
             fileHash,
             path: originalFile.path,
-            fileType: type
+            fileType: type,
+            side: originalFile.side
         };
-    }).filter((v): v is { modpackVersionId: string; fileHash: string; path: string; fileType: string } => v !== null);
+    }).filter((v): v is { modpackVersionId: string; fileHash: string; path: string; fileType: string; side: any } => v !== null);
 
     if (newVersionFiles.length === 0) {
         return c.json({ message: "No se añadieron archivos nuevos (todos ya existen o son inválidos)" });
@@ -1056,7 +1071,7 @@ ModpackCreatorsRoute.post("/publishers/:publisherId/modpacks/:modpackId/versions
     // For testing, throw an api error
 
     if (body.file instanceof File) {
-        processModpackFileUpload(body.file, body.file.name, modpack.id, version.id, type);
+        processModpackFileUpload(body.file, body.file.name, modpack.id, version.id, type, body.side as any);
     } else {
         throw new APIError(400, "Archivo no válido o no proporcionado");
     }
@@ -1301,6 +1316,49 @@ ModpackCreatorsRoute.delete("/publishers/:publisherId/modpacks/:modpackId/versio
     await fileToDelete.remove();
 
     return c.json({ message: "Archivo eliminado correctamente" });
+});
+
+// Update file side
+ModpackCreatorsRoute.patch("/publishers/:publisherId/modpacks/:modpackId/versions/:versionId/files/:type/:fileHash/side", isOrganizationMember, async (c) => {
+    const user = c.get(USER_CONTEXT_KEY) as User;
+    const { publisherId, modpackId, versionId, type, fileHash } = c.req.param();
+    const { side } = await c.req.json();
+
+    if (!['client', 'server', 'both'].includes(side)) {
+        throw new APIError(400, "Lado no válido. Debe ser client, server o both.");
+    }
+
+    const modpack = await Modpack.findOneBy({ id: modpackId, publisherId });
+    if (!modpack) return c.notFound();
+
+    const version = await ModpackVersion.findOneBy({ id: versionId, modpackId: modpack.id });
+    if (!version) return c.notFound();
+
+    const userRole = await user.getRoleInPublisher(publisherId);
+    if (userRole === PublisherMemberRole.MEMBER && version.createdBy !== user.id) {
+        throw new APIError(403, "No tienes permiso para editar esta versión");
+    }
+
+    // Update ModpackVersionFile side
+    const versionFile = await ModpackVersionFile.findOne({
+        where: {
+            modpackVersionId: versionId,
+            fileHash,
+            fileType: type as any
+        }
+    });
+
+    if (!versionFile) {
+        throw new APIError(404, "Relación de archivo no encontrada");
+    }
+
+    versionFile.side = side;
+    await versionFile.save();
+
+    // Invalidate manifest cache for the version
+    await ManifestCacheService.invalidate(modpackId, versionId);
+
+    return c.json({ success: true, side: versionFile.side });
 });
 
 

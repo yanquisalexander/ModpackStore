@@ -306,6 +306,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                     requiredTwitchChannels={modpack.requiredTwitchChannels}
                                     selectedVersionId={selectedVersionId}
                                     disabled={modpack.requiresTwitchSubscription && !accessLoading && !canAccess}
+                                    allowServerDownload={modpack.allowServerDownload}
                                 />
                             )}
                             <VoteButtons modpackId={modpackId} showCounts initialCounts={voteCounts || undefined} initialVote={userVote} />

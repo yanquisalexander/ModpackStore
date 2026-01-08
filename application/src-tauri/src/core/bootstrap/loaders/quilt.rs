@@ -44,7 +44,8 @@ struct LauncherMeta {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Libraries {
     common: Vec<LibraryEntry>,
-    client: Vec<LibraryEntry>,
+    client: Option<Vec<LibraryEntry>>,
+    server: Option<Vec<LibraryEntry>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -55,7 +56,8 @@ struct LibraryEntry {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct MainClass {
-    client: String,
+    client: Option<String>,
+    server: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -118,14 +120,15 @@ impl<'a> QuiltInstaller<'a> {
         versions_dir: &Path,
     ) -> Result<(), BootstrapError> {
         log::info!(
-            "[Instance: {}] Installing Quilt {} for Minecraft {}",
+            "[Instance: {}] Installing Quilt {} for Minecraft {} (Server Mode: {})",
             instance.instanceId,
             self.loader_version,
-            self.minecraft_version
+            self.minecraft_version,
+            instance.is_server()
         );
 
         // Fetch Quilt profile JSON
-        let quilt_profile = self.fetch_quilt_profile()?;
+        let quilt_profile = self.fetch_quilt_profile(instance.is_server())?;
 
         // Create Quilt version directory
         let quilt_version_name = format!(
@@ -144,7 +147,7 @@ impl<'a> QuiltInstaller<'a> {
         }
 
         // Generate and save Quilt version JSON
-        let version_json = self.generate_version_json(&quilt_profile, &quilt_version_name)?;
+        let version_json = self.generate_version_json(&quilt_profile, &quilt_version_name, instance.is_server())?;
         let version_json_path = quilt_version_dir.join(format!("{}.json", quilt_version_name));
 
         fs::write(&version_json_path, serde_json::to_string_pretty(&version_json).unwrap())
@@ -164,10 +167,11 @@ impl<'a> QuiltInstaller<'a> {
     }
 
     /// Fetch Quilt profile from meta API
-    fn fetch_quilt_profile(&self) -> Result<QuiltVersion, BootstrapError> {
+    fn fetch_quilt_profile(&self, is_server: bool) -> Result<QuiltVersion, BootstrapError> {
+        let endpoint = if is_server { "server" } else { "profile" };
         let url = format!(
-            "{}/versions/loader/{}/{}/profile/json",
-            QUILT_META_URL, self.minecraft_version, self.loader_version
+            "{}/versions/loader/{}/{}/{}/json",
+            QUILT_META_URL, self.minecraft_version, self.loader_version, endpoint
         );
 
         log::debug!("Fetching Quilt profile from: {}", url);
@@ -201,6 +205,7 @@ impl<'a> QuiltInstaller<'a> {
         &self,
         quilt_profile: &QuiltVersion,
         version_id: &str,
+        is_server: bool,
     ) -> Result<serde_json::Value, BootstrapError> {
         // Build libraries array
         let mut libraries = Vec::new();
@@ -213,11 +218,26 @@ impl<'a> QuiltInstaller<'a> {
             }));
         }
 
-        for lib in &quilt_profile.launcher_meta.libraries.client {
-            libraries.push(serde_json::json!({
-                "name": lib.name,
-                "url": lib.url
-            }));
+        if let Some(client_libs) = &quilt_profile.launcher_meta.libraries.client {
+            if !is_server {
+                for lib in client_libs {
+                    libraries.push(serde_json::json!({
+                        "name": lib.name,
+                        "url": lib.url
+                    }));
+                }
+            }
+        }
+        
+        if let Some(server_libs) = &quilt_profile.launcher_meta.libraries.server {
+            if is_server {
+                for lib in server_libs {
+                    libraries.push(serde_json::json!({
+                        "name": lib.name,
+                        "url": lib.url
+                    }));
+                }
+            }
         }
 
         // Add hashed library
@@ -232,6 +252,12 @@ impl<'a> QuiltInstaller<'a> {
             "url": "https://maven.quiltmc.org/repository/release/"
         }));
 
+        let main_class = if is_server {
+            quilt_profile.launcher_meta.main_class.server.clone().unwrap_or_default()
+        } else {
+            quilt_profile.launcher_meta.main_class.client.clone().unwrap_or_default()
+        };
+
         // Create version JSON
         let version_json = serde_json::json!({
             "id": version_id,
@@ -239,7 +265,7 @@ impl<'a> QuiltInstaller<'a> {
             "releaseTime": chrono::Utc::now().to_rfc3339(),
             "time": chrono::Utc::now().to_rfc3339(),
             "type": "release",
-            "mainClass": quilt_profile.launcher_meta.main_class.client,
+            "mainClass": main_class,
             "libraries": libraries,
             "arguments": {
                 "game": [],

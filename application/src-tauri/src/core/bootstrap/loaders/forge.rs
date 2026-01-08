@@ -157,27 +157,49 @@ impl<'a> ForgeInstaller<'a> {
             )
         })?;
 
-        // Try different installation options sequentially
-        let install_options = ["--installClient", "--installDir", "--installServer"];
+        // Determine installation option based on instance type
+        let primary_option = if instance.is_server() {
+            "--installServer"
+        } else {
+            "--installClient"
+        };
+        
+        // We still keep the fallback mechanism if needed, but prioritize the correct one
+        // Ideally we should just use the correct one.
+        let install_options = if instance.is_server() {
+            vec!["--installServer"]
+        } else {
+            vec!["--installClient", "--installDir"] 
+        };
+        
         let mut success = false;
         let mut last_error = String::new();
         let mut attempted_options = Vec::new();
 
         log::info!(
-            "[Instance: {}] Attempting Forge installation with {} options",
+            "[Instance: {}] Attempting Forge installation for {} (options: {:?})",
             instance.instanceId,
-            install_options.len()
+            if instance.is_server() { "Server" } else { "Client" },
+            install_options
         );
 
-        for &option in &install_options {
+        for option in &install_options {
             attempted_options.push(option);
 
             let mut install_cmd = Command::new(java_path);
             install_cmd
                 .arg("-jar")
                 .arg(installer_path)
-                .arg(option)
-                .current_dir(minecraft_dir);
+                .arg(option);
+                
+            // For server installation, we might need to be explicit about the directory if not implied by cwd
+            if *option == "--installServer" {
+                // Usually run in the dir, but some installers take a path argument?
+                // Standard: java -jar installer.jar --installServer
+                // It installs into current dir.
+            }    
+                
+            install_cmd.current_dir(minecraft_dir);
 
             // On Windows, use CREATE_NO_WINDOW to prevent CMD window popup
             #[cfg(target_os = "windows")]

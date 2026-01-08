@@ -6,6 +6,7 @@ interface MCAccount {
 }
 
 export type ModLoaderType = 'vanilla' | 'forge' | 'fabric' | 'neoforge' | 'quilt';
+export type InstanceType = 'client' | 'server';
 
 interface MinecraftInstance {
     instanceId: string;
@@ -23,6 +24,7 @@ interface MinecraftInstance {
     loaderType?: ModLoaderType;
     loaderVersion?: string;
     ms_nickname?: string;
+    instanceType?: InstanceType;
 }
 
 export type TauriCommandReturns = {

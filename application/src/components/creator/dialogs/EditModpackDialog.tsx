@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Switch } from "@/components/ui/switch";
 import { API_ENDPOINT } from '@/consts';
 import { useAuthentication } from '@/stores/AuthContext';
 import { toast } from 'sonner';
@@ -101,6 +102,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
         price: '',
         password: '',
         confirmPassword: '',
+        allowServerDownload: false,
     });
 
     // Specialized States
@@ -135,6 +137,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             price: modpack.price ? parseFloat(modpack.price).toFixed(2) : '0.00',
             password: '',
             confirmPassword: '',
+            allowServerDownload: modpack.allowServerDownload || false,
         });
 
         // Categorías
@@ -232,6 +235,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             submission.append('visibility', formData.visibility);
             submission.append('status', modpackStatus);
             submission.append('acquisitionMethod', accessMode);
+            submission.append('allowServerDownload', formData.allowServerDownload.toString());
 
             // Files
             if (iconFile) submission.append('icon', iconFile);
@@ -551,6 +555,21 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
 
                             {/* --- TAB: AVANZADO (JSON) --- */}
                             <TabsContent value="advanced" className="mt-0 h-full flex flex-col">
+                                <div className="mb-6 p-4 border border-zinc-800 rounded-lg bg-zinc-900/30">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <h4 className="text-sm font-medium text-zinc-200">Descarga de Servidor</h4>
+                                            <p className="text-xs text-zinc-500 mt-1">
+                                                Permitir a los usuarios descargar los archivos de servidor de este modpack.
+                                            </p>
+                                        </div>
+                                        <Switch
+                                            checked={formData.allowServerDownload}
+                                            onCheckedChange={(checked) => setFormData({ ...formData, allowServerDownload: checked })}
+                                        />
+                                    </div>
+                                </div>
+
                                 <div className="flex items-center justify-between mb-3">
                                     <div className="flex flex-col">
                                         <label className="text-sm font-medium text-zinc-300">Configuración Pre-Launch</label>

@@ -5,7 +5,7 @@ use crate::core::bootstrap::download::download_file;
 use crate::core::bootstrap::filesystem::create_asset_directories;
 use crate::core::bootstrap::manifest::get_asset_index_info;
 use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
-use crate::core::minecraft_instance::MinecraftInstance;
+use crate::core::minecraft_instance::{MinecraftInstance, InstanceType, ModLoaderType};
 use crate::core::modpack_file_manager::DownloadManager;
 use serde_json::Value;
 use std::fs;
@@ -390,7 +390,13 @@ mod tests {
             minecraftVersion: "1.20.1".to_string(),
             instanceDirectory: Some(temp_dir.path().to_string_lossy().to_string()),
             forgeVersion: None,
+            loaderType: ModLoaderType::Vanilla,
+            loaderVersion: None,
             javaPath: None,
+            favorite: false,
+            favorite_order: None,
+            ms_nickname: None,
+            instanceType: InstanceType::Client,
         };
 
         // Create mock assets index with some test assets

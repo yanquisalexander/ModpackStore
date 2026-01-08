@@ -2,9 +2,7 @@ use crate::core::bootstrap::tasks::{
     emit_bootstrap_complete, emit_status, emit_status_with_stage, Stage,
 };
 use crate::core::minecraft::paths::MinecraftPaths;
-use crate::core::minecraft_instance::{  
-    self, MinecraftInstance, ModLoaderType,
-};
+use crate::core::minecraft_instance::{self, InstanceType, MinecraftInstance, ModLoaderType};
 use crate::core::tasks_manager::{
     add_task, add_task_with_auto_start, remove_task, task_exists, update_task, TaskStatus,
 };
@@ -981,6 +979,7 @@ pub fn audit_user_data_protection(
         favorite: false,
         favorite_order: None,
         ms_nickname: None,
+        instanceType: InstanceType::Client,
     };
 
     let essential_paths = get_essential_minecraft_paths(minecraft_dir, &dummy_instance);
@@ -1774,7 +1773,12 @@ pub async fn cleanup_instance_files(instance_id: String) -> Result<Vec<String>, 
     );
 
     // Fetch current manifest
-    let manifest = fetch_modpack_manifest(modpack_id, version_id).await?;
+    let target = if instance.is_server() {
+        "server"
+    } else {
+        "client"
+    };
+    let manifest = fetch_modpack_manifest(modpack_id, version_id, Some(target)).await?;
 
     log::info!("[Cleanup] Starting safe cleanup process");
 
@@ -1868,7 +1872,12 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
     );
 
     // Fetch current manifest
-    let manifest = match fetch_modpack_manifest(modpack_id, version_id).await {
+    let target = if instance.is_server() {
+        "server"
+    } else {
+        "client"
+    };
+    let manifest = match fetch_modpack_manifest(modpack_id, version_id, Some(target)).await {
         Ok(manifest) => manifest,
         Err(e) => {
             update_task(
@@ -2108,8 +2117,9 @@ async fn download_modpack_files(
 async fn fetch_modpack_manifest(
     modpack_id: &str,
     version_id: &str,
+    target: Option<&str>,
 ) -> Result<ModpackManifest, String> {
-    crate::core::instance_manager::fetch_modpack_manifest(modpack_id, version_id).await
+    crate::core::instance_manager::fetch_modpack_manifest(modpack_id, version_id, target).await
 }
 
 #[cfg(test)]
