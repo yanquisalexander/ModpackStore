@@ -10,6 +10,8 @@ mod config;
 mod core;
 mod interfaces;
 mod utils;
+mod tunnel;
+
 
 use core::auth::*;
 use serde_json::json;
@@ -89,6 +91,11 @@ fn splash_done(app: tauri::AppHandle) {
 async fn get_running_instances(
 ) -> Result<Vec<crate::core::instance_launcher::RunningInstanceInfo>, String> {
     Ok(crate::core::instance_launcher::get_running_instances_list())
+}
+
+#[tauri::command]
+async fn kill_instance(instance_id: String) -> Result<(), String> {
+    crate::core::instance_launcher::kill_instance(instance_id)
 }
 
 #[tauri::command]
@@ -204,6 +211,7 @@ pub fn main() {
         .manage(Arc::new(AppState {
             started_minimized: Mutex::new(false),
         }))
+        .manage(tunnel::manager::TunnelManager::new())
         .setup(|app| {
             log::info!("Starting Modpack Store...");
             log::info!(
@@ -371,6 +379,8 @@ pub fn main() {
             core::instance_manager::get_all_instances,
             core::instance_manager::get_instance_by_id,
             core::instance_manager::delete_instance,
+            core::instance_manager::check_instance_eula,
+            core::instance_manager::accept_instance_eula,
             //utils::config_manager::get_config,
             core::instance_manager::launch_mc_instance,
             core::minecraft_instance::open_game_dir,
@@ -378,7 +388,11 @@ pub fn main() {
             core::instance_manager::toggle_favorite,
             core::instance_manager::update_favorite_order,
             core::instance_manager::get_favorite_instances,
+            core::instance_manager::get_server_properties,
+            core::instance_manager::update_server_properties,
+            core::instance_manager::restart_instance,
             core::instance_launcher::send_server_command,
+            core::instance_launcher::get_instance_stats,
             core::instance_manager::create_local_instance,
             core::instance_manager::create_modpack_instance,
             core::instance_manager::check_modpack_updates,
@@ -439,6 +453,10 @@ pub fn main() {
             splash_done,
             core::hotkeys::reload_hotkeys,
             core::hotkeys::unregister_hotkeys,
+            tunnel::commands::install_tunnel_provider,
+            tunnel::commands::start_tunnel,
+            tunnel::commands::stop_tunnel,
+            tunnel::commands::get_tunnel_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

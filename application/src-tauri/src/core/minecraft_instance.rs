@@ -273,6 +273,28 @@ impl MinecraftInstance {
             self.loaderVersion = self.forgeVersion.clone();
         }
     }
+
+    pub fn check_eula(&self) -> bool {
+        if !self.is_server() {
+            return true;
+        }
+        let eula_path = PathBuf::from(&self.minecraftPath).join("eula.txt");
+        if !eula_path.exists() {
+            return false;
+        }
+        if let Ok(content) = fs::read_to_string(eula_path) {
+            return content.contains("eula=true");
+        }
+        false
+    }
+
+    pub fn accept_eula(&self) -> IoResult<()> {
+        let eula_path = PathBuf::from(&self.minecraftPath).join("eula.txt");
+        fs::write(
+            eula_path,
+            "#By changing the setting below to TRUE you are indicating your agreement to our EULA (https://aka.ms/MinecraftEULA).\neula=true",
+        )
+    }
 }
 
 #[tauri::command]

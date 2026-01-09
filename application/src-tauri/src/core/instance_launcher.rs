@@ -117,20 +117,68 @@ pub struct RunningInstanceInfo {
     pub version: String,
     pub icon: Option<String>,
     pub pid: u32,
+    pub player_count: u32,
     #[serde(skip)]
     pub stdin: Option<Arc<Mutex<std::process::ChildStdin>>>,
+}
+
+#[derive(Serialize)]
+pub struct InstanceStats {
+    pub cpu_usage: f32,
+    pub memory_usage: u64, // bytes
+    pub player_count: u32,
 }
 
 lazy_static! {
     static ref RUNNING_INSTANCES: Arc<Mutex<HashMap<String, RunningInstanceInfo>>> =
         Arc::new(Mutex::new(HashMap::new()));
+    static ref SYSTEM: Arc<Mutex<System>> = Arc::new(Mutex::new(System::new_all()));
     // Regex to capture Java version mismatch details from stderr
     static ref RE_JAVA_VERSION: Regex = Regex::new(r"class file version (\d+\.\d+).*, this version of the Java Runtime only recognizes class file versions up to (\d+\.\d+)").unwrap();
+    
+    // Player tracking regex
+    static ref RE_PLAYER_JOIN: Regex = Regex::new(r"\[.*\]: (.*) joined the game").unwrap();
+    static ref RE_PLAYER_LEAVE: Regex = Regex::new(r"\[.*\]: (.*) left the game").unwrap();
 }
 
 pub fn get_running_instances_list() -> Vec<RunningInstanceInfo> {
     let lock = RUNNING_INSTANCES.lock().unwrap();
     lock.values().cloned().collect()
+}
+
+#[tauri::command]
+pub fn get_instance_stats(instance_id: String) -> Result<InstanceStats, String> {
+    let stats_data = {
+        let lock = RUNNING_INSTANCES.lock().unwrap();
+        lock.get(&instance_id).map(|info| (info.pid, info.player_count))
+    };
+
+    if let Some((pid, player_count)) = stats_data {
+        let mut sys = SYSTEM.lock().unwrap();
+        // Refresh only the specific process for efficiency
+        sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[Pid::from_u32(pid)]));
+
+        if let Some(process) = sys.process(Pid::from_u32(pid)) {
+            let cpu_usage = process.cpu_usage();
+            let cpu_count = sys.cpus().len() as f32;
+            
+            // Normalizamos el uso de CPU dividiendo por el número de núcleos
+            // Así 100% representará el total de la capacidad del sistema
+            let normalized_cpu = if cpu_count > 0.0 {
+                cpu_usage / cpu_count
+            } else {
+                cpu_usage
+            };
+
+            return Ok(InstanceStats {
+                cpu_usage: normalized_cpu,
+                memory_usage: process.memory(),
+                player_count,
+            });
+        }
+    }
+
+    Err("Instance not found or not running".to_string())
 }
 
 #[tauri::command]
@@ -280,6 +328,21 @@ impl InstanceLauncher {
                 let reader = BufReader::new(out);
                 for line in reader.lines() {
                     if let Ok(l) = line {
+                        // --- Player Tracking Update ---
+                        if RE_PLAYER_JOIN.is_match(&l) {
+                            let mut lock = RUNNING_INSTANCES.lock().unwrap();
+                            if let Some(info) = lock.get_mut(&inst_id) {
+                                info.player_count += 1;
+                            }
+                        } else if RE_PLAYER_LEAVE.is_match(&l) {
+                            let mut lock = RUNNING_INSTANCES.lock().unwrap();
+                            if let Some(info) = lock.get_mut(&inst_id) {
+                                if info.player_count > 0 {
+                                    info.player_count -= 1;
+                                }
+                            }
+                        }
+
                         // Emitir evento al Frontend para una consola en tiempo real
                         if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
                             if let Some(app_handle) = guard.as_ref() {
@@ -590,12 +653,17 @@ impl InstanceLauncher {
                             version: self.instance.minecraftVersion.clone(),
                             icon: self.instance.iconUrl.clone(),
                             pid: child_process.id(),
+                            player_count: 0,
                             stdin,
                         },
                     );
                 }
 
-                self.emit_status(EVENT_LAUNCHED, "Minecraft se está ejecutando.", None);
+                self.emit_status(
+                    EVENT_LAUNCHED,
+                    "Minecraft se está ejecutando.",
+                    Some(json!({ "pid": child_process.id() })),
+                );
 
                 // Record session start
                 let session_id = crate::core::play_history::PlayHistoryManager::get_instance()

@@ -63,7 +63,7 @@ export class VoteService {
      */
     static async getUserVote(userId: string, modpackId: string): Promise<VoteType> {
         const vote = await ModpackVote.getUserVote(userId, modpackId);
-        
+
         if (!vote) return "none";
         return vote.vote === 1 ? "like" : "dislike";
     }
@@ -73,7 +73,7 @@ export class VoteService {
      */
     static async getUserVotesMap(userId: string): Promise<Record<string, VoteType>> {
         const votes = await ModpackVote.getUserVotes(userId);
-        
+
         const votesMap: Record<string, VoteType> = {};
         votes.forEach(vote => {
             votesMap[vote.modpackId] = vote.vote === 1 ? "like" : "dislike";

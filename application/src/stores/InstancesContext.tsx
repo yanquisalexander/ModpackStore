@@ -12,6 +12,7 @@ type InstanceState = {
     status: "idle" | "preparing" | "running" | "exited" | "error" | "downloading-assets";
     message: string;
     stage?: InstallationStage;
+    pid?: number;
 };
 
 // El contexto solo expone las instancias
@@ -99,8 +100,8 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
 
             // Evento para cuando la instancia ha sido lanzada
             const launchedUnlisten = await listen("instance-launched", (e: any) => {
-                const { id, message } = e.payload;
-                console.log("Instance launched event:", { id, message });
+                const { id, message, data } = e.payload;
+                console.log("Instance launched event:", { id, message, data });
                 trackEvent("instance_launched", {
                     instanceId: id,
                     message: message || "Minecraft se está ejecutando"
@@ -108,7 +109,8 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
 
                 updateInstance(id, {
                     status: "running",
-                    message: message || "Minecraft está ejecutándose"
+                    message: message || "Minecraft está ejecutándose",
+                    pid: data?.pid
                 });
 
                 // Minima ventana de la aplicación

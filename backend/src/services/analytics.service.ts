@@ -3,19 +3,31 @@ import { ModpackVote } from "@/entities/ModpackVote";
 import { Modpack } from "@/entities/Modpack";
 import { ModpackVersion } from "@/entities/ModpackVersion";
 import { Publisher } from "@/entities/Publisher";
+import { ModpackAcquisition } from "@/entities/ModpackAcquisition";
+import { UserActivity } from "@/entities/UserActivity";
+import { ActivityType } from "@/types/enums";
 import { Between, In, MoreThanOrEqual, LessThanOrEqual } from "typeorm";
 
 export interface AnalyticsOverview {
     totalDownloads: number;
+    totalAcquisitions: number;
     totalModpacks: number;
     totalLikes: number;
     totalDislikes: number;
+    activeUsers24h: number;
+    trends: {
+        dailyDownloads: Array<{ date: string; count: number }>;
+        dailyAcquisitions: Array<{ date: string; count: number }>;
+        dailyActiveUsers: Array<{ date: string; count: number }>;
+    };
     topModpacks: Array<{
         modpackId: string;
         name: string;
         downloads: number;
+        acquisitions: number;
         likes: number;
         dislikes: number;
+        activeUsers: number;
     }>;
 }
 
@@ -123,41 +135,113 @@ export class AnalyticsService {
         if (modpackIds.length === 0) {
             return {
                 totalDownloads: 0,
+                totalAcquisitions: 0,
                 totalModpacks: 0,
                 totalLikes: 0,
                 totalDislikes: 0,
+                activeUsers24h: 0,
+                trends: {
+                    dailyDownloads: [],
+                    dailyAcquisitions: [],
+                    dailyActiveUsers: []
+                },
                 topModpacks: []
             };
         }
 
-        // Get total downloads
-        const totalDownloads = await ModpackDownload.count({
-            where: { modpackId: In(modpackIds) }
-        });
+        const date30DaysAgo = new Date();
+        date30DaysAgo.setDate(date30DaysAgo.getDate() - 30);
+        const date24hAgo = new Date();
+        date24hAgo.setHours(date24hAgo.getHours() - 24);
 
-        // Get vote counts
-        const votes = await ModpackVote.find({
-            where: { modpackId: In(modpackIds) }
-        });
+        // Get total counts and trends in parallel
+        const [
+            totalDownloads,
+            totalAcquisitions,
+            votes,
+            downloadsByModpack,
+            acquisitionsByModpack,
+            activeUsersByModpack,
+            downloadTrendRaw,
+            acquisitionTrendRaw,
+            activeUsersTrendRaw,
+            activeUsers24h
+        ] = await Promise.all([
+            ModpackDownload.count({ where: { modpackId: In(modpackIds) } }),
+            ModpackAcquisition.count({ where: { modpackId: In(modpackIds) } }),
+            ModpackVote.find({ where: { modpackId: In(modpackIds) } }),
+            ModpackDownload.createQueryBuilder("download")
+                .select("download.modpackId", "modpackId")
+                .addSelect("COUNT(download.id)", "downloads")
+                .where("download.modpackId IN (:...modpackIds)", { modpackIds })
+                .groupBy("download.modpackId")
+                .orderBy("downloads", "DESC")
+                .limit(5)
+                .getRawMany(),
+            ModpackAcquisition.createQueryBuilder("acquisition")
+                .select("acquisition.modpackId", "modpackId")
+                .addSelect("COUNT(acquisition.id)", "acquisitions")
+                .where("acquisition.modpackId IN (:...modpackIds)", { modpackIds })
+                .groupBy("acquisition.modpackId")
+                .getRawMany(),
+            UserActivity.createQueryBuilder("activity")
+                .select("activity.modpackId", "modpackId")
+                .addSelect("COUNT(DISTINCT activity.userId)", "activeUsers")
+                .where("activity.modpackId IN (:...modpackIds)", { modpackIds })
+                .andWhere("activity.activityType = :type", { type: ActivityType.PLAYING_MODPACK })
+                .andWhere("activity.createdAt >= :date", { date: date30DaysAgo })
+                .groupBy("activity.modpackId")
+                .getRawMany(),
+            ModpackDownload.createQueryBuilder("download")
+                .select("download.createdAt::date", "date")
+                .addSelect("COUNT(download.id)", "count")
+                .where("download.modpackId IN (:...modpackIds)", { modpackIds })
+                .andWhere("download.createdAt >= :date", { date: date30DaysAgo })
+                .groupBy("download.createdAt::date")
+                .orderBy("date", "ASC")
+                .getRawMany(),
+            ModpackAcquisition.createQueryBuilder("acquisition")
+                .select("acquisition.createdAt::date", "date")
+                .addSelect("COUNT(acquisition.id)", "count")
+                .where("acquisition.modpackId IN (:...modpackIds)", { modpackIds })
+                .andWhere("acquisition.createdAt >= :date", { date: date30DaysAgo })
+                .groupBy("acquisition.createdAt::date")
+                .orderBy("date", "ASC")
+                .getRawMany(),
+            UserActivity.createQueryBuilder("activity")
+                .select("activity.createdAt::date", "date")
+                .addSelect("COUNT(DISTINCT activity.userId)", "count")
+                .where("activity.modpackId IN (:...modpackIds)", { modpackIds })
+                .andWhere("activity.activityType = :type", { type: ActivityType.PLAYING_MODPACK })
+                .andWhere("activity.createdAt >= :date", { date: date30DaysAgo })
+                .groupBy("activity.createdAt::date")
+                .orderBy("date", "ASC")
+                .getRawMany(),
+            UserActivity.createQueryBuilder("activity")
+                .select("COUNT(DISTINCT activity.userId)", "count")
+                .where("activity.modpackId IN (:...modpackIds)", { modpackIds })
+                .andWhere("activity.activityType = :type", { type: ActivityType.PLAYING_MODPACK })
+                .andWhere("activity.createdAt >= :date", { date: date24hAgo })
+                .getRawOne()
+        ]);
 
         const totalLikes = votes.filter(v => v.vote === 1).length;
         const totalDislikes = votes.filter(v => v.vote === -1).length;
 
-        // Get top modpacks by downloads
-        const downloadsByModpack = await ModpackDownload.createQueryBuilder("download")
-            .select("download.modpackId", "modpackId")
-            .addSelect("COUNT(download.id)", "downloads")
-            .where("download.modpackId IN (:...modpackIds)", { modpackIds })
-            .groupBy("download.modpackId")
-            .orderBy("downloads", "DESC")
-            .limit(5)
-            .getRawMany();
+        // Map data by modpack for easy lookup
+        const acquisitionCountMap = new Map<string, number>();
+        acquisitionsByModpack.forEach((a: any) => {
+            acquisitionCountMap.set(a.modpackId, parseInt(a.acquisitions));
+        });
+
+        const activeUsersCountMap = new Map<string, number>();
+        activeUsersByModpack.forEach((a: any) => {
+            activeUsersCountMap.set(a.modpackId, parseInt(a.activeUsers));
+        });
 
         // Get vote counts for top modpacks
         const topModpackIds = downloadsByModpack.map((d: any) => d.modpackId);
-        const topModpacksVotes = await ModpackVote.find({
-            where: { modpackId: In(topModpackIds) }
-        });
+        const topModpacksVotes = votes.filter(v => topModpackIds.includes(v.modpackId));
 
         const votesByModpack = new Map<string, { likes: number; dislikes: number }>();
         for (const vote of topModpacksVotes) {
@@ -170,27 +254,67 @@ export class AnalyticsService {
         }
 
         // Build top modpacks array
-        const topModpacks = await Promise.all(
-            downloadsByModpack.map(async (d: any) => {
-                const modpack = modpacks.find(m => m.id === d.modpackId);
-                const voteCounts = votesByModpack.get(d.modpackId) || { likes: 0, dislikes: 0 };
-                return {
-                    modpackId: d.modpackId,
-                    name: modpack?.name || "Unknown",
-                    downloads: parseInt(d.downloads),
-                    likes: voteCounts.likes,
-                    dislikes: voteCounts.dislikes
-                };
-            })
-        );
+        const topModpacks = downloadsByModpack.map((d: any) => {
+            const modpack = modpacks.find(m => m.id === d.modpackId);
+            const voteCounts = votesByModpack.get(d.modpackId) || { likes: 0, dislikes: 0 };
+            return {
+                modpackId: d.modpackId,
+                name: modpack?.name || "Unknown",
+                downloads: parseInt(d.downloads),
+                acquisitions: acquisitionCountMap.get(d.modpackId) || 0,
+                likes: voteCounts.likes,
+                dislikes: voteCounts.dislikes,
+                activeUsers: activeUsersCountMap.get(d.modpackId) || 0
+            };
+        });
+
+        // Format trends (ensuring every day in the last 30 days is present)
+        const dailyDownloads = this.fillTrendGaps(downloadTrendRaw, 30);
+        const dailyAcquisitions = this.fillTrendGaps(acquisitionTrendRaw, 30);
+        const dailyActiveUsers = this.fillTrendGaps(activeUsersTrendRaw, 30);
 
         return {
             totalDownloads,
+            totalAcquisitions,
             totalModpacks: modpacks.length,
             totalLikes,
             totalDislikes,
+            activeUsers24h: parseInt(activeUsers24h?.count || "0"),
+            trends: {
+                dailyDownloads,
+                dailyAcquisitions,
+                dailyActiveUsers
+            },
             topModpacks
         };
+    }
+
+    /**
+     * Helper to fill dates with zero counts in trend data
+     */
+    private fillTrendGaps(rawTrend: any[], days: number): Array<{ date: string; count: number }> {
+        const trendMap = new Map<string, number>();
+        rawTrend.forEach((r: any) => {
+            // Normalize date string from DB
+            const dateStr = new Date(r.date).toISOString().split('T')[0];
+            trendMap.set(dateStr, parseInt(r.count));
+        });
+
+        const result: Array<{ date: string; count: number }> = [];
+        const now = new Date();
+
+        for (let i = days - 1; i >= 0; i--) {
+            const date = new Date(now);
+            date.setDate(date.getDate() - i);
+            const dateStr = date.toISOString().split('T')[0];
+
+            result.push({
+                date: dateStr,
+                count: trendMap.get(dateStr) || 0
+            });
+        }
+
+        return result;
     }
 
     /**

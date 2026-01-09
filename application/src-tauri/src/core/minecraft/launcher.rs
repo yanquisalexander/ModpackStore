@@ -35,9 +35,62 @@ impl MinecraftLauncher {
         let paths = MinecraftPaths::new(&self.instance, config)?;
         let game_dir = paths.game_dir();
 
+        // 1. Try to find Modern Forge/NeoForge startup scripts (run.bat / run.sh)
+        // These versions (1.17+) use @user_jvm_args.txt and @libraries/.../win_args.txt
+        let run_script = if cfg!(windows) {
+            game_dir.join("run.bat")
+        } else {
+            game_dir.join("run.sh")
+        };
+
+        if run_script.exists() {
+            if let Ok(content) = std::fs::read_to_string(&run_script) {
+                // Look for patterns like @user_jvm_args.txt or @libraries/...
+                let mut args_files = Vec::new();
+                for word in content.split_whitespace() {
+                    let processed = word.trim_matches('"').trim_matches('\'');
+                    if processed.starts_with('@') {
+                        args_files.push(processed.to_string());
+                    }
+                }
+
+                if !args_files.is_empty() {
+                    log::info!(
+                        "[MinecraftLauncher] Found modern Forge startup script with args: {:?}",
+                        args_files
+                    );
+
+                    let java_exe = if cfg!(windows) {
+                        paths.java_path().with_file_name("java.exe")
+                    } else {
+                        paths.java_path().to_path_buf()
+                    };
+
+                    let mut command = Command::new(java_exe);
+                    // For modern forge, we MUST be in the game_dir
+                    command.current_dir(game_dir);
+
+                    // Add the @ files
+                    for arg in args_files {
+                        command.arg(arg);
+                    }
+
+                    command
+                        .arg("nogui")
+                        .stdin(Stdio::piped())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped());
+
+                    log::info!("[MinecraftLauncher] Launching Modern Server: {:?}", command);
+                    return command.spawn().ok();
+                }
+            }
+        }
+
+        // 2. Fallback to Legacy Search (JAR based)
         // Find server JAR
         // 1. Check for server.jar
-        // 2. Check for any jar that doesn't look like a mod in the root
+        // 2. Check for any jar that doesn't look like a mod or installer in the root
         let mut server_jar = game_dir.join("server.jar");
         if !server_jar.exists() {
             // Try to find any jar in the root that might be a server
@@ -46,8 +99,14 @@ impl MinecraftLauncher {
                     let path = entry.path();
                     if path.is_file() && path.extension().map_or(false, |ext| ext == "jar") {
                         let name = path.file_name().unwrap().to_string_lossy().to_lowercase();
+
+                        // IMPORTANT: Skip installers!
+                        if name.contains("installer") {
+                            continue;
+                        }
+
                         if name.contains("server")
-                            || name.contains("forge")
+                            || (name.contains("forge") && !name.contains("installer"))
                             || name.contains("fabric")
                             || name.contains("neoforge")
                         {
@@ -68,6 +127,11 @@ impl MinecraftLauncher {
                         let path = entry.path();
                         if path.is_file() && path.extension().map_or(false, |ext| ext == "jar") {
                             let name = path.file_name().unwrap().to_string_lossy().to_lowercase();
+
+                            if name.contains("installer") {
+                                continue;
+                            }
+
                             if name.contains("server")
                                 || name.contains("forge")
                                 || name.contains("fabric")
@@ -91,7 +155,13 @@ impl MinecraftLauncher {
 
         let mc_memory = config.get_minecraft_memory().unwrap_or(2048);
 
-        let mut command = Command::new(paths.java_path());
+        let java_exe = if cfg!(windows) {
+            paths.java_path().with_file_name("java.exe")
+        } else {
+            paths.java_path().to_path_buf()
+        };
+
+        let mut command = Command::new(java_exe);
         command
             .arg(format!("-Xmx{}M", mc_memory))
             .arg(format!("-Xms{}M", mc_memory / 2))
