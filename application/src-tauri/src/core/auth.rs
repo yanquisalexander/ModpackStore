@@ -188,50 +188,124 @@ mod api {
     impl ApiClient {
         pub fn new() -> Self {
             Self {
-                client: Client::new(),
+                client: Client::builder()
+                    .timeout(Duration::from_secs(60)) // Aumentado para esperar al DB si es necesario
+                    .build()
+                    .unwrap_or_else(|_| Client::new()),
             }
         }
 
         pub async fn get_session(&self, access_token: &str) -> AuthResult<UserSession> {
             let session_endpoint = format!("{}/auth/me", *API_ENDPOINT);
 
-            let response = self
-                .client
-                .get(&session_endpoint)
-                .bearer_auth(access_token)
-                .send()
-                .await
-                .map_err(|e| format!("Error al contactar API: {}", e))?;
+            let mut retries = 0;
+            let max_retries = 2; // Reintentos adicionales si el DB falla temporalmente
 
-            if !response.status().is_success() {
-                return Err(format!("Error de API: {}", response.status()));
+            loop {
+                let response_result = self
+                    .client
+                    .get(&session_endpoint)
+                    .bearer_auth(access_token)
+                    .send()
+                    .await;
+
+                match response_result {
+                    Ok(response) => {
+                        if response.status().is_success() {
+                            return response
+                                .json::<UserSession>()
+                                .await
+                                .map_err(|e| format!("Error al parsear sesión: {}", e));
+                        }
+
+                        let status = response.status();
+
+                        // Si es 401 o 403, el token no sirve
+                        if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+                            return Err("AUTH_EXPIRED".to_string());
+                        }
+
+                        // Si es error de servidor y tenemos reintentos
+                        if (status.is_server_error() || status == StatusCode::TOO_MANY_REQUESTS)
+                            && retries < max_retries
+                        {
+                            retries += 1;
+                            let delay = 2 * retries;
+                            println!(
+                                "Error de servidor {}. Reintentando en {}s...",
+                                status, delay
+                            );
+                            tokio::time::sleep(Duration::from_secs(delay)).await;
+                            continue;
+                        }
+
+                        return Err(format!("API_ERROR_{}", status));
+                    }
+                    Err(e) => {
+                        if retries < max_retries {
+                            retries += 1;
+                            let delay = 2 * retries;
+                            println!("Error de red {}. Reintentando en {}s...", e, delay);
+                            tokio::time::sleep(Duration::from_secs(delay)).await;
+                            continue;
+                        }
+                        return Err(format!("NETWORK_ERROR: {}", e));
+                    }
+                }
             }
-
-            response
-                .json::<UserSession>()
-                .await
-                .map_err(|e| format!("Error al parsear sesión: {}", e))
         }
 
         pub async fn refresh_tokens(&self, refresh_token: &str) -> AuthResult<TokenResponse> {
             let refresh_endpoint = format!("{}/auth/refresh", *API_ENDPOINT);
 
-            let response = self
-                .client
-                .post(&refresh_endpoint)
-                .json(&json!({ "refresh_token": refresh_token }))
-                .send()
-                .await
-                .map_err(|e| format!("Error al contactar API: {}", e))?;
+            let mut retries = 0;
+            let max_retries = 2;
 
-            if !response.status().is_success() {
-                return Err(format!("Error al renovar tokens: {}", response.status()));
+            loop {
+                let response_result = self
+                    .client
+                    .post(&refresh_endpoint)
+                    .json(&json!({ "refresh_token": refresh_token }))
+                    .send()
+                    .await;
+
+                match response_result {
+                    Ok(response) => {
+                        if response.status().is_success() {
+                            return response
+                                .json::<TokenResponse>()
+                                .await
+                                .map_err(|e| format!("Error al parsear tokens: {}", e));
+                        }
+
+                        let status = response.status();
+
+                        if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+                            return Err("REFRESH_TOKEN_EXPIRED".to_string());
+                        }
+
+                        if (status.is_server_error() || status == StatusCode::TOO_MANY_REQUESTS)
+                            && retries < max_retries
+                        {
+                            retries += 1;
+                            let delay = 2 * retries;
+                            tokio::time::sleep(Duration::from_secs(delay)).await;
+                            continue;
+                        }
+
+                        return Err(format!("REFRESH_API_ERROR_{}", status));
+                    }
+                    Err(e) => {
+                        if retries < max_retries {
+                            retries += 1;
+                            let delay = 2 * retries;
+                            tokio::time::sleep(Duration::from_secs(delay)).await;
+                            continue;
+                        }
+                        return Err(format!("REFRESH_NETWORK_ERROR: {}", e));
+                    }
+                }
             }
-
-            response
-                .json::<TokenResponse>()
-                .await
-                .map_err(|e| format!("Error al parsear tokens: {}", e))
         }
 
         pub async fn exchange_code_for_tokens(&self, code: &str) -> AuthResult<TokenResponse> {
@@ -420,8 +494,16 @@ mod session {
                 save_session_and_notify(auth_state, user.clone()).await;
                 return Ok(Some(user));
             }
-            Err(_) => {
+            Err(e) if e == "AUTH_EXPIRED" => {
                 println!("Tokens expirados, intentando renovar...");
+            }
+            Err(e) => {
+                eprintln!(
+                    "Error de servidor o red al recuperar sesión: {}. Manteniendo sesión local.",
+                    e
+                );
+                // Si es un error de servidor/red, propagamos el error pero NO borramos tokens
+                return Err(e);
             }
         }
 
@@ -438,21 +520,30 @@ mod session {
                         save_session_and_notify(auth_state, user.clone()).await;
                         Ok(Some(user))
                     }
-                    Err(e) => {
-                        eprintln!("Error tras renovar tokens: {}", e);
+                    Err(e) if e == "AUTH_EXPIRED" => {
+                        eprintln!("Error de autenticación tras renovar tokens: {}", e);
                         storage::remove_tokens(app_handle).await?;
                         events::emit_auth_status_changed(None);
                         Ok(None)
                     }
+                    Err(e) => {
+                        eprintln!("Error de servidor tras renovar tokens: {}", e);
+                        Err(e)
+                    }
                 }
             }
-            Err(e) => {
-                eprintln!("Error al renovar tokens: {}", e);
-                if !e.contains("530") {
-                    storage::remove_tokens(app_handle).await?;
-                }
+            Err(e) if e == "REFRESH_TOKEN_EXPIRED" => {
+                eprintln!("Refresh token expirado: {}", e);
+                storage::remove_tokens(app_handle).await?;
                 events::emit_auth_status_changed(None);
                 Ok(None)
+            }
+            Err(e) => {
+                eprintln!(
+                    "Error de servidor o red al renovar tokens: {}. No se borran tokens.",
+                    e
+                );
+                Err(e)
             }
         }
     }
@@ -838,21 +929,38 @@ pub async fn refresh_tokens(
                     drop(session_guard);
                     events::emit_auth_status_changed(Some(user));
                 }
-                Err(e) => {
-                    eprintln!("Error al obtener sesión tras renovar tokens: {}", e);
+                Err(e) if e == "AUTH_EXPIRED" => {
+                    eprintln!(
+                        "Error al obtener sesión tras renovar tokens (expirado): {}",
+                        e
+                    );
                     storage::remove_tokens(&app_handle).await?;
                     auth_state.clear_all().await;
                     events::emit_auth_status_changed(None);
                     return Ok(false);
                 }
+                Err(e) => {
+                    eprintln!("Error de servidor tras renovar tokens: {}", e);
+                    // No borramos tokens si es error de servidor/red
+                    return Err(e);
+                }
             }
             Ok(true)
         }
         Err(e) => {
-            // Limpiar tokens inválidos
-            storage::remove_tokens(&app_handle).await?;
-            auth_state.clear_all().await;
-            events::emit_auth_status_changed(None);
+            if e == "REFRESH_TOKEN_EXPIRED" {
+                eprintln!("Refresh token expirado");
+                storage::remove_tokens(&app_handle).await?;
+                auth_state.clear_all().await;
+                events::emit_auth_status_changed(None);
+                return Ok(false);
+            }
+
+            // Propagar error de servidor/red sin limpiar tokens
+            eprintln!(
+                "Error de servidor o red al renovar tokens: {}. Manteniendo credenciales.",
+                e
+            );
             Err(e)
         }
     }

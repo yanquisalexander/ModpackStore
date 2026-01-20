@@ -77,38 +77,39 @@ export class DatabaseService {
      * Inicializa la base de datos con reintentos
      */
     private async initializeDatabase(): Promise<void> {
-        const maxRetries = 5;
+        const maxRetries = 12; // Aumentado para soportar cold starts más largos (aprox 45-60s total)
         let retries = 0;
 
         while (retries < maxRetries) {
             try {
-                console.log(`Attempting database connection (attempt ${retries + 1}/${maxRetries})...`);
+                console.log(`[Database] Attempting connection (attempt ${retries + 1}/${maxRetries})...`);
 
                 if (!AppDataSource.isInitialized) {
                     await AppDataSource.initialize();
-                    console.log('Database connection established successfully.');
+                    console.log('[Database] Connection established successfully.');
                 }
 
                 // Verificar que realmente podemos hacer consultas
                 await AppDataSource.query('SELECT 1');
-                console.log('Database ready for queries.');
+                console.log('[Database] Ready for queries.');
                 return;
 
             } catch (error) {
-                console.error(`Database initialization failed (attempt ${retries + 1}/${maxRetries}):`, error);
+                console.error(`[Database] Initialization failed (attempt ${retries + 1}/${maxRetries}):`, error);
                 retries++;
 
                 if (retries < maxRetries) {
-                    // Esperar con backoff exponencial: 500ms, 1000ms, 2000ms, 4000ms
-                    const delay = Math.min(500 * Math.pow(2, retries - 1), 4000);
-                    console.log(`Retrying database connection in ${delay}ms...`);
+                    // Esperar con backoff exponencial mejorado para dar más margen al DB
+                    // 1s, 2s, 4s, 8s, 8s, 8s...
+                    const delay = Math.min(1000 * Math.pow(2, Math.min(retries - 1, 3)), 8000);
+                    console.log(`[Database] Retrying in ${delay}ms...`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                 }
             }
         }
 
         // Si llegamos aquí, agotamos los reintentos
-        throw new Error('Failed to initialize database after multiple retries. The database may be in auto-sleep mode.');
+        throw new Error('Failed to initialize database after multiple retries. Cold start timed out.');
     }
 
     /**

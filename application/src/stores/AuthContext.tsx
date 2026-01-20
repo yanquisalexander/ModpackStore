@@ -193,7 +193,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         console.log('[AuthContext] Tokens refreshed successfully');
         // Tokens will be updated via the auth-status-changed event
       } else {
-        console.warn('[AuthContext] Token refresh returned false');
+        console.warn('[AuthContext] Token refresh returned false (auth expired)');
         // Show session expired dialog
         setShowSessionExpired(true);
         setSession(null);
@@ -201,10 +201,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     } catch (err) {
       console.error('[AuthContext] Error refreshing tokens:', err);
-      // Show session expired dialog
-      setShowSessionExpired(true);
-      setSession(null);
-      setSessionTokens(null);
+      const parsedError = parseError(err);
+
+      // No cerramos sesión si es un error de servidor o red
+      const isTransientError =
+        parsedError.code.includes('50') ||
+        parsedError.code.includes('NETWORK') ||
+        parsedError.code.includes('API_ERROR') ||
+        parsedError.message.toLowerCase().includes('database') ||
+        parsedError.message.toLowerCase().includes('timeout');
+
+      if (!isTransientError) {
+        setShowSessionExpired(true);
+        setSession(null);
+        setSessionTokens(null);
+      } else {
+        console.warn('[AuthContext] Transient error during refresh, keeping tokens to retry later');
+      }
     } finally {
       isRefreshingRef.current = false;
     }
@@ -310,9 +323,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } catch (err) {
         if (!isMounted) return;
         console.error("[AuthContext] Error during init_session:", err);
-        setError(parseError(err));
-        setSession(null);
-        setSessionTokens(null);
+        const parsedError = parseError(err);
+        setError(parsedError);
+
+        // No borramos la sesión si es un error temporal del servidor (50x) o red
+        const isTransientError =
+          parsedError.code.includes('50') ||
+          parsedError.code.includes('NETWORK') ||
+          parsedError.code.includes('API_ERROR') ||
+          parsedError.message.toLowerCase().includes('database') ||
+          parsedError.message.toLowerCase().includes('timeout');
+
+        if (!isTransientError) {
+          console.log("[AuthContext] Non-transient error, clearing session state");
+          setSession(null);
+          setSessionTokens(null);
+        } else {
+          console.warn("[AuthContext] Transient server/DB error, preserving session state for later retry");
+        }
+
         // Resolve the promise to prevent hanging
         resolveAuthStatus();
       } finally {

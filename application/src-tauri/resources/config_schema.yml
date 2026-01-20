@@ -27,6 +27,12 @@ closeOnLaunch:
   description: "Cierra el launcher cuando se inicie Minecraft"
   ui_section: gameplay
 
+minimizeOnClose:
+  type: boolean
+  default: false
+  description: "Minimizar a la bandeja del sistema al cerrar la ventana"
+  ui_section: general
+
 releaseChannel:
   type: enum
   choices: 

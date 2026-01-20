@@ -1,8 +1,12 @@
 import { Hono } from 'hono';
 import { AccountsController } from '../../controllers/Accounts.controller';
 import { requireAuth, requireAuthAllowBanned } from "@/middlewares/auth.middleware";
+import { requireDatabaseReady } from "@/middlewares/database.middleware";
 
 const authRoutes = new Hono();
+
+// Aplicar requireDatabaseReady a todas las rutas de auth de forma global en este router
+authRoutes.use('*', requireDatabaseReady);
 
 /**
  * @openapi

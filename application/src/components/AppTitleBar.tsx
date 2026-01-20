@@ -4,6 +4,7 @@ import { getCurrentWindow, Window } from '@tauri-apps/api/window';
 import { useGlobalContext } from "../stores/GlobalContext";
 import { useNavigate } from "react-router-dom";
 import { exit } from '@tauri-apps/plugin-process';
+import { invoke } from "@tauri-apps/api/core";
 import { CurrentUser } from "./CurrentUser";
 import { RunningInstances } from "./RunningInstances";
 import { RunningTasks } from "./RunningTasks";
@@ -106,11 +107,34 @@ export const AppTitleBar = () => {
         }
     };
 
-    const handleClose = () => {
+    const handleClose = async () => {
         // Forzar cierre del menú contextual si está abierto
         const evt = new MouseEvent('click', { bubbles: true });
         contextMenuTriggerRef.current?.dispatchEvent(evt);
-        setTimeout(() => setIsExitDialogOpen(true), 0);
+
+        try {
+            const currentWindow = await getCurrentWindow();
+            const minimizeOnClose = await invoke<boolean | null>("get_config_value", { key: "minimizeOnClose" });
+
+            // Si no estamos en la ventana principal, cerramos directamente
+            if (currentWindow.label !== "main") {
+                await currentWindow.close();
+                return;
+            }
+
+            // Ventana principal: Si la opción es true o null (defecto), ocultamos la ventana
+            if (minimizeOnClose !== false) {
+                await currentWindow.hide();
+                return;
+            }
+
+            // Solo si es la ventana principal y la opción es fálse, mostramos el diálogo
+            setIsExitDialogOpen(true);
+        } catch (error) {
+            console.error("Error in handleClose:", error);
+            // Fallback: mostrar diálogo si algo falló para no dejar al usuario bloqueado
+            setIsExitDialogOpen(true);
+        }
     };
 
     const confirmClose = async () => {

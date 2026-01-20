@@ -291,16 +291,19 @@ export const PublisherAnalyticsView: React.FC = () => {
 
     // Configuración del gráfico
     const mainChartConfig = useMemo(() => {
-        if (!data.overview) return [];
+        if (!data.overview) {
+            return { data: [], color: "var(--chart-1)", label: "" };
+        }
+
         switch (activeChart) {
             case 'downloads':
-                return { data: data.overview.trends.dailyDownloads, color: "hsl(var(--chart-1))", label: "Instalaciones" };
+                return { data: data.overview.trends.dailyDownloads, color: "var(--chart-1)", label: "Instalaciones" };
             case 'acquisitions':
-                return { data: data.overview.trends.dailyAcquisitions, color: "hsl(var(--chart-2))", label: "Adquisiciones" };
+                return { data: data.overview.trends.dailyAcquisitions, color: "var(--chart-2)", label: "Adquisiciones" };
             case 'users':
-                return { data: data.overview.trends.dailyActiveUsers, color: "hsl(var(--chart-3))", label: "Usuarios Activos" };
+                return { data: data.overview.trends.dailyActiveUsers, color: "var(--chart-3)", label: "Usuarios Activos" };
             default:
-                return { data: [], color: "", label: "" };
+                return { data: [], color: "var(--chart-1)", label: "" };
         }
     }, [data.overview, activeChart]);
 

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { cn } from "@/lib/utils"
 import {
     Area,
     AreaChart as RechartsAreaChart,
@@ -24,8 +25,8 @@ const AreaChart = React.forwardRef<
     }
 >(({ data, config, className }, ref) => {
     return (
-        <div ref={ref} className={className}>
-            <ResponsiveContainer width="100%" height={300}>
+        <div ref={ref} className={cn("w-full h-full min-h-[300px]", className)}>
+            <ResponsiveContainer width="100%" height="100%">
                 <RechartsAreaChart data={data}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
@@ -51,7 +52,7 @@ const AreaChart = React.forwardRef<
                                             const displayName = configKey ? config[configKey].label : entry.dataKey;
                                             return (
                                                 <p key={index} style={{ color: entry.color }} className="text-sm">
-                                                    {`${displayName}: ${entry.value?.toFixed ? entry.value.toFixed(1) : entry.value}%`}
+                                                    {`${displayName}: ${entry.value?.toLocaleString ? entry.value.toLocaleString() : entry.value}`}
                                                 </p>
                                             );
                                         })}
@@ -88,8 +89,8 @@ const BarChart = React.forwardRef<
     }
 >(({ data, config, className }, ref) => {
     return (
-        <div ref={ref} className={className}>
-            <ResponsiveContainer width="100%" height={300}>
+        <div ref={ref} className={cn("w-full h-full min-h-[300px]", className)}>
+            <ResponsiveContainer width="100%" height="100%">
                 <RechartsBarChart data={data}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
@@ -149,8 +150,8 @@ const LineChart = React.forwardRef<
     }
 >(({ data, config, className }, ref) => {
     return (
-        <div ref={ref} className={className}>
-            <ResponsiveContainer width="100%" height={300}>
+        <div ref={ref} className={cn("w-full h-full min-h-[300px]", className)}>
+            <ResponsiveContainer width="100%" height="100%">
                 <RechartsLineChart data={data}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis
@@ -176,7 +177,7 @@ const LineChart = React.forwardRef<
                                             const displayName = configKey ? config[configKey].label : entry.dataKey;
                                             return (
                                                 <p key={index} style={{ color: entry.color }} className="text-sm">
-                                                    {`${displayName}: ${entry.value?.toFixed ? entry.value.toFixed(1) : entry.value}`}
+                                                    {`${displayName}: ${entry.value?.toLocaleString ? entry.value.toLocaleString() : entry.value}`}
                                                 </p>
                                             );
                                         })}

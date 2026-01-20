@@ -165,10 +165,10 @@ pub fn main() {
             }
         }).build())
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
-            let _ = app
-                .get_webview_window("main")
-                .expect("no main window")
-                .set_focus();
+            let window = app.get_webview_window("main").expect("no main window");
+            let _ = window.show();
+            let _ = window.unminimize();
+            let _ = window.set_focus();
 
             if let Some(id) = get_instance_arg(&args) {
                 let _ = app.emit("open-instance", id);
@@ -178,13 +178,26 @@ pub fn main() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
-        /* .on_window_event(|window, event| {
-            if window.label() == "running-instances-tray-window" {
-                if let tauri::WindowEvent::Focused(false) = event {
-                    let _ = window.hide();
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    let mut minimize_on_close = true;
+
+                    if let Ok(config_mgr) = crate::config::get_config_manager().lock() {
+                        if let Ok(config) = config_mgr.as_ref() {
+                            minimize_on_close = config.get("minimizeOnClose")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(true);
+                        }
+                    }
+
+                    if minimize_on_close {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
                 }
             }
-        }) */
+        })
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_fs::init())
@@ -283,6 +296,7 @@ pub fn main() {
                         "show" => {
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.show();
+                                let _ = window.unminimize();
                                 let _ = window.set_focus();
                             }
                         }
@@ -308,6 +322,20 @@ pub fn main() {
                             }
                         }
                         _ => {}
+                    }
+                })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.unminimize();
+                            let _ = window.set_focus();
+                        }
                     }
                 })
                 .build(app)?;
