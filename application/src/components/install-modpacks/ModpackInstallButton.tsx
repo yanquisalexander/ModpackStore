@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom"
 import { useAuthentication } from "@/stores/AuthContext"
 import { API_ENDPOINT } from "@/consts"
 import { trackModpackInstall } from "@/services/analytics"
+import { useActionLimit } from "@/hooks/useUserFlags"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -80,9 +81,12 @@ export const InstallButton = ({
     const [isFreeState, setIsFreeState] = useState(isFree);
     const [priceState, setPriceState] = useState(price);
     const [requiredTwitchChannelsState, setRequiredTwitchChannelsState] = useState(requiredTwitchChannels);
+    const [totalInstances, setTotalInstances] = useState<number>(0);
 
     const navigate = useNavigate();
     const { sessionTokens, isAuthenticated, startDiscordAuth } = useAuthentication();
+
+    const { allowed: isLimitAllowed, limit: instancesLimit } = useActionLimit('max_instances_allowed', totalInstances);
 
     // Para almacenar temporalmente la acción pendiente después de adquirir acceso
     const [pendingAction, setPendingAction] = useState<{
@@ -96,6 +100,21 @@ export const InstallButton = ({
     const isCurrentlyInstalling = isModpackInstalling(modpackId) || isInstalling
 
     const hasLocalInstances = localInstances.length > 0
+
+    // Fetch total instance count
+    useEffect(() => {
+        const fetchTotalInstances = async () => {
+            try {
+                const allInstances = await invoke('get_all_instances') as any[];
+                // Filter out servers as done in MyInstancesSection
+                const clientInstances = allInstances.filter(inst => inst?.instanceType !== 'server');
+                setTotalInstances(clientInstances.length);
+            } catch (err) {
+                console.error("Error fetching total instances:", err);
+            }
+        };
+        fetchTotalInstances();
+    }, []);
 
     // Check if user has access to the modpack
     useEffect(() => {
@@ -144,6 +163,15 @@ export const InstallButton = ({
 
 
     const handleInstallClick = () => {
+        // If we want to install a new instance (not update an existing one)
+        // Check for instance limit
+        if (!hasLocalInstances && !isLimitAllowed) {
+            toast.error('Límite de instancias alcanzado', {
+                description: `Has alcanzado tu límite de ${instancesLimit} instancias. Elimina alguna para poder instalar modpacks nuevos.`
+            });
+            return;
+        }
+
         // If user doesn't have access, open acquisition dialog
         if (!hasAccess) {
             // Check if user is authenticated first
@@ -179,6 +207,12 @@ export const InstallButton = ({
     }
 
     const handleInstallNew = () => {
+        if (!isLimitAllowed) {
+            toast.error('Límite de instancias alcanzado', {
+                description: `Has alcanzado tu límite de ${instancesLimit} instancias. Elimina alguna para poder instalar modpacks nuevos.`
+            });
+            return;
+        }
         setIsInstallOptionsOpen(false)
         setIsCreateDialogOpen(true)
     }
@@ -326,6 +360,7 @@ export const InstallButton = ({
                 modpackName={modpackName}
                 localInstances={localInstances}
                 modpackId={modpackId}
+                canInstallNew={isLimitAllowed}
             />
 
             <UpdateInstanceDialog
@@ -353,12 +388,8 @@ export const InstallButton = ({
                     id: modpackId,
                     name: modpackName,
                     acquisitionMethod: acquisitionMethodState,
-                    requiresPassword: requiresPasswordState,
-                    isPaid: isPaidState,
-                    isFree: isFreeState,
                     price: priceState,
                     requiresTwitchSubscription: requiresTwitchState,
-                    requiredTwitchChannels: requiredTwitchChannelsState,
                 }}
             />
 

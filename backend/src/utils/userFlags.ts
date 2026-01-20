@@ -9,15 +9,13 @@ export interface UserFlags {
     // Instance limits
     max_instances_allowed: number;
 
-
-
     // Feature flags
     can_upload_cover_image: boolean;
-
     priority_support: boolean;
     early_access_features: boolean;
     custom_badges: boolean;
-
+    server_priority_queue: boolean;
+    custom_instance_icons: boolean;
 }
 
 /**
@@ -53,8 +51,8 @@ export function getDefaultFlags(): UserFlags {
     const benefitDefinitions = BenefitsService.getBenefitDefinitions();
     const defaultFlags: any = {};
 
-    for (const [key, definition] of Object.entries(benefitDefinitions)) {
-        defaultFlags[key] = definition.default;
+    for (const definition of benefitDefinitions) {
+        defaultFlags[definition.id] = definition.defaultValue;
     }
 
     return defaultFlags as UserFlags;

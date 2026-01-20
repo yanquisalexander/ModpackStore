@@ -32,11 +32,15 @@ import { AnvilIcon } from "@/icons/AnvilIcon" // Asumiendo que tienes este o usa
 // --- TYPES ---
 interface MinecraftVersion { id: string; type: string; url: string; time?: string; releaseTime?: string; }
 type InstanceType = "vanilla" | "forge" | "fabric" | "neoforge" | "quilt";
-interface CreateInstanceDialogProps { onInstanceCreated: () => void; instanceNames: string[]; }
+interface CreateInstanceDialogProps {
+    onInstanceCreated: () => void;
+    instanceNames: string[];
+    disabled?: boolean;
+}
 
 const FORGE_VERSIONS_URL = "https://mc-versions-api.net/api/forge";
 
-export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: CreateInstanceDialogProps) => {
+export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames, disabled = false }: CreateInstanceDialogProps) => {
     const [open, setOpen] = useState(false);
     const [instanceName, setInstanceName] = useState("");
     const [isLoading, setIsLoading] = useState(false);
@@ -222,13 +226,28 @@ export const CreateInstanceDialog = ({ onInstanceCreated, instanceNames }: Creat
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogTrigger asChild>
-                <button className="group relative h-[160px] w-full overflow-hidden rounded-xl border border-dashed border-white/10 bg-[#0a0a0a] hover:bg-white/[0.02] hover:border-white/20 transition-all duration-200">
+                <button
+                    disabled={disabled}
+                    className={cn(
+                        "group relative h-[160px] w-full overflow-hidden rounded-xl border border-dashed transition-all duration-200 bg-[#0a0a0a]",
+                        disabled ? "opacity-50 cursor-not-allowed border-white/5 grayscale" : "border-white/10 hover:bg-white/[0.02] hover:border-white/20"
+                    )}
+                >
                     <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                        <div className="p-3 rounded-full bg-white/5 group-hover:bg-white/10 transition-colors border border-white/5">
-                            <LucidePlus className="h-6 w-6 text-neutral-400 group-hover:text-white transition-colors" />
+                        <div className={cn(
+                            "p-3 rounded-full bg-white/5 transition-colors border border-white/5",
+                            !disabled && "group-hover:bg-white/10"
+                        )}>
+                            <LucidePlus className={cn(
+                                "h-6 w-6 text-neutral-400 transition-colors",
+                                !disabled && "group-hover:text-white"
+                            )} />
                         </div>
                         <div className="text-center">
-                            <span className="block text-sm font-semibold text-neutral-300 group-hover:text-white">Nueva Instancia</span>
+                            <span className={cn(
+                                "block text-sm font-semibold text-neutral-300",
+                                !disabled && "group-hover:text-white"
+                            )}>Nueva Instancia</span>
                             <span className="text-xs text-neutral-500">Vanilla o Modded</span>
                         </div>
                     </div>

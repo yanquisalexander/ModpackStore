@@ -1,34 +1,12 @@
-/**
- * User flags interface representing Modpack Store+ benefits
- * These flags are obtained from the backend and reflect the user's Patreon tier
- */
-export interface UserFlags {
-    max_instances_allowed: number;
-
-    // Feature flags
-    can_upload_cover_image: boolean;
-    priority_support: boolean;
-    early_access_features: boolean;
-    custom_badges: boolean;
-    server_priority_queue: boolean;
-    custom_instance_icons: boolean;
-}
-
-/**
- * Definition of a benefit for administrative purposes
- */
 export interface BenefitDefinition {
-    id: keyof UserFlags;
+    id: string;
     name: string;
     description: string;
     type: 'boolean' | 'number' | 'string';
     defaultValue: any;
 }
 
-/**
- * List of all available benefits in the system
- */
-export const AVAILABLE_BENEFITS: BenefitDefinition[] = [
+export const BENEFIT_DEFINITIONS: BenefitDefinition[] = [
     {
         id: 'max_instances_allowed',
         name: 'Límite de Instancias',
@@ -80,15 +58,14 @@ export const AVAILABLE_BENEFITS: BenefitDefinition[] = [
     }
 ];
 
-/**
- * Default flags for unauthenticated or free users
- */
-export const DEFAULT_USER_FLAGS: UserFlags = {
-    max_instances_allowed: 10,
-    can_upload_cover_image: false,
-    priority_support: false,
-    early_access_features: false,
-    custom_badges: false,
-    server_priority_queue: false,
-    custom_instance_icons: false,
-};
+export function getBenefitDefinition(id: string) {
+    return BENEFIT_DEFINITIONS.find(b => b.id === id);
+}
+
+export function getDefaultBenefits(): Record<string, any> {
+    const defaults: Record<string, any> = {};
+    BENEFIT_DEFINITIONS.forEach(b => {
+        defaults[b.id] = b.defaultValue;
+    });
+    return defaults;
+}

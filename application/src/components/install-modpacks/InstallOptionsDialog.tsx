@@ -12,6 +12,7 @@ interface InstallOptionsDialogProps {
     localInstances: TauriCommandReturns["get_instances_by_modpack_id"];
     onInstallNew: () => void;
     onUpdateExisting: () => void;
+    canInstallNew?: boolean;
 }
 
 export const InstallOptionsDialog = ({
@@ -21,7 +22,8 @@ export const InstallOptionsDialog = ({
     modpackName,
     localInstances,
     onInstallNew,
-    onUpdateExisting
+    onUpdateExisting,
+    canInstallNew = true
 }: InstallOptionsDialogProps) => {
 
     const instanceCount = localInstances?.length || 0;
@@ -57,18 +59,38 @@ export const InstallOptionsDialog = ({
                     {/* Opción 1: Crear Nueva */}
                     <button
                         onClick={onInstallNew}
-                        className="w-full group relative flex items-center gap-4 p-4 rounded-xl border border-white/10 bg-[#121212] hover:bg-[#1a1a1a] hover:border-emerald-500/30 transition-all duration-200 text-left"
+                        disabled={!canInstallNew}
+                        className={cn(
+                            "w-full group relative flex items-center gap-4 p-4 rounded-xl border transition-all duration-200 text-left",
+                            canInstallNew
+                                ? "border-white/10 bg-[#121212] hover:bg-[#1a1a1a] hover:border-emerald-500/30"
+                                : "border-white/5 bg-[#0a0a0a] opacity-50 cursor-not-allowed grayscale"
+                        )}
                     >
-                        <div className="p-3 rounded-lg bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                        <div className={cn(
+                            "p-3 rounded-lg transition-colors",
+                            canInstallNew
+                                ? "bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white"
+                                : "bg-white/5 text-neutral-600"
+                        )}>
                             <LucidePlus className="w-6 h-6" />
                         </div>
                         <div className="flex-1">
-                            <h3 className="font-bold text-white group-hover:text-emerald-400 transition-colors">Crear nueva instancia</h3>
-                            <p className="text-xs text-neutral-500 mt-0.5">Instalar una copia separada y limpia.</p>
+                            <h3 className={cn(
+                                "font-bold transition-colors",
+                                canInstallNew ? "text-white group-hover:text-emerald-400" : "text-neutral-500"
+                            )}>Crear nueva instancia</h3>
+                            <p className="text-xs text-neutral-500 mt-0.5">
+                                {canInstallNew
+                                    ? "Instalar una copia separada y limpia."
+                                    : "Has alcanzado tu límite de instancias."}
+                            </p>
                         </div>
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-4 text-emerald-500">
-                            <LucideDownload className="w-5 h-5" />
-                        </div>
+                        {canInstallNew && (
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute right-4 text-emerald-500">
+                                <LucideDownload className="w-5 h-5" />
+                            </div>
+                        )}
                     </button>
 
                     {/* Separador Visual con Texto */}

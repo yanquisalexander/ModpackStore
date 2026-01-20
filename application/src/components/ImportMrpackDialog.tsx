@@ -22,9 +22,10 @@ import { motion, AnimatePresence } from "motion/react";
 
 interface ImportMrpackDialogProps {
   onInstanceCreated: () => void;
+  disabled?: boolean;
 }
 
-export const ImportMrpackDialog = ({ onInstanceCreated }: ImportMrpackDialogProps) => {
+export const ImportMrpackDialog = ({ onInstanceCreated, disabled = false }: ImportMrpackDialogProps) => {
   const [open, setOpen] = useState(false);
   const [mrpackPath, setMrpackPath] = useState<string | null>(null);
   const [manifest, setManifest] = useState<MrpackManifest | null>(null);
@@ -92,13 +93,28 @@ export const ImportMrpackDialog = ({ onInstanceCreated }: ImportMrpackDialogProp
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <button className="group relative h-[160px] w-full overflow-hidden rounded-xl border border-dashed border-white/10 bg-[#0a0a0a] hover:bg-white/[0.02] hover:border-purple-500/30 transition-all duration-200">
+        <button
+          disabled={disabled}
+          className={cn(
+            "group relative h-[160px] w-full overflow-hidden rounded-xl border border-dashed transition-all duration-200 bg-[#0a0a0a]",
+            disabled ? "opacity-50 cursor-not-allowed border-white/5 grayscale" : "border-white/10 hover:bg-white/[0.02] hover:border-purple-500/30"
+          )}
+        >
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-            <div className="p-3 rounded-full bg-white/5 group-hover:bg-purple-500/10 transition-colors border border-white/5 group-hover:border-purple-500/20">
-              <Import className="h-6 w-6 text-neutral-400 group-hover:text-purple-400 transition-colors" />
+            <div className={cn(
+              "p-3 rounded-full bg-white/5 transition-colors border border-white/5",
+              !disabled && "group-hover:bg-purple-500/10 group-hover:border-purple-500/20"
+            )}>
+              <Import className={cn(
+                "h-6 w-6 text-neutral-400 transition-colors",
+                !disabled && "group-hover:text-purple-400"
+              )} />
             </div>
             <div className="text-center">
-              <span className="block text-sm font-semibold text-neutral-300 group-hover:text-white">Importar .mrpack</span>
+              <span className={cn(
+                "block text-sm font-semibold text-neutral-300",
+                !disabled && "group-hover:text-white"
+              )}>Importar .mrpack</span>
               <span className="text-xs text-neutral-500">Desde archivo local</span>
             </div>
           </div>

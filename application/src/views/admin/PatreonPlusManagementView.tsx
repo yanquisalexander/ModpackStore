@@ -40,6 +40,14 @@ import {
     PatreonMemberData,
     PatreonStatistics
 } from '@/services/patreonPlus';
+import { AVAILABLE_BENEFITS, BenefitDefinition } from '@/types/userFlags';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 interface MetadataFormData {
     [key: string]: boolean | number | string;
@@ -110,6 +118,7 @@ export const PatreonPlusManagementView: React.FC = () => {
     const openEditDialog = (tier: PatreonTierData) => {
         setEditingTier(tier);
         setMetadataForm(tier.metadata || {});
+        setNewFieldName('');
         setEditDialogOpen(true);
     };
 
@@ -121,15 +130,16 @@ export const PatreonPlusManagementView: React.FC = () => {
         }));
     };
 
-    // Add new metadata field
-    const addMetadataField = (key: string, type: 'boolean' | 'number' | 'string') => {
-        if (!key) return;
-        const defaultValue = type === 'boolean' ? false : type === 'number' ? 0 : '';
+    // Add new metadata field from definition
+    const addMetadataFieldFromDef = (benefitId: string) => {
+        const def = AVAILABLE_BENEFITS.find(b => b.id === benefitId);
+        if (!def) return;
+
         setMetadataForm(prev => ({
             ...prev,
-            [key]: defaultValue
+            [def.id]: def.defaultValue
         }));
-        setNewFieldName(''); // Clear the input
+        setNewFieldName('');
     };
 
     // Remove metadata field
@@ -154,9 +164,11 @@ export const PatreonPlusManagementView: React.FC = () => {
             toast.success('Beneficios actualizados correctamente');
             setEditDialogOpen(false);
             await loadData();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error updating metadata:', error);
-            toast.error('Error al actualizar los beneficios');
+            toast.error('Error al actualizar los beneficios', {
+                description: error.message || 'Error desconocido'
+            });
         }
     };
 
@@ -355,77 +367,103 @@ export const PatreonPlusManagementView: React.FC = () => {
                     </DialogHeader>
 
                     <div className="space-y-4">
-                        {Object.entries(metadataForm).map(([key, value]) => (
-                            <div key={key} className="flex items-center gap-3 p-3 border rounded-lg">
-                                <div className="flex-1">
-                                    <Label htmlFor={`meta-${key}`} className="font-mono text-sm">
-                                        {key}
-                                    </Label>
-                                    <div className="mt-2">
-                                        {typeof value === 'boolean' ? (
-                                            <Switch
-                                                id={`meta-${key}`}
-                                                checked={value}
-                                                onCheckedChange={(checked) => handleMetadataChange(key, checked)}
-                                            />
-                                        ) : typeof value === 'number' ? (
-                                            <Input
-                                                id={`meta-${key}`}
-                                                type="number"
-                                                value={value}
-                                                onChange={(e) => handleMetadataChange(key, Number(e.target.value))}
-                                            />
-                                        ) : (
-                                            <Input
-                                                id={`meta-${key}`}
-                                                type="text"
-                                                value={value}
-                                                onChange={(e) => handleMetadataChange(key, e.target.value)}
-                                            />
+                        {Object.entries(metadataForm).map(([key, value]) => {
+                            const benefitDef = AVAILABLE_BENEFITS.find(b => b.id === key);
+                            return (
+                                <div key={key} className="flex items-center gap-3 p-3 border rounded-lg bg-card/50">
+                                    <div className="flex-1">
+                                        <div className="flex items-center gap-2">
+                                            <Label htmlFor={`meta-${key}`} className="font-bold">
+                                                {benefitDef?.name || key}
+                                            </Label>
+                                            <code className="text-[10px] bg-muted px-1 rounded font-mono text-muted-foreground">
+                                                {key}
+                                            </code>
+                                        </div>
+                                        {benefitDef && (
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                                {benefitDef.description}
+                                            </p>
                                         )}
+                                        <div className="mt-2">
+                                            {typeof value === 'boolean' ? (
+                                                <Switch
+                                                    id={`meta-${key}`}
+                                                    checked={value}
+                                                    onCheckedChange={(checked) => handleMetadataChange(key, checked)}
+                                                />
+                                            ) : typeof value === 'number' ? (
+                                                <Input
+                                                    id={`meta-${key}`}
+                                                    type="number"
+                                                    value={value}
+                                                    onChange={(e) => handleMetadataChange(key, Number(e.target.value))}
+                                                />
+                                            ) : (
+                                                <Input
+                                                    id={`meta-${key}`}
+                                                    type="text"
+                                                    value={value}
+                                                    onChange={(e) => handleMetadataChange(key, e.target.value)}
+                                                />
+                                            )}
+                                        </div>
                                     </div>
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                        onClick={() => removeMetadataField(key)}
+                                    >
+                                        Eliminar
+                                    </Button>
                                 </div>
-                                <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => removeMetadataField(key)}
-                                >
-                                    Eliminar
-                                </Button>
-                            </div>
-                        ))}
+                            );
+                        })}
 
                         <Separator />
 
                         {/* Add New Field */}
-                        <div className="space-y-2">
-                            <Label>Añadir Nuevo Beneficio</Label>
-                            <div className="flex gap-2">
-                                <Input
-                                    placeholder="nombre_del_beneficio"
-                                    className="flex-1"
-                                    value={newFieldName}
-                                    onChange={(e) => setNewFieldName(e.target.value)}
-                                />
-                                <Button
-                                    variant="outline"
-                                    onClick={() => addMetadataField(newFieldName, 'boolean')}
-                                >
-                                    Boolean
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => addMetadataField(newFieldName, 'number')}
-                                >
-                                    Number
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={() => addMetadataField(newFieldName, 'string')}
-                                >
-                                    String
-                                </Button>
-                            </div>
+                        <div className="space-y-3 p-3 bg-muted/30 rounded-lg border border-dashed">
+                            <Label className="text-sm font-semibold">Añadir Nuevo Beneficio</Label>
+
+                            {/* Filter benefits that are not already in the form */}
+                            {AVAILABLE_BENEFITS.filter(b => !(b.id in metadataForm)).length > 0 ? (
+                                <div className="flex gap-2">
+                                    <Select
+                                        value={newFieldName}
+                                        onValueChange={setNewFieldName}
+                                    >
+                                        <SelectTrigger className="flex-1 bg-background">
+                                            <SelectValue placeholder="Seleccionar beneficio..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {AVAILABLE_BENEFITS
+                                                .filter(b => !(b.id in metadataForm))
+                                                .map(benefit => (
+                                                    <SelectItem key={benefit.id} value={benefit.id}>
+                                                        <div className="flex flex-col text-left">
+                                                            <span className="font-medium text-sm">{benefit.name}</span>
+                                                            <span className="text-[10px] text-muted-foreground">{benefit.id}</span>
+                                                        </div>
+                                                    </SelectItem>
+                                                ))
+                                            }
+                                        </SelectContent>
+                                    </Select>
+                                    <Button
+                                        variant="default"
+                                        disabled={!newFieldName}
+                                        onClick={() => addMetadataFieldFromDef(newFieldName)}
+                                    >
+                                        Añadir
+                                    </Button>
+                                </div>
+                            ) : (
+                                <p className="text-xs text-muted-foreground italic text-center py-2">
+                                    Todos los beneficios disponibles ya están configurados.
+                                </p>
+                            )}
                         </div>
                     </div>
 

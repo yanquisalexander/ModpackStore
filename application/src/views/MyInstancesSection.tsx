@@ -10,7 +10,7 @@ import { useTasksContext } from "@/stores/TasksContext";
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
 import { useConnection } from "@/utils/ConnectionContext";
 import { invoke } from "@tauri-apps/api/core";
-import { LucidePackageOpen, LucidePlus, LucideImport } from "lucide-react";
+import { LucidePackageOpen, LucidePlus, LucideImport, LucideInfo } from "lucide-react";
 import { useCallback, useEffect, useState } from "react"
 import { toast } from "sonner";
 import type { MrpackManifest, MrpackCompatibility } from "@/types/mrpack";
@@ -28,7 +28,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
     const [isLoading, setIsLoading] = useState(true)
     const [isDragging, setIsDragging] = useState(false)
 
-    const { allowed, limit, remaining } = useActionLimit('max_instances_allowed', instances.length)
+    const { allowed, limit: instancesLimit, remaining } = useActionLimit('max_instances_allowed', instances.length)
 
     const fetchInstances = useCallback(async () => {
         setIsLoading(true)
@@ -99,6 +99,13 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
         e.stopPropagation()
         setIsDragging(false)
 
+        if (!allowed) {
+            toast.error('Has alcanzado el límite de instancias permitidas', {
+                description: 'Elimina alguna o mejora tu suscripción para continuar.'
+            })
+            return
+        }
+
         const files = Array.from(e.dataTransfer.files)
         const mrpackFiles = files.filter(file => file.name.toLowerCase().endsWith('.mrpack'))
 
@@ -155,7 +162,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
 
     const itemVariants = {
         hidden: { y: 20, opacity: 0 },
-        visible: { y: 0, opacity: 1, transition: { type: "spring", stiffness: 100 } }
+        visible: { y: 0, opacity: 1, transition: { type: "spring" as const, stiffness: 100 } }
     }
 
     return (
@@ -206,6 +213,25 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                     </p>
                 </header>
 
+                {/* Limit Banner */}
+                {!isLoading && !allowed && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-8"
+                    >
+                        <Alert className="bg-amber-500/10 border-amber-500/20 text-amber-200">
+                            <LucideInfo className="h-4 w-4 text-amber-400" />
+                            <AlertDescription className="flex items-center justify-between w-full">
+                                <span>
+                                    Has alcanzado tu límite de <strong>{instancesLimit} instancias</strong>.
+                                    Elimina alguna o mejora tu suscripción en <strong>ModpackStore+</strong> para poder crear más.
+                                </span>
+                            </AlertDescription>
+                        </Alert>
+                    </motion.div>
+                )}
+
                 {/* Content */}
                 {isLoading ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -239,10 +265,14 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                                     <CreateInstanceDialog
                                         instanceNames={instances.map((i) => i.instanceName)}
                                         onInstanceCreated={fetchInstances}
+                                        disabled={!allowed}
                                     />
                                 </motion.div>
                                 <motion.div variants={itemVariants} className="h-full min-h-[180px]">
-                                    <ImportMrpackDialog onInstanceCreated={fetchInstances} />
+                                    <ImportMrpackDialog
+                                        onInstanceCreated={fetchInstances}
+                                        disabled={!allowed}
+                                    />
                                 </motion.div>
                             </>
                         )}

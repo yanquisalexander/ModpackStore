@@ -65,6 +65,7 @@ export class PatreonPlusService {
             headers: this.getAuthHeaders(token)
         });
         const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Failed to fetch tiers');
         return data.data;
     }
 
@@ -77,6 +78,7 @@ export class PatreonPlusService {
             headers: this.getAuthHeaders(token)
         });
         const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Failed to fetch tier members');
         return data.data;
     }
 
@@ -84,8 +86,8 @@ export class PatreonPlusService {
      * Update tier metadata (benefits)
      */
     static async updateTierMetadata(
-        token: string, 
-        tierId: string, 
+        token: string,
+        tierId: string,
         metadata: Record<string, boolean | number | string>
     ): Promise<PatreonTierData> {
         const response = await fetch(`${API_ENDPOINT}/admin/patreon-plus/tiers/${tierId}/metadata`, {
@@ -93,7 +95,13 @@ export class PatreonPlusService {
             headers: this.getAuthHeaders(token),
             body: JSON.stringify({ metadata })
         });
+
         const data = await response.json();
+
+        if (!response.ok || !data.success) {
+            throw new Error(data.error || 'Failed to update metadata');
+        }
+
         return data.data;
     }
 
@@ -106,6 +114,7 @@ export class PatreonPlusService {
             headers: this.getAuthHeaders(token)
         });
         const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Failed to fetch members');
         return data.data;
     }
 
@@ -118,6 +127,7 @@ export class PatreonPlusService {
             headers: this.getAuthHeaders(token)
         });
         const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Failed to trigger sync');
         return data.data;
     }
 
@@ -130,6 +140,7 @@ export class PatreonPlusService {
             headers: this.getAuthHeaders(token)
         });
         const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Failed to fetch last sync');
         return data.data.lastSync;
     }
 
@@ -142,6 +153,7 @@ export class PatreonPlusService {
             headers: this.getAuthHeaders(token)
         });
         const data = await response.json();
+        if (!response.ok || !data.success) throw new Error(data.error || 'Failed to fetch statistics');
         return data.data;
     }
 }

@@ -1,11 +1,10 @@
 import { Context } from "hono";
-import * as fs from "fs";
-import * as path from "path";
-import * as yaml from "yaml";
 import { PatreonTier } from "@/entities/PatreonTier";
 import { User } from "@/entities/User";
 import { PatreonSyncService } from "@/services/patreon-sync.service";
 import { validatePatreonMetadata } from "@/validators/patreon-metadata.validator";
+import { BENEFIT_DEFINITIONS } from "@/config/benefitDefinitions";
+import { AppDataSource } from "@/db/data-source";
 
 export class PatreonPlusController {
     /**
@@ -18,8 +17,8 @@ export class PatreonPlusController {
             // Get member count for each tier
             const tiersWithCounts = await Promise.all(
                 tiers.map(async (tier) => {
-                    const memberCount = await User.count({ 
-                        where: { patreonTierId: tier.id, patreonIsActive: true } 
+                    const memberCount = await User.count({
+                        where: { patreonTierId: tier.id, patreonIsActive: true }
                     });
 
                     return {
@@ -135,13 +134,19 @@ export class PatreonPlusController {
      */
     static async getBenefitsConfig(c: Context) {
         try {
-            const configPath = path.join(__dirname, '../config/benefits_modpackstore_plus.yml');
-            const configContent = fs.readFileSync(configPath, 'utf8');
-            const config = yaml.parse(configContent);
-
             return c.json({
                 success: true,
-                data: config
+                data: {
+                    benefits: BENEFIT_DEFINITIONS.reduce((acc, def) => {
+                        acc[def.id] = {
+                            type: def.type,
+                            name: def.name,
+                            description: def.description,
+                            default: def.defaultValue
+                        };
+                        return acc;
+                    }, {} as any)
+                }
             });
         } catch (error) {
             console.error('[PATREON_PLUS] Error reading benefits config:', error);
@@ -158,10 +163,18 @@ export class PatreonPlusController {
     static async updateTierMetadata(c: Context) {
         try {
             const tierId = c.req.param('tierId');
-            const body = await c.req.json();
+            let body;
+            try {
+                body = await c.req.json();
+            } catch (e) {
+                console.error('[PATREON_PLUS] JSON parse error:', e);
+                return c.json({ success: false, error: 'Invalid JSON body' }, 400);
+            }
+
+            console.log('[PATREON_PLUS] Updating metadata for tier:', tierId, 'Body:', JSON.stringify(body));
 
             // Validate that metadata exists in body
-            if (!body.metadata || typeof body.metadata !== 'object') {
+            if (!body || !body.metadata || typeof body.metadata !== 'object') {
                 return c.json({
                     success: false,
                     error: 'Metadata object is required'
@@ -171,6 +184,7 @@ export class PatreonPlusController {
             // Validate metadata values (only boolean, number, string allowed)
             const validation = validatePatreonMetadata(body.metadata);
             if (!validation.valid) {
+                console.error('[PATREON_PLUS] Validation error:', validation.error);
                 return c.json({
                     success: false,
                     error: validation.error
@@ -180,29 +194,37 @@ export class PatreonPlusController {
             const tier = await PatreonTier.findOne({ where: { id: tierId } });
 
             if (!tier) {
+                console.error(`[PATREON_PLUS] Tier not found: ${tierId}`);
                 return c.json({
                     success: false,
                     error: 'Tier not found'
                 }, 404);
             }
 
-            // Merge existing metadata with new values (PATCH behavior)
-            tier.metadata = {
-                ...(tier.metadata || {}),
-                ...validation.data
-            };
+            console.log(`[PATREON_PLUS] Found tier: ${tier.name}. Current metadata:`, JSON.stringify(tier.metadata));
+            console.log(`[PATREON_PLUS] New metadata to save:`, JSON.stringify(validation.data));
 
-            await tier.save();
+            // Use explicit update to ensure JSONB column is updated correctly in Postgres
+            await AppDataSource.createQueryBuilder()
+                .update(PatreonTier)
+                .set({ metadata: validation.data || {} })
+                .where("id = :id", { id: tierId })
+                .execute();
+
+            // Fetch again to verify
+            const updatedTier = await PatreonTier.findOne({ where: { id: tierId } });
+            console.log(`[PATREON_PLUS] Metadata after update:`, JSON.stringify(updatedTier?.metadata));
 
             return c.json({
                 success: true,
-                data: tier
+                data: updatedTier
             });
         } catch (error) {
             console.error('[PATREON_PLUS] Error updating tier metadata:', error);
+            // If it's a JSON parse error or something similar, it might be caught here
             return c.json({
                 success: false,
-                error: 'Failed to update tier metadata'
+                error: (error instanceof Error) ? error.message : 'Failed to update tier metadata'
             }, 500);
         }
     }

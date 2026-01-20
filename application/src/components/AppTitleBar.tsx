@@ -204,7 +204,7 @@ export const AppTitleBar = () => {
                                     )
                                 }
 
-                                <span className="text-sm font-normal font-gotham select-none pointer-events-none opacity-90" data-tauri-drag-region
+                                <span className="text-sm font-normal select-none pointer-events-none opacity-90" data-tauri-drag-region
                                 >
                                     {titleBarState.title}
                                 </span>
