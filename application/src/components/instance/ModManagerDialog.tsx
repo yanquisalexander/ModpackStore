@@ -110,20 +110,25 @@ export const ModManagerDialog: React.FC<ModManagerDialogProps> = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-3xl max-h-[80vh] bg-[#0a0a0a] border-white/10 text-white">
-                <DialogHeader>
+            <DialogContent className="!max-w-3xl h-[80vh] bg-[#0a0a0a] border-white/10 text-white flex flex-col p-0">
+
+                {/* HEADER */}
+                <DialogHeader className="px-6 pt-6 pb-4 border-b border-white/10 flex-shrink-0">
                     <DialogTitle className="flex items-center gap-2 text-xl">
                         <LucidePackage className="w-5 h-5 text-purple-400" />
                         Gestor de Mods
                     </DialogTitle>
                     <DialogDescription className="text-neutral-400">
-                        Gestiona los mods de <span className="text-white font-medium">{instanceName}</span>
+                        Gestiona los mods de{' '}
+                        <span className="text-white font-medium">{instanceName}</span>
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="space-y-4">
-                    {/* Header Actions */}
-                    <div className="flex items-center justify-between gap-2">
+                {/* BODY */}
+                <div className="flex flex-col gap-4 px-6 py-4 flex-1 min-h-0">
+
+                    {/* HEADER ACTIONS */}
+                    <div className="flex items-center justify-between gap-2 flex-shrink-0">
                         <div className="text-sm text-neutral-400">
                             {loading ? (
                                 <span className="flex items-center gap-2">
@@ -131,9 +136,13 @@ export const ModManagerDialog: React.FC<ModManagerDialogProps> = ({
                                     Cargando...
                                 </span>
                             ) : (
-                                <span>{mods.length} mod{mods.length !== 1 ? 's' : ''} encontrado{mods.length !== 1 ? 's' : ''}</span>
+                                <span>
+                                    {mods.length} mod{mods.length !== 1 ? 's' : ''} encontrado
+                                    {mods.length !== 1 ? 's' : ''}
+                                </span>
                             )}
                         </div>
+
                         <div className="flex gap-2">
                             <Button
                                 variant="outline"
@@ -142,9 +151,12 @@ export const ModManagerDialog: React.FC<ModManagerDialogProps> = ({
                                 disabled={loading}
                                 className="bg-transparent border-white/10 hover:bg-white/5"
                             >
-                                <LucideRefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                                <LucideRefreshCw
+                                    className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`}
+                                />
                                 Actualizar
                             </Button>
+
                             <Button
                                 variant="outline"
                                 size="sm"
@@ -157,78 +169,87 @@ export const ModManagerDialog: React.FC<ModManagerDialogProps> = ({
                         </div>
                     </div>
 
-                    {/* Mods List */}
-                    {loading ? (
-                        <div className="flex items-center justify-center py-12">
-                            <LucideLoader2 className="w-8 h-8 animate-spin text-purple-400" />
-                        </div>
-                    ) : mods.length === 0 ? (
-                        <Alert className="bg-neutral-900 border-white/10">
-                            <LucideAlertCircle className="h-4 w-4" />
-                            <AlertDescription>
-                                No hay mods instalados en esta instancia.
-                            </AlertDescription>
-                        </Alert>
-                    ) : (
-                        <ScrollArea className="h-[400px] rounded-lg border border-white/10 bg-[#121212]">
-                            <div className="p-2 space-y-2">
-                                {mods.map((mod) => (
-                                    <div
-                                        key={mod.filePath}
-                                        className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a1a] border border-white/5 hover:border-white/20 transition-colors"
-                                    >
-                                        <div className="flex-1 min-w-0">
-                                            <div className="flex items-center gap-2">
-                                                <h4 className="font-medium truncate">{mod.fileName}</h4>
-                                                {!mod.isEnabled && (
-                                                    <Badge variant="secondary" className="text-xs">
-                                                        Deshabilitado
-                                                    </Badge>
-                                                )}
-                                            </div>
-                                            <p className="text-xs text-neutral-400 mt-1">
-                                                {formatFileSize(mod.size)}
-                                            </p>
-                                        </div>
-                                        <div className="flex items-center gap-2 ml-4">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => handleToggleMod(mod)}
-                                                className="bg-transparent border-white/10 hover:bg-white/5"
-                                            >
-                                                {mod.isEnabled ? 'Deshabilitar' : 'Habilitar'}
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => handleDeleteMod(mod)}
-                                                disabled={deletingMod === mod.fileName}
-                                                className="bg-transparent border-red-500/20 hover:bg-red-500/10 text-red-400"
-                                            >
-                                                {deletingMod === mod.fileName ? (
-                                                    <LucideLoader2 className="w-4 h-4 animate-spin" />
-                                                ) : (
-                                                    <LucideTrash2 className="w-4 h-4" />
-                                                )}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
+                    {/* LISTA */}
+                    <div className="flex-1 min-h-0">
+                        {loading ? (
+                            <div className="flex items-center justify-center h-full">
+                                <LucideLoader2 className="w-8 h-8 animate-spin text-purple-400" />
                             </div>
-                        </ScrollArea>
-                    )}
+                        ) : mods.length === 0 ? (
+                            <Alert className="bg-neutral-900 border-white/10">
+                                <LucideAlertCircle className="h-4 w-4" />
+                                <AlertDescription>
+                                    No hay mods instalados en esta instancia.
+                                </AlertDescription>
+                            </Alert>
+                        ) : (
+                            <div className="h-full rounded-lg border border-white/10 bg-[#121212]">
+                                <ScrollArea className="h-full">
+                                    <div className="p-2 space-y-2">
+                                        {mods.map((mod) => (
+                                            <div
+                                                key={mod.filePath}
+                                                className="flex items-center justify-between p-3 rounded-lg bg-[#1a1a1a] border border-white/5 hover:border-white/20 transition-colors"
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-2">
+                                                        <h4 className="font-medium truncate">
+                                                            {mod.fileName}
+                                                        </h4>
+                                                        {!mod.isEnabled && (
+                                                            <Badge variant="secondary" className="text-xs">
+                                                                Deshabilitado
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-neutral-400 mt-1">
+                                                        {formatFileSize(mod.size)}
+                                                    </p>
+                                                </div>
 
-                    {/* Info Note */}
-                    <Alert className="bg-blue-500/10 border-blue-500/20">
+                                                <div className="flex items-center gap-2 ml-4">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleToggleMod(mod)}
+                                                        className="bg-transparent border-white/10 hover:bg-white/5"
+                                                    >
+                                                        {mod.isEnabled ? 'Deshabilitar' : 'Habilitar'}
+                                                    </Button>
+
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => handleDeleteMod(mod)}
+                                                        disabled={deletingMod === mod.fileName}
+                                                        className="bg-transparent border-red-500/20 hover:bg-red-500/10 text-red-400"
+                                                    >
+                                                        {deletingMod === mod.fileName ? (
+                                                            <LucideLoader2 className="w-4 h-4 animate-spin" />
+                                                        ) : (
+                                                            <LucideTrash2 className="w-4 h-4" />
+                                                        )}
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </ScrollArea>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* INFO */}
+                    <Alert className="bg-blue-500/10 border-blue-500/20 flex-shrink-0">
                         <LucideAlertCircle className="h-4 w-4 text-blue-400" />
                         <AlertDescription className="text-sm text-blue-200">
-                            Los mods deshabilitados se renombran con extensión .disabled para evitar que se carguen.
+                            Los mods deshabilitados se renombran con extensión .disabled.
                         </AlertDescription>
                     </Alert>
                 </div>
 
-                <div className="flex justify-end gap-2 mt-4">
+                {/* FOOTER */}
+                <div className="px-6 py-4 border-t border-white/10 flex justify-end flex-shrink-0">
                     <Button
                         variant="outline"
                         onClick={onClose}
@@ -237,7 +258,9 @@ export const ModManagerDialog: React.FC<ModManagerDialogProps> = ({
                         Cerrar
                     </Button>
                 </div>
+
             </DialogContent>
         </Dialog>
+
     );
 };
