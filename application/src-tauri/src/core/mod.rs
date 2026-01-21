@@ -12,6 +12,7 @@ pub mod microsoft_auth;
 pub mod minecraft;
 pub mod minecraft_account;
 pub mod minecraft_instance;
+pub mod mod_manager;
 pub mod models;
 pub mod modpack_file_manager;
 pub mod modpackstore_auth;

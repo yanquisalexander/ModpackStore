@@ -55,6 +55,20 @@ export const BENEFIT_DEFINITIONS: BenefitDefinition[] = [
         description: 'Permite cambiar los iconos de las instancias locales',
         type: 'boolean',
         defaultValue: false
+    },
+    {
+        id: 'allow_mod_manager',
+        name: 'Gestor de Mods Integrado',
+        description: 'Permite gestionar mods directamente desde Modpack Store en instancias locales',
+        type: 'boolean',
+        defaultValue: false
+    },
+    {
+        id: 'enable_instance_mod_downloader',
+        name: 'Descargador de Mods',
+        description: 'Permite descargar mods directamente desde Modrinth en instancias locales',
+        type: 'boolean',
+        defaultValue: false
     }
 ];
 

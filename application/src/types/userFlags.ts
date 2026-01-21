@@ -12,6 +12,8 @@ export interface UserFlags {
     custom_badges: boolean;
     server_priority_queue: boolean;
     custom_instance_icons: boolean;
+    allow_mod_manager: boolean;
+    enable_instance_mod_downloader: boolean;
 }
 
 /**
@@ -77,6 +79,20 @@ export const AVAILABLE_BENEFITS: BenefitDefinition[] = [
         description: 'Permite cambiar los iconos de las instancias locales',
         type: 'boolean',
         defaultValue: false
+    },
+    {
+        id: 'allow_mod_manager',
+        name: 'Gestor de Mods Integrado',
+        description: 'Permite gestionar mods directamente desde Modpack Store en instancias locales',
+        type: 'boolean',
+        defaultValue: false
+    },
+    {
+        id: 'enable_instance_mod_downloader',
+        name: 'Descargador de Mods',
+        description: 'Permite descargar mods directamente desde Modrinth en instancias locales',
+        type: 'boolean',
+        defaultValue: false
     }
 ];
 
@@ -91,4 +107,6 @@ export const DEFAULT_USER_FLAGS: UserFlags = {
     custom_badges: false,
     server_priority_queue: false,
     custom_instance_icons: false,
+    allow_mod_manager: false,
+    enable_instance_mod_downloader: false,
 };

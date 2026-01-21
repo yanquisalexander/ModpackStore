@@ -5,6 +5,7 @@ import { ThemeDefinition, ThemeInfo, ThemeType, ExternalThemeManifest } from '@/
 import { applyTheme } from '@/themes/theme-utils';
 import { useAuthentication } from './AuthContext';
 import { toast } from 'sonner';
+import { requestPremiumFeature } from '@/utils/premiumFeatures';
 
 interface ThemeContextType {
   currentTheme: ThemeDefinition | null;
@@ -138,9 +139,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
     // Check premium access
     if (theme.isPremium && !freeThemes.includes(theme.id) && !canAccessPremium) {
-      toast.error('Este tema requiere Modpack Store+', {
-        description: 'Suscríbete para desbloquear temas premium',
-      });
+      requestPremiumFeature(
+        'Temas Premium',
+        'Personaliza tu experiencia con temas exclusivos diseñados para ModpackStore+. Accede a una colección de temas premium y transforma la apariencia de tu aplicación.'
+      );
       return;
     }
 

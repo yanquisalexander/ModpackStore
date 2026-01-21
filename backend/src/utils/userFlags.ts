@@ -16,6 +16,8 @@ export interface UserFlags {
     custom_badges: boolean;
     server_priority_queue: boolean;
     custom_instance_icons: boolean;
+    allow_mod_manager: boolean;
+    enable_instance_mod_downloader: boolean;
 }
 
 /**

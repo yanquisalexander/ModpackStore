@@ -44,6 +44,7 @@ import { Changelog } from "./components/Changelog";
 import { BannedScreen } from "./components/BannedScreen";
 import { SessionExpiredDialog } from "./components/SessionExpiredDialog";
 import { ReminderModal } from "./components/ReminderModal";
+import { PlusFeatureDialog } from "./components/PremiumFeatureDialog";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
@@ -231,6 +232,7 @@ function App() {
         {/* Componentes globales que siempre están presentes */}
         <CommandPalette />
         <ReminderModal />
+        <PlusFeatureDialog />
         <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />
         <TermsAndConditionsDialog
           open={shouldShowToSDialog}

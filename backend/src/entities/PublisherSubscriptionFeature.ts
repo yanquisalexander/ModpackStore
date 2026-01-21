@@ -5,19 +5,19 @@ export enum FeatureKey {
     // Whitelist features
     CAN_USE_WHITELIST = 'can_use_whitelist',
     WHITELIST_MAX_PLAYERS_PER_MODPACK = 'whitelist_max_players_per_modpack',
-    
+
     // Organization features
     MAX_MEMBERS = 'max_members',
     MAX_MODPACKS = 'max_modpacks',
-    
+
     // Storage features
     STORAGE_LIMIT_MB = 'storage_limit_mb',
-    
+
     // Advanced features
     CUSTOM_BRANDING = 'custom_branding',
     PRIORITY_SUPPORT = 'priority_support',
     ANALYTICS_ACCESS = 'analytics_access',
-    
+
     // Content features
     FEATURED_MODPACKS = 'featured_modpacks',
     CUSTOM_CATEGORIES = 'custom_categories'

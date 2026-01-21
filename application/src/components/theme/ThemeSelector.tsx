@@ -13,13 +13,17 @@ import { invoke } from '@tauri-apps/api/core';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
+import { requestPremiumFeature } from '@/utils/premiumFeatures';
 
 export const ThemeSelector: React.FC = () => {
   const { currentTheme, availableThemes, isLoading, canAccessPremium, setTheme, refreshThemes } = useTheme();
 
   const handleThemeClick = async (theme: ThemeInfo) => {
     if (theme.isPremium && !canAccessPremium) {
-      toast.error('Tema Premium', { description: 'Suscríbete a Modpack Store+ para desbloquear.' });
+      requestPremiumFeature(
+        'Temas Premium',
+        'Personaliza tu experiencia con temas exclusivos diseñados para ModpackStore+. Accede a una colección de temas premium y transforma la apariencia de tu aplicación.'
+      );
       return;
     }
     await setTheme(theme.id);

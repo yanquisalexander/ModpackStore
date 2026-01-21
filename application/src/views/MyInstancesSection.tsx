@@ -11,7 +11,7 @@ import { TauriCommandReturns } from "@/types/TauriCommandReturns";
 import { useConnection } from "@/utils/ConnectionContext";
 import { invoke } from "@tauri-apps/api/core";
 import { LucidePackageOpen, LucidePlus, LucideImport, LucideInfo } from "lucide-react";
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner";
 import type { MrpackManifest, MrpackCompatibility } from "@/types/mrpack";
 import { useActionLimit } from "@/hooks/useUserFlags";
@@ -29,6 +29,29 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
     const [isDragging, setIsDragging] = useState(false)
 
     const { allowed, limit: instancesLimit, remaining } = useActionLimit('max_instances_allowed', instances.length)
+
+    function getWarningThreshold(limit: number) {
+        if (limit <= 3) return 1
+        if (limit <= 6) return 2
+        return Math.ceil(limit * 0.2)
+    }
+
+    const instancesCount = instances.length
+
+    const limitState = useMemo(() => {
+        if (instancesLimit == null) return 'unlimited'
+
+        if (instancesCount > instancesLimit) return 'over_limit'
+
+        if (remaining === 0) return 'limit_reached'
+
+        const warningThreshold = getWarningThreshold(instancesLimit)
+
+        if (remaining <= warningThreshold) return 'near_limit'
+
+        return 'ok'
+    }, [instancesCount, instancesLimit, remaining])
+
 
     const fetchInstances = useCallback(async () => {
         setIsLoading(true)
@@ -213,24 +236,45 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                     </p>
                 </header>
 
-                {/* Limit Banner */}
-                {!isLoading && !allowed && (
+                {!isLoading && ['near_limit', 'limit_reached', 'over_limit'].includes(limitState) && (
                     <motion.div
-                        initial={{ opacity: 0, y: -20 }}
+                        initial={{ opacity: 0, y: -12 }}
                         animate={{ opacity: 1, y: 0 }}
                         className="mb-8"
                     >
                         <Alert className="bg-amber-500/10 border-amber-500/20 text-amber-200">
                             <LucideInfo className="h-4 w-4 text-amber-400" />
-                            <AlertDescription className="flex items-center justify-between w-full">
-                                <span>
-                                    Has alcanzado tu límite de <strong>{instancesLimit} instancias</strong>.
-                                    Elimina alguna o mejora tu suscripción en <strong>ModpackStore+</strong> para poder crear más.
-                                </span>
+                            <AlertDescription className="w-full">
+                                {limitState === 'near_limit' && (
+                                    <span>
+                                        Te quedan <strong>{remaining}</strong>{' '}
+                                        {remaining === 1 ? 'espacio disponible' : 'espacios disponibles'}.
+                                        Si sueles probar muchos modpacks, podrías beneficiarte de{' '}
+                                        <strong>Modpack Store+</strong>.
+                                    </span>
+                                )}
+
+                                {limitState === 'limit_reached' && (
+                                    <span>
+                                        Has alcanzado el límite de <strong>{instancesLimit} instancias</strong>.
+                                        Puedes eliminar alguna existente o mejorar tu plan para crear más.
+                                    </span>
+                                )}
+
+                                {limitState === 'over_limit' && (
+                                    <span>
+                                        Tienes <strong>{instancesCount} instancias</strong>, superando el
+                                        límite de <strong>{instancesLimit}</strong> de tu plan.
+                                        No perderás acceso a tus instancias actuales, pero no podrás crear
+                                        nuevas hasta reducirlas o mejorar tu suscripción de Modpack Store+.
+                                    </span>
+                                )}
                             </AlertDescription>
                         </Alert>
                     </motion.div>
                 )}
+
+
 
                 {/* Content */}
                 {isLoading ? (

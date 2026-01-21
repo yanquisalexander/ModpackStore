@@ -3,7 +3,9 @@ import {
     LucidePlay, LucideHardDrive, LucideSettings, LucideTrash2, LucideGamepad2,
     LucideFolderSymlink, LucidePackageOpen, LucideStar, LucideUpload, LucideRefreshCw, LucideLoader2,
     LucideTerminal,
-    LucideServer
+    LucideServer,
+    LucideWrench,
+    LucideDownload
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import {
@@ -29,6 +31,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { save } from "@tauri-apps/plugin-dialog";
 import { cn } from "@/lib/utils";
+import { useUserFlags } from "@/hooks/useUserFlags";
+import { ModManagerDialog } from "@/components/instance/ModManagerDialog";
+import { ModDownloaderDialog } from "@/components/instance/ModDownloaderDialog";
+import { requestPremiumFeature } from "@/utils/premiumFeatures";
 
 export const InstanceCard = ({
     instance,
@@ -49,7 +55,10 @@ export const InstanceCard = ({
     const [showDeleteAlert, setShowDeleteAlert] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
     const [isFavorite, setIsFavorite] = useState(instance.favorite || false);
+    const [showModManager, setShowModManager] = useState(false);
+    const [showModDownloader, setShowModDownloader] = useState(false);
     const navigate = useNavigate();
+    const { flags } = useUserFlags();
 
     const isServer = instance.instanceType === 'server';
 
@@ -113,6 +122,24 @@ export const InstanceCard = ({
                 .catch((e) => toast.error(`Error: ${e.message}`));
         } else if (action === "export_mrpack") {
             handleExportToMrpack();
+        } else if (action === "manage_mods") {
+            if (!flags.allow_mod_manager) {
+                requestPremiumFeature(
+                    'Gestor de Mods Avanzado',
+                    'Administra, habilita y deshabilita tus mods fácilmente. Organiza tus mods por categorías y mantén tu instalación limpia y optimizada.'
+                );
+                return;
+            }
+            setShowModManager(true);
+        } else if (action === "download_mods") {
+            if (!flags.enable_instance_mod_downloader) {
+                requestPremiumFeature(
+                    'Descargador de Mods',
+                    'Busca y descarga mods desde Modrinth y CurseForge directamente en tu instancia. Encuentra los mejores mods sin salir de la aplicación.'
+                );
+                return;
+            }
+            setShowModDownloader(true);
         } else {
             toast.info("Acción no disponible");
         }
@@ -259,9 +286,19 @@ export const InstanceCard = ({
                         <LucideFolderSymlink className="mr-2 h-4 w-4 text-blue-400" /> Crear acceso directo
                     </ContextMenuItem>
                     {installationType === "local" && (
-                        <ContextMenuItem onClick={() => handleContextAction("export_mrpack")} className="rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer">
-                            <LucideUpload className="mr-2 h-4 w-4 text-green-400" /> Exportar .mrpack
-                        </ContextMenuItem>
+                        <>
+                            <ContextMenuSeparator className="bg-white/10 my-1" />
+                            <ContextMenuItem onClick={() => handleContextAction("manage_mods")} className="rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+                                <LucideWrench className="mr-2 h-4 w-4 text-orange-400" /> Gestionar Mods
+                            </ContextMenuItem>
+                            <ContextMenuItem onClick={() => handleContextAction("download_mods")} className="rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+                                <LucideDownload className="mr-2 h-4 w-4 text-green-400" /> Descargar Mods
+                            </ContextMenuItem>
+                            <ContextMenuSeparator className="bg-white/10 my-1" />
+                            <ContextMenuItem onClick={() => handleContextAction("export_mrpack")} className="rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer">
+                                <LucideUpload className="mr-2 h-4 w-4 text-green-400" /> Exportar .mrpack
+                            </ContextMenuItem>
+                        </>
                     )}
                     <ContextMenuSeparator className="bg-white/10 my-1" />
                     <ContextMenuItem
@@ -302,6 +339,29 @@ export const InstanceCard = ({
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Mod Manager Dialog */}
+            {installationType === "local" && (
+                <ModManagerDialog
+                    isOpen={showModManager}
+                    onClose={() => setShowModManager(false)}
+                    instanceId={instance.instanceId}
+                    instanceName={instance.instanceName}
+                />
+            )}
+
+            {/* Mod Downloader Dialog */}
+            {installationType === "local" && instance.loaderType && instance.loaderType !== 'vanilla' && (
+                <ModDownloaderDialog
+                    isOpen={showModDownloader}
+                    onClose={() => setShowModDownloader(false)}
+                    instanceId={instance.instanceId}
+                    instanceName={instance.instanceName}
+                    minecraftVersion={instance.minecraftVersion}
+                    loaderType={instance.loaderType}
+                    loaderVersion={instance.loaderVersion}
+                />
+            )}
         </>
     );
 };
