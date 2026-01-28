@@ -7,19 +7,19 @@ import { DOWNLOAD_URL } from "@/consts";
 ---
 
 <Layout title="Modpack Store - Gestiona tu universo Minecraft">
-  <div class="fixed inset-0 z-[-1] bg-[#050505] pointer-events-none">
+  <div class="fixed inset-0 z-[-1] bg-[#020202] pointer-events-none">
     <div
-      class="absolute top-0 left-1/4 w-[500px] h-[500px] bg-ms-primary/10 blur-[120px] rounded-full animate-pulse-slow"
+      class="absolute top-0 left-1/4 w-[600px] h-[600px] bg-ms-primary/20 blur-[130px] rounded-full animate-pulse-slow mix-blend-screen"
     >
     </div>
 
     <div
-      class="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-ms-secondary/10 blur-[120px] rounded-full animate-pulse-slow"
+      class="absolute bottom-0 right-1/4 w-[700px] h-[700px] bg-ms-secondary/20 blur-[130px] rounded-full animate-pulse-slow mix-blend-screen"
       style="animation-delay: 2s;"
     >
     </div>
 
-    <div class="absolute inset-0 opacity-[0.02] mix-blend-overlay"></div>
+    <div class="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
   </div>
 
   <main class="relative z-10 flex flex-col gap-32 pt-10 pb-20">
@@ -27,16 +27,21 @@ import { DOWNLOAD_URL } from "@/consts";
 
     <Features />
 
-    <section id="download" class="px-4 relative">
+    <section id="download" class="px-4 relative py-20">
       <div class="max-w-5xl mx-auto" id="download-container">
         <div
           id="download-card"
-          class="relative group rounded-3xl p-[1px] bg-gradient-to-b from-white/10 via-white/5 to-transparent overflow-hidden opacity-0 translate-y-20"
+          class="relative group rounded-[2.5rem] overflow-hidden opacity-0 translate-y-20 border border-white/10 shadow-2xl shadow-black/50"
         >
-          <div class="absolute inset-0 bg-[#0a0a0a] rounded-3xl"></div>
+          <div class="absolute inset-0 bg-white/5 backdrop-blur-3xl z-0"></div>
+          
+          <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent z-10"></div>
+          <div class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent z-10"></div>
+
+          <div class="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-black/40 z-0 pointer-events-none"></div>
 
           <div
-            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3/4 h-3/4 bg-ms-primary/5 blur-[80px] rounded-full group-hover:bg-ms-primary/10 transition-all duration-1000"
+            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-[500px] bg-ms-primary/20 blur-[100px] rounded-full group-hover:bg-ms-primary/30 transition-all duration-1000 z-0"
           >
           </div>
 
@@ -44,14 +49,14 @@ import { DOWNLOAD_URL } from "@/consts";
             class="relative z-10 px-8 py-20 md:px-24 md:py-24 text-center flex flex-col items-center"
           >
             <div
-              class="mb-8 p-4 rounded-2xl bg-ms-primary/10 border border-ms-primary/20 shadow-[0_0_30px_rgba(99,102,241,0.2)] animate-float"
+              class="mb-8 p-6 rounded-2xl bg-gradient-to-br from-white/10 to-white/0 border border-white/20 shadow-[inset_0_0_20px_rgba(255,255,255,0.05)] backdrop-blur-md animate-float"
             >
               <svg
-                class="w-10 h-10 text-ms-primary"
+                class="w-12 h-12 text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
-                stroke-width="2"
+                stroke-width="1.5"
               >
                 <path
                   stroke-linecap="round"
@@ -62,18 +67,18 @@ import { DOWNLOAD_URL } from "@/consts";
             </div>
 
             <h2
-              class="text-4xl md:text-6xl font-lexend font-bold text-white mb-6 tracking-tight"
+              class="text-4xl md:text-6xl font-lexend font-bold text-white mb-6 tracking-tight drop-shadow-lg"
             >
               Instala tu próxima <br />
               <span
-                class="bg-clip-text text-transparent bg-gradient-to-b from-ms-primary-light to-ms-secondary"
+                class="bg-clip-text text-transparent bg-gradient-to-r from-ms-primary-light via-white to-ms-secondary animate-gradient-x bg-[length:200%_auto]"
               >
                 aventura hoy.
               </span>
             </h2>
 
             <p
-              class="text-lg text-neutral-400 mb-10 max-w-xl mx-auto leading-relaxed"
+              class="text-lg text-neutral-300 mb-12 max-w-xl mx-auto leading-relaxed drop-shadow-md font-medium"
             >
               Compatible con Windows y Linux. <br />
               Gestiona instancias, importa modpacks y juega sin límites.
@@ -85,31 +90,40 @@ import { DOWNLOAD_URL } from "@/consts";
               <a
                 href={DOWNLOAD_URL}
                 target="_blank"
-                class="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-ms-primary to-ms-primary-dark hover:from-ms-primary-light hover:to-ms-primary text-white rounded-xl font-bold text-lg transition-all shadow-lg shadow-ms-primary-dark/20 hover:shadow-ms-primary-dark/40 hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                class="relative overflow-hidden w-full sm:w-auto px-10 py-5 rounded-xl font-bold text-lg text-white transition-all hover:scale-105 active:scale-95 group/btn"
               >
-                <svg
-                  class="w-5 h-5"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  ><path
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    stroke-width="2"
-                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                  ></path></svg
-                >
-                Descargar Launcher
+                <div class="absolute inset-0 bg-ms-primary transition-colors group-hover/btn:bg-ms-primary-light"></div>
+                
+                <div class="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent"></div>
+                <div class="absolute inset-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_-2px_4px_rgba(0,0,0,0.2)] rounded-xl"></div>
+                
+                <div class="relative flex items-center justify-center gap-3 drop-shadow-md">
+                  <svg
+                    class="w-6 h-6"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    ><path
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      stroke-width="2"
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                    ></path></svg
+                  >
+                  <span>Descargar Launcher</span>
+                </div>
               </a>
             </div>
 
             <div
-              class="mt-12 pt-8 border-t border-white/5 w-full max-w-sm mx-auto flex justify-between text-xs text-neutral-500 font-mono"
+              class="mt-12 pt-8 border-t border-white/10 w-full max-w-sm mx-auto flex justify-between text-xs text-neutral-400 font-mono"
             >
-              <span>v1.0.0 Stable</span>
-              <span class="flex items-center gap-1 text-ms-primary/70">
-                <span class="w-2 h-2 rounded-full bg-ms-primary animate-pulse"
-                ></span>
+              <span class="px-2 py-1 rounded bg-black/20 backdrop-blur-sm">v1.0.0 Stable</span>
+              <span class="flex items-center gap-2 px-2 py-1 rounded bg-black/20 backdrop-blur-sm text-green-400/90">
+                <span class="relative flex h-2 w-2">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                </span>
                 Online Services
               </span>
             </div>
@@ -136,7 +150,18 @@ import { DOWNLOAD_URL } from "@/consts";
     },
     opacity: 1,
     y: 0,
-    duration: 1.2,
-    ease: "power4.out",
+    duration: 1.5, // Un poco más lento para sensación de peso/líquido
+    ease: "power3.out",
   });
 </script>
+
+<style>
+  /* Animación para el texto gradiente */
+  @keyframes gradient-x {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+  .animate-gradient-x {
+    animation: gradient-x 3s ease infinite;
+  }
+</style>
