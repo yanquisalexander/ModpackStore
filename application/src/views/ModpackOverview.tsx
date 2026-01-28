@@ -22,7 +22,6 @@ import { useAuthentication } from "@/stores/AuthContext";
 import { getModpackById } from "@/services/getModpacks";
 import { getModpackVersions, getLatestVersion, getNonArchivedVersions, ModpackVersionPublic } from "@/services/getModpackVersions";
 import { getVoteCounts, getUserVotes, VoteCounts } from "@/services/votes";
-import { API_ENDPOINT } from "@/consts";
 
 // --- UTILS ---
 const formatLoaderInfo = (version: ModpackVersionPublic): string => {
@@ -79,7 +78,7 @@ const FileTreeItem = ({ name, node, depth = 0 }: { name: string, node: TreeNode,
 };
 
 export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
-    const { session, sessionTokens } = useAuthentication();
+    const { session } = useAuthentication();
     const { setTitleBarState } = useGlobalContext();
     const videoRef = useRef<HTMLVideoElement>(null);
     const { scrollY } = useScroll();
@@ -96,10 +95,13 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     const [showVideo, setShowVideo] = useState(false);
     const [videoLoaded, setVideoLoaded] = useState(false);
     const [isMuted, setIsMuted] = useState(true);
-    const [canAccess, setCanAccess] = useState(true);
 
+    // Scroll to top on mount/modpackId change
     useEffect(() => {
         window.scrollTo({ top: 0, behavior: 'instant' });
+    }, [modpackId]);
+
+    useEffect(() => {
         const load = async () => {
             try {
                 setLoading(true);
@@ -119,7 +121,6 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
         load();
     }, [modpackId]);
 
-    // Titlebar
     useEffect(() => {
         setTitleBarState((prev: any) => ({ ...prev, opaque: false, title: modpack?.name || "" }));
     }, [modpack]);
@@ -150,7 +151,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     return (
         <div className="relative w-full min-h-screen bg-[#050505] text-white overflow-x-hidden">
 
-            {/* 1. HERO CON VIDEO EN BANNER (RESTAURADO) */}
+            {/* 1. HERO CON VIDEO EN BANNER */}
             <div className="relative w-full h-[45vh] bg-neutral-900 overflow-hidden">
                 <motion.div style={{ y: bannerY }} className="absolute inset-0 w-full h-full">
                     <div
@@ -168,14 +169,17 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 "absolute inset-0 w-full h-full object-cover transition-opacity duration-1000",
                                 videoLoaded ? 'opacity-100' : 'opacity-0'
                             )}
-                            autoPlay muted={isMuted} loop playsInline
+                            autoPlay muted={isMuted} playsInline
                             onLoadedData={() => setVideoLoaded(true)}
+                            onEnded={() => {
+                                setShowVideo(false);
+                                setVideoLoaded(false);
+                            }}
                         />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-t from-[#050505] via-[#050505]/40 to-transparent" />
                 </motion.div>
 
-                {/* Mute toggle */}
                 {showVideo && videoLoaded && (
                     <button
                         onClick={() => setIsMuted(!isMuted)}
@@ -233,7 +237,6 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                     ))}
                 </div>
 
-                {/* Tabs & Main Section */}
                 <Tabs defaultValue="overview" className="w-full">
                     <TabsList className="w-full justify-start bg-transparent border-b border-white/5 rounded-none p-0 h-auto mb-8 gap-8">
                         {["overview", "files", "changelog", "versions"].map(t => (
@@ -246,6 +249,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                         ))}
                     </TabsList>
 
+                    {/* OVERVIEW */}
                     <TabsContent value="overview" className="focus-visible:outline-none">
                         <div className="bg-[#0A0A0A] border border-white/5 rounded-3xl p-8 shadow-xl">
                             <ExternalLinkHandler className="prose prose-invert prose-purple max-w-none prose-p:text-neutral-400 prose-p:leading-relaxed">
@@ -254,14 +258,17 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                         </div>
                     </TabsContent>
 
+                    {/* FILES */}
                     <TabsContent value="files">
                         <div className="bg-[#0A0A0A] border border-white/5 rounded-3xl overflow-hidden h-[500px] flex flex-col">
                             <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
                                 <Select value={selectedVersionId} onValueChange={setSelectedVersionId}>
-                                    <SelectTrigger className="w-[180px] h-8 text-xs bg-black/40 border-white/10 italic"><SelectValue /></SelectTrigger>
+                                    <SelectTrigger className="w-[180px] h-8 text-xs bg-black/40 border-white/10 italic">
+                                        <SelectValue placeholder="Seleccionar versión" />
+                                    </SelectTrigger>
                                     <SelectContent className="bg-[#121212] border-white/10 text-white">
                                         <SelectItem value="latest">Latest Release</SelectItem>
-                                        {versions.map(v => <SelectItem key={v.id} value={v.id}>v{v.version}</SelectItem>)}
+                                        {versions.map(v => <SelectItem key={v.id} value={v.id}>{v.version}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
                                 <span className="text-[10px] font-bold text-neutral-500 uppercase">{selectedVersion?.files?.length || 0} Archivos</span>
@@ -274,7 +281,72 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                         </div>
                     </TabsContent>
 
-                    {/* ... (Changelog y Versions con la misma lógica limpia) */}
+                    {/* CHANGELOG */}
+                    <TabsContent value="changelog">
+                        <div className="bg-[#0A0A0A] border border-white/5 rounded-3xl overflow-hidden min-h-[400px] flex flex-col">
+                            <div className="p-4 border-b border-white/5 flex justify-between items-center bg-white/5">
+                                <Select value={selectedVersionId} onValueChange={setSelectedVersionId}>
+                                    <SelectTrigger className="w-[180px] h-8 text-xs bg-black/40 border-white/10 italic">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-[#121212] border-white/10 text-white">
+                                        <SelectItem value="latest">Latest Version</SelectItem>
+                                        {versions.map(v => <SelectItem key={v.id} value={v.id}>{v.version}</SelectItem>)}
+                                    </SelectContent>
+                                </Select>
+                                <div className="flex items-center gap-2 text-neutral-500">
+                                    <LucideClock size={14} />
+                                    <span className="text-[10px] font-bold uppercase">
+                                        Actualizado: {selectedVersion?.releaseDate ? new Date(selectedVersion.releaseDate).toLocaleDateString() : 'N/A'}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="p-8">
+                                <ExternalLinkHandler className="prose prose-invert prose-purple max-w-none">
+                                    {selectedVersion?.changelog || "No se han proporcionado notas de cambios para esta versión."}
+                                </ExternalLinkHandler>
+                            </div>
+                        </div>
+                    </TabsContent>
+
+                    {/* VERSIONS LIST */}
+                    <TabsContent value="versions">
+                        <div className="grid gap-3">
+                            {versions.map((v) => (
+                                <div
+                                    key={v.id}
+                                    onClick={() => setSelectedVersionId(v.id)}
+                                    className={cn(
+                                        "group flex items-center justify-between p-4 bg-[#0A0A0A] border border-white/5 rounded-2xl transition-all hover:border-purple-500/50 cursor-pointer",
+                                        selectedVersionId === v.id && "border-purple-500 bg-purple-500/5"
+                                    )}
+                                >
+                                    <div className="flex items-center gap-6">
+                                        <div className="flex flex-col">
+                                            <span className="text-lg font-bold">{v.version}</span>
+                                            <span className="text-[10px] text-neutral-500 font-bold uppercase">{v.mcVersion}</span>
+                                        </div>
+                                        <div className="hidden md:flex items-center gap-4 text-sm text-neutral-400">
+                                            <div className="flex items-center gap-1.5 bg-white/5 px-3 py-1 rounded-full">
+                                                <LucideCpu size={14} />
+                                                <span>{formatLoaderInfo(v)}</span>
+                                            </div>
+                                            <div className="flex items-center gap-1.5">
+                                                <LucideClock size={14} />
+                                                <span>{new Date(v.releaseDate).toLocaleDateString()}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {selectedVersionId === v.id && (
+                                        <div className="flex items-center gap-2 text-purple-500 text-sm font-bold">
+                                            <span>SELECCIONADA</span>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    </TabsContent>
                 </Tabs>
 
                 {/* Footer Related */}
