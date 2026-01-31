@@ -4,6 +4,7 @@ import Hero from "../components/Hero.astro";
 import Features from "../components/Features.astro";
 import Footer from "../components/Footer.astro";
 import { DOWNLOAD_URL } from "@/consts";
+import TrustedCommunities from "@/components/TrustedCommunities.astro";
 ---
 
 <Layout title="Modpack Store - Gestiona tu universo Minecraft">
@@ -19,11 +20,15 @@ import { DOWNLOAD_URL } from "@/consts";
     >
     </div>
 
-    <div class="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"></div>
+    <div
+      class="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"
+    >
+    </div>
   </div>
 
   <main class="relative z-10 flex flex-col gap-32 pt-10 pb-20">
     <Hero />
+    <TrustedCommunities />
 
     <Features />
 
@@ -34,11 +39,20 @@ import { DOWNLOAD_URL } from "@/consts";
           class="relative group rounded-[2.5rem] overflow-hidden opacity-0 translate-y-20 border border-white/10 shadow-2xl shadow-black/50"
         >
           <div class="absolute inset-0 bg-white/5 backdrop-blur-3xl z-0"></div>
-          
-          <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent z-10"></div>
-          <div class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent z-10"></div>
 
-          <div class="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-black/40 z-0 pointer-events-none"></div>
+          <div
+            class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent z-10"
+          >
+          </div>
+          <div
+            class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent z-10"
+          >
+          </div>
+
+          <div
+            class="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-black/40 z-0 pointer-events-none"
+          >
+          </div>
 
           <div
             class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-[500px] bg-ms-primary/20 blur-[100px] rounded-full group-hover:bg-ms-primary/30 transition-all duration-1000 z-0"
@@ -92,12 +106,23 @@ import { DOWNLOAD_URL } from "@/consts";
                 target="_blank"
                 class="relative overflow-hidden w-full sm:w-auto px-10 py-5 rounded-xl font-bold text-lg text-white transition-all hover:scale-105 active:scale-95 group/btn"
               >
-                <div class="absolute inset-0 bg-ms-primary transition-colors group-hover/btn:bg-ms-primary-light"></div>
-                
-                <div class="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent"></div>
-                <div class="absolute inset-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_-2px_4px_rgba(0,0,0,0.2)] rounded-xl"></div>
-                
-                <div class="relative flex items-center justify-center gap-3 drop-shadow-md">
+                <div
+                  class="absolute inset-0 bg-ms-primary transition-colors group-hover/btn:bg-ms-primary-light"
+                >
+                </div>
+
+                <div
+                  class="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent"
+                >
+                </div>
+                <div
+                  class="absolute inset-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_-2px_4px_rgba(0,0,0,0.2)] rounded-xl"
+                >
+                </div>
+
+                <div
+                  class="relative flex items-center justify-center gap-3 drop-shadow-md"
+                >
                   <svg
                     class="w-6 h-6"
                     fill="none"
@@ -118,11 +143,19 @@ import { DOWNLOAD_URL } from "@/consts";
             <div
               class="mt-12 pt-8 border-t border-white/10 w-full max-w-sm mx-auto flex justify-between text-xs text-neutral-400 font-mono"
             >
-              <span class="px-2 py-1 rounded bg-black/20 backdrop-blur-sm">v1.0.0 Stable</span>
-              <span class="flex items-center gap-2 px-2 py-1 rounded bg-black/20 backdrop-blur-sm text-green-400/90">
+              <span class="px-2 py-1 rounded bg-black/20 backdrop-blur-sm"
+                >v1.0.0 Stable</span
+              >
+              <span
+                class="flex items-center gap-2 px-2 py-1 rounded bg-black/20 backdrop-blur-sm text-green-400/90"
+              >
                 <span class="relative flex h-2 w-2">
-                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  <span
+                    class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"
+                  ></span>
+                  <span
+                    class="relative inline-flex rounded-full h-2 w-2 bg-green-500"
+                  ></span>
                 </span>
                 Online Services
               </span>
@@ -158,8 +191,13 @@ import { DOWNLOAD_URL } from "@/consts";
 <style>
   /* Animación para el texto gradiente */
   @keyframes gradient-x {
-    0%, 100% { background-position: 0% 50%; }
-    50% { background-position: 100% 50%; }
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
   }
   .animate-gradient-x {
     animation: gradient-x 3s ease infinite;
