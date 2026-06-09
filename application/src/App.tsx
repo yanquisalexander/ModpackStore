@@ -56,6 +56,7 @@ import CommandPalette from "./components/CommandPalette";
 
 // ProfileView - se mantiene eager porque sus sub-componentes se usan en rutas anidadas
 import { ProfileView, ProfileInformation, IntegrationsSection, HelpSection } from "./views/ProfileView";
+import GlassCircleWrench from "./icons/GlassCircleWrench";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
@@ -73,6 +74,25 @@ const ModpackOverviewPage = () => {
   const { modpackId } = useParams<{ modpackId: string }>();
   return <ModpackOverview modpackId={modpackId!} />;
 };
+
+const SectionInMaintenance = ({ title }: { title: string }) => (
+  <div className="flex flex-col items-center justify-center min-h-dvh h-full text-center">
+    <div className="relative flex items-center justify-center w-20 h-20 mb-8">
+      <svg width="80" height="80" viewBox="0 0 80 80" className="absolute inset-0 animate-[pulse-ring_2.6s_ease-in-out_infinite]">
+        <circle cx="40" cy="40" r="36" fill="none" stroke="#7F77DD" strokeWidth="1.5" strokeDasharray="4 7" />
+        <circle cx="40" cy="40" r="29" fill="none" stroke="#AFA9EC" strokeWidth="1" strokeDasharray="2 10" className="animate-spin [animation-duration:10s]" />
+      </svg>
+      <div className="relative z-10 flex items-center justify-center w-13 h-13 rounded-xl bg-[#EEEDFE] border border-[#AFA9EC]">
+        <GlassCircleWrench className="size-6 text-[#534AB7]" />
+      </div>
+    </div>
+
+    <h2 className="text-lg font-medium text-white">{title}</h2>
+    <p className="text-sm text-gray-400 mt-2 max-w-[280px] leading-relaxed">
+      Esta sección está en mantenimiento.
+    </p>
+  </div>
+);
 
 // --- Componente Principal ---
 function App() {
@@ -164,6 +184,7 @@ function App() {
     return <BannedScreen />;
   }
 
+
   const renderRoutes = () => {
     if (!isConnected) {
       return (
@@ -190,7 +211,7 @@ function App() {
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
           <Route path="/" element={<HomeView />} />
-          <Route path="/explore" element={<ExploreSection />} />
+          <Route path="/explore" element={<SectionInMaintenance title="Explorar" />} />
           <Route path="/whitelist-instances" element={<WhitelistInstancesView />} />
           <Route path="/library" element={<LibrarySection />} />
           <Route path="/my-instances" element={<MyInstancesSection offlineMode={false} />} />
