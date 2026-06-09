@@ -1,50 +1,61 @@
-import { use, useEffect, useRef } from "react";
+import { useEffect, useRef, lazy, Suspense } from "react";
 import "./App.css";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
-import { HomeMainHeader } from "./components/home/MainHeader";
 import { toast } from "sonner";
-import { ExploreSection } from "./views/ExploreSection";
-import { HomeView } from "./views/HomeView";
-import { WhitelistInstancesView } from "./views/WhitelistInstancesView";
-import { ServersSection } from "./views/ServersSection";
-import { ServerDetailView } from "./views/ServerDetailView";
-import { PreLaunchInstance } from "./views/PreLaunchInstance";
 import { useConnection } from "./utils/ConnectionContext";
 import { LucideLoader } from "lucide-react";
-import { MyInstancesSection } from "./views/MyInstancesSection";
-import { LibrarySection } from "./views/LibrarySection";
 import { useAuthentication } from "./stores/AuthContext";
-import { Login } from "./views/Login";
-import { NotFound } from "./views/NotFound";
-import { KonamiCode } from "./components/KonamiCode";
-import { AccountsSection } from "./views/AccountsSection";
-import { initAnalytics } from "./lib/analytics";
-import { trackEvent } from "@aptabase/web";
-import { ModpackOverview } from "./views/ModpackOverview";
-import { ProfileView, ProfileInformation, IntegrationsSection, HelpSection } from "./views/ProfileView";
-import { TicketsSection } from "./components/TicketsSection";
-import { preloadSounds } from "./utils/sounds";
-import { OfflineMode } from "./views/OfflineMode";
-import NoticeTestBuild from "./components/NoticeTestBuild";
-import CommandPalette from "./components/CommandPalette";
-import { CreatorsLayout } from "./components/layouts/CreatorsLayout";
-import { AdminLayout } from "./components/admin/AdminLayout";
-import { PublisherLayout } from "./components/publisher/PublisherLayout";
-import { PublisherProfileView } from "./views/PublisherProfileView";
-import { ConfigurationDialog } from "./components/ConfigurationDialog";
 import { useConfigDialog } from "./stores/ConfigDialogContext";
-import { OnboardingFlow } from "./components/onboarding";
-import { TermsAndConditionsDialog } from "./components/TermsAndConditionsDialog";
 import { useTermsAndConditions } from "./hooks/useTermsAndConditions";
 import { useOnboarding } from "./hooks/useOnboarding";
 import { useNotifications } from "./hooks/useNotifications";
 import { AppSidebar } from "./components/AppSidebar";
 import { useLayout } from "./providers/LayoutProvider";
-import { Changelog } from "./components/Changelog";
+import { initAnalytics } from "./lib/analytics";
+import { trackEvent } from "@aptabase/web";
+import { preloadSounds } from "./utils/sounds";
+
+// Rutas eager (se cargan siempre - usadas por todos los usuarios)
+import { ExploreSection } from "./views/ExploreSection";
+import { HomeView } from "./views/HomeView";
+import { ServersSection } from "./views/ServersSection";
+import { ServerDetailView } from "./views/ServerDetailView";
+import { PreLaunchInstance } from "./views/PreLaunchInstance";
+import { MyInstancesSection } from "./views/MyInstancesSection";
+import { LibrarySection } from "./views/LibrarySection";
+import { Login } from "./views/Login";
+import { NotFound } from "./views/NotFound";
+import { AccountsSection } from "./views/AccountsSection";
 import { BannedScreen } from "./components/BannedScreen";
-import { SessionExpiredDialog } from "./components/SessionExpiredDialog";
+import { OfflineMode } from "./views/OfflineMode";
+
+// Rutas lazy (se cargan bajo demanda)
+const ModpackOverview = lazy(() => import("./views/ModpackOverview").then(m => ({ default: m.ModpackOverview })));
+const WhitelistInstancesView = lazy(() => import("./views/WhitelistInstancesView").then(m => ({ default: m.WhitelistInstancesView })));
+const TicketsSection = lazy(() => import("./components/TicketsSection").then(m => ({ default: m.TicketsSection })));
+const PublisherProfileView = lazy(() => import("./views/PublisherProfileView").then(m => ({ default: m.PublisherProfileView })));
+
+// Layouts lazy (solo para roles específicos)
+const CreatorsLayout = lazy(() => import("./components/layouts/CreatorsLayout").then(m => ({ default: m.CreatorsLayout })));
+const AdminLayout = lazy(() => import("./components/admin/AdminLayout").then(m => ({ default: m.AdminLayout })));
+const PublisherLayout = lazy(() => import("./components/publisher/PublisherLayout").then(m => ({ default: m.PublisherLayout })));
+
+// Dialogos lazy (solo se cargan al abrirse)
+const ConfigurationDialog = lazy(() => import("./components/ConfigurationDialog").then(m => ({ default: m.ConfigurationDialog })));
+const TermsAndConditionsDialog = lazy(() => import("./components/TermsAndConditionsDialog").then(m => ({ default: m.TermsAndConditionsDialog })));
+const OnboardingFlow = lazy(() => import("./components/onboarding").then(m => ({ default: m.OnboardingFlow })));
+const SessionExpiredDialog = lazy(() => import("./components/SessionExpiredDialog").then(m => ({ default: m.SessionExpiredDialog })));
+
+// Dialogos eager (siempre presentes, ligeros)
+import { Changelog } from "./components/Changelog";
 import { ReminderModal } from "./components/ReminderModal";
 import { PlusFeatureDialog } from "./components/PremiumFeatureDialog";
+import NoticeTestBuild from "./components/NoticeTestBuild";
+import { KonamiCode } from "./components/KonamiCode";
+import CommandPalette from "./components/CommandPalette";
+
+// ProfileView - se mantiene eager porque sus sub-componentes se usan en rutas anidadas
+import { ProfileView, ProfileInformation, IntegrationsSection, HelpSection } from "./views/ProfileView";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
@@ -153,9 +164,7 @@ function App() {
     return <BannedScreen />;
   }
 
-  // CAMBIO 1: Lógica de renderizado unificada
   const renderRoutes = () => {
-    // 1. Modo Sin Conexión
     if (!isConnected) {
       return (
         <Routes>
@@ -168,7 +177,6 @@ function App() {
       );
     }
 
-    // 2. Usuario no autenticado
     if (!isAuthenticated) {
       return (
         <Routes>
@@ -178,42 +186,43 @@ function App() {
       );
     }
 
-    // 3. Usuario autenticado y conectado
     return (
-      <Routes>
-        <Route path="/" element={<HomeView />} />
-        <Route path="/explore" element={<ExploreSection />} />
-        <Route path="/whitelist-instances" element={<WhitelistInstancesView />} />
-        <Route path="/library" element={<LibrarySection />} />
-        <Route path="/my-instances" element={<MyInstancesSection offlineMode={false} />} />
-        <Route path="/servers" element={<ServersSection />} />
-        <Route path="/server/:instanceId" element={<ServerDetailView />} />
-        <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
-        <Route path="/modpack/:modpackId" element={<ModpackOverviewPage />} />
-        <Route path="/mc-accounts" element={<AccountsSection />} />
-        <Route path="/profile" element={<ProfileView />}>
-          <Route index element={<ProfileInformation />} />
-          <Route path="integrations" element={<IntegrationsSection />} />
-          <Route path="tickets" element={<TicketsSection />} />
-          <Route path="help" element={<HelpSection />} />
-        </Route>
+      <Suspense fallback={<LoadingScreen />}>
+        <Routes>
+          <Route path="/" element={<HomeView />} />
+          <Route path="/explore" element={<ExploreSection />} />
+          <Route path="/whitelist-instances" element={<WhitelistInstancesView />} />
+          <Route path="/library" element={<LibrarySection />} />
+          <Route path="/my-instances" element={<MyInstancesSection offlineMode={false} />} />
+          <Route path="/servers" element={<ServersSection />} />
+          <Route path="/server/:instanceId" element={<ServerDetailView />} />
+          <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
+          <Route path="/modpack/:modpackId" element={<ModpackOverviewPage />} />
+          <Route path="/mc-accounts" element={<AccountsSection />} />
+          <Route path="/profile" element={<ProfileView />}>
+            <Route index element={<ProfileInformation />} />
+            <Route path="integrations" element={<IntegrationsSection />} />
+            <Route path="tickets" element={<TicketsSection />} />
+            <Route path="help" element={<HelpSection />} />
+          </Route>
 
-        {session?.publisherMemberships && session.publisherMemberships.length > 0 && (
-          <Route path="/creators/*" element={<CreatorsLayout />} />
-        )}
+          {session?.publisherMemberships && session.publisherMemberships.length > 0 && (
+            <Route path="/creators/*" element={<CreatorsLayout />} />
+          )}
 
-        {session?.publisherMemberships && session.publisherMemberships.length > 0 && (
-          <Route path="/publisher/:publisherId/*" element={<PublisherLayout />} />
-        )}
+          {session?.publisherMemberships && session.publisherMemberships.length > 0 && (
+            <Route path="/publisher/:publisherId/*" element={<PublisherLayout />} />
+          )}
 
-        {session?.isAdmin?.() && (
-          <Route path="/admin/*" element={<AdminLayout />} />
-        )}
+          {session?.isAdmin?.() && (
+            <Route path="/admin/*" element={<AdminLayout />} />
+          )}
 
-        <Route path="/p/:publisherSlug" element={<PublisherProfileView />} />
+          <Route path="/p/:publisherSlug" element={<PublisherProfileView />} />
 
-        <Route path="*" element={<NotFound />} />
-      </Routes>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </Suspense>
     );
   };
 
@@ -223,28 +232,42 @@ function App() {
       <main className={`overflow-y-auto h-full border-t ${isShowingLogin ? "border-transparent" : "relative bg-[var(--background)]"} ${hasSidebar ? 'rounded-tl-md border-l' : 'border-l-transparent'}`} style={{ gridArea: 'main' }}>
         <div className="">
           {isFirstRun ? (
-            <OnboardingFlow onComplete={refreshStatus} />
+            <Suspense fallback={<LoadingScreen />}>
+              <OnboardingFlow onComplete={refreshStatus} />
+            </Suspense>
           ) : (
             renderRoutes()
           )}
         </div>
 
-        {/* Componentes globales que siempre están presentes */}
+        {/* Componentes globales */}
         <CommandPalette />
         <ReminderModal />
         <PlusFeatureDialog />
-        <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />
-        <TermsAndConditionsDialog
-          open={shouldShowToSDialog}
-          content={tosContent}
-          onAccept={acceptTerms}
-          onReject={rejectTerms}
-        />
+        {isConfigOpen && (
+          <Suspense fallback={null}>
+            <ConfigurationDialog isOpen={isConfigOpen} onClose={closeConfigDialog} />
+          </Suspense>
+        )}
+        {shouldShowToSDialog && (
+          <Suspense fallback={null}>
+            <TermsAndConditionsDialog
+              open={shouldShowToSDialog}
+              content={tosContent}
+              onAccept={acceptTerms}
+              onReject={rejectTerms}
+            />
+          </Suspense>
+        )}
         <Changelog />
-        <SessionExpiredDialog
-          isOpen={showSessionExpired}
-          onLogin={startDiscordAuth}
-        />
+        {showSessionExpired && (
+          <Suspense fallback={null}>
+            <SessionExpiredDialog
+              isOpen={showSessionExpired}
+              onLogin={startDiscordAuth}
+            />
+          </Suspense>
+        )}
         <KonamiCode />
       </main>
     </>

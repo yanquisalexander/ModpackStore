@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { invoke } from "@tauri-apps/api/core";
 import { toast } from "sonner";
@@ -57,12 +57,18 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     const [lastSyncTime, setLastSyncTime] = useState<number>(0);
     const unlistenRef = useRef<UnlistenFn[]>([]);
 
-    const hasRunningTasks = tasks.some((task) => task.status === "Running");
+    const hasRunningTasks = useMemo(
+        () => tasks.some((task) => task.status === "Running"),
+        [tasks]
+    );
     const taskCount = tasks.length;
 
-    const instancesBootstraping = tasks.filter(
-        (task) => task.status === "Running" && task.data?.instanceId
-    ).map((task) => task.data.instanceId);
+    const instancesBootstraping = useMemo(
+        () => tasks.filter(
+            (task) => task.status === "Running" && task.data?.instanceId
+        ).map((task) => task.data.instanceId),
+        [tasks]
+    );
 
     // Helper function to validate task data
     const validateTaskInfo = (task: any): task is TaskInfo => {
@@ -273,17 +279,19 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     // The dependency array is now stable, so this effect runs only on mount
     }, [syncTasks, updateTaskSafely, displayBootstrapError]);
 
+    const value = useMemo(() => ({
+        tasks,
+        setTasks,
+        hasRunningTasks,
+        taskCount,
+        instancesBootstraping,
+        isModpackInstalling,
+        syncTasks,
+        lastSyncTime,
+    }), [tasks, hasRunningTasks, taskCount, instancesBootstraping, isModpackInstalling, syncTasks, lastSyncTime]);
+
     return (
-        <TasksContext.Provider value={{
-            tasks,
-            setTasks,
-            hasRunningTasks,
-            taskCount,
-            instancesBootstraping,
-            isModpackInstalling,
-            syncTasks,
-            lastSyncTime
-        }}>
+        <TasksContext.Provider value={value}>
             {children}
         </TasksContext.Provider>
     );

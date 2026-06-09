@@ -126,11 +126,15 @@ pub fn validate_config_value(
             let basic_supported_languages = vec!["en", "es-419"];
             
             // Intentar obtener idiomas del sistema i18n si está disponible
-            let available_languages = if let Ok(langs) = crate::core::i18n::get_i18n_manager().get_available_languages() {
-                if langs.is_empty() {
-                    basic_supported_languages.into_iter().map(|s| s.to_string()).collect()
+            let available_languages = if let Ok(mgr) = crate::core::i18n::get_i18n_manager() {
+                if let Ok(langs) = mgr.get_available_languages() {
+                    if langs.is_empty() {
+                        basic_supported_languages.into_iter().map(|s| s.to_string()).collect()
+                    } else {
+                        langs
+                    }
                 } else {
-                    langs
+                    basic_supported_languages.into_iter().map(|s| s.to_string()).collect()
                 }
             } else {
                 basic_supported_languages.into_iter().map(|s| s.to_string()).collect()

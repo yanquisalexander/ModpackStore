@@ -4,6 +4,8 @@ import React, {
     useContext,
     useState,
     useEffect,
+    useMemo,
+    useCallback,
 } from "react";
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
@@ -64,7 +66,7 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
     const [updateState, setUpdateState] = useState<UpdateState>("idle");
     const { notifyCustom } = useNotifications();
 
-    const applyUpdate = async () => {
+    const applyUpdate = useCallback(async () => {
         if (updateState !== "ready-to-install") {
             console.error("No hay actualización lista para instalar.");
             return;
@@ -80,7 +82,7 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
             setUpdateState("error");
             setIsUpdating(false);
         }
-    };
+    }, [update, updateState]);
 
 
     // Consulta periódica de actualizaciones en segundo plano (cada 30 minutos)
@@ -135,18 +137,18 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     }, [updateState]);
 
+    const value = useMemo(() => ({
+        titleBarState,
+        setTitleBarState,
+        isUpdating,
+        updateProgress,
+        updateVersion,
+        updateState,
+        applyUpdate,
+    }), [titleBarState, isUpdating, updateProgress, updateVersion, updateState, applyUpdate]);
+
     return (
-        <GlobalContext.Provider
-            value={{
-                titleBarState,
-                setTitleBarState,
-                isUpdating,
-                updateProgress,
-                updateVersion,
-                updateState,
-                applyUpdate,
-            }}
-        >
+        <GlobalContext.Provider value={value}>
             {children}
         </GlobalContext.Provider>
     );

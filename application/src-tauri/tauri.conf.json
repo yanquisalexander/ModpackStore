@@ -56,9 +56,11 @@
   },
   "app": {
     "security": {
-      "csp": null,
+      "csp": "default-src 'self'; connect-src 'self' https://api-modpackstore.saltouruguayserver.com https://discord.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:",
       "capabilities": [
-        "migrated"
+        "migrated",
+        "splash-capability",
+        "overlay-capability"
       ]
     },
     "windows": [

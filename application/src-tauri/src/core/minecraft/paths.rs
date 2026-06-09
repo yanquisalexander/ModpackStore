@@ -251,10 +251,9 @@ impl MinecraftPaths {
         };
 
         // beautiful print json
-        log::debug!(
-            "Manifest JSON: {}",
-            serde_json::to_string_pretty(&manifest_json).unwrap()
-        );
+        if let Ok(json_str) = serde_json::to_string_pretty(&manifest_json) {
+            log::debug!("Manifest JSON: {}", json_str);
+        }
 
         let classpath_builder = ClasspathBuilder::new(&manifest_json, self);
         match classpath_builder.build() {

@@ -16,16 +16,13 @@ pub struct AccountsManager {
 impl AccountsManager {
     pub fn new() -> Self {
         let accounts_file = config_dir()
-            .expect("Failed to get config directory")
-            .join("dev.alexitoo.modpackstore")
-            .join("accounts.json");
+            .map(|p| p.join("dev.alexitoo.modpackstore").join("accounts.json"))
+            .unwrap_or_else(|| PathBuf::from("accounts.json"));
         if !accounts_file.exists() {
             let default_accounts = json!([]);
-            fs::write(
-                &accounts_file,
-                serde_json::to_string_pretty(&default_accounts).unwrap(),
-            )
-            .expect("Failed to create accounts.json file");
+            if let Ok(json) = serde_json::to_string_pretty(&default_accounts) {
+                let _ = fs::write(&accounts_file, json);
+            }
         }
 
         let mut manager = AccountsManager {
@@ -42,7 +39,7 @@ impl AccountsManager {
         uuid: &str,
     ) -> Result<MinecraftAccount, String> {
         let accounts_manager = get_accounts_manager();
-        let mut manager = accounts_manager.lock().unwrap();
+        let mut manager = accounts_manager.lock().map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
         let account = MinecraftAccount::new(
             username.to_string(),
             uuid.to_string(),
@@ -191,17 +188,14 @@ pub fn get_accounts_manager() -> Arc<Mutex<AccountsManager>> {
 #[tauri::command]
 pub fn add_offline_account(username: &str) -> Result<MinecraftAccount, String> {
     let accounts_manager = get_accounts_manager();
-    let mut manager = accounts_manager.lock().unwrap();
-    match manager.add_offline_account(username) {
-        Ok(account) => Ok(account),
-        Err(e) => Err(e),
-    }
+    let mut manager = accounts_manager.lock().map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
+    manager.add_offline_account(username)
 }
 
 #[tauri::command]
 pub fn remove_account(uuid: &str) -> Result<(), String> {
     let accounts_manager = get_accounts_manager();
-    let mut manager = accounts_manager.lock().unwrap();
+    let mut manager = accounts_manager.lock().map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
     manager.remove_account(uuid);
     Ok(())
 }
@@ -209,17 +203,13 @@ pub fn remove_account(uuid: &str) -> Result<(), String> {
 #[tauri::command]
 pub fn get_all_accounts() -> Result<Vec<MinecraftAccount>, String> {
     let accounts_manager = get_accounts_manager();
-    let manager = accounts_manager.lock().unwrap();
+    let manager = accounts_manager.lock().map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
     Ok(manager.get_all_accounts())
 }
 
 #[tauri::command]
 pub fn ensure_account_exists(uuid: &str) -> Result<bool, String> {
     let accounts_manager = get_accounts_manager();
-    let manager = accounts_manager.lock().unwrap();
-    if manager.accounts.iter().any(|a| a.uuid() == uuid) {
-        Ok(true)
-    } else {
-        Ok(false)
-    }
+    let manager = accounts_manager.lock().map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
+    Ok(manager.accounts.iter().any(|a| a.uuid() == uuid))
 }

@@ -307,8 +307,10 @@ pub async fn set_config(key: String, value: Value) -> Result<(), String> {
 
     // Después de liberar el mutex, actualizar el sistema de i18n si cambió el idioma
     if let Some(lang_str) = language_update {
-        if let Err(e) = crate::core::i18n::get_i18n_manager().set_language(&lang_str).await {
-            log::error!("Failed to update language: {}", e);
+        if let Ok(mgr) = crate::core::i18n::get_i18n_manager() {
+            if let Err(e) = mgr.set_language(&lang_str).await {
+                log::error!("Failed to update language: {}", e);
+            }
         }
     }
 

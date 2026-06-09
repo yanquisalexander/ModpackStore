@@ -107,7 +107,10 @@ impl MicrosoftAuthenticator {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
             .build()
-            .expect("Failed to create HTTP client");
+            .unwrap_or_else(|e| {
+                log::error!("Failed to create HTTP client: {}", e);
+                reqwest::Client::new()
+            });
 
         Self { client }
     }

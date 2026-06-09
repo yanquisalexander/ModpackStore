@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState, useMemo } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { trackEvent } from "@aptabase/web";
@@ -299,8 +299,10 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
         return () => unlistenList.forEach(unlisten => unlisten());
     }, []); // Sin dependencias para evitar problemas de recreación
 
+    const value = useMemo(() => ({ instances }), [instances]);
+
     return (
-        <InstancesContext.Provider value={{ instances }}>
+        <InstancesContext.Provider value={value}>
             {children}
         </InstancesContext.Provider>
     );

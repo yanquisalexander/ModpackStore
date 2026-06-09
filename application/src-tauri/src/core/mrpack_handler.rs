@@ -190,7 +190,7 @@ pub fn extract_mrpack_overrides(mrpack_path: &Path, instance_dir: &Path) -> Resu
         // Only extract files from overrides/
         if file_path.starts_with("overrides/") {
             // Remove "overrides/" prefix
-            let relative_path = file_path.strip_prefix("overrides/").unwrap();
+            let relative_path = file_path.strip_prefix("overrides/").ok_or_else(|| "Failed to strip overrides/ prefix".to_string())?;
 
             if relative_path.is_empty() {
                 continue;
@@ -443,7 +443,7 @@ pub async fn export_instance_to_mrpack(
     );
 
     // Get minecraft directory
-    let instance_dir = Path::new(instance.instanceDirectory.as_ref().unwrap());
+    let instance_dir = Path::new(instance.instanceDirectory.as_ref().ok_or("Instance directory not set")?);
 
     // Verify instance directory exists
     if !instance_dir.exists() {

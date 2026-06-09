@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useMemo, useCallback } from 'react';
 
 // Layout Context
 interface LayoutContextType {
@@ -23,8 +23,15 @@ interface LayoutProviderProps {
 export const LayoutProvider: React.FC<LayoutProviderProps> = ({ children }) => {
     const [hasSidebar, setHasSidebar] = useState(true);
 
+    const setSidebar = useCallback((has: boolean) => setHasSidebar(has), []);
+
+    const value = useMemo(() => ({
+        hasSidebar,
+        setHasSidebar: setSidebar,
+    }), [hasSidebar, setSidebar]);
+
     return (
-        <LayoutContext.Provider value={{ hasSidebar, setHasSidebar }}>
+        <LayoutContext.Provider value={value}>
             {children}
         </LayoutContext.Provider>
     );

@@ -1,5 +1,5 @@
 import { relaunch } from "@tauri-apps/plugin-process";
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useState, useCallback } from "react";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -29,10 +29,10 @@ export const ReloadProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [isFromOffline, setIsFromOffline] = useState(false); // Offline: App launched in offline mode because cannot connect to the server
 
-    const showReloadDialog = ({ fromOffline = false }: { fromOffline?: boolean }) => {
+    const showReloadDialog = useCallback(({ fromOffline = false }: { fromOffline?: boolean }) => {
         setIsFromOffline(fromOffline);
         setIsDialogOpen(true);
-    };
+    }, []);
 
     const confirmReload = async () => {
         await relaunch();

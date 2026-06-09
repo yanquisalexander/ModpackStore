@@ -1,5 +1,5 @@
 // ConnectionContext.tsx
-import React, { createContext, useContext, useEffect, useState, useRef } from "react";
+import React, { createContext, useContext, useEffect, useState, useRef, useMemo, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 interface ConnectionState {
@@ -58,7 +58,7 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
         }
     };
 
-    const refreshConnection = async () => {
+    const refreshConnection = useCallback(async () => {
         // Don't set loading to true if already checked to prevent UI blocking
         if (!hasCheckedRef.current) {
             setIsLoading(true);
@@ -79,7 +79,7 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         // Si ya se verificó, no hacer nada
@@ -118,12 +118,12 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
         performInitialChecks();
     }, []);
 
-    const value: ConnectionContextType = {
+    const value = useMemo<ConnectionContextType>(() => ({
         isConnected,
         hasInternetAccess,
         isLoading,
         refreshConnection,
-    };
+    }), [isConnected, hasInternetAccess, isLoading, refreshConnection]);
 
     return (
         <ConnectionContext.Provider value={value}>

@@ -235,7 +235,7 @@ async fn handle_latest_version_update(
     instance: &mut MinecraftInstance,
     modpack_id: &str,
 ) -> Result<bool, String> {
-    let current_version_id = instance.modpackVersionId.as_ref().unwrap();
+    let current_version_id = instance.modpackVersionId.as_ref().ok_or("modpackVersionId not set")?;
 
     // If version is not "latest", no need to check
     if current_version_id != "latest" {
@@ -376,8 +376,8 @@ async fn check_and_validate_modpack_password(modpack_id: &str) -> Result<bool, S
 
 /// Validates modpack assets before launch
 async fn validate_modpack_assets_for_launch(instance: &MinecraftInstance) -> Result<(), String> {
-    let modpack_id = instance.modpackId.as_ref().unwrap();
-    let version_id = instance.modpackVersionId.as_ref().unwrap();
+    let modpack_id = instance.modpackId.as_ref().ok_or("modpackId not set")?;
+    let version_id = instance.modpackVersionId.as_ref().ok_or("modpackVersionId not set")?;
 
     // Get actual version ID if it's "latest"
     let actual_version_id = if version_id == "latest" {
@@ -1119,7 +1119,19 @@ fn spawn_modpack_creation_task(
         );
 
         // Instalar archivos del modpack
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error creating runtime: {}", e),
+                    None,
+                );
+                return;
+            }
+        };
         let files_processed = rt.block_on(async {
             crate::core::modpack_file_manager::download_and_install_files(
                 &instance,
@@ -1266,7 +1278,20 @@ fn spawn_modpack_update_task(
 
         // Use the same incremental validation and download logic as "Play Now"
         // This will validate existing files and only download/update what's needed
-        let files_processed = tokio::runtime::Runtime::new().unwrap().block_on(async {
+        let runtime = match tokio::runtime::Runtime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    &format!("Error creating runtime: {}", e),
+                    None,
+                );
+                return;
+            }
+        };
+        let files_processed = runtime.block_on(async {
             // First, validate existing files and get only those that need downloading
             update_task(
                 &task_id,

@@ -38,7 +38,7 @@ impl TunnelManager {
     pub async fn start_tunnel(&self, app_handle: &AppHandle, instance_id: String, instance_path: PathBuf, provider: String) -> Result<()> {
         // Scope to check existence to avoid race conditions roughly, but we need to release lock before await
         {
-            let tunnels = self.tunnels.lock().unwrap();
+            let tunnels = self.tunnels.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
             if tunnels.contains_key(&instance_id) {
                 return Err(anyhow!("Tunnel already running for instance {}", instance_id));
             }
@@ -49,7 +49,7 @@ impl TunnelManager {
              _ => return Err(anyhow!("Unknown provider: {}", provider)),
         };
 
-        let mut tunnels = self.tunnels.lock().unwrap();
+        let mut tunnels = self.tunnels.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
         tunnels.insert(instance_id, TunnelHandle {
             process: Some(child),
             provider,
@@ -60,7 +60,7 @@ impl TunnelManager {
 
     pub async fn stop_tunnel(&self, instance_id: &str) -> Result<()> {
         let handle_opt = {
-            let mut tunnels = self.tunnels.lock().unwrap();
+            let mut tunnels = self.tunnels.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
             tunnels.remove(instance_id)
         };
 
@@ -74,7 +74,6 @@ impl TunnelManager {
     }
     
     pub fn get_tunnel_status(&self, instance_id: &str) -> Option<String> {
-        let tunnels = self.tunnels.lock().unwrap();
-        tunnels.get(instance_id).map(|h| h.provider.clone())
+        self.tunnels.lock().ok().and_then(|tunnels| tunnels.get(instance_id).map(|h| h.provider.clone()))
     }
 }

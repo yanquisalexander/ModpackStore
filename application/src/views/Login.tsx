@@ -12,13 +12,11 @@ export const Login = () => {
     useEffect(() => {
         const TOAST_ID = "login-toast";
 
-        // Early return if authenticated
         if (isAuthenticated) {
             toast.dismiss(TOAST_ID);
             return;
         }
 
-        // Handle error cases
         if (error) {
             if (error.code === "NOT_IN_GUILD") {
                 toast.dismiss(TOAST_ID);
@@ -38,11 +36,7 @@ export const Login = () => {
                             </a>
                         </span>
                     </div>
-                ), {
-                    id: "required-guild",
-                    duration: 10000
-                });
-
+                ), { id: "required-guild", duration: 10000 });
                 return;
             } else {
                 toast.error("Error al iniciar sesión", { id: TOAST_ID });
@@ -50,7 +44,6 @@ export const Login = () => {
             return;
         }
 
-        // Handle different authentication steps
         const toastMessages: Record<string, string> = {
             "starting-auth": "Conectando con Discord...",
             "waiting-callback": "Esperando respuesta...",
@@ -77,72 +70,150 @@ export const Login = () => {
 
     return (
         <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
-            {/* Video Background */}
+
+            {/* ── Video Background ── */}
             <video
                 src="/assets/videos/doggy-bg.webm"
                 autoPlay
                 loop
                 muted
-                className="absolute !opacity-70 inset-0 object-cover w-full h-full -z-20"
+                className="absolute inset-0 object-cover w-full h-full -z-20 opacity-80"
             />
 
-            {/* Gradient Overlay para mejorar legibilidad sin tapar el video */}
-            <div className="absolute inset-0 bg-gradient-to-r from-black/40 via-black/10 to-transparent -z-10" />
+            {/* ── Cinematic vignette + color grade ── */}
+            <div className="absolute inset-0 -z-10 pointer-events-none">
+                {/* dark vignette around edges */}
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_80%_at_50%_50%,transparent_40%,rgba(0,0,0,0.55)_100%)]" />
+                {/* left-side darkening so card is legible */}
+                <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/20 to-transparent" />
+                {/* subtle green tint from bottom-right to tie palette */}
+                <div className="absolute inset-0 bg-[radial-gradient(ellipse_60%_60%_at_80%_80%,rgba(5,204,42,0.08)_0%,transparent_70%)]" />
+            </div>
 
-            {/* Loading/Transition overlay original */}
+            {/* ── Page-load fade overlay (original) ── */}
             <div className="-z-9 w-full h-full absolute inset-0 bg-ms-primary animate-fade-out pointer-events-none" />
 
+            {/* ── Main layout ── */}
             <div className="z-10 w-full h-full flex items-center">
-                <div className="flex items-center justify-center md:justify-start w-full px-8 md:pl-24">
+                <div className="flex items-center justify-center md:justify-start w-full px-8 md:pl-20">
 
-                    {/* Modern Glass Card */}
+                    {/*
+                     * ── Card ──
+                     * Material Expressive 3 key ideas applied here:
+                     *   • Large border-radius (rounded-[28px]) — "squircle" feel
+                     *   • Tonal surface instead of plain glass
+                     *   • Generous padding
+                     *   • State-layer on the button (ripple via group/hover)
+                     *   • Expressive type scale: big display, small body
+                    */}
                     <article className="
-                        w-full max-w-[420px] 
-                        p-8 md:p-10 
-                        flex flex-col justify-center items-center text-center 
-                        bg-black/40 
-                        backdrop-blur-xl 
-                        backdrop-saturate-150
-                        border border-white/10 
-                        rounded-2xl 
-                        shadow-2xl 
-                        animate-in fade-in slide-in-from-left-4 duration-700
+                        w-full max-w-[400px]
+                        relative
+                        flex flex-col items-start text-left
+                        px-9 py-10
+                        rounded-[28px]
+                        border border-white/[0.09]
+                        overflow-hidden
+                        animate-in fade-in slide-in-from-left-5 duration-700
                     ">
-                        {/* Title Section */}
-                        <div className="mb-8 space-y-2">
-                            <h1 className="font-bold text-4xl tracking-tight from-[#bcfe47] to-[#05cc2a] bg-clip-text text-transparent bg-gradient-to-b drop-shadow-sm">
+                        {/* Tonal fill — dark with green undertone (ME3 "surface container") */}
+                        <div className="absolute inset-0 -z-10 bg-black/50 backdrop-blur-2xl backdrop-saturate-[1.4]" />
+                        {/* Inner top-edge shimmer */}
+                        <div className="absolute inset-x-0 top-0 h-px -z-10 bg-gradient-to-r from-transparent via-white/20 to-transparent" />
+                        {/* Subtle green glow bleeding from bottom-left */}
+                        <div className="absolute -bottom-16 -left-16 w-56 h-56 -z-10 rounded-full bg-[#bcfe47]/10 blur-3xl" />
+
+                        {/* ── Eyebrow chip ── */}
+                        <div className="
+                            flex items-center gap-2
+                            mb-6 px-3 py-1.5
+                            rounded-full
+                            bg-[#bcfe47]/10 border border-[#bcfe47]/20
+                        ">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#bcfe47] animate-pulse shadow-[0_0_6px_#bcfe47]" />
+                            <span className="text-[11px] font-semibold tracking-widest uppercase text-[#bcfe47]">
                                 Modpack Store
-                            </h1>
-                            <p className="text-base text-neutral-300 font-medium leading-relaxed">
-                                Tu puerta de entrada a la mejor colección de mods. Inicia sesión para continuar.
-                            </p>
+                            </span>
                         </div>
 
-                        {/* Action Button */}
+                        {/* ── Display headline — ME3 "expressive" type ── */}
+                        <h1 className="
+                            font-bold leading-[1.05] tracking-tight
+                            text-[42px]
+                            text-white mb-3
+                        ">
+                            Tu mundo
+                            <br />
+                            <span className="
+                                bg-gradient-to-b from-[#bcfe47] to-[#05cc2a]
+                                bg-clip-text text-transparent
+                                drop-shadow-[0_0_24px_rgba(188,254,71,0.3)]
+                            ">
+                                de mods.
+                            </span>
+                        </h1>
+
+                        {/* ── Body copy ── */}
+                        <p className="text-sm font-light text-white/50 leading-relaxed mb-8 max-w-[300px]">
+                            La mejor colección de modpacks, curada y lista.
+                            Entra con Discord y empieza a explorar.
+                        </p>
+
+                        {/*
+                         * ── CTA Button ──
+                         * ME3 "filled" button: full rounding, state-layer on hover,
+                         * elevation implied by color contrast (no hard shadow needed)
+                        */}
                         <button
                             disabled={!!authStep}
                             onClick={startDiscordAuth}
                             className="
                                 group relative w-full
-                                flex items-center justify-center 
-                                px-6 py-3.5 
-                                text-base font-bold text-white 
-                                bg-[#5865F2] hover:bg-[#4752C4] 
-                                rounded-xl 
-                                shadow-lg shadow-indigo-500/20 
+                                flex items-center justify-center gap-3
+                                px-6 py-4
+                                rounded-full
+                                font-semibold text-[15px] text-white tracking-[0.01em]
+                                bg-[#5865F2]
                                 transition-all duration-300 ease-out
-                                hover:scale-[1.02] hover:shadow-indigo-500/40
-                                disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100
+                                hover:bg-[#4752C4]
+                                hover:-translate-y-0.5
+                                hover:shadow-[0_8px_28px_rgba(88,101,242,0.45)]
+                                active:scale-[0.97] active:translate-y-0
+                                disabled:opacity-40 disabled:cursor-not-allowed
+                                disabled:hover:translate-y-0 disabled:hover:shadow-none
+                                overflow-hidden
                             "
                         >
-                            <DiscordIcon className="w-6 h-6 mr-3 transition-transform group-hover:rotate-[15deg]" />
-                            <span>Conectar con Discord</span>
+                            {/* ME3 state layer */}
+                            <span className="
+                                absolute inset-0 rounded-full
+                                bg-white/0 group-hover:bg-white/[0.08]
+                                transition-colors duration-200
+                            " />
+                            {/* Top specular highlight */}
+                            <span className="
+                                absolute inset-x-0 top-0 h-1/2 rounded-t-full
+                                bg-gradient-to-b from-white/15 to-transparent
+                                pointer-events-none
+                            " />
+
+                            <DiscordIcon className="w-5 h-5 relative z-10 transition-transform duration-300 group-hover:rotate-12" />
+                            <span className="relative z-10">
+                                {authStep ? "Conectando..." : "Conectar con Discord"}
+                            </span>
                         </button>
 
-                        {/* Footer / Disclaimer (Optional aesthetic touch) */}
-                        <div className="mt-6 text-xs text-neutral-500">
-                            Acceso seguro vía OAuth2
+                        {/* ── Divider ── */}
+                        <div className="flex items-center gap-3 w-full mt-6">
+                            <div className="flex-1 h-px bg-white/[0.08]" />
+                            <span className="text-[11px] text-white/25 tracking-wide">acceso seguro vía OAuth2</span>
+                            <div className="flex-1 h-px bg-white/[0.08]" />
                         </div>
+
+                        {/* ── Trust line ── */}
+                        <p className="mt-4 text-[11px] text-white/25 text-center w-full">
+                            🔒 Tus datos nunca se comparten con terceros
+                        </p>
                     </article>
                 </div>
             </div>

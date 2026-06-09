@@ -1,0 +1,21 @@
+{
+  "identifier": "overlay-capability",
+  "description": "Minimal permissions for the instances overlay (tray) window",
+  "local": true,
+  "windows": [
+    "instances-overlay"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-size",
+    "core:window:allow-center",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-set-skip-taskbar",
+    "core:event:allow-listen",
+    "log:default"
+  ]
+}

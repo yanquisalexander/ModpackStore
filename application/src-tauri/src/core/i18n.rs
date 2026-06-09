@@ -346,8 +346,8 @@ pub fn init_i18n_manager(app_handle: AppHandle) -> Result<(), I18nError> {
     Ok(())
 }
 
-pub fn get_i18n_manager() -> &'static Arc<I18nManager> {
-    I18N_MANAGER.get().expect("I18nManager no inicializado. Llamar a init_i18n_manager primero.")
+pub fn get_i18n_manager() -> Result<&'static Arc<I18nManager>, String> {
+    I18N_MANAGER.get().ok_or_else(|| "I18nManager no inicializado. Llamar a init_i18n_manager primero.".to_string())
 }
 
 // --- Comandos de Tauri ---
@@ -356,23 +356,27 @@ pub fn get_i18n_manager() -> &'static Arc<I18nManager> {
 
 #[tauri::command]
 pub async fn get_current_language() -> Result<String, String> {
-    Ok(get_i18n_manager().get_current_language().await)
+    let mgr = get_i18n_manager()?;
+    Ok(mgr.get_current_language().await)
 }
 
 #[tauri::command]
 pub async fn set_language(language: String) -> Result<(), String> {
-    get_i18n_manager().set_language(&language).await.map_err(|e| e.to_string())
+    let mgr = get_i18n_manager()?;
+    mgr.set_language(&language).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn get_available_languages() -> Result<Vec<String>, String> {
-    get_i18n_manager().get_available_languages().map_err(|e| e.to_string())
+    let mgr = get_i18n_manager()?;
+    mgr.get_available_languages().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn get_translations(language: Option<String>) -> Result<Value, String> {
     let lang = language.unwrap_or_else(|| "en".to_string());
-    let data = get_i18n_manager().load_language(&lang).await.map_err(|e| e.to_string())?;
+    let mgr = get_i18n_manager()?;
+    let data = mgr.load_language(&lang).await.map_err(|e| e.to_string())?;
     Ok(json!({
         "language": data.language,
         "messages": data.messages
@@ -381,7 +385,8 @@ pub async fn get_translations(language: Option<String>) -> Result<Value, String>
 
 #[tauri::command]
 pub async fn get_message(key: String) -> Result<String, String> {
-    Ok(get_i18n_manager().get_message(&key).await)
+    let mgr = get_i18n_manager()?;
+    Ok(mgr.get_message(&key).await)
 }
 
 #[tauri::command]
@@ -389,17 +394,18 @@ pub async fn get_message_with_params(
     key: String,
     params: HashMap<String, String>,
 ) -> Result<String, String> {
-    Ok(get_i18n_manager()
-        .get_message_with_params(&key, params)
-        .await)
+    let mgr = get_i18n_manager()?;
+    Ok(mgr.get_message_with_params(&key, params).await)
 }
 
 #[tauri::command]
 pub async fn get_detected_system_language() -> Result<String, String> {
-    Ok(get_i18n_manager().detect_system_language())
+    let mgr = get_i18n_manager()?;
+    Ok(mgr.detect_system_language())
 }
 
 #[tauri::command]
 pub async fn reset_to_system_language() -> Result<(), String> {
-    get_i18n_manager().reset_to_system_language().await.map_err(|e| e.to_string())
+    let mgr = get_i18n_manager()?;
+    mgr.reset_to_system_language().await.map_err(|e| e.to_string())
 }

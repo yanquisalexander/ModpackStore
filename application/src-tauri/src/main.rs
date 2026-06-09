@@ -62,27 +62,27 @@ async fn get_git_hash() -> String {
 
 #[tauri::command]
 fn splash_done(app: tauri::AppHandle) {
-    let splash_window = app.get_webview_window("splash").unwrap();
-    let main_window = app.get_webview_window("main").unwrap();
-    splash_window.close().unwrap();
-    
-    let state: tauri::State<Arc<AppState>> = app.state();
-    let started_minimized = *state.started_minimized.lock().unwrap();
-
-    if !started_minimized {
-        main_window.set_focus().unwrap();
-        log::info!("Splash screen closed, main window focused.");
-        main_window.show().unwrap();
-    } else {
-        log::info!("Splash screen closed, main window kept hidden (started minimized).");
+    if let Some(splash_window) = app.get_webview_window("splash") {
+        let _ = splash_window.close();
     }
 
-    let id = {
-        let state: tauri::State<Arc<PendingInstance>> = app.state();
-        let id = state.id.lock().unwrap().take();
-        id
-    };
-    if let Some(id) = id {
+    if let Some(main_window) = app.get_webview_window("main") {
+        let state: tauri::State<Arc<AppState>> = app.state();
+        let started_minimized = *state.started_minimized
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+
+        if !started_minimized {
+            let _ = main_window.set_focus();
+            log::info!("Splash screen closed, main window focused.");
+            let _ = main_window.show();
+        } else {
+            log::info!("Splash screen closed, main window kept hidden (started minimized).");
+        }
+    }
+
+    let state: tauri::State<Arc<PendingInstance>> = app.state();
+    if let Some(id) = state.id.lock().unwrap_or_else(|e| e.into_inner()).take() {
         let _ = app.emit("open-instance", id);
     };
 }
@@ -174,7 +174,6 @@ pub fn main() {
                 let _ = app.emit("open-instance", id);
             }
         }))
-        .plugin(tauri_plugin_log::Builder::new().build())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
@@ -343,39 +342,35 @@ pub fn main() {
             let app_handle_clone = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 // Preload common languages first
-                if let Err(e) = crate::core::i18n::get_i18n_manager()
-                    .preload_common_languages()
-                    .await
-                {
-                    log::warn!("Failed to preload languages: {}", e);
-                }
-
-                // Now detect system language (after languages are preloaded)
-                let detected_lang = crate::core::i18n::get_i18n_manager().detect_system_language();
-
-                // Load current language from config or use detected system language
-                let current_lang = {
-                    match crate::config::get_config_manager().lock() {
-                        Ok(config_result) => match &*config_result {
-                            Ok(config) => config
-                                .get("language")
-                                .and_then(|v| v.as_str())
-                                .map(|s| s.to_string())
-                                .unwrap_or_else(|| detected_lang.clone()),
-                            Err(_) => detected_lang.clone(),
-                        },
-                        Err(_) => detected_lang.clone(),
+                if let Ok(mgr) = crate::core::i18n::get_i18n_manager() {
+                    if let Err(e) = mgr.preload_common_languages().await {
+                        log::warn!("Failed to preload languages: {}", e);
                     }
-                };
 
-                // Set initial language
-                if let Err(e) = crate::core::i18n::get_i18n_manager()
-                    .set_language(&current_lang)
-                    .await
-                {
-                    log::error!("Failed to set initial language {}: {}", current_lang, e);
-                } else {
-                    log::info!("Initialized i18n system with language: {}", current_lang);
+                    // Now detect system language (after languages are preloaded)
+                    let detected_lang = mgr.detect_system_language();
+
+                    // Load current language from config or use detected system language
+                    let current_lang = {
+                        match crate::config::get_config_manager().lock() {
+                            Ok(config_result) => match &*config_result {
+                                Ok(config) => config
+                                    .get("language")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string())
+                                    .unwrap_or_else(|| detected_lang.clone()),
+                                Err(_) => detected_lang.clone(),
+                            },
+                            Err(_) => detected_lang.clone(),
+                        }
+                    };
+
+                    // Set initial language
+                    if let Err(e) = mgr.set_language(&current_lang).await {
+                        log::error!("Failed to set initial language {}: {}", current_lang, e);
+                    } else {
+                        log::info!("Initialized i18n system with language: {}", current_lang);
+                    }
                 }
             });
 

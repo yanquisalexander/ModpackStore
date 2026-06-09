@@ -3,9 +3,7 @@
   "description": "permissions that were migrated from v1",
   "local": true,
   "windows": [
-    "main",
-    "splash",
-    "instances-overlay"
+    "main"
   ],
   "permissions": [
     "core:default",

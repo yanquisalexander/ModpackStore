@@ -98,7 +98,7 @@ impl MinecraftLauncher {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if path.is_file() && path.extension().map_or(false, |ext| ext == "jar") {
-                        let name = path.file_name().unwrap().to_string_lossy().to_lowercase();
+                        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
 
                         // IMPORTANT: Skip installers!
                         if name.contains("installer") {
@@ -126,7 +126,7 @@ impl MinecraftLauncher {
                     for entry in entries.flatten() {
                         let path = entry.path();
                         if path.is_file() && path.extension().map_or(false, |ext| ext == "jar") {
-                            let name = path.file_name().unwrap().to_string_lossy().to_lowercase();
+                        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
 
                             if name.contains("installer") {
                                 continue;
@@ -269,7 +269,13 @@ impl GameLauncher for MinecraftLauncher {
 
                 // For synchronous launcher, we need to block on the async authentication
                 // This is not ideal but maintains compatibility
-                let rt = tokio::runtime::Runtime::new().unwrap();
+                let rt = match tokio::runtime::Runtime::new() {
+                    Ok(rt) => rt,
+                    Err(e) => {
+                        log::error!("[MinecraftLauncher] Failed to create Tokio runtime: {}", e);
+                        return None;
+                    }
+                };
                 let auth_response =
                     match rt.block_on(ms_auth.authenticate(access_token, Some(username))) {
                         Ok(response) => response,

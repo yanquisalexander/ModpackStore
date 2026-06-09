@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo } from 'react';
 import { useI18n, UseI18nReturn } from '../hooks/useI18n';
 
 const I18nContext = createContext<UseI18nReturn | undefined>(undefined);
@@ -8,10 +8,14 @@ interface I18nProviderProps {
 }
 
 export function I18nProvider({ children }: I18nProviderProps) {
-    const i18n = useI18n();
+    const { t, language, messages, setLanguage, availableLanguages, isLoading, detectedSystemLanguage, resetToSystemLanguage } = useI18n();
+
+    const value = useMemo(() => ({
+        t, language, messages, setLanguage, availableLanguages, isLoading, detectedSystemLanguage, resetToSystemLanguage,
+    }), [t, language, messages, setLanguage, availableLanguages, isLoading, detectedSystemLanguage, resetToSystemLanguage]);
 
     return (
-        <I18nContext.Provider value={i18n}>
+        <I18nContext.Provider value={value}>
             {children}
         </I18nContext.Provider>
     );

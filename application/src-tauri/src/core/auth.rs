@@ -152,7 +152,7 @@ mod events {
     use super::*;
 
     pub fn emit_event<T: Serialize + Clone>(event: &str, payload: Option<T>) -> AuthResult<()> {
-        let binding = GLOBAL_APP_HANDLE.lock().unwrap();
+        let binding = GLOBAL_APP_HANDLE.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
         let app = binding.as_ref().ok_or("AppHandle no inicializado")?;
         let main_window = app
             .get_webview_window("main")
@@ -367,7 +367,7 @@ mod api {
             // is dropped before we hit any .await (avoids holding a non-Send guard
             // across awaits).
             let app_handle = {
-                let binding = GLOBAL_APP_HANDLE.lock().unwrap();
+                let binding = GLOBAL_APP_HANDLE.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
                 binding.as_ref().ok_or("AppHandle no inicializado")?.clone()
             };
 
@@ -402,7 +402,7 @@ mod api {
         pub async fn link_patreon_account(&self, code: &str) -> AuthResult<()> {
             // First, get current auth tokens to authenticate the request
             let app_handle = {
-                let binding = GLOBAL_APP_HANDLE.lock().unwrap();
+                let binding = GLOBAL_APP_HANDLE.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
                 binding.as_ref().ok_or("AppHandle no inicializado")?.clone()
             };
 
@@ -735,7 +735,7 @@ async fn process_auth_code(code: &str, auth_state: &Arc<AuthState>) -> AuthResul
 
     // Obtener handle de la app
     let app_handle = {
-        let binding = GLOBAL_APP_HANDLE.lock().unwrap();
+        let binding = GLOBAL_APP_HANDLE.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
         binding.as_ref().ok_or("AppHandle no inicializado")?.clone()
     };
 
@@ -1165,17 +1165,12 @@ async fn poll_for_twitch_auth_code(
                     events::emit_event("twitch-auth-success", Some(json!({"success": true})));
 
                     // focus the Modpack Store window
-                    let app_handle = {
-                        let binding = GLOBAL_APP_HANDLE.lock().unwrap();
-                        binding
-                            .as_ref()
-                            .ok_or("AppHandle no inicializado")
-                            .unwrap()
-                            .clone()
-                    };
-
-                    if let Some(main_window) = app_handle.get_webview_window("main") {
-                        let _ = main_window.set_focus();
+                    if let Ok(binding) = GLOBAL_APP_HANDLE.lock() {
+                        if let Some(app_handle) = binding.as_ref() {
+                            if let Some(main_window) = app_handle.get_webview_window("main") {
+                                let _ = main_window.set_focus();
+                            }
+                        }
                     }
                 }
                 Err(e) => {
@@ -1217,17 +1212,12 @@ async fn poll_for_patreon_auth_code(
                     events::emit_event("patreon-auth-success", Some(json!({"success": true})));
 
                     // focus the Modpack Store window
-                    let app_handle = {
-                        let binding = GLOBAL_APP_HANDLE.lock().unwrap();
-                        binding
-                            .as_ref()
-                            .ok_or("AppHandle no inicializado")
-                            .unwrap()
-                            .clone()
-                    };
-
-                    if let Some(main_window) = app_handle.get_webview_window("main") {
-                        let _ = main_window.set_focus();
+                    if let Ok(binding) = GLOBAL_APP_HANDLE.lock() {
+                        if let Some(app_handle) = binding.as_ref() {
+                            if let Some(main_window) = app_handle.get_webview_window("main") {
+                                let _ = main_window.set_focus();
+                            }
+                        }
                     }
                 }
                 Err(e) => {

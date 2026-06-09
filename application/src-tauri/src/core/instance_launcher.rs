@@ -17,7 +17,7 @@ use crate::core::minecraft::MinecraftLauncher as CoreMinecraftLauncher;
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::network_utilities;
 use crate::interfaces::game_launcher::GameLauncher;
-use crate::utils::config_manager::get_config_manager;
+use crate::config::get_config_manager;
 use crate::GLOBAL_APP_HANDLE;
 
 // --- External Crates ---
@@ -142,19 +142,18 @@ lazy_static! {
 }
 
 pub fn get_running_instances_list() -> Vec<RunningInstanceInfo> {
-    let lock = RUNNING_INSTANCES.lock().unwrap();
-    lock.values().cloned().collect()
+    RUNNING_INSTANCES.lock().ok().map(|lock| lock.values().cloned().collect()).unwrap_or_default()
 }
 
 #[tauri::command]
 pub fn get_instance_stats(instance_id: String) -> Result<InstanceStats, String> {
     let stats_data = {
-        let lock = RUNNING_INSTANCES.lock().unwrap();
+        let lock = RUNNING_INSTANCES.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
         lock.get(&instance_id).map(|info| (info.pid, info.player_count))
     };
 
     if let Some((pid, player_count)) = stats_data {
-        let mut sys = SYSTEM.lock().unwrap();
+        let mut sys = SYSTEM.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
         // Refresh only the specific process for efficiency
         sys.refresh_processes(sysinfo::ProcessesToUpdate::Some(&[Pid::from_u32(pid)]));
 
@@ -184,7 +183,7 @@ pub fn get_instance_stats(instance_id: String) -> Result<InstanceStats, String> 
 #[tauri::command]
 pub fn send_server_command(instance_id: String, command: String) -> Result<(), String> {
     let stdin = {
-        let lock = RUNNING_INSTANCES.lock().unwrap();
+        let lock = RUNNING_INSTANCES.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
         lock.get(&instance_id).and_then(|info| info.stdin.clone())
     };
 
@@ -202,7 +201,7 @@ pub fn send_server_command(instance_id: String, command: String) -> Result<(), S
 
 pub fn kill_instance(instance_id: String) -> Result<(), String> {
     let pid = {
-        let lock = RUNNING_INSTANCES.lock().unwrap();
+        let lock = RUNNING_INSTANCES.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
         lock.get(&instance_id).map(|info| info.pid)
     };
 
@@ -330,15 +329,17 @@ impl InstanceLauncher {
                     if let Ok(l) = line {
                         // --- Player Tracking Update ---
                         if RE_PLAYER_JOIN.is_match(&l) {
-                            let mut lock = RUNNING_INSTANCES.lock().unwrap();
-                            if let Some(info) = lock.get_mut(&inst_id) {
-                                info.player_count += 1;
+                            if let Ok(mut lock) = RUNNING_INSTANCES.lock() {
+                                if let Some(info) = lock.get_mut(&inst_id) {
+                                    info.player_count += 1;
+                                }
                             }
                         } else if RE_PLAYER_LEAVE.is_match(&l) {
-                            let mut lock = RUNNING_INSTANCES.lock().unwrap();
-                            if let Some(info) = lock.get_mut(&inst_id) {
-                                if info.player_count > 0 {
-                                    info.player_count -= 1;
+                            if let Ok(mut lock) = RUNNING_INSTANCES.lock() {
+                                if let Some(info) = lock.get_mut(&inst_id) {
+                                    if info.player_count > 0 {
+                                        info.player_count -= 1;
+                                    }
                                 }
                             }
                         }
@@ -407,8 +408,9 @@ impl InstanceLauncher {
 
             // Remove from running instances registry
             {
-                let mut lock = RUNNING_INSTANCES.lock().unwrap();
-                lock.remove(&instance_id);
+                if let Ok(mut lock) = RUNNING_INSTANCES.lock() {
+                    lock.remove(&instance_id);
+                }
             }
 
             match wait_result {
@@ -644,19 +646,20 @@ impl InstanceLauncher {
 
                 // Add to running instances registry
                 {
-                    let mut lock = RUNNING_INSTANCES.lock().unwrap();
-                    lock.insert(
-                        self.instance.instanceId.clone(),
-                        RunningInstanceInfo {
-                            id: self.instance.instanceId.clone(),
-                            name: self.instance.instanceName.clone(),
-                            version: self.instance.minecraftVersion.clone(),
-                            icon: self.instance.iconUrl.clone(),
-                            pid: child_process.id(),
-                            player_count: 0,
-                            stdin,
-                        },
-                    );
+                    if let Ok(mut lock) = RUNNING_INSTANCES.lock() {
+                        lock.insert(
+                            self.instance.instanceId.clone(),
+                            RunningInstanceInfo {
+                                id: self.instance.instanceId.clone(),
+                                name: self.instance.instanceName.clone(),
+                                version: self.instance.minecraftVersion.clone(),
+                                icon: self.instance.iconUrl.clone(),
+                                pid: child_process.id(),
+                                player_count: 0,
+                                stdin,
+                            },
+                        );
+                    }
                 }
 
                 self.emit_status(
@@ -700,10 +703,13 @@ impl InstanceLauncher {
     }
 
     fn handle_close_on_launch(&self) {
-        let close_on_launch = get_config_manager()
-            .lock()
-            .expect("Failed to lock config manager")
-            .get_close_on_launch();
+        let close_on_launch = match get_config_manager().lock() {
+            Ok(guard) => match &*guard {
+                Ok(mgr) => mgr.get_close_on_launch(),
+                Err(_) => false,
+            },
+            Err(_) => false,
+        };
         if !close_on_launch {
             return;
         }
@@ -712,7 +718,16 @@ impl InstanceLauncher {
             "[Launch Thread: {}] Closing launcher as configured.",
             self.instance.instanceId
         );
-        thread::sleep(std::time::Duration::from_secs(5)); // Give MC time to load
+        // Give MC time to load by polling for the process to appear in the running instances
+        let instance_id = self.instance.instanceId.clone();
+        for _ in 0..10 {
+            let found = RUNNING_INSTANCES.lock().ok().map(|lock| lock.contains_key(&instance_id)).unwrap_or(false);
+            if found {
+                thread::sleep(std::time::Duration::from_millis(500));
+            } else {
+                break;
+            }
+        }
 
         if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
             if let Some(app_handle) = guard.as_ref() {

@@ -1,5 +1,5 @@
 // src/stores/ConfigDialogContext.tsx
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from 'react';
 
 interface ConfigDialogContextType {
     isConfigOpen: boolean;
@@ -12,8 +12,8 @@ const ConfigDialogContext = createContext<ConfigDialogContextType | undefined>(u
 export function ConfigDialogProvider({ children }: { children: ReactNode }) {
     const [isConfigOpen, setIsConfigOpen] = useState(false);
 
-    const openConfigDialog = () => setIsConfigOpen(true);
-    const closeConfigDialog = () => setIsConfigOpen(false);
+    const openConfigDialog = useCallback(() => setIsConfigOpen(true), []);
+    const closeConfigDialog = useCallback(() => setIsConfigOpen(false), []);
 
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
@@ -29,8 +29,12 @@ export function ConfigDialogProvider({ children }: { children: ReactNode }) {
         };
     }, []);
 
+    const value = useMemo(() => ({
+        isConfigOpen, openConfigDialog, closeConfigDialog,
+    }), [isConfigOpen, openConfigDialog, closeConfigDialog]);
+
     return (
-        <ConfigDialogContext.Provider value={{ isConfigOpen, openConfigDialog, closeConfigDialog }}>
+        <ConfigDialogContext.Provider value={value}>
             {children}
         </ConfigDialogContext.Provider>
     );

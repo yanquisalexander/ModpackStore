@@ -211,7 +211,9 @@ fn download_single_asset(
         hash_prefix, hash
     );
 
-    let target_dir = asset_file.parent().unwrap();
+    let target_dir = asset_file.parent().ok_or_else(|| {
+        io::Error::new(io::ErrorKind::InvalidInput, "Invalid asset file path")
+    })?;
     if !target_dir.exists() {
         fs::create_dir_all(target_dir)?;
     }

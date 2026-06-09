@@ -32,6 +32,24 @@ export default defineConfig(async () => ({
         splash: path.resolve(__dirname, "splash.html"),
         tray: path.resolve(__dirname, "tray.html"),
       },
+      output: {
+        manualChunks(id) {
+          if (id.includes('@tauri-apps/')) return 'tauri';
+          if (id.includes('recharts')) return 'vendor-charts';
+          if (id.includes('codemirror') || id.includes('@codemirror') || id.includes('@uiw/react-codemirror')) return 'vendor-codemirror';
+          if (id.includes('motion') || id.includes('framer-motion')) return 'vendor-motion';
+          if (id.includes('lottie-react')) return 'vendor-lottie';
+          if (id.includes('@paypal/')) return 'vendor-paypal';
+          if (id.includes('@uppy/')) return 'vendor-uppy';
+          if (id.includes('react-markdown') || id.includes('marked')) return 'vendor-markdown';
+          if (id.includes('cmdk')) return 'vendor-cmdk';
+          if (id.includes('driver.js')) return 'vendor-driver';
+          if (id.includes('lucide-react')) return 'vendor-icons';
+          if (id.includes('react-hook-form') || id.includes('zod')) return 'vendor-forms';
+
+          if (id.includes('node_modules')) return 'vendor';
+        },
+      },
     },
   },
 }));

@@ -1,13 +1,16 @@
 import { useEffect, useState, useRef } from "react"
 import { useGlobalContext } from "../stores/GlobalContext"
-import { LucideLoader, LucideSearch, LucideShoppingBag, LucideSparkles, LucideZap, LucideGamepad2, LucideWand2, LucideCpu } from "lucide-react"
+import {
+    LucideLoader, LucideSearch, LucideShoppingBag,
+    LucideSparkles, LucideZap, LucideGamepad2,
+    LucideWand2, LucideCpu, LucideChevronRight
+} from "lucide-react"
 import { getModpacks, searchModpacks } from "@/services/getModpacks"
 import { CategoryHorizontalSection } from "../components/CategoryHorizontalSection"
 import { clearActivity, setActivity } from "tauri-plugin-drpc"
 import { Activity, ActivityType, Assets, Timestamps } from "tauri-plugin-drpc/activity"
 import { useDebounce } from 'use-debounce'
 import { ModpackCard } from "@/components/ModpackCard"
-import { trackEvent } from "@aptabase/web"
 import { trackSectionView } from "@/lib/analytics"
 import { motion, AnimatePresence } from "motion/react"
 import { FeaturedSlideshow } from "@/components/FeaturedSlideshow"
@@ -17,96 +20,155 @@ import { RecentActivity } from "@/components/home/RecentActivity"
 import { useOnboarding } from "@/hooks/useOnboarding"
 import { useAuthentication } from "@/stores/AuthContext"
 
-// --- SUBCOMPONENTES ESTÉTICOS RECUPERADOS ---
+// ─── GREETING ────────────────────────────────────────────────────────────────
+
+const getTimeContext = () => {
+    const h = new Date().getHours()
+    if (h < 5) return { key: "MADRUGADA", emoji: "☕", saludo: "¿Madrugando" }
+    if (h < 12) return { key: "MAÑANA", emoji: "☀️", saludo: "Buenos días" }
+    if (h < 18) return { key: "TARDE", emoji: "🧉", saludo: "Buenas tardes" }
+    return { key: "NOCHE", emoji: "🌙", saludo: "Buenas noches" }
+}
 
 const Greeting = ({ username }: { username: string | null }) => {
-    const NOW = new Date()
-    const GREETING_TEMPLATES: Record<string, string> = {
-        MAÑANA: "¡Buenos días, {username}!",
-        TARDE: "¡Buenas tardes, {username}!",
-        NOCHE: "¡Buenas noches, {username}!",
-        MADRUGADA: "¿Madrugando, {username}?"
-    }
-
-    const EMOJI_MAP: Record<string, string> = {
-        MAÑANA: "☀️",
-        TARDE: "🧉",
-        NOCHE: "🌙",
-        MADRUGADA: "☕"
-    }
-
-    const hour = NOW.getHours()
-    const timeKey = hour < 12 ? "MAÑANA" : hour < 18 ? "TARDE" : hour < 24 ? "NOCHE" : "MADRUGADA"
-    const MESSAGE_TO_DISPLAY = GREETING_TEMPLATES[timeKey].replace("{username}", username || "Jugador");
-    const emoji = EMOJI_MAP[timeKey];
-    const [saludo, nombre] = MESSAGE_TO_DISPLAY.split(',');
+    const { saludo, emoji } = getTimeContext()
+    const name = username || "Jugador"
 
     return (
-        <div className="flex flex-col items-center md:items-start">
-            <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.5 }}
-            >
-                <h1 className="text-2xl md:text-3xl font-bold text-white tracking-tight leading-none">
-                    {saludo},
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#bcfe47] to-[#05cc2a] ml-1">
-                        {nombre?.trim() || username}
+        <div className="flex items-center justify-between w-full">
+            <div>
+                <motion.h1
+                    initial={{ opacity: 0, x: -16 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.45 }}
+                    className="text-xl font-bold text-white leading-tight tracking-tight"
+                >
+                    {saludo},{" "}
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#bcfe47] to-[#05cc2a]">
+                        {name}
                     </span>
+                    {" "}
                     <motion.span
-                        className="text-2xl md:text-3xl inline-block select-none ml-2"
-                        animate={{ rotate: [0, 10, -10, 0] }}
-                        transition={{ repeat: Infinity, repeatDelay: 5, duration: 2 }}
+                        className="inline-block select-none"
+                        animate={{ rotate: [0, 12, -10, 0] }}
+                        transition={{ repeat: Infinity, repeatDelay: 6, duration: 1.8 }}
                     >
                         {emoji}
                     </motion.span>
-                </h1>
-            </motion.div>
-            <p className="text-neutral-400 text-sm mt-2 font-medium">
-                ¿Qué aventura toca hoy?
-            </p>
+                </motion.h1>
+                <p className="text-neutral-500 text-sm mt-1">¿Qué aventura toca hoy?</p>
+            </div>
+
+            {/* Avatar inicial */}
+            <div className="
+                w-10 h-10 rounded-full flex-shrink-0
+                flex items-center justify-center
+                bg-[#bcfe47]/10 border border-[#bcfe47]/25
+                font-bold text-[#bcfe47] text-sm
+            ">
+                {name[0].toUpperCase()}
+            </div>
         </div>
     )
 }
 
-const QuickFilterChip = ({ label, icon: Icon, onClick }: any) => (
+// ─── FILTER CHIP ─────────────────────────────────────────────────────────────
+
+const FilterChip = ({
+    label,
+    icon: Icon,
+    onClick,
+    active = false,
+}: {
+    label: string
+    icon?: React.ElementType
+    onClick?: () => void
+    active?: boolean
+}) => (
     <button
         onClick={onClick}
-        className="group flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-neutral-800/50 border border-neutral-700/50 hover:bg-neutral-700 hover:border-neutral-500 transition-all text-xs font-medium text-neutral-300 hover:text-white hover:shadow-lg hover:shadow-green-900/20 active:scale-95"
+        className={`
+            group flex items-center gap-1.5 px-3 py-1.5
+            rounded-full text-xs font-medium
+            border transition-all duration-200 active:scale-95
+            ${active
+                ? "bg-[#bcfe47]/10 border-[#bcfe47]/30 text-[#bcfe47]"
+                : "bg-white/[0.04] border-white/[0.07] text-neutral-400 hover:bg-[#bcfe47]/[0.06] hover:border-[#bcfe47]/20 hover:text-[#bcfe47]"
+            }
+        `}
     >
-        {Icon && <Icon size={12} className="text-[#bcfe47] group-hover:text-green-400 transition-colors" />}
+        {Icon && <Icon size={11} />}
         {label}
     </button>
 )
 
-// --- COMPONENTE PRINCIPAL ---
+// ─── SECTION HEADER ───────────────────────────────────────────────────────────
+
+const SectionHeader = ({
+    title,
+    subtitle,
+    href,
+}: {
+    title: string
+    subtitle?: string
+    href?: string
+}) => (
+    <div className="flex items-baseline justify-between mb-4">
+        <div className="flex items-baseline gap-2.5">
+            <h2 className="font-bold text-[15px] text-white tracking-tight">{title}</h2>
+            {subtitle && <span className="text-[11px] text-neutral-600">{subtitle}</span>}
+        </div>
+        {href && (
+            <a
+                href={href}
+                className="flex items-center gap-0.5 text-xs text-neutral-500 hover:text-[#bcfe47] transition-colors"
+            >
+                Ver todo <LucideChevronRight size={12} />
+            </a>
+        )}
+    </div>
+)
+
+// ─── EMPTY STATE ──────────────────────────────────────────────────────────────
+
+const EmptySearch = ({ query }: { query: string }) => (
+    <div className="flex flex-col items-center justify-center py-28 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-white/[0.04] border border-white/[0.06] flex items-center justify-center mb-5">
+            <LucideSearch className="w-7 h-7 text-neutral-600" />
+        </div>
+        <p className="text-neutral-300 font-semibold text-base">Sin resultados para "{query}"</p>
+        <p className="text-neutral-600 text-sm mt-1.5">Intenta con términos más generales</p>
+    </div>
+)
+
+// ─── MAIN COMPONENT ──────────────────────────────────────────────────────────
 
 export const ExploreSection = () => {
     const { titleBarState, setTitleBarState } = useGlobalContext()
-    const scrollContainerRef = useRef<HTMLDivElement>(null)
+    const scrollRef = useRef<HTMLDivElement>(null)
 
     const [modpackCategories, setModpackCategories] = useState<any[]>([])
     const [featuredSlides, setFeaturedSlides] = useState<any[]>([])
     const [searchResults, setSearchResults] = useState<any[]>([])
-
     const [loading, setLoading] = useState(false)
     const [initialLoading, setInitialLoading] = useState(true)
-
     const [search, setSearch] = useState("")
     const [debouncedSearch] = useDebounce(search, 300)
+    const [isSearchFocused, setIsSearchFocused] = useState(false)
+    const [activeChip, setActiveChip] = useState<string | null>(null)
+
     const { onboardingStatus } = useOnboarding()
     const { session } = useAuthentication()
-    const [isSearchFocused, setIsSearchFocused] = useState(false)
-
     const hasCompletedOnboarding = onboardingStatus?.first_run_at !== null
 
-    // Scroll Fix
+    // Scroll to top on search clear
     useEffect(() => {
-        if (scrollContainerRef.current) {
-            scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' })
+        if (debouncedSearch === "") {
+            scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" })
         }
     }, [debouncedSearch === ""])
 
+    // Init
     useEffect(() => {
         setTitleBarState({
             ...titleBarState,
@@ -116,7 +178,7 @@ export const ExploreSection = () => {
             customIconClassName: "bg-green-500/20 text-green-400",
             opaque: true,
         })
-        trackSectionView('explore')
+        trackSectionView("explore")
 
         const activity = new Activity()
             .setActivity(ActivityType.Playing)
@@ -136,6 +198,7 @@ export const ExploreSection = () => {
         return () => { clearActivity().catch(console.error) }
     }, [])
 
+    // Search
     useEffect(() => {
         if (debouncedSearch.trim() === "") {
             setSearchResults([])
@@ -148,171 +211,191 @@ export const ExploreSection = () => {
             .finally(() => setLoading(false))
     }, [debouncedSearch])
 
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        visible: {
-            opacity: 1,
-            transition: { staggerChildren: 0.1, delayChildren: 0.1 }
-        }
+    const handleChip = (label: string, query?: string) => {
+        const val = query ?? label
+        setActiveChip(label === activeChip ? null : label)
+        setSearch(label === activeChip ? "" : val)
     }
 
-    const itemVariants = {
-        hidden: { y: 20, opacity: 0, scale: 0.95 },
-        visible: {
-            y: 0,
-            opacity: 1,
-            scale: 1,
-            transition: { type: "spring" as const, stiffness: 100, damping: 15 }
-        }
+    // Animation presets
+    const fadeUp = {
+        hidden: { opacity: 0, y: 18 },
+        visible: (i = 0) => ({
+            opacity: 1, y: 0,
+            transition: { type: "spring", stiffness: 90, damping: 18, delay: i * 0.07 }
+        })
+    }
+
+    const stagger = {
+        visible: { transition: { staggerChildren: 0.08 } }
     }
 
     return (
-        <div className="flex flex-col h-full w-full overflow-hidden relative bg-[#121212]">
+        <div className="flex flex-col h-full w-full overflow-hidden bg-[#0e0e10]">
 
-            {/* Glow Ambiental (Fondo) */}
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-green-500/5 blur-[120px] rounded-full pointer-events-none z-0" />
+            {/* Ambient glow — purely decorative */}
+            <div className="
+                pointer-events-none absolute top-0 left-1/2 -translate-x-1/2
+                w-[700px] h-[350px] rounded-full
+                bg-[#bcfe47]/[0.06] blur-[100px]
+                z-0
+            " />
 
-            {/* Contenedor Principal */}
-            <div ref={scrollContainerRef} className="flex-1 overflow-y-auto custom-scrollbar scroll-smooth z-10">
+            <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar scroll-smooth relative z-10">
 
-                {/* CORRECCIÓN: Envolvemos TODO el contenido en el estado de carga.
-                    Así, el Slideshow y el Greeting no aparecen hasta que todo esté listo.
-                */}
                 {initialLoading ? (
+                    /* ── Loading ── */
                     <div className="flex flex-col items-center justify-center h-full min-h-dvh gap-4">
-                        <LucideLoader className="w-12 h-12 animate-spin text-green-500" />
-                        <p className="text-neutral-400 font-medium animate-pulse">Cargando la tienda...</p>
+                        <LucideLoader className="w-10 h-10 animate-spin text-[#bcfe47]/60" />
+                        <p className="text-neutral-500 text-sm animate-pulse">Cargando la tienda...</p>
                     </div>
                 ) : (
-                    <motion.div
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.5 }}
-                    >
-                        {/* HERO SECTION (Ahora se carga junto con el resto) */}
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
+
+                        {/* ── Hero Slideshow ── */}
                         <div className="relative w-full">
                             <FeaturedSlideshow slides={featuredSlides} />
                         </div>
 
-                        <motion.div
-                            initial="hidden"
-                            animate="visible"
-                            variants={containerVariants}
-                            className="relative px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto -mt-20 mb-10"
-                        >
-                            {hasCompletedOnboarding && <div className="mb-6"><JavaStatusBanner /></div>}
+                        {/* ── Main Content ── */}
+                        <div className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto -mt-16 pb-16 space-y-8">
 
-                            {/* HEADER CARD */}
-                            <div className="bg-neutral-900/60 backdrop-blur-xl backdrop-saturate-150 border border-white/10 rounded-2xl p-6 shadow-2xl mb-12 ring-1 ring-black/5">
-                                <div className="flex flex-col md:flex-row gap-6 items-center justify-between">
-                                    <Greeting username={session?.username!} />
+                            {/* Java Banner */}
+                            {hasCompletedOnboarding && (
+                                <motion.div variants={fadeUp} initial="hidden" animate="visible">
+                                    <JavaStatusBanner />
+                                </motion.div>
+                            )}
 
-                                    <div className="w-full md:w-auto md:min-w-[450px]">
-                                        {/* Barra de búsqueda */}
-                                        <motion.div className={`relative group transition-all duration-300 ${isSearchFocused ? 'scale-[1.01]' : ''}`}>
-                                            <div className={`absolute -inset-0.5 bg-gradient-to-r from-green-500 to-emerald-500 rounded-xl opacity-0 transition duration-500 blur-md ${isSearchFocused ? 'opacity-30' : 'group-hover:opacity-10'}`}></div>
+                            {/* ── Header Card ── */}
+                            <motion.div
+                                variants={fadeUp}
+                                initial="hidden"
+                                animate="visible"
+                                className="
+                                    rounded-[22px] p-5
+                                    bg-black/40 backdrop-blur-xl backdrop-saturate-150
+                                    border border-white/[0.07]
+                                    shadow-2xl
+                                    space-y-4
+                                "
+                            >
+                                {/* Greeting */}
+                                <Greeting username={session?.username ?? null} />
 
-                                            <div className="relative flex items-center bg-[#0a0a0a] rounded-xl border border-white/10 overflow-hidden shadow-inner">
-                                                <LucideSearch className={`ml-4 w-5 h-5 transition-colors duration-300 ${isSearchFocused ? 'text-green-400' : 'text-neutral-500'}`} />
-                                                <input
-                                                    type="text"
-                                                    value={search}
-                                                    onChange={(e) => setSearch(e.target.value)}
-                                                    onFocus={() => setIsSearchFocused(true)}
-                                                    onBlur={() => setIsSearchFocused(false)}
-                                                    placeholder="Buscar modpacks, mods..."
-                                                    className="w-full h-14 pl-3 pr-4 bg-transparent text-white placeholder-neutral-500 focus:outline-none text-base font-medium"
-                                                />
-                                                {loading && (
-                                                    <div className="pr-4">
-                                                        <LucideLoader className="w-5 h-5 animate-spin text-green-500" />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </motion.div>
+                                {/* Search */}
+                                <div className={`
+                                    relative transition-all duration-300
+                                    ${isSearchFocused ? "scale-[1.01]" : ""}
+                                `}>
+                                    {/* Glow ring on focus */}
+                                    <div className={`
+                                        absolute -inset-px rounded-[14px] pointer-events-none
+                                        bg-gradient-to-r from-[#bcfe47]/40 to-[#05cc2a]/40
+                                        transition-opacity duration-300
+                                        ${isSearchFocused ? "opacity-100 blur-[3px]" : "opacity-0"}
+                                    `} />
 
-                                        {/* Chips Decorativos */}
-                                        <div className="flex gap-2 mt-4 justify-center md:justify-start overflow-x-auto pb-1 hide-scrollbar">
-                                            <QuickFilterChip label="Popular" icon={LucideSparkles} onClick={() => { }} />
-                                            <QuickFilterChip label="Nuevos" icon={LucideZap} onClick={() => { }} />
-                                            <QuickFilterChip label="Tech" icon={LucideCpu} onClick={() => setSearch("Tech")} />
-                                            <QuickFilterChip label="Magic" icon={LucideWand2} onClick={() => setSearch("Magic")} />
-                                            <QuickFilterChip label="RPG" icon={LucideGamepad2} onClick={() => setSearch("RPG")} />
-                                        </div>
+                                    <div className="relative flex items-center bg-black/50 rounded-[14px] border border-white/[0.08] overflow-hidden">
+                                        <LucideSearch className={`
+                                            ml-4 w-[18px] h-[18px] flex-shrink-0
+                                            transition-colors duration-200
+                                            ${isSearchFocused ? "text-[#bcfe47]" : "text-neutral-600"}
+                                        `} />
+                                        <input
+                                            type="text"
+                                            value={search}
+                                            onChange={e => setSearch(e.target.value)}
+                                            onFocus={() => setIsSearchFocused(true)}
+                                            onBlur={() => setIsSearchFocused(false)}
+                                            placeholder="Buscar modpacks, mods..."
+                                            className="
+                                                w-full h-12 pl-3 pr-4 bg-transparent
+                                                text-white placeholder-neutral-600
+                                                text-[14px] font-medium
+                                                focus:outline-none
+                                            "
+                                        />
+                                        <AnimatePresence>
+                                            {loading && (
+                                                <motion.div
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    exit={{ opacity: 0 }}
+                                                    className="pr-4"
+                                                >
+                                                    <LucideLoader className="w-4 h-4 animate-spin text-[#bcfe47]/60" />
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
                                     </div>
                                 </div>
-                            </div>
 
-                            {/* ZONA DE CONTENIDO DINÁMICO */}
-                            <AnimatePresence initial={false} mode="wait">
+                                {/* Filter chips */}
+                                <div className="flex gap-2 flex-wrap">
+                                    <FilterChip label="Popular" icon={LucideSparkles} active={activeChip === "Popular"} onClick={() => handleChip("Popular")} />
+                                    <FilterChip label="Nuevos" icon={LucideZap} active={activeChip === "Nuevos"} onClick={() => handleChip("Nuevos")} />
+                                    <FilterChip label="Tech" icon={LucideCpu} active={activeChip === "Tech"} onClick={() => handleChip("Tech")} />
+                                    <FilterChip label="Magic" icon={LucideWand2} active={activeChip === "Magic"} onClick={() => handleChip("Magic")} />
+                                    <FilterChip label="RPG" icon={LucideGamepad2} active={activeChip === "RPG"} onClick={() => handleChip("RPG")} />
+                                </div>
+                            </motion.div>
+
+                            {/* ── Dynamic Content Zone ── */}
+                            <AnimatePresence mode="wait" initial={false}>
                                 {debouncedSearch.trim() !== "" ? (
-                                    // --- RESULTADOS DE BÚSQUEDA ---
+
+                                    /* ── Search Results ── */
                                     <motion.div
-                                        key="search-results"
-                                        initial={{ opacity: 0, y: 20 }}
+                                        key="search"
+                                        initial={{ opacity: 0, y: 16 }}
                                         animate={{ opacity: 1, y: 0 }}
-                                        exit={{ opacity: 0, y: -20 }}
-                                        transition={{ duration: 0.3 }}
-                                        className="min-h-[50vh]"
+                                        exit={{ opacity: 0, y: -16 }}
+                                        transition={{ duration: 0.25 }}
                                     >
-                                        <div className="flex items-center gap-3 mb-8">
-                                            <div className="p-2 bg-green-500/10 rounded-lg">
-                                                <LucideSearch className="w-5 h-5 text-green-400" />
-                                            </div>
-                                            <h2 className="text-xl font-semibold text-white">
-                                                Resultados para <span className="text-green-400">"{debouncedSearch}"</span>
-                                            </h2>
-                                        </div>
+                                        <SectionHeader
+                                            title={`Resultados para "${debouncedSearch}"`}
+                                            subtitle={searchResults.length > 0 ? `${searchResults.length} encontrados` : undefined}
+                                        />
 
                                         {loading ? (
-                                            <div className="flex flex-col items-center justify-center py-32 opacity-70">
-                                                <LucideLoader className="w-12 h-12 text-green-500 animate-spin mb-4" />
-                                                <p className="text-neutral-400 animate-pulse">Consultando la biblioteca...</p>
+                                            <div className="flex flex-col items-center justify-center py-28 gap-3">
+                                                <LucideLoader className="w-10 h-10 text-[#bcfe47]/50 animate-spin" />
+                                                <p className="text-neutral-600 text-sm animate-pulse">Consultando la biblioteca...</p>
                                             </div>
-                                        ) : (
+                                        ) : searchResults.length > 0 ? (
                                             <motion.div
-                                                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                                                variants={containerVariants}
+                                                variants={stagger}
                                                 initial="hidden"
                                                 animate="visible"
+                                                className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
                                             >
-                                                {searchResults.length > 0 ? (
-                                                    searchResults.map((modpack: any, index) => (
-                                                        <motion.div
-                                                            key={modpack.id}
-                                                            variants={itemVariants}
-                                                            custom={index}
-                                                        >
-                                                            <ModpackCard
-                                                                modpack={modpack}
-                                                                to={`/modpack/${modpack.id}`}
-                                                            />
-                                                        </motion.div>
-                                                    ))
-                                                ) : (
-                                                    <div className="col-span-full py-24 text-center">
-                                                        <div className="bg-neutral-800/50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/5">
-                                                            <LucideSearch className="w-10 h-10 text-neutral-500" />
-                                                        </div>
-                                                        <p className="text-neutral-300 text-lg font-medium">No encontramos nada parecido.</p>
-                                                        <p className="text-neutral-500 text-sm mt-1">Intenta buscar términos más generales.</p>
-                                                    </div>
-                                                )}
+                                                {searchResults.map((modpack, i) => (
+                                                    <motion.div key={modpack.id} variants={fadeUp} custom={i}>
+                                                        <ModpackCard modpack={modpack} to={`/modpack/${modpack.id}`} />
+                                                    </motion.div>
+                                                ))}
                                             </motion.div>
+                                        ) : (
+                                            <EmptySearch query={debouncedSearch} />
                                         )}
                                     </motion.div>
+
                                 ) : (
-                                    // --- HOME / CATEGORÍAS ---
+
+                                    /* ── Home Feed ── */
                                     <motion.div
-                                        key="categories"
+                                        key="home"
                                         initial={{ opacity: 0 }}
                                         animate={{ opacity: 1 }}
                                         exit={{ opacity: 0 }}
-                                        transition={{ duration: 0.3 }}
-                                        className="space-y-8"
+                                        transition={{ duration: 0.25 }}
+                                        className="space-y-10"
                                     >
+                                        {/* Recommended */}
                                         {session && (
-                                            <motion.div variants={itemVariants} initial="hidden" whileInView="visible" viewport={{ once: true }}>
+                                            <motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }}>
+                                                <SectionHeader title="Recomendados para ti" subtitle="basado en tu historial" />
                                                 <RecommendedModpacks
                                                     userId={session.id}
                                                     limit={5}
@@ -321,19 +404,27 @@ export const ExploreSection = () => {
                                             </motion.div>
                                         )}
 
-                                        <motion.div variants={itemVariants} initial="hidden" whileInView="visible" viewport={{ once: true }}>
+                                        {/* Recent Activity */}
+                                        <motion.div variants={fadeUp} initial="hidden" whileInView="visible" viewport={{ once: true }}>
+                                            <SectionHeader title="Actividad reciente" />
                                             <RecentActivity />
                                         </motion.div>
 
-                                        {modpackCategories.map((category: any, index) => (
+                                        {/* Categories */}
+                                        {modpackCategories.map((category, i) => (
                                             <motion.div
                                                 key={category.id}
-                                                variants={itemVariants}
+                                                variants={fadeUp}
+                                                custom={i}
                                                 initial="hidden"
                                                 whileInView="visible"
-                                                viewport={{ once: true, margin: "-100px" }}
-                                                custom={index}
+                                                viewport={{ once: true, margin: "-80px" }}
                                             >
+                                                <SectionHeader
+                                                    title={category.name}
+                                                    subtitle={category.shortDescription}
+                                                    href={`/category/${category.id}`}
+                                                />
                                                 <CategoryHorizontalSection
                                                     id={category.id}
                                                     title={category.name}
@@ -349,28 +440,36 @@ export const ExploreSection = () => {
                                             initial={{ opacity: 0, y: 20 }}
                                             whileInView={{ opacity: 1, y: 0 }}
                                             viewport={{ once: true }}
-                                            className="pt-20 flex flex-col items-center justify-center text-center group"
+                                            className="pt-16 pb-4 flex flex-col items-center justify-center text-center group"
                                         >
-                                            <div className="relative">
-                                                <div className="absolute inset-0 bg-green-500/20 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+                                            <div className="relative mb-5">
+                                                <div className="
+                                                    absolute inset-0 bg-[#bcfe47]/15 blur-2xl rounded-full
+                                                    opacity-0 group-hover:opacity-100 transition-opacity duration-700
+                                                " />
                                                 <img
                                                     src="/images/minecraft_pj.webp"
                                                     draggable="false"
-                                                    className="relative h-32 w-auto object-contain opacity-60 grayscale group-hover:grayscale-0 group-hover:opacity-100 group-hover:scale-110 transition-all duration-500 drop-shadow-2xl"
-                                                    alt="Character"
+                                                    className="
+                                                        relative h-28 w-auto object-contain
+                                                        opacity-40 grayscale
+                                                        group-hover:opacity-90 group-hover:grayscale-0 group-hover:scale-110
+                                                        transition-all duration-500 drop-shadow-2xl
+                                                    "
+                                                    alt="Personaje de Minecraft"
                                                 />
                                             </div>
-                                            <p className="mt-6 text-neutral-500 text-sm font-medium tracking-wide">
-                                                EXPLORA • CREA • JUEGA
+                                            <p className="text-neutral-700 text-[10px] font-semibold tracking-[0.15em] uppercase">
+                                                Explora · Crea · Juega
                                             </p>
-                                            <p className="text-neutral-700 text-xs mt-2">
+                                            <p className="text-neutral-800 text-[10px] mt-1.5">
                                                 Modpack Store &copy; {new Date().getFullYear()}
                                             </p>
                                         </motion.div>
                                     </motion.div>
                                 )}
                             </AnimatePresence>
-                        </motion.div>
+                        </div>
                     </motion.div>
                 )}
             </div>

@@ -1,7 +1,6 @@
 // src-tauri/src/minecraft_instance.rs
 use crate::core::instance_launcher::InstanceLauncher;
 use crate::core::tasks_manager::{TaskInfo, TaskStatus};
-use crate::utils::config_manager::ConfigManager;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Result as IoResult;
@@ -128,21 +127,16 @@ impl MinecraftInstance {
     }
 
     pub fn from_instance_id(instance_id: &str) -> Option<Self> {
-        // Get the ConfigManager instance from the singleton
-        let config_manager_mutex = crate::utils::config_manager::get_config_manager();
-
-        // Lock the mutex to access the ConfigManager
-        let config_manager = match config_manager_mutex.lock() {
-            Ok(manager) => manager,
+        let instances_dir = match crate::config::get_config_manager().lock() {
+            Ok(guard) => match &*guard {
+                Ok(mgr) => mgr.get_instances_dir(),
+                Err(_) => return None,
+            },
             Err(e) => {
                 println!("Error locking ConfigManager mutex: {}", e);
                 return None;
             }
         };
-
-        // Get the instances directory from ConfigManager
-        // Since get_instances_dir() returns PathBuf directly, not Result<PathBuf, Error>
-        let instances_dir = config_manager.get_instances_dir();
 
         println!(
             "Searching for instance {} in directory: {}",
@@ -317,10 +311,21 @@ pub fn get_instances_by_modpack_id(modpack_id: String) -> Vec<MinecraftInstance>
     /*
         Gets all instances that match the given modpack ID
     */
-    let config_manager = crate::utils::config_manager::get_config_manager();
-    let instances_dir = config_manager.lock().unwrap().get_instances_dir();
-
     let mut instances = Vec::new();
+    let config_manager_mutex = crate::config::get_config_manager();
+    let instances_dir = match config_manager_mutex.lock() {
+        Ok(guard) => match &*guard {
+            Ok(mgr) => mgr.get_instances_dir(),
+            Err(e) => {
+                eprintln!("Error getting config manager: {}", e);
+                return instances;
+            }
+        },
+        Err(e) => {
+            eprintln!("Error locking ConfigManager mutex: {}", e);
+            return instances;
+        }
+    };
     if let Ok(entries) = fs::read_dir(instances_dir) {
         for entry in entries.flatten() {
             let path = entry.path();

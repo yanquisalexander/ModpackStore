@@ -47,10 +47,10 @@ const patchConsoleMethod = (method: keyof Console, logger: (...args: any[]) => v
         try {
           return JSON.stringify(arg);
         } catch {
-          return String(arg);
+          try { return String(arg); } catch { return '[Object]'; }
         }
       }
-      return String(arg);
+      try { return String(arg); } catch { return String(arg?.toString?.() ?? arg); }
     }).join(' ');
     logger(message);
   };

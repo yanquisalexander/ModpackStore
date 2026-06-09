@@ -20,15 +20,16 @@ export const OfflineMode = () => {
     }, [])
 
     return (
-        <div className="flex flex-col h-screen text-white p-6">
-            <Alert>
-                <LucideWifiOff className="size-16  !text-red-400" />
-                <AlertTitle>Sin conexión</AlertTitle>
-                <AlertDescription>
-                    Podrás jugar por tus instancias locales, pero no podrás descargar nuevos modpacks ni actualizarlos. <br />
-                </AlertDescription>
-            </Alert>
-
+        <div className="flex flex-col h-screen text-white">
+            <div className="px-6 pt-6">
+                <Alert>
+                    <LucideWifiOff className="size-16  !text-red-400" />
+                    <AlertTitle>Sin conexión</AlertTitle>
+                    <AlertDescription>
+                        Podrás jugar por tus instancias locales, pero no podrás descargar nuevos modpacks ni actualizarlos. <br />
+                    </AlertDescription>
+                </Alert>
+            </div>
 
             <div className="mt-0 h-full pb-16">
                 <MyInstancesSection offlineMode={true} />

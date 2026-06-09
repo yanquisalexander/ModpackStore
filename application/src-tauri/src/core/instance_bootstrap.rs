@@ -453,7 +453,7 @@ impl InstanceBootstrap {
 
         // Create Tokio runtime for async task execution and get Java path
         let java_path = tokio::runtime::Runtime::new()
-            .expect("Failed to create Tokio runtime")
+            .map_err(|e| format!("Failed to create Tokio runtime: {}", e))?
             .block_on(java_manager.get_java_path(&java_major_version))
             .map_err(|e| {
                 format!(
@@ -471,7 +471,7 @@ impl InstanceBootstrap {
 
         // Use enhanced download manager for libraries
         tokio::runtime::Runtime::new()
-            .expect("Failed to create Tokio runtime")
+            .map_err(|e| format!("Failed to create Tokio runtime: {}", e))?
             .block_on(download_libraries_enhanced(
                 instance,
                 &version_details,
@@ -647,9 +647,10 @@ impl InstanceBootstrap {
         use crate::core::bootstrap::loaders::ForgeInstaller;
 
         // Verificar que tengamos información de Forge
-        if instance.forgeVersion.is_none() || instance.forgeVersion.as_ref().unwrap().is_empty() {
-            return Err("No se especificó versión de Forge".to_string());
-        }
+        let forge_version = match instance.forgeVersion.as_ref() {
+            Some(v) if !v.is_empty() => v.clone(),
+            _ => return Err("No se especificó versión de Forge".to_string()),
+        };
 
         // Emit start event using modular function
         emit_bootstrap_start(instance, "Forge");
@@ -698,7 +699,6 @@ impl InstanceBootstrap {
             .map_err(|e| format!("Error finding Java: {}", e))?;
 
         // Setup Forge installer
-        let forge_version = instance.forgeVersion.as_ref().unwrap();
         let forge_installer = ForgeInstaller::new(
             &self.client,
             instance.minecraftVersion.clone(),
@@ -774,9 +774,10 @@ impl InstanceBootstrap {
         use crate::core::bootstrap::loaders::FabricInstaller;
 
         // Verificar que tengamos información de Fabric
-        if instance.loaderVersion.is_none() || instance.loaderVersion.as_ref().unwrap().is_empty() {
-            return Err("No se especificó versión de Fabric".to_string());
-        }
+        let fabric_loader_version = match instance.loaderVersion.as_ref() {
+            Some(v) if !v.is_empty() => v.clone(),
+            _ => return Err("No se especificó versión de Fabric".to_string()),
+        };
 
         // Emit start event using modular function
         emit_bootstrap_start(instance, "Fabric");
@@ -830,7 +831,7 @@ impl InstanceBootstrap {
                 Some(serde_json::json!({
                     "instanceName": instance.instanceName.clone(),
                     "instanceId": instance.instanceId.clone(),
-                    "loaderVersion": instance.loaderVersion.as_ref().unwrap()
+                    "loaderVersion": &fabric_loader_version
                 })),
             );
         }
@@ -841,7 +842,7 @@ impl InstanceBootstrap {
         let fabric_installer = FabricInstaller::new(
             &self.client,
             instance.minecraftVersion.clone(),
-            instance.loaderVersion.as_ref().unwrap().clone(),
+            fabric_loader_version.clone(),
         );
 
         fabric_installer
@@ -864,7 +865,7 @@ impl InstanceBootstrap {
                 Some(serde_json::json!({
                     "instanceName": instance.instanceName.clone(),
                     "instanceId": instance.instanceId.clone(),
-                    "loaderVersion": instance.loaderVersion.as_ref().unwrap()
+                    "loaderVersion": &fabric_loader_version
                 })),
             );
         }
@@ -883,9 +884,10 @@ impl InstanceBootstrap {
         use crate::core::bootstrap::loaders::NeoForgeInstaller;
 
         // Verificar que tengamos información de NeoForge
-        if instance.loaderVersion.is_none() || instance.loaderVersion.as_ref().unwrap().is_empty() {
-            return Err("No se especificó versión de NeoForge".to_string());
-        }
+        let neoforge_loader_version = match instance.loaderVersion.as_ref() {
+            Some(v) if !v.is_empty() => v.clone(),
+            _ => return Err("No se especificó versión de NeoForge".to_string()),
+        };
 
         // Emit start event using modular function
         emit_bootstrap_start(instance, "NeoForge");
@@ -938,7 +940,7 @@ impl InstanceBootstrap {
                 Some(serde_json::json!({
                     "instanceName": instance.instanceName.clone(),
                     "instanceId": instance.instanceId.clone(),
-                    "loaderVersion": instance.loaderVersion.as_ref().unwrap()
+                    "loaderVersion": &neoforge_loader_version
                 })),
             );
         }
@@ -954,7 +956,7 @@ impl InstanceBootstrap {
         let neoforge_installer = NeoForgeInstaller::new(
             &self.client,
             instance.minecraftVersion.clone(),
-            instance.loaderVersion.as_ref().unwrap().clone(),
+            neoforge_loader_version.clone(),
         );
 
         neoforge_installer
@@ -977,7 +979,7 @@ impl InstanceBootstrap {
                 Some(serde_json::json!({
                     "instanceName": instance.instanceName.clone(),
                     "instanceId": instance.instanceId.clone(),
-                    "loaderVersion": instance.loaderVersion.as_ref().unwrap()
+                    "loaderVersion": &neoforge_loader_version
                 })),
             );
         }
@@ -996,9 +998,10 @@ impl InstanceBootstrap {
         use crate::core::bootstrap::loaders::QuiltInstaller;
 
         // Verificar que tengamos información de Quilt
-        if instance.loaderVersion.is_none() || instance.loaderVersion.as_ref().unwrap().is_empty() {
-            return Err("No se especificó versión de Quilt".to_string());
-        }
+        let quilt_loader_version = match instance.loaderVersion.as_ref() {
+            Some(v) if !v.is_empty() => v.clone(),
+            _ => return Err("No se especificó versión de Quilt".to_string()),
+        };
 
         // Emit start event using modular function
         emit_bootstrap_start(instance, "Quilt");
@@ -1051,7 +1054,7 @@ impl InstanceBootstrap {
                 Some(serde_json::json!({
                     "instanceName": instance.instanceName.clone(),
                     "instanceId": instance.instanceId.clone(),
-                    "loaderVersion": instance.loaderVersion.as_ref().unwrap()
+                    "loaderVersion": &quilt_loader_version
                 })),
             );
         }
@@ -1062,7 +1065,7 @@ impl InstanceBootstrap {
         let quilt_installer = QuiltInstaller::new(
             &self.client,
             instance.minecraftVersion.clone(),
-            instance.loaderVersion.as_ref().unwrap().clone(),
+            quilt_loader_version.clone(),
         );
 
         quilt_installer
@@ -1085,7 +1088,7 @@ impl InstanceBootstrap {
                 Some(serde_json::json!({
                     "instanceName": instance.instanceName.clone(),
                     "instanceId": instance.instanceId.clone(),
-                    "loaderVersion": instance.loaderVersion.as_ref().unwrap()
+                    "loaderVersion": &quilt_loader_version
                 })),
             );
         }

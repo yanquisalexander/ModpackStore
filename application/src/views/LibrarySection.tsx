@@ -27,16 +27,6 @@ export const LibrarySection = () => {
     const [filter, setFilter] = useState<FilterType>('all');
 
     // --- LOGIC ---
-    const checkModpackInstallation = useCallback(async (modpackId: string): Promise<boolean> => {
-        try {
-            const instances = await invoke('get_instances_by_modpack_id', { modpackId }) as any[];
-            return instances.length > 0;
-        } catch (error) {
-            console.error(`Error checking installation for modpack ${modpackId}:`, error);
-            return false;
-        }
-    }, []);
-
     const fetchAcquisitions = useCallback(async () => {
         if (!sessionTokens?.accessToken) return;
 
@@ -44,14 +34,21 @@ export const LibrarySection = () => {
         setError(null);
 
         try {
-            const response = await getUserAcquisitions(sessionTokens.accessToken, 1, 100);
+            const [response, allInstances] = await Promise.all([
+                getUserAcquisitions(sessionTokens.accessToken, 1, 100),
+                invoke<MinecraftInstance[]>('get_all_instances'),
+            ]);
 
-            const acquisitionsWithStatus = await Promise.all(
-                response.data.map(async (acquisition) => {
-                    const isInstalled = await checkModpackInstallation(acquisition.modpack.id);
-                    return { ...acquisition, isInstalled };
-                })
+            const installedModpackIds = new Set(
+                allInstances
+                    .filter(i => i.modpackId != null)
+                    .map(i => i.modpackId)
             );
+
+            const acquisitionsWithStatus = response.data.map((acquisition) => ({
+                ...acquisition,
+                isInstalled: installedModpackIds.has(acquisition.modpack.id),
+            }));
 
             setAcquisitions(acquisitionsWithStatus);
         } catch (error) {
@@ -60,7 +57,7 @@ export const LibrarySection = () => {
         } finally {
             setIsLoading(false);
         }
-    }, [sessionTokens?.accessToken, checkModpackInstallation]);
+    }, [sessionTokens?.accessToken]);
 
     useEffect(() => {
         setTitleBarState({

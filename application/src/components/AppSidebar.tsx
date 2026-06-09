@@ -204,11 +204,17 @@ export const AppSidebar: React.FC = memo(() => {
 
     // Sincronizar estado local de dragItems cuando cambia la fuente de verdad (favoriteInstances)
     useEffect(() => {
-        // Solo actualizar si hay diferencias reales para evitar ciclos
-        const idsA = favoriteInstances.map(i => i.instanceId).join(",");
-        const idsB = dragItems.map(i => i.instanceId).join(",");
+        if (favoriteInstances.length !== dragItems.length) {
+            setDragItems(favoriteInstances);
+            setDragAndDropItems(favoriteInstances);
+            return;
+        }
 
-        if (idsA !== idsB) {
+        const hasDifference = favoriteInstances.some((fi, i) =>
+            fi.instanceId !== dragItems[i]?.instanceId
+        );
+
+        if (hasDifference) {
             setDragItems(favoriteInstances);
             setDragAndDropItems(favoriteInstances);
         }
@@ -252,7 +258,7 @@ export const AppSidebar: React.FC = memo(() => {
             { name: "Explorar", icon: GridIcon, path: "/explore", requiresConnection: true },
             { name: "Biblioteca", icon: LucideLibrary, path: "/library", requiresConnection: true },
             { name: "Instancias", icon: LucideGamepad2, path: (!isConnected && !isLoadingConnectionCheck) ? "/" : "/my-instances", requiresConnection: false },
-            { name: "Servidores", icon: LucideServer, path: "/servers", requiresConnection: false },
+            { name: "Servidores", icon: LucideServer, path: "/servers", requiresConnection: true },
             { name: "Cuentas", icon: LucideUsers, path: "/mc-accounts", requiresConnection: false }
         ];
 
