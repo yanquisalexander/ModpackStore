@@ -162,7 +162,7 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
 
         try {
             setLoadingModpacks(true);
-            const response = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks`, {
+            const response = await fetch(`${API_ENDPOINT}/creators/${publisherId}/modpacks`, {
                 headers: {
                     'Authorization': `Bearer ${accessToken}`,
                 },

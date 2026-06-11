@@ -39,7 +39,9 @@ impl AccountsManager {
         uuid: &str,
     ) -> Result<MinecraftAccount, String> {
         let accounts_manager = get_accounts_manager();
-        let mut manager = accounts_manager.lock().map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
+        let mut manager = accounts_manager
+            .lock()
+            .map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
         let account = MinecraftAccount::new(
             username.to_string(),
             uuid.to_string(),
@@ -188,14 +190,18 @@ pub fn get_accounts_manager() -> Arc<Mutex<AccountsManager>> {
 #[tauri::command]
 pub fn add_offline_account(username: &str) -> Result<MinecraftAccount, String> {
     let accounts_manager = get_accounts_manager();
-    let mut manager = accounts_manager.lock().map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
+    let mut manager = accounts_manager
+        .lock()
+        .map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
     manager.add_offline_account(username)
 }
 
 #[tauri::command]
 pub fn remove_account(uuid: &str) -> Result<(), String> {
     let accounts_manager = get_accounts_manager();
-    let mut manager = accounts_manager.lock().map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
+    let mut manager = accounts_manager
+        .lock()
+        .map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
     manager.remove_account(uuid);
     Ok(())
 }
@@ -203,13 +209,17 @@ pub fn remove_account(uuid: &str) -> Result<(), String> {
 #[tauri::command]
 pub fn get_all_accounts() -> Result<Vec<MinecraftAccount>, String> {
     let accounts_manager = get_accounts_manager();
-    let manager = accounts_manager.lock().map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
+    let manager = accounts_manager
+        .lock()
+        .map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
     Ok(manager.get_all_accounts())
 }
 
 #[tauri::command]
 pub fn ensure_account_exists(uuid: &str) -> Result<bool, String> {
     let accounts_manager = get_accounts_manager();
-    let manager = accounts_manager.lock().map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
+    let manager = accounts_manager
+        .lock()
+        .map_err(|e| format!("Failed to acquire accounts lock: {}", e))?;
     Ok(manager.accounts.iter().any(|a| a.uuid() == uuid))
 }

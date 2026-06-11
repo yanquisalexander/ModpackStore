@@ -1,5 +1,5 @@
 // ConnectionContext.tsx
-import React, { createContext, useContext, useEffect, useState, useRef, useMemo, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useRef, useMemo, useCallback, useReducer } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
 interface ConnectionState {
@@ -26,10 +26,35 @@ interface ConnectionProviderProps {
     children: React.ReactNode;
 }
 
+type Action =
+    | { type: 'SET_CONNECTED'; payload: boolean }
+    | { type: 'SET_INTERNET_ACCESS'; payload: boolean }
+    | { type: 'SET_LOADING'; payload: boolean }
+    | { type: 'SET_OFFLINE' };
+
+const initialState: ConnectionState = {
+    isConnected: false,
+    hasInternetAccess: false,
+    isLoading: false,
+};
+
+function connectionReducer(state: ConnectionState, action: Action): ConnectionState {
+    switch (action.type) {
+        case 'SET_CONNECTED':
+            return { ...state, isConnected: action.payload };
+        case 'SET_INTERNET_ACCESS':
+            return { ...state, hasInternetAccess: action.payload };
+        case 'SET_LOADING':
+            return { ...state, isLoading: action.payload };
+        case 'SET_OFFLINE':
+            return { isConnected: false, hasInternetAccess: false, isLoading: false };
+        default:
+            return state;
+    }
+}
+
 export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children }) => {
-    const [isConnected, setIsConnected] = useState<boolean>(false);
-    const [hasInternetAccess, setHasInternetAccess] = useState<boolean>(false);
-    const [isLoading, setIsLoading] = useState<boolean>(false); // Start as false to prevent hanging
+    const [state, dispatch] = useReducer(connectionReducer, initialState);
 
     // Ref para controlar si ya se ejecutó la verificación inicial
     const hasCheckedRef = useRef<boolean>(false);
@@ -38,11 +63,11 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
         try {
             console.log("[checkConnection] Checking connection...");
             const response = await invoke("check_connection");
-            setIsConnected(response as boolean);
+            dispatch({ type: 'SET_CONNECTED', payload: response as boolean });
             console.log("[checkConnection] Connection status:", response);
         } catch (error) {
             console.error("[checkConnection] Error checking connection:", error);
-            setIsConnected(false); // Asumir desconectado en caso de error
+            dispatch({ type: 'SET_CONNECTED', payload: false });
         }
     };
 
@@ -50,25 +75,22 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
         try {
             console.log("[checkInternetAccess] Checking internet access...");
             const response = await invoke("check_real_connection");
-            setHasInternetAccess(response as boolean);
+            dispatch({ type: 'SET_INTERNET_ACCESS', payload: response as boolean });
             console.log("[checkInternetAccess] Internet access status:", response);
         } catch (error) {
             console.error("[checkInternetAccess] Error checking internet access:", error);
-            setHasInternetAccess(false); // Asumir sin internet en caso de error
+            dispatch({ type: 'SET_INTERNET_ACCESS', payload: false });
         }
     };
 
     const refreshConnection = useCallback(async () => {
-        // Don't set loading to true if already checked to prevent UI blocking
         if (!hasCheckedRef.current) {
-            setIsLoading(true);
+            dispatch({ type: 'SET_LOADING', payload: true });
         }
 
         try {
-            // Use Promise.allSettled to prevent one failed check from blocking others
             const results = await Promise.allSettled([checkConnection(), checkInternetAccess()]);
 
-            // Log results for debugging
             results.forEach((result, index) => {
                 if (result.status === 'rejected') {
                     console.error(`Connection check ${index} failed:`, result.reason);
@@ -77,26 +99,21 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
         } catch (error) {
             console.error("[refreshConnection] Unexpected error in connection checks:", error);
         } finally {
-            setIsLoading(false);
+            dispatch({ type: 'SET_LOADING', payload: false });
         }
     }, []);
 
     useEffect(() => {
-        // Si ya se verificó, no hacer nada
         if (hasCheckedRef.current) {
             return;
         }
 
         const performInitialChecks = async () => {
-            // Start the connection check
             const checkPromise = refreshConnection();
 
-            // Fallback: ensure loading is set to false after 3 seconds max
             const fallbackTimeout = setTimeout(() => {
                 console.warn("[ConnectionProvider] Connection check taking too long, assuming offline mode");
-                setIsLoading(false);
-                setIsConnected(false);
-                setHasInternetAccess(false);
+                dispatch({ type: 'SET_OFFLINE' });
                 hasCheckedRef.current = true;
             }, 3000);
 
@@ -106,10 +123,7 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
             } catch (error) {
                 clearTimeout(fallbackTimeout);
                 console.error("[ConnectionProvider] Error during initial connection check:", error);
-                // Ensure states are set even on error
-                setIsLoading(false);
-                setIsConnected(false);
-                setHasInternetAccess(false);
+                dispatch({ type: 'SET_OFFLINE' });
             }
 
             hasCheckedRef.current = true;
@@ -119,11 +133,11 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
     }, []);
 
     const value = useMemo<ConnectionContextType>(() => ({
-        isConnected,
-        hasInternetAccess,
-        isLoading,
+        isConnected: state.isConnected,
+        hasInternetAccess: state.hasInternetAccess,
+        isLoading: state.isLoading,
         refreshConnection,
-    }), [isConnected, hasInternetAccess, isLoading, refreshConnection]);
+    }), [state.isConnected, state.hasInternetAccess, state.isLoading, refreshConnection]);
 
     return (
         <ConnectionContext.Provider value={value}>

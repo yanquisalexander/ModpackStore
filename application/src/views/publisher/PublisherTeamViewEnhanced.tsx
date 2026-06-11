@@ -141,8 +141,8 @@ export const PublisherTeamView: React.FC = () => {
     const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
 
     // Get user role in this publisher
-    const publisherMembership = session?.publisherMemberships?.find(
-        membership => membership.publisherId === publisherId
+    const publisherMembership = session?.creatorMemberships?.find(
+        membership => membership.creatorId === publisherId
     );
     const userRole = publisherMembership?.role || 'member';
     const canManageMembers = ['owner', 'admin'].includes(userRole);

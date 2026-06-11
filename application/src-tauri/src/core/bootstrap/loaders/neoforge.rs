@@ -11,7 +11,8 @@ use std::process::Command;
 use tauri_plugin_http::reqwest;
 
 const NEOFORGE_MAVEN_URL: &str = "https://maven.neoforged.net/releases";
-const NEOFORGE_META_URL: &str = "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge";
+const NEOFORGE_META_URL: &str =
+    "https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct NeoForgeVersions {
@@ -98,10 +99,7 @@ impl<'a> NeoForgeInstaller<'a> {
 
         let installer_path = minecraft_dir.join("neoforge-installer.jar");
 
-        log::debug!(
-            "Downloading NeoForge installer from: {}",
-            installer_url
-        );
+        log::debug!("Downloading NeoForge installer from: {}", installer_url);
 
         download_file(self.client, &installer_url, &installer_path).map_err(|e| {
             BootstrapError::network_error(
@@ -121,14 +119,22 @@ impl<'a> NeoForgeInstaller<'a> {
         java_path: &str,
         instance: &MinecraftInstance,
     ) -> Result<(), BootstrapError> {
-        let install_type = if instance.is_server() { "Server" } else { "Client" };
+        let install_type = if instance.is_server() {
+            "Server"
+        } else {
+            "Client"
+        };
         log::info!(
             "[Instance: {}] Running NeoForge installer ({})",
             instance.instanceId,
             install_type
         );
-        
-        let install_arg = if instance.is_server() { "--installServer" } else { "--installClient" };
+
+        let install_arg = if instance.is_server() {
+            "--installServer"
+        } else {
+            "--installClient"
+        };
 
         let mut install_cmd = Command::new(java_path);
         install_cmd

@@ -52,6 +52,13 @@
         "https://www.alexitoo.dev/api/modpack-store/updates.json",
         "https://saltouruguayserver.com/api/partner-software/modpackstore/{{target}}/{{arch}}/{{current_version}}"
       ]
+    },
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "modpackstore"
+        ]
+      }
     }
   },
   "app": {

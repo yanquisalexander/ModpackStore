@@ -81,7 +81,7 @@ export const PublisherEarningsCard = ({ publisherId, className }: PublisherEarni
         if (!sessionTokens?.accessToken) return;
 
         try {
-            const response = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/earnings`, {
+            const response = await fetch(`${API_ENDPOINT}/creators/${publisherId}/earnings`, {
                 headers: {
                     'Authorization': `Bearer ${sessionTokens.accessToken}`,
                 },
@@ -105,7 +105,7 @@ export const PublisherEarningsCard = ({ publisherId, className }: PublisherEarni
         if (!sessionTokens?.accessToken) return;
 
         try {
-            const response = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/withdrawals`, {
+            const response = await fetch(`${API_ENDPOINT}/creators/${publisherId}/withdrawals`, {
                 headers: {
                     'Authorization': `Bearer ${sessionTokens.accessToken}`,
                 },
@@ -147,7 +147,7 @@ export const PublisherEarningsCard = ({ publisherId, className }: PublisherEarni
         setIsRequestingWithdrawal(true);
 
         try {
-            const response = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/withdrawals`, {
+            const response = await fetch(`${API_ENDPOINT}/creators/${publisherId}/withdrawals`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

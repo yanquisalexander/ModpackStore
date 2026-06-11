@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tauri::{path::BaseDirectory, AppHandle, Manager, Emitter};
+use tauri::{path::BaseDirectory, AppHandle, Emitter, Manager};
 use thiserror::Error;
 use tokio::fs;
 use tokio::sync::RwLock;
@@ -72,7 +72,7 @@ impl I18nManager {
 
         // 2. Cargar el archivo
         let resource_path = format!("resources/i18n/{}.yml", language);
-        
+
         let content = 'block: {
             // En desarrollo (debug), intentamos leer desde el sistema de archivos para hot-reload
             #[cfg(debug_assertions)]
@@ -83,23 +83,24 @@ impl I18nManager {
                         break 'block Ok(content);
                     }
                 }
-                let dev_path2 = PathBuf::from("application").join("src-tauri").join(&resource_path);
+                let dev_path2 = PathBuf::from("application")
+                    .join("src-tauri")
+                    .join(&resource_path);
                 if dev_path2.exists() {
                     if let Ok(content) = fs::read_to_string(dev_path2).await {
                         break 'block Ok(content);
                     }
                 }
             }
-            
+
             // En producción (release) o como fallback en debug, leemos desde los recursos de Tauri
             let file_path = self
                 .app_handle
                 .path()
                 .resolve(&resource_path, BaseDirectory::Resource)?;
-            
+
             fs::read_to_string(&file_path).await
         }?;
-
 
         // 3. Parsear YAML
         let messages: HashMap<String, Value> = serde_yaml::from_str(&content)?;
@@ -163,24 +164,30 @@ impl I18nManager {
         let mut languages = Vec::new();
 
         // Lista de idiomas comunes a verificar
-        let common_languages = ["en", "es", "es-419", "pt-BR", "fr", "de", "it", "ja", "ko", "zh-CN", "zh-TW"];
+        let common_languages = [
+            "en", "es", "es-419", "pt-BR", "fr", "de", "it", "ja", "ko", "zh-CN", "zh-TW",
+        ];
 
         for lang in &common_languages {
             if self.language_file_exists(lang) {
                 languages.push(lang.to_string());
             }
         }
-        
+
         // Asegurarse que "en" esté si existe
         if !languages.contains(&"en".to_string()) && self.language_file_exists("en") {
-             languages.push("en".to_string());
+            languages.push("en".to_string());
         }
 
         // Ordenar con "en" primero, luego alfabéticamente
         languages.sort_by(|a, b| {
-            if a == "en" { std::cmp::Ordering::Less }
-            else if b == "en" { std::cmp::Ordering::Greater }
-            else { a.cmp(b) }
+            if a == "en" {
+                std::cmp::Ordering::Less
+            } else if b == "en" {
+                std::cmp::Ordering::Greater
+            } else {
+                a.cmp(b)
+            }
         });
 
         Ok(languages)
@@ -225,15 +232,15 @@ impl I18nManager {
 
         // Precargar otros idiomas si están disponibles
         if let Ok(available_langs) = self.get_available_languages() {
-             for lang in &["es-419", "pt-BR"] { // Añadir otros comunes si se desea
-                 if available_langs.contains(&lang.to_string())
+            for lang in &["es-419", "pt-BR"] {
+                // Añadir otros comunes si se desea
+                if available_langs.contains(&lang.to_string())
                     && !languages_to_preload.contains(&lang.to_string())
-                 {
-                     languages_to_preload.push(lang.to_string());
-                 }
-             }
+                {
+                    languages_to_preload.push(lang.to_string());
+                }
+            }
         }
-       
 
         for lang in languages_to_preload {
             if let Err(e) = self.load_language(&lang).await {
@@ -246,12 +253,14 @@ impl I18nManager {
 
     /// Detecta el idioma del sistema y devuelve el mejor idioma disponible
     pub fn detect_system_language(&self) -> String {
-        let available_languages = self.get_available_languages().unwrap_or_else(|_| vec!["en".to_string()]);
-        
+        let available_languages = self
+            .get_available_languages()
+            .unwrap_or_else(|_| vec!["en".to_string()]);
+
         // 1. Usar locale_config para obtener el locale del sistema
         let system_locale = Locale::current();
         let system_lang = system_locale.to_string();
-        
+
         // 2. Mapear el locale detectado al mejor idioma disponible
         self.map_locale_to_available_language(&system_lang, &available_languages)
     }
@@ -272,11 +281,11 @@ impl I18nManager {
 
         // 2. Intento de Mapeo (ej. "es-*" -> "es-419")
         let prefix = lang_str.split('-').next().unwrap_or("");
-        
+
         let mapped_lang = match prefix {
             "es" => "es-419", // Mapear cualquier español a es-419 (Latam)
-            "pt" => "pt-BR", // Mapear cualquier portugués a pt-BR
-            "zh" => "zh-CN", // Mapear cualquier chino a zh-CN (Simplificado)
+            "pt" => "pt-BR",  // Mapear cualquier portugués a pt-BR
+            "zh" => "zh-CN",  // Mapear cualquier chino a zh-CN (Simplificado)
             _ => "",
         };
 
@@ -303,7 +312,11 @@ impl I18nManager {
             if PathBuf::from(&resource_path).exists() {
                 return true;
             }
-            if PathBuf::from("application").join("src-tauri").join(&resource_path).exists() {
+            if PathBuf::from("application")
+                .join("src-tauri")
+                .join(&resource_path)
+                .exists()
+            {
                 return true;
             }
         }
@@ -347,7 +360,9 @@ pub fn init_i18n_manager(app_handle: AppHandle) -> Result<(), I18nError> {
 }
 
 pub fn get_i18n_manager() -> Result<&'static Arc<I18nManager>, String> {
-    I18N_MANAGER.get().ok_or_else(|| "I18nManager no inicializado. Llamar a init_i18n_manager primero.".to_string())
+    I18N_MANAGER.get().ok_or_else(|| {
+        "I18nManager no inicializado. Llamar a init_i18n_manager primero.".to_string()
+    })
 }
 
 // --- Comandos de Tauri ---
@@ -407,5 +422,7 @@ pub async fn get_detected_system_language() -> Result<String, String> {
 #[tauri::command]
 pub async fn reset_to_system_language() -> Result<(), String> {
     let mgr = get_i18n_manager()?;
-    mgr.reset_to_system_language().await.map_err(|e| e.to_string())
+    mgr.reset_to_system_language()
+        .await
+        .map_err(|e| e.to_string())
 }

@@ -239,7 +239,7 @@ const PublisherModpackVersionWizard: React.FC<Props> = ({
 
         try {
             const response = await fetch(
-                `${API_ENDPOINT}/creators/publishers/${modpack.publisherId}/modpacks/${modpack.id}/versions`,
+                `${API_ENDPOINT}/creators/${modpack.publisherId}/modpacks/${modpack.id}/versions`,
                 {
                     method: 'POST',
                     headers: {

@@ -66,7 +66,8 @@ impl ConfigManager {
                 if let Some(config_def) = schema.get_config_definition(key) {
                     if config_def.type_ == ConfigValueType::Path {
                         if let Some(path_str) = value.as_str() {
-                            let normalized_path = normalize_path_separators(PathBuf::from(path_str));
+                            let normalized_path =
+                                normalize_path_separators(PathBuf::from(path_str));
                             let normalized_str = normalized_path.to_string_lossy().to_string();
                             if path_str != normalized_str {
                                 *value = json!(normalized_str);

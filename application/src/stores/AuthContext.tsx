@@ -18,7 +18,7 @@ interface UserSession {
   twitchId?: string;
   createdAt: string;
   patreonId: string;
-  role: 'user' | 'admin' | 'superadmin' | 'support';
+  role: 'user' | 'admin' | 'super_admin' | 'support';
   tosAcceptedAt?: string | null;
   isBanned?: boolean;
   banReason?: string;
@@ -28,20 +28,19 @@ interface UserSession {
     banDate: string;
     adminId: string;
   };
-  publisherMemberships: null | {
-    createdAt: string;
-    id: number;
-    permissions: Record<string, unknown>;
-    publisherId: string;
+  creatorMemberships: null | {
+    creatorId: string;
     role: string;
-    updatedAt: string;
+    displayName: string;
+    slug: string;
+    status: string;
   }[];
   // Helper methods for role checking
   isAdmin?: () => boolean;
   isSuperAdmin?: () => boolean;
   isSupport?: () => boolean;
   isStaff?: () => boolean;
-  hasRole?: (role: 'user' | 'admin' | 'superadmin' | 'support') => boolean;
+  hasRole?: (role: 'user' | 'admin' | 'super_admin' | 'support') => boolean;
 }
 
 interface SessionTokens {
@@ -113,11 +112,11 @@ const enhanceSession = (session: UserSession | null): UserSession | null => {
   // Add helper methods to session object
   return {
     ...session,
-    isAdmin: () => session.role === 'admin' || session.role === 'superadmin',
-    isSuperAdmin: () => session.role === 'superadmin',
+    isAdmin: () => session.role === 'admin' || session.role === 'super_admin',
+    isSuperAdmin: () => session.role === 'super_admin',
     isSupport: () => session.role === 'support',
-    isStaff: () => session.role === 'admin' || session.role === 'superadmin' || session.role === 'support',
-    hasRole: (role: 'user' | 'admin' | 'superadmin' | 'support') => session.role === role,
+    isStaff: () => session.role === 'admin' || session.role === 'super_admin' || session.role === 'support',
+    hasRole: (role: 'user' | 'admin' | 'super_admin' | 'support') => session.role === role,
   };
 };
 
@@ -360,10 +359,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [resetAuthState, scheduleTokenRefresh, clearRefreshTimer]);
 
+  const openInstanceUnlistenRef = useRef<UnlistenFn | null>(null);
+
   useEffect(() => {
-    let unlisten: UnlistenFn | null = null;
     const setup = async () => {
-      unlisten = await listen<string>('open-instance', (event) => {
+      openInstanceUnlistenRef.current = await listen<string>('open-instance', (event) => {
         console.log("Shortcut recibido:", event.payload);
         // Emitir navegación de inmediato para soportar shortcuts en modo offline
         window.dispatchEvent(
@@ -373,7 +373,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
     setup();
     return () => {
-      if (unlisten) unlisten();
+      openInstanceUnlistenRef.current?.();
+      openInstanceUnlistenRef.current = null;
     };
   }, []);
 

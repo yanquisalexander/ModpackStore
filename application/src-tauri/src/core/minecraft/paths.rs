@@ -93,7 +93,9 @@ impl MinecraftPaths {
         // Handle different loader types
         match self.loader_type {
             ModLoaderType::Forge => {
-                if let Some(forge_ref) = self.forge_version.as_ref().or(self.loader_version.as_ref()) {
+                if let Some(forge_ref) =
+                    self.forge_version.as_ref().or(self.loader_version.as_ref())
+                {
                     log::info!(
                         "[MinecraftPaths] Searching for Forge version manifest {}",
                         forge_ref
@@ -127,12 +129,17 @@ impl MinecraftPaths {
                         return alt_forge_path;
                     }
 
-                    log::warn!("[MinecraftPaths] No matching Forge version found, falling back to vanilla");
+                    log::warn!(
+                        "[MinecraftPaths] No matching Forge version found, falling back to vanilla"
+                    );
                 }
             }
             ModLoaderType::Fabric => {
                 if let Some(fabric_version) = &self.loader_version {
-                    let fabric_dir = format!("fabric-loader-{}-{}", fabric_version, self.minecraft_version);
+                    let fabric_dir = format!(
+                        "fabric-loader-{}-{}",
+                        fabric_version, self.minecraft_version
+                    );
                     let fabric_path = version_dir
                         .join(&fabric_dir)
                         .join(format!("{}.json", fabric_dir));
@@ -150,7 +157,8 @@ impl MinecraftPaths {
             }
             ModLoaderType::NeoForge => {
                 if let Some(neoforge_version) = &self.loader_version {
-                    let neoforge_dir = format!("{}-neoforge-{}", self.minecraft_version, neoforge_version);
+                    let neoforge_dir =
+                        format!("{}-neoforge-{}", self.minecraft_version, neoforge_version);
                     let neoforge_path = version_dir
                         .join(&neoforge_dir)
                         .join(format!("{}.json", neoforge_dir));
@@ -182,7 +190,8 @@ impl MinecraftPaths {
             }
             ModLoaderType::Quilt => {
                 if let Some(quilt_version) = &self.loader_version {
-                    let quilt_dir = format!("quilt-loader-{}-{}", quilt_version, self.minecraft_version);
+                    let quilt_dir =
+                        format!("quilt-loader-{}-{}", quilt_version, self.minecraft_version);
                     let quilt_path = version_dir
                         .join(&quilt_dir)
                         .join(format!("{}.json", quilt_dir));
@@ -195,7 +204,9 @@ impl MinecraftPaths {
                         return quilt_path;
                     }
 
-                    log::warn!("[MinecraftPaths] No matching Quilt version found, falling back to vanilla");
+                    log::warn!(
+                        "[MinecraftPaths] No matching Quilt version found, falling back to vanilla"
+                    );
                 }
             }
             ModLoaderType::Vanilla => {
@@ -307,17 +318,17 @@ mod tests {
         // Test basic expansion
         let path = "$TEST_VAR/subdir";
         let expanded = expand_path(path);
-        
+
         #[cfg(target_os = "windows")]
         assert_eq!(expanded.to_str().unwrap(), "expanded_value\\subdir");
-        
+
         #[cfg(not(target_os = "windows"))]
         assert_eq!(expanded.to_str().unwrap(), "expanded_value/subdir");
 
         // Test Windows style expansion
         let path_win = "%TEST_VAR%/subdir";
         let expanded_win = expand_path(path_win);
-        
+
         #[cfg(target_os = "windows")]
         assert_eq!(expanded_win.to_str().unwrap(), "expanded_value\\subdir");
 

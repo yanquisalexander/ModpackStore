@@ -22,7 +22,7 @@ export const useTeams = (accessToken?: string): UseTeamsReturn => {
             }
 
             try {
-                const response = await fetch(`${API_ENDPOINT}/creators/publishers`, {
+                const response = await fetch(`${API_ENDPOINT}/creators`, {
                     method: "GET",
                     headers: {
                         "Authorization": `Bearer ${accessToken}`,
@@ -35,7 +35,7 @@ export const useTeams = (accessToken?: string): UseTeamsReturn => {
                 }
 
                 const data = await response.json();
-                setTeams(data.teams || []);
+                setTeams(Array.isArray(data) ? data : data.teams || []);
             } catch (err) {
                 setError(err instanceof Error ? err.message : "Ocurrió un error desconocido.");
             } finally {

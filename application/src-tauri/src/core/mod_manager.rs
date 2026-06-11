@@ -1,4 +1,5 @@
 // src-tauri/src/core/mod_manager.rs
+use crate::core::clients::HTTP_CLIENT;
 use crate::core::minecraft_instance::MinecraftInstance;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -109,8 +110,8 @@ pub async fn list_instance_mods(instance_id: String) -> Result<Vec<ModFile>, Str
         }
     }
 
-    // Sort by name
-    mods.sort_by(|a, b| a.file_name.to_lowercase().cmp(&b.file_name.to_lowercase()));
+    // Sort by name (pre-compute lowercase to avoid per-comparison allocation)
+    mods.sort_by_cached_key(|m| m.file_name.to_lowercase());
 
     Ok(mods)
 }
@@ -212,8 +213,7 @@ pub async fn search_modrinth_mods(
     minecraft_version: String,
     loader_type: String,
 ) -> Result<Vec<ModrinthSearchResult>, String> {
-    let client = reqwest::Client::new();
-
+    let client = &*HTTP_CLIENT;
     // Build facets for filtering
     let facets = format!(
         "[[\"project_type:mod\"],[\"versions:{}\"],[\"categories:{}\"]]",
@@ -280,7 +280,7 @@ pub async fn get_modrinth_mod_versions(
     minecraft_version: String,
     loader_type: String,
 ) -> Result<Vec<ModrinthVersion>, String> {
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
 
     let url = format!(
         "https://api.modrinth.com/v2/project/{}/version?game_versions=[\"{}\"]&loaders=[\"{}\"]",
@@ -362,7 +362,6 @@ pub async fn download_mod_to_instance(
     let mods_dir = get_mods_directory(&instance)?;
     let output_path = mods_dir.join(&file_name);
 
-    // Check if file already exists
     if output_path.exists() {
         return Err(format!(
             "Mod '{}' already exists in this instance",
@@ -370,7 +369,7 @@ pub async fn download_mod_to_instance(
         ));
     }
 
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
 
     let response = client
         .get(&download_url)

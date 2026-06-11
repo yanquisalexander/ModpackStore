@@ -1,11 +1,12 @@
 // src/core/bootstrap/validate.rs
 // Validation functionality extracted from instance_bootstrap.rs
 
+use crate::core::clients::BLOCKING_CLIENT;
 use crate::core::bootstrap::download::download_file;
 use crate::core::bootstrap::filesystem::create_asset_directories;
 use crate::core::bootstrap::manifest::get_asset_index_info;
 use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
-use crate::core::minecraft_instance::{MinecraftInstance, InstanceType, ModLoaderType};
+use crate::core::minecraft_instance::{InstanceType, MinecraftInstance, ModLoaderType};
 use crate::core::modpack_file_manager::DownloadManager;
 use serde_json::Value;
 use std::fs;
@@ -189,41 +190,6 @@ fn download_missing_assets(
     })?;
 
     Ok(())
-}
-
-/// Downloads a single asset file
-///
-/// NOTE: This function is deprecated in favor of the DownloadManager-based approach.
-/// It's kept for compatibility but should not be used for new code.
-#[deprecated(
-    since = "0.1.0",
-    note = "Use DownloadManager for better performance and reliability"
-)]
-fn download_single_asset(
-    client: &reqwest::blocking::Client,
-    hash: &str,
-    hash_prefix: &str,
-    asset_file: &Path,
-    asset_name: &str,
-) -> IoResult<()> {
-    let asset_url = format!(
-        "https://resources.download.minecraft.net/{}/{}",
-        hash_prefix, hash
-    );
-
-    let target_dir = asset_file.parent().ok_or_else(|| {
-        io::Error::new(io::ErrorKind::InvalidInput, "Invalid asset file path")
-    })?;
-    if !target_dir.exists() {
-        fs::create_dir_all(target_dir)?;
-    }
-
-    download_file(client, &asset_url, asset_file).map_err(|e| {
-        io::Error::new(
-            io::ErrorKind::Other,
-            format!("Error al descargar asset {}: {}", asset_name, e),
-        )
-    })
 }
 
 /// Validates that a file exists and optionally checks its size/hash
@@ -412,7 +378,7 @@ mod tests {
         );
 
         // Test that the function can handle empty assets (all exist)
-        let client = reqwest::blocking::Client::new();
+        let client = &*BLOCKING_CLIENT;
 
         // For the assets that "exist", create the expected file structure
         let hash = "da39a3ee5e6b4b0d3255bfef95601890afd80709";

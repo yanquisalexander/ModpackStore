@@ -2,9 +2,7 @@ use crate::core::bootstrap::tasks::{
     emit_bootstrap_complete, emit_status, emit_status_with_stage, Stage,
 };
 use crate::core::minecraft_instance::MinecraftInstance;
-use crate::core::tasks_manager::{
-    add_task_with_auto_start, remove_task, update_task, TaskStatus,
-};
+use crate::core::tasks_manager::{add_task_with_auto_start, remove_task, update_task, TaskStatus};
 use futures_util::StreamExt;
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
@@ -738,7 +736,9 @@ pub(crate) fn calculate_file_hash(file_path: &Path) -> Result<String, String> {
 
 /// Builds a map of file hash -> path for all files in the instance directory
 /// This helps identify files that exist but may be in the wrong location
-pub(crate) fn build_hash_to_path_map(minecraft_dir: &Path) -> Result<HashMap<String, PathBuf>, String> {
+pub(crate) fn build_hash_to_path_map(
+    minecraft_dir: &Path,
+) -> Result<HashMap<String, PathBuf>, String> {
     let mut hash_map = HashMap::new();
 
     // Only scan modpack-related directories to avoid performance issues
@@ -805,28 +805,6 @@ fn scan_directory_for_hashes(
             scan_directory_for_hashes(&path, minecraft_dir, hash_map)?;
         }
     }
-
-    Ok(())
-}
-
-async fn download_file(url: &str, target_path: &Path) -> Result<(), String> {
-    let client = reqwest::Client::new();
-    let response = client
-        .get(url)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to download file: {}", e))?;
-
-    if !response.status().is_success() {
-        return Err(format!("HTTP error: {}", response.status()));
-    }
-
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|e| format!("Failed to read response body: {}", e))?;
-
-    fs::write(target_path, &bytes).map_err(|e| format!("Failed to write file: {}", e))?;
 
     Ok(())
 }

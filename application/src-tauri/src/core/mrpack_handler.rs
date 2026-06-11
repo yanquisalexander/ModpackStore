@@ -1,3 +1,5 @@
+use crate::core::modpack_file_manager::DownloadManager;
+use crate::core::tasks_manager::{update_task, TaskStatus};
 use serde::{Deserialize, Serialize};
 use sha1::{Digest as Sha1Digest, Sha1};
 use sha2::{Digest as Sha512Digest, Sha512};
@@ -8,8 +10,6 @@ use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 use zip::write::{FileOptions, ZipWriter};
 use zip::ZipArchive;
-use crate::core::modpack_file_manager::DownloadManager;
-use crate::core::tasks_manager::{update_task, TaskStatus};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MrpackManifest {
@@ -190,7 +190,9 @@ pub fn extract_mrpack_overrides(mrpack_path: &Path, instance_dir: &Path) -> Resu
         // Only extract files from overrides/
         if file_path.starts_with("overrides/") {
             // Remove "overrides/" prefix
-            let relative_path = file_path.strip_prefix("overrides/").ok_or_else(|| "Failed to strip overrides/ prefix".to_string())?;
+            let relative_path = file_path
+                .strip_prefix("overrides/")
+                .ok_or_else(|| "Failed to strip overrides/ prefix".to_string())?;
 
             if relative_path.is_empty() {
                 continue;
@@ -334,22 +336,18 @@ pub async fn download_mrpack_mods(
 
     // Prepare files for DownloadManager
     let mut files_to_download = Vec::new();
-    
+
     for mod_file in &client_mods {
         let file_name = Path::new(&mod_file.path)
             .file_name()
             .and_then(|n| n.to_str())
             .ok_or("Invalid file name")?;
-            
+
         let output_path = mods_dir.join(file_name);
-        
+
         // Use the first download URL available
         if let Some(url) = mod_file.downloads.first() {
-            files_to_download.push((
-                url.clone(),
-                output_path,
-                mod_file.hashes.sha1.clone()
-            ));
+            files_to_download.push((url.clone(), output_path, mod_file.hashes.sha1.clone()));
         } else {
             log::warn!("No download URL for mod: {}", mod_file.path);
         }
@@ -363,9 +361,8 @@ pub async fn download_mrpack_mods(
     let download_manager = DownloadManager::with_concurrency(4);
     let task_id_clone = task_id.clone();
 
-    download_manager.download_files_parallel_with_progress(
-        files_to_download,
-        move |current, total, message| {
+    download_manager
+        .download_files_parallel_with_progress(files_to_download, move |current, total, message| {
             if let Some(ref tid) = task_id_clone {
                 // Map progress to 20-30% range (approximate)
                 let progress = 20.0 + ((current as f32 / total as f32) * 10.0);
@@ -377,8 +374,9 @@ pub async fn download_mrpack_mods(
                     None,
                 );
             }
-        }
-    ).await.map_err(|e| format!("Failed to download mods: {}", e))?;
+        })
+        .await
+        .map_err(|e| format!("Failed to download mods: {}", e))?;
 
     Ok(())
 }
@@ -443,7 +441,12 @@ pub async fn export_instance_to_mrpack(
     );
 
     // Get minecraft directory
-    let instance_dir = Path::new(instance.instanceDirectory.as_ref().ok_or("Instance directory not set")?);
+    let instance_dir = Path::new(
+        instance
+            .instanceDirectory
+            .as_ref()
+            .ok_or("Instance directory not set")?,
+    );
 
     // Verify instance directory exists
     if !instance_dir.exists() {

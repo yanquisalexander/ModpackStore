@@ -190,20 +190,11 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
         });
     }, []);
     
-    // Refs to hold the latest values of state without causing effect to re-run
-    const lastSyncTimeRef = useRef(lastSyncTime);
-    lastSyncTimeRef.current = lastSyncTime;
-
-    const hasRunningTasksRef = useRef(hasRunningTasks);
-    hasRunningTasksRef.current = hasRunningTasks;
-
     useEffect(() => {
         let mounted = true;
 
-        // Initial sync when component mounts
         syncTasks();
 
-        // Set up event listeners
         const setupListeners = async () => {
             try {
                 const unlisten1 = await listen<TaskInfo>("task-created", (event) => {
@@ -237,7 +228,6 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
 
         setupListeners();
 
-        // Set up visibility change handler for sync
         const handleVisibilityChange = () => {
             if (!document.hidden && mounted) {
                 console.log("Window became visible, syncing tasks");
@@ -247,26 +237,10 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
 
         document.addEventListener('visibilitychange', handleVisibilityChange);
 
-        // Set up periodic sync to prevent desynchronization
-        const syncInterval = setInterval(() => {
-            if (mounted) {
-                // Use refs to get current values without re-triggering the effect
-                const timeSinceLastSync = Date.now() - lastSyncTimeRef.current;
-                const syncIntervalMs = hasRunningTasksRef.current ? 30000 : 300000;
-
-                if (timeSinceLastSync >= syncIntervalMs) {
-                    console.log("Periodic task sync triggered");
-                    syncTasks();
-                }
-            }
-        }, 10000); // Check every 10 seconds
-
         return () => {
             mounted = false;
-            clearInterval(syncInterval);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
 
-            // Clean up event listeners
             unlistenRef.current.forEach((unlisten) => {
                 try {
                     unlisten();

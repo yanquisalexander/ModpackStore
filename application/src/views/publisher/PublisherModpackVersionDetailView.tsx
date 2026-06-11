@@ -374,7 +374,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     const fetchVersionDetails = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}`, {
+            const res = await fetch(`${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}`, {
                 headers: {
                     'Authorization': `Bearer ${sessionTokens?.accessToken}`,
                 },
@@ -400,7 +400,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
 
         try {
             const res = await fetch(
-                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileType}/${fileHash}/side`,
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileType}/${fileHash}/side`,
                 {
                     method: 'PATCH',
                     headers: {
@@ -437,7 +437,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
 
         try {
             const res = await fetch(
-                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}`,
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}`,
                 {
                     method: 'PATCH',
                     headers: {
@@ -467,7 +467,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         setPublishing(true);
         try {
             const res = await fetch(
-                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/publish`,
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/publish`,
                 {
                     method: 'PATCH',
                     headers: {
@@ -500,7 +500,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         setPublishing(true);
         try {
             const res = await fetch(
-                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}`,
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}`,
                 {
                     method: 'DELETE',
                     headers: {
@@ -531,7 +531,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         setPublishing(true);
         try {
             const res = await fetch(
-                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/archive`,
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/archive`,
                 {
                     method: 'PATCH',
                     headers: {
@@ -570,7 +570,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         try {
             await uploadFileWithUppy({
                 file,
-                endpoint: `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}`,
+                endpoint: `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}`,
                 headers: {
                     'Authorization': `Bearer ${sessionTokens?.accessToken}`,
                 },
@@ -627,7 +627,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         const { fileHash, fileType } = deleteFileDialog;
         try {
             const res = await fetch(
-                `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileType}/${fileHash}`,
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileType}/${fileHash}`,
                 {
                     method: 'DELETE',
                     headers: {
@@ -680,7 +680,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         setReuseDialog(prev => ({ ...prev, open: true, type, loading: true }));
 
         try {
-            const res = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/previous-files/${type}`, {
+            const res = await fetch(`${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/previous-files/${type}`, {
                 headers: {
                     'Authorization': `Bearer ${sessionTokens?.accessToken}`,
                 },
@@ -829,7 +829,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         }
 
         try {
-            const res = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/${modpackId}/versions/${versionId}/reuse-files/${reuseDialog.type}`, {
+            const res = await fetch(`${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/reuse-files/${reuseDialog.type}`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${sessionTokens?.accessToken}`,

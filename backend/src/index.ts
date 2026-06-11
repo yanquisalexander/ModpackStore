@@ -3,57 +3,76 @@ import { cors } from "@hono/hono/cors";
 import { SERVER_START_TIME } from "@/constants.ts";
 import { APIError } from "@/lib/APIError.ts";
 import v1Router from "@/v1/index.ts";
+import { ProcessModpackFilesQueue } from "@/worker/queues.ts";
 
 const PORT = Number(Deno.env.get("PORT")) || 3000;
 const app = new Hono();
 
-app.use("*", cors({
-    origin: Deno.env.get("CORS_ORIGIN") || "*",
-    allowHeaders: ["Content-Type", "Authorization"],
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-}));
+const SHOULD_INIT_WORKER = Deno.args.includes("--worker-mode");
 
-app.use("*", async (c, next) => {
-    const start = Date.now();
-    const res = await next();
-    const duration = Date.now() - start;
-    console.log(`[${c.req.method}] ${c.req.url} - ${duration}ms`);
-    return res;
-});
+if (SHOULD_INIT_WORKER) {
+    // If the --worker-mode flag is passed, we initialize in worker mode
+    // So, we DON'T start the server, we just initialize the worker
 
-app.route("/v1", v1Router);
+    await import("./worker/worker-index.ts").then(({ initWorker }) => initWorker());
+} else {
+    app.use("*", cors({
+        origin: Deno.env.get("CORS_ORIGIN") || "*",
+        allowHeaders: ["Content-Type", "Authorization"],
+        allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    }));
 
-app.get("/health", (c) =>
-    c.json({
-        meta: {
-            status: "ok",
-            uptime_ms: Date.now() - SERVER_START_TIME,
-        },
-    }),
-);
+    app.use("*", async (c, next) => {
+        const start = Date.now();
+        const res = await next();
+        const duration = Date.now() - start;
+        console.log(`[${c.req.method}] ${c.req.url} - ${duration}ms`);
+        return res;
+    });
 
-app.notFound((c) => c.body(null, 404));
+    app.route("/v1", v1Router);
 
-app.onError((err, c) => {
-    console.error("[GLOBAL_ERROR_HANDLER]", err);
+    app.get("/job", async (c) => {
+        await ProcessModpackFilesQueue.add("process-modpack-files", {}, { jobId: `job-${Date.now()}` });
+        return c.json({ ok: true });
+    });
 
-    if (err instanceof APIError) {
-        return c.json(err.toPayload(), (Number(err.statusCode) || 500) as any);
-    }
-
-    return c.json(
-        {
-            errors: [
-                {
-                    status: "500",
-                    code: "INTERNAL_SERVER_ERROR",
-                    title: "Internal Server Error",
-                    detail: err.message,
-                },
-            ],
-        },
-        500,
+    app.get("/health", (c) =>
+        c.json({
+            meta: {
+                status: "ok",
+                uptime_ms: Date.now() - SERVER_START_TIME,
+            },
+        }),
     );
-});
 
-Deno.serve({ port: PORT }, app.fetch);
+    app.notFound((c) => c.body(null, 404));
+
+    app.onError((err, c) => {
+        console.error("[GLOBAL_ERROR_HANDLER]", err);
+
+        if (err instanceof APIError) {
+            return c.json(err.toPayload(), (Number(err.statusCode) || 500) as any);
+        }
+
+        const detail = Deno.env.get("ENV") === "development"
+            ? err.message
+            : "An unexpected error occurred";
+
+        return c.json(
+            {
+                errors: [
+                    {
+                        status: "500",
+                        code: "INTERNAL_SERVER_ERROR",
+                        title: "Internal Server Error",
+                        detail,
+                    },
+                ],
+            },
+            500,
+        );
+    });
+
+    Deno.serve({ port: PORT }, app.fetch);
+}

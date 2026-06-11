@@ -124,22 +124,31 @@ pub fn validate_config_value(
             // Para validación, usamos una lista básica de idiomas soportados
             // El i18n manager podría no estar inicializado durante la validación
             let basic_supported_languages = vec!["en", "es-419"];
-            
+
             // Intentar obtener idiomas del sistema i18n si está disponible
             let available_languages = if let Ok(mgr) = crate::core::i18n::get_i18n_manager() {
                 if let Ok(langs) = mgr.get_available_languages() {
                     if langs.is_empty() {
-                        basic_supported_languages.into_iter().map(|s| s.to_string()).collect()
+                        basic_supported_languages
+                            .into_iter()
+                            .map(|s| s.to_string())
+                            .collect()
                     } else {
                         langs
                     }
                 } else {
-                    basic_supported_languages.into_iter().map(|s| s.to_string()).collect()
+                    basic_supported_languages
+                        .into_iter()
+                        .map(|s| s.to_string())
+                        .collect()
                 }
             } else {
-                basic_supported_languages.into_iter().map(|s| s.to_string()).collect()
+                basic_supported_languages
+                    .into_iter()
+                    .map(|s| s.to_string())
+                    .collect()
             };
-            
+
             if !available_languages.contains(&lang_str.to_string()) {
                 return Err(ValidationError::InvalidChoice {
                     value: value.clone(),

@@ -163,15 +163,15 @@ impl<'a> ForgeInstaller<'a> {
         } else {
             "--installClient"
         };
-        
+
         // We still keep the fallback mechanism if needed, but prioritize the correct one
         // Ideally we should just use the correct one.
         let install_options = if instance.is_server() {
             vec!["--installServer"]
         } else {
-            vec!["--installClient", "--installDir"] 
+            vec!["--installClient", "--installDir"]
         };
-        
+
         let mut success = false;
         let mut last_error = String::new();
         let mut attempted_options = Vec::new();
@@ -179,7 +179,11 @@ impl<'a> ForgeInstaller<'a> {
         log::info!(
             "[Instance: {}] Attempting Forge installation for {} (options: {:?})",
             instance.instanceId,
-            if instance.is_server() { "Server" } else { "Client" },
+            if instance.is_server() {
+                "Server"
+            } else {
+                "Client"
+            },
             install_options
         );
 
@@ -187,18 +191,15 @@ impl<'a> ForgeInstaller<'a> {
             attempted_options.push(option);
 
             let mut install_cmd = Command::new(java_path);
-            install_cmd
-                .arg("-jar")
-                .arg(installer_path)
-                .arg(option);
-                
+            install_cmd.arg("-jar").arg(installer_path).arg(option);
+
             // For server installation, we might need to be explicit about the directory if not implied by cwd
             if *option == "--installServer" {
                 // Usually run in the dir, but some installers take a path argument?
                 // Standard: java -jar installer.jar --installServer
                 // It installs into current dir.
-            }    
-                
+            }
+
             install_cmd.current_dir(minecraft_dir);
 
             // On Windows, use CREATE_NO_WINDOW to prevent CMD window popup
@@ -246,10 +247,8 @@ impl<'a> ForgeInstaller<'a> {
                             stdout_msg
                         );
 
-                        last_error = format!(
-                            "Forge installation error with {}: {}",
-                            option, error_msg
-                        );
+                        last_error =
+                            format!("Forge installation error with {}: {}", option, error_msg);
                     }
                 }
                 Err(e) => {
@@ -259,10 +258,8 @@ impl<'a> ForgeInstaller<'a> {
                         option,
                         e
                     );
-                    last_error = format!(
-                        "Failed to execute Forge installer with {}: {}",
-                        option, e
-                    );
+                    last_error =
+                        format!("Failed to execute Forge installer with {}: {}", option, e);
                 }
             }
         }

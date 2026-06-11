@@ -130,7 +130,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
         setIsLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_ENDPOINT}/creators/publishers/${team?.id}/modpacks`, {
+            const res = await fetch(`${API_ENDPOINT}/creators/${team?.id}/modpacks`, {
                 headers: {
                     Authorization: sessionTokens?.accessToken ? `Bearer ${sessionTokens.accessToken}` : "",
                 },
@@ -196,7 +196,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
 
     const confirmDelete = async () => {
         if (!deletingModpack || !team) return;
-        const res = await fetch(`${API_ENDPOINT}/creators/publishers/${team.id}/modpacks/${deletingModpack.id}`, {
+        const res = await fetch(`${API_ENDPOINT}/creators/${team.id}/modpacks/${deletingModpack.id}`, {
             method: "DELETE",
             headers: {
                 Authorization: sessionTokens?.accessToken ? `Bearer ${sessionTokens.accessToken}` : "",

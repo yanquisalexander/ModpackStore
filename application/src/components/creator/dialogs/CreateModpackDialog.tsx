@@ -188,7 +188,7 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
             if (iconFile) formData.append('icon', iconFile);
             if (bannerFile) formData.append('banner', bannerFile);
 
-            const res = await fetch(`${API_ENDPOINT}/creators/publishers/${teamId}/modpacks`, {
+            const res = await fetch(`${API_ENDPOINT}/creators/${teamId}/modpacks`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${sessionTokens?.accessToken}` },
                 body: formData,

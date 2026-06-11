@@ -89,10 +89,7 @@ impl<'a> QuiltInstaller<'a> {
         client: &reqwest::blocking::Client,
         minecraft_version: &str,
     ) -> Result<Vec<String>, String> {
-        let url = format!(
-            "{}/versions/loader/{}",
-            QUILT_META_URL, minecraft_version
-        );
+        let url = format!("{}/versions/loader/{}", QUILT_META_URL, minecraft_version);
 
         let response = client
             .get(&url)
@@ -147,16 +144,20 @@ impl<'a> QuiltInstaller<'a> {
         }
 
         // Generate and save Quilt version JSON
-        let version_json = self.generate_version_json(&quilt_profile, &quilt_version_name, instance.is_server())?;
+        let version_json =
+            self.generate_version_json(&quilt_profile, &quilt_version_name, instance.is_server())?;
         let version_json_path = quilt_version_dir.join(format!("{}.json", quilt_version_name));
 
-        fs::write(&version_json_path, serde_json::to_string_pretty(&version_json).unwrap())
-            .map_err(|e| {
-                BootstrapError::filesystem_error(
-                    BootstrapStep::CreatingFiles,
-                    format!("Failed to write Quilt version JSON: {}", e),
-                )
-            })?;
+        fs::write(
+            &version_json_path,
+            serde_json::to_string_pretty(&version_json).unwrap(),
+        )
+        .map_err(|e| {
+            BootstrapError::filesystem_error(
+                BootstrapStep::CreatingFiles,
+                format!("Failed to write Quilt version JSON: {}", e),
+            )
+        })?;
 
         log::info!(
             "[Instance: {}] Quilt installation completed successfully",
@@ -228,7 +229,7 @@ impl<'a> QuiltInstaller<'a> {
                 }
             }
         }
-        
+
         if let Some(server_libs) = &quilt_profile.launcher_meta.libraries.server {
             if is_server {
                 for lib in server_libs {
@@ -253,9 +254,19 @@ impl<'a> QuiltInstaller<'a> {
         }));
 
         let main_class = if is_server {
-            quilt_profile.launcher_meta.main_class.server.clone().unwrap_or_default()
+            quilt_profile
+                .launcher_meta
+                .main_class
+                .server
+                .clone()
+                .unwrap_or_default()
         } else {
-            quilt_profile.launcher_meta.main_class.client.clone().unwrap_or_default()
+            quilt_profile
+                .launcher_meta
+                .main_class
+                .client
+                .clone()
+                .unwrap_or_default()
         };
 
         // Create version JSON

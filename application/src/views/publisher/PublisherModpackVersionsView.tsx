@@ -64,7 +64,7 @@ interface Modpack {
 
 // API Service
 class PublisherVersionsAPI {
-    private static baseUrl = `${API_ENDPOINT}/creators/publishers`;
+    private static baseUrl = `${API_ENDPOINT}/creators`;
 
     static async getVersions(publisherId: string, modpackId: string, accessToken: string): Promise<{ versions: ModpackVersion[], modpack: Modpack }> {
         const response = await fetch(`${this.baseUrl}/${publisherId}/modpacks/${modpackId}/versions`, {
@@ -160,8 +160,8 @@ export const PublisherModpackVersionsView: React.FC<PublisherModpackVersionsView
     });
 
     // Get user role in this publisher
-    const publisherMembership = session?.publisherMemberships?.find(
-        membership => membership.publisherId === publisherId
+    const publisherMembership = session?.creatorMemberships?.find(
+        membership => membership.creatorId === publisherId
     );
     const userRole = publisherMembership?.role || 'member';
     const canCreateVersions = ['owner', 'admin', 'member'].includes(userRole); // Most users can create versions

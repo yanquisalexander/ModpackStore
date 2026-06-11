@@ -98,7 +98,11 @@ impl MinecraftLauncher {
                 for entry in entries.flatten() {
                     let path = entry.path();
                     if path.is_file() && path.extension().map_or(false, |ext| ext == "jar") {
-                        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+                        let name = path
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("")
+                            .to_lowercase();
 
                         // IMPORTANT: Skip installers!
                         if name.contains("installer") {
@@ -126,7 +130,11 @@ impl MinecraftLauncher {
                     for entry in entries.flatten() {
                         let path = entry.path();
                         if path.is_file() && path.extension().map_or(false, |ext| ext == "jar") {
-                        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("").to_lowercase();
+                            let name = path
+                                .file_name()
+                                .and_then(|n| n.to_str())
+                                .unwrap_or("")
+                                .to_lowercase();
 
                             if name.contains("installer") {
                                 continue;

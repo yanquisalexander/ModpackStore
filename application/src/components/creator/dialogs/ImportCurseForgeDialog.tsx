@@ -124,7 +124,7 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
             // Use Uppy for upload
             const response = await uploadFileWithUppy({
                 file,
-                endpoint: `${API_ENDPOINT}/creators/publishers/${publisherId}/modpacks/import/curseforge`,
+                endpoint: `${API_ENDPOINT}/creators/${publisherId}/modpacks/import/curseforge`,
                 headers: {
                     'Authorization': `Bearer ${sessionTokens?.accessToken}`,
                 },

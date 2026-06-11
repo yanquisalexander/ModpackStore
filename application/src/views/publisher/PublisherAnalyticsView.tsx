@@ -234,10 +234,10 @@ export const PublisherAnalyticsView: React.FC = () => {
 
         try {
             const [overviewRes, currentRes, previousRes] = await Promise.all([
-                fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/analytics/overview`, { headers }),
-                fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/analytics/comprehensive?period=${selectedPeriod}`, { headers }),
+                fetch(`${API_ENDPOINT}/creators/${publisherId}/analytics/overview`, { headers }),
+                fetch(`${API_ENDPOINT}/creators/${publisherId}/analytics/comprehensive?period=${selectedPeriod}`, { headers }),
                 // Intentamos buscar datos del periodo anterior real
-                fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/analytics/comprehensive?period=${previousPeriodParam}`, { headers })
+                fetch(`${API_ENDPOINT}/creators/${publisherId}/analytics/comprehensive?period=${previousPeriodParam}`, { headers })
             ]);
 
             const [overviewJson, currentJson, previousJson] = await Promise.all([

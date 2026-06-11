@@ -12,7 +12,8 @@ authRoutes.get("/discord/url", (c) => {
 
 authRoutes.get("/discord/callback", async (c) => {
   const code = c.req.query("code");
-  const tokens = await authService.handleDiscordCallback(code ?? "");
+  const redirect_uri = c.req.query("redirect_uri");
+  const tokens = await authService.handleDiscordCallback(code ?? "", redirect_uri);
   return c.json(tokens);
 });
 
@@ -25,9 +26,9 @@ authRoutes.post("/refresh", async (c) => {
 authRoutes.get(
   "/me",
   requireAuth,
-  (c: Context<{ Variables: AuthVariables }>) => {
+  async (c: Context<{ Variables: AuthVariables }>) => {
     const user = c.get("user");
-    const profile = authService.getAuthenticatedUserProfile(user.id);
+    const profile = await authService.getAuthenticatedUserProfile(user.id);
     return c.json(profile);
   },
 );
@@ -35,9 +36,9 @@ authRoutes.get(
 authRoutes.post(
   "/logout",
   requireAuth,
-  (c: Context<{ Variables: AuthVariables }>) => {
+  async (c: Context<{ Variables: AuthVariables }>) => {
     const jwtPayload = c.get("jwtPayload");
-    authService.logout(jwtPayload.sessionId);
+    await authService.logout(jwtPayload.sessionId);
     return c.body(null, 204);
   },
 );

@@ -2,21 +2,19 @@ use std::path::Path;
 
 use crate::core::bootstrap::tasks::{emit_bootstrap_complete, emit_status};
 use crate::core::minecraft_instance::MinecraftInstance;
-use crate::core::tasks_manager::{
-    add_task_with_auto_start, remove_task, update_task, TaskStatus,
-};
+use crate::core::tasks_manager::{add_task_with_auto_start, remove_task, update_task, TaskStatus};
 use tauri::Emitter;
 
-use super::download_manager::{download_modpack_files, fetch_modpack_manifest, validate_modpack_assets};
+use super::download_manager::{
+    download_modpack_files, fetch_modpack_manifest, validate_modpack_assets,
+};
 use super::modpack_cleanup::{audit_user_data_protection, cleanup_obsolete_files};
 
 #[tauri::command]
 pub async fn cleanup_instance_files(instance_id: String) -> Result<Vec<String>, String> {
     log::info!("[Cleanup] Starting cleanup for instance: {}", instance_id);
 
-    let instance =
-        MinecraftInstance::from_instance_id(&instance_id)
-            .ok_or("Instance not found")?;
+    let instance = MinecraftInstance::from_instance_id(&instance_id).ok_or("Instance not found")?;
 
     // Only cleanup modpack instances
     let modpack_id = instance
@@ -30,8 +28,12 @@ pub async fn cleanup_instance_files(instance_id: String) -> Result<Vec<String>, 
         .ok_or("Instance does not have a version ID")?;
 
     let minecraft_dir = Path::new(
-        instance.instanceDirectory.as_ref().ok_or("Instance directory not set")?
-    ).join("minecraft");
+        instance
+            .instanceDirectory
+            .as_ref()
+            .ok_or("Instance directory not set")?,
+    )
+    .join("minecraft");
 
     // CRITICAL: Audit user data protection before cleanup operations
     log::info!("[UserDataProtection] Performing pre-operation audit for modpack cleanup");
@@ -86,9 +88,7 @@ pub async fn cleanup_instance_files(instance_id: String) -> Result<Vec<String>, 
 
 #[tauri::command]
 pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result<usize, String> {
-    let instance =
-        MinecraftInstance::from_instance_id(&instance_id)
-            .ok_or("Instance not found")?;
+    let instance = MinecraftInstance::from_instance_id(&instance_id).ok_or("Instance not found")?;
 
     // Only process modpack instances
     let modpack_id = instance
@@ -102,8 +102,12 @@ pub async fn validate_and_download_modpack_assets(instance_id: String) -> Result
         .ok_or("Instance does not have a version ID")?;
 
     let minecraft_dir = Path::new(
-        instance.instanceDirectory.as_ref().ok_or("Instance directory not set")?
-    ).join("minecraft");
+        instance
+            .instanceDirectory
+            .as_ref()
+            .ok_or("Instance directory not set")?,
+    )
+    .join("minecraft");
 
     // CRITICAL: Audit user data protection before any modpack operations
     log::info!("[UserDataProtection] Performing pre-operation audit for modpack asset validation");

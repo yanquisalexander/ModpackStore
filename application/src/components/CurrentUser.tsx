@@ -25,6 +25,8 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const { showReloadDialog } = useReloadApp();
     const { t } = useI18n();
 
+    console.log({ session })
+
     // Estados
     const [openMenu, setOpenMenu] = useState(false);
     const [showMoreOptions, setShowMoreOptions] = useState(false);
@@ -33,8 +35,8 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
     const containerRef = useRef<HTMLDivElement>(null);
 
     // Permisos y Roles
-    const isPublisher = session?.publisherMemberships && session.publisherMemberships.length > 0;
-    const isAdmin = session?.hasRole?.("admin") || session?.hasRole?.("superadmin");
+    const isCreator = session?.creatorMemberships && session.creatorMemberships.length > 0;
+    const isAdmin = session?.hasRole?.("admin") || session?.hasRole?.("super_admin");
     const isBanned = session?.isBanned;
 
     // Handlers
@@ -143,11 +145,11 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                     </button>
 
                     {/* SECCIÓN 2: ROLES ESPECIALES */}
-                    {(isPublisher || isAdmin) && (
+                    {(isCreator || isAdmin) && (
                         <>
                             <div className="h-px bg-white/5 my-1.5 mx-2" />
 
-                            {isPublisher && (
+                            {isCreator && (
                                 <Link
                                     to="/creators"
                                     onClick={closeMenu}
@@ -189,7 +191,7 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                     <div className="h-px bg-white/5 my-1.5 mx-2" />
 
                     {/* SECCIÓN 4: ACCIONES FINALES */}
-                    {!isPublisher && (
+                    {!isCreator && (
                         <button
                             onClick={() => handleAction(() => setIsCreatorDialogOpen(true))}
                             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-white/70 hover:text-white hover:bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-lg transition-all group text-left mb-1"

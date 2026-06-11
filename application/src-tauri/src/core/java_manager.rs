@@ -67,7 +67,7 @@ impl JavaManager {
 
         // Verificar que el ejecutable de Java existe
         let java_exec = self.get_java_executable(version_dir);
-        java_exec.is_ok() && java_exec.unwrap().exists()
+        java_exec.ok().filter(|p| p.exists()).is_some()
     }
 
     fn get_java_directory(&self, version: &str) -> PathBuf {

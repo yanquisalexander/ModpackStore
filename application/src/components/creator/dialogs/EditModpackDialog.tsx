@@ -274,7 +274,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             }
 
             // API Call
-            const res = await fetch(`${API_ENDPOINT}/creators/publishers/${modpack.publisherId}/modpacks/${modpack.id}`, {
+            const res = await fetch(`${API_ENDPOINT}/creators/${modpack.publisherId}/modpacks/${modpack.id}`, {
                 method: 'PATCH',
                 headers: { 'Authorization': `Bearer ${sessionTokens?.accessToken}` },
                 body: submission,

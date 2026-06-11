@@ -1,8 +1,8 @@
+use anyhow::{anyhow, Result};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use tauri::{AppHandle};
-use anyhow::{Result, anyhow};
+use tauri::AppHandle;
 use tokio::process::Child;
 
 use super::providers::playit::PlayitProvider;
@@ -30,37 +30,62 @@ impl TunnelManager {
             "playit" => {
                 self.playit.install(app_handle).await?;
                 Ok(())
-            },
+            }
             _ => Err(anyhow!("Unknown provider: {}", provider)),
         }
     }
 
-    pub async fn start_tunnel(&self, app_handle: &AppHandle, instance_id: String, instance_path: PathBuf, provider: String) -> Result<()> {
+    pub async fn start_tunnel(
+        &self,
+        app_handle: &AppHandle,
+        instance_id: String,
+        instance_path: PathBuf,
+        provider: String,
+    ) -> Result<()> {
         // Scope to check existence to avoid race conditions roughly, but we need to release lock before await
         {
-            let tunnels = self.tunnels.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
+            let tunnels = self
+                .tunnels
+                .lock()
+                .map_err(|e| anyhow!("Lock poisoned: {}", e))?;
             if tunnels.contains_key(&instance_id) {
-                return Err(anyhow!("Tunnel already running for instance {}", instance_id));
+                return Err(anyhow!(
+                    "Tunnel already running for instance {}",
+                    instance_id
+                ));
             }
         }
 
         let child = match provider.as_str() {
-            "playit" => self.playit.start(app_handle, &instance_id, &instance_path).await?,
-             _ => return Err(anyhow!("Unknown provider: {}", provider)),
+            "playit" => {
+                self.playit
+                    .start(app_handle, &instance_id, &instance_path)
+                    .await?
+            }
+            _ => return Err(anyhow!("Unknown provider: {}", provider)),
         };
 
-        let mut tunnels = self.tunnels.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
-        tunnels.insert(instance_id, TunnelHandle {
-            process: Some(child),
-            provider,
-        });
+        let mut tunnels = self
+            .tunnels
+            .lock()
+            .map_err(|e| anyhow!("Lock poisoned: {}", e))?;
+        tunnels.insert(
+            instance_id,
+            TunnelHandle {
+                process: Some(child),
+                provider,
+            },
+        );
 
         Ok(())
     }
 
     pub async fn stop_tunnel(&self, instance_id: &str) -> Result<()> {
         let handle_opt = {
-            let mut tunnels = self.tunnels.lock().map_err(|e| anyhow!("Lock poisoned: {}", e))?;
+            let mut tunnels = self
+                .tunnels
+                .lock()
+                .map_err(|e| anyhow!("Lock poisoned: {}", e))?;
             tunnels.remove(instance_id)
         };
 
@@ -72,8 +97,11 @@ impl TunnelManager {
         }
         Ok(())
     }
-    
+
     pub fn get_tunnel_status(&self, instance_id: &str) -> Option<String> {
-        self.tunnels.lock().ok().and_then(|tunnels| tunnels.get(instance_id).map(|h| h.provider.clone()))
+        self.tunnels
+            .lock()
+            .ok()
+            .and_then(|tunnels| tunnels.get(instance_id).map(|h| h.provider.clone()))
     }
 }

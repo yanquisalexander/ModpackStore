@@ -1,3 +1,4 @@
+use crate::core::clients::HTTP_CLIENT;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -117,7 +118,7 @@ impl ModpackStoreAuth {
         jwt_token: String,
         username: Option<String>,
     ) -> Result<YggdrasilAuthResponse, String> {
-        let client = reqwest::Client::new();
+        let client = &*HTTP_CLIENT;
 
         let request_body = YggdrasilAuthRequest {
             username,
@@ -200,7 +201,7 @@ impl ModpackStoreAuth {
             authlib_version.url
         );
 
-        let client = reqwest::Client::new();
+        let client = &*HTTP_CLIENT;
         let response = client
             .get(authlib_version.url)
             .send()

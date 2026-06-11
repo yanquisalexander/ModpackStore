@@ -47,7 +47,7 @@ const OrganizationCard = ({ team }: { team: any }) => (
                     </div>
                     <div>
                         <h3 className="font-bold text-lg leading-tight text-white group-hover:text-primary transition-colors">
-                            {team.publisherName || team.name}
+                            {team.displayName || team.name}
                         </h3>
                         <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
                             Organización

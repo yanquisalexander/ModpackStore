@@ -1,6 +1,7 @@
 // src-tauri/src/instance_bootstrap.rs
 use crate::config::get_config_manager;
 use crate::core::bootstrap::loaders::ModLoaderInstaller;
+use crate::core::clients::BLOCKING_CLIENT;
 use crate::core::bootstrap::{
     download::{
         download_file, download_forge_libraries, download_libraries, download_libraries_enhanced,
@@ -34,7 +35,7 @@ use tauri::Emitter;
 use tauri_plugin_http::reqwest;
 
 pub struct InstanceBootstrap {
-    client: reqwest::blocking::Client,
+    client: &'static reqwest::blocking::Client,
     // Cache para metadatos de versiones
     version_manifest_cache: Option<(Value, u64)>, // (datos, timestamp)
 }
@@ -42,7 +43,7 @@ pub struct InstanceBootstrap {
 impl InstanceBootstrap {
     pub fn new() -> Self {
         Self {
-            client: reqwest::blocking::Client::new(),
+            client: &*BLOCKING_CLIENT,
             version_manifest_cache: None,
         }
     }
@@ -410,7 +411,7 @@ impl InstanceBootstrap {
         // Check if correct Java version is installed for this instance
         let java_major_version = get_java_version_requirement(&version_details)?;
 
-        println!("Java Major Version: {}", java_major_version);
+        log::info!("Java Major Version: {}", java_major_version);
 
         let java_manager =
             JavaManager::new().map_err(|e| format!("Failed to create JavaManager: {}", e))?; // Convert error to String

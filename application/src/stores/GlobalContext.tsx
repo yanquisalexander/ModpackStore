@@ -6,6 +6,7 @@ import React, {
     useEffect,
     useMemo,
     useCallback,
+    useRef,
 } from "react";
 import { check, Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
@@ -85,43 +86,39 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [update, updateState]);
 
 
-    // Consulta periódica de actualizaciones en segundo plano (cada 30 minutos)
-    useEffect(() => {
+    const isCheckingUpdateRef = useRef(false);
 
-        let stopped = false;
-        const interval = setInterval(async () => {
-            if (stopped) return;
-            try {
-                const hasUpdate = await check();
-                if (hasUpdate) {
-                    setUpdate(hasUpdate);
-                    setIsUpdating(true);
-                    setUpdateVersion(hasUpdate.version);
-                    setUpdateState("downloading");
-                    let downloaded = 0;
-                    let contentLength = 0;
-                    await hasUpdate.download((event) => {
-                        switch (event.event) {
-                            case 'Started':
-                                contentLength = event.data.contentLength || 0;
-                                break;
-                            case 'Progress':
-                                downloaded += event.data.chunkLength;
-                                break;
-                            case 'Finished':
-                                setUpdateState("ready-to-install");
-                                stopped = true;
-                                clearInterval(interval);
-                                break;
-                        }
-                    });
-                }
-            } catch (err) {
-                // Silencioso, solo log si es necesario
+    const checkForUpdates = useCallback(async () => {
+        if (isCheckingUpdateRef.current) return;
+        isCheckingUpdateRef.current = true;
+        try {
+            const hasUpdate = await check();
+            if (hasUpdate) {
+                setUpdate(hasUpdate);
+                setIsUpdating(true);
+                setUpdateVersion(hasUpdate.version);
+                setUpdateState("downloading");
+                await hasUpdate.download((event) => {
+                    switch (event.event) {
+                        case 'Finished':
+                            setUpdateState("ready-to-install");
+                            break;
+                    }
+                });
             }
-        }, 5 * 60 * 1000); // 5 minutos
-        return () => clearInterval(interval);
+        } catch (err) {
+            // Silencioso
+        } finally {
+            isCheckingUpdateRef.current = false;
+        }
     }, []);
+
+    useEffect(() => {
+        const interval = setInterval(() => {
+            checkForUpdates();
+        }, 5 * 60 * 1000);
+        return () => clearInterval(interval);
+    }, [checkForUpdates]);
 
     useEffect(() => {
         if (updateState === "ready-to-install") {

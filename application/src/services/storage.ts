@@ -25,7 +25,7 @@ export async function getPublisherFiles(
     token: string,
     publisherId: string
 ): Promise<PublisherFile[]> {
-    const response = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/storage`, {
+    const response = await fetch(`${API_ENDPOINT}/creators/${publisherId}/storage`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${token}`,
@@ -48,7 +48,7 @@ export async function getStorageUsage(
     token: string,
     publisherId: string
 ): Promise<StorageUsage> {
-    const response = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/storage/usage`, {
+    const response = await fetch(`${API_ENDPOINT}/creators/${publisherId}/storage/usage`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${token}`,
@@ -111,7 +111,7 @@ export async function uploadFile(
             reject(new Error('Network error occurred'));
         });
 
-        xhr.open('POST', `${API_ENDPOINT}/creators/publishers/${publisherId}/storage/upload`);
+        xhr.open('POST', `${API_ENDPOINT}/creators/${publisherId}/storage/upload`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.send(formData);
     });
@@ -125,7 +125,7 @@ export async function deleteFile(
     publisherId: string,
     fileId: string
 ): Promise<void> {
-    const response = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/storage/${fileId}`, {
+    const response = await fetch(`${API_ENDPOINT}/creators/${publisherId}/storage/${fileId}`, {
         method: 'DELETE',
         headers: {
             'Authorization': `Bearer ${token}`,

@@ -76,8 +76,15 @@ impl PlayHistoryManager {
         &MANAGER
     }
 
-    pub fn record_session_start(&self, instance_id: &str, version: Option<String>) -> Result<i64, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
+    pub fn record_session_start(
+        &self,
+        instance_id: &str,
+        version: Option<String>,
+    ) -> Result<i64, String> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| format!("Lock poisoned: {}", e))?;
         let now = Utc::now().timestamp();
 
         // Update recent instances
@@ -88,55 +95,70 @@ impl PlayHistoryManager {
              last_played_at = excluded.last_played_at,
              play_count = play_count + 1",
             params![instance_id, now],
-        ).map_err(|e| e.to_string())?;
+        )
+        .map_err(|e| e.to_string())?;
 
         // Create new session
         conn.execute(
             "INSERT INTO play_sessions (instance_id, started_at, version)
              VALUES (?1, ?2, ?3)",
             params![instance_id, now, version],
-        ).map_err(|e| e.to_string())?;
+        )
+        .map_err(|e| e.to_string())?;
 
         Ok(conn.last_insert_rowid())
     }
 
     pub fn record_session_end(&self, session_id: i64) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| format!("Lock poisoned: {}", e))?;
         let now = Utc::now().timestamp();
 
         // Get start time to calculate duration
-        let started_at: i64 = conn.query_row(
-            "SELECT started_at FROM play_sessions WHERE id = ?1",
-            params![session_id],
-            |row| row.get(0),
-        ).map_err(|e| e.to_string())?;
+        let started_at: i64 = conn
+            .query_row(
+                "SELECT started_at FROM play_sessions WHERE id = ?1",
+                params![session_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| e.to_string())?;
 
         let duration = now - started_at;
 
         conn.execute(
             "UPDATE play_sessions SET ended_at = ?1, duration = ?2 WHERE id = ?3",
             params![now, duration, session_id],
-        ).map_err(|e| e.to_string())?;
+        )
+        .map_err(|e| e.to_string())?;
 
         Ok(())
     }
 
     pub fn get_recent_instances(&self, limit: usize) -> Result<Vec<RecentInstance>, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
-        let mut stmt = conn.prepare(
-            "SELECT instance_id, last_played_at, play_count 
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| format!("Lock poisoned: {}", e))?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT instance_id, last_played_at, play_count 
              FROM recent_instances 
              ORDER BY last_played_at DESC 
              LIMIT ?1",
-        ).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
 
-        let rows = stmt.query_map(params![limit], |row| {
-            Ok(RecentInstance {
-                instance_id: row.get(0)?,
-                last_played_at: row.get(1)?,
-                play_count: row.get(2)?,
+        let rows = stmt
+            .query_map(params![limit], |row| {
+                Ok(RecentInstance {
+                    instance_id: row.get(0)?,
+                    last_played_at: row.get(1)?,
+                    play_count: row.get(2)?,
+                })
             })
-        }).map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string())?;
 
         let mut results = Vec::new();
         for row in rows {
@@ -146,24 +168,31 @@ impl PlayHistoryManager {
     }
 
     pub fn get_play_history(&self, limit: usize) -> Result<Vec<PlaySession>, String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
-        let mut stmt = conn.prepare(
-            "SELECT id, instance_id, started_at, ended_at, duration, version 
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| format!("Lock poisoned: {}", e))?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id, instance_id, started_at, ended_at, duration, version 
              FROM play_sessions 
              ORDER BY started_at DESC 
              LIMIT ?1",
-        ).map_err(|e| e.to_string())?;
+            )
+            .map_err(|e| e.to_string())?;
 
-        let rows = stmt.query_map(params![limit], |row| {
-            Ok(PlaySession {
-                id: Some(row.get(0)?),
-                instance_id: row.get(1)?,
-                started_at: row.get(2)?,
-                ended_at: row.get(3)?,
-                duration: row.get(4)?,
-                version: row.get(5)?,
+        let rows = stmt
+            .query_map(params![limit], |row| {
+                Ok(PlaySession {
+                    id: Some(row.get(0)?),
+                    instance_id: row.get(1)?,
+                    started_at: row.get(2)?,
+                    ended_at: row.get(3)?,
+                    duration: row.get(4)?,
+                    version: row.get(5)?,
+                })
             })
-        }).map_err(|e| e.to_string())?;
+            .map_err(|e| e.to_string())?;
 
         let mut results = Vec::new();
         for row in rows {
@@ -173,9 +202,14 @@ impl PlayHistoryManager {
     }
 
     pub fn clear_play_history(&self) -> Result<(), String> {
-        let conn = self.conn.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
-        conn.execute("DELETE FROM play_sessions", []).map_err(|e| e.to_string())?;
-        conn.execute("DELETE FROM recent_instances", []).map_err(|e| e.to_string())?;
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| format!("Lock poisoned: {}", e))?;
+        conn.execute("DELETE FROM play_sessions", [])
+            .map_err(|e| e.to_string())?;
+        conn.execute("DELETE FROM recent_instances", [])
+            .map_err(|e| e.to_string())?;
         Ok(())
     }
 }

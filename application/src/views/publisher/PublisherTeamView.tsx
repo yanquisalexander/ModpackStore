@@ -234,8 +234,8 @@ export const PublisherTeamView: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
 
     // Get user role in this publisher
-    const publisherMembership = session?.publisherMemberships?.find(
-        membership => membership.publisherId === publisherId
+    const publisherMembership = session?.creatorMemberships?.find(
+        membership => membership.creatorId === publisherId
     );
     const userRole = publisherMembership?.role || 'member';
     const canManageMembers = ['owner', 'admin'].includes(userRole);

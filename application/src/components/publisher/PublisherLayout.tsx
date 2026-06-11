@@ -119,7 +119,7 @@ export const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) =>
     const closeWizard = () => setWizardState((prev: any) => ({ ...prev, isOpen: false }));
     const handleWizardSuccess = () => { wizardState.onSuccess(); closeWizard(); };
 
-    const publisherMembership = session?.publisherMemberships?.find(m => m.publisherId === publisherId);
+    const publisherMembership = session?.creatorMemberships?.find(m => m.creatorId === publisherId);
     const publisherData = teams.find(team => team.id === publisherId);
     const publisherName = publisherData?.publisherName || "Cargando...";
     const navItems = publisherId ? getPublisherNavItems(publisherId) : [];

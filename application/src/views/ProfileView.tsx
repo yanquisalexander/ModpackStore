@@ -128,7 +128,7 @@ export const ProfileInformation = () => {
         <InfoCard
           icon={LucideLayoutGrid}
           label="Publisher Status"
-          value={session.publisherMemberships?.length ? `${session.publisherMemberships.length} Organizaciones` : 'Sin publicar'}
+          value={session.creatorMemberships?.length ? `${session.creatorMemberships.length} Organizaciones` : 'Sin publicar'}
         />
       </div>
     </motion.div>

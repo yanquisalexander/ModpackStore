@@ -1,15 +1,20 @@
 {
     "tasks": {
-        "start": "deno run --allow-net --allow-read --allow-env --allow-write --env-file=.env src/index.ts",
-        "dev": "deno run --allow-net --allow-read --allow-env --allow-write --env-file=.env --watch src/index.ts"
+        "start": "deno run --allow-net --allow-read --allow-env --allow-write --allow-ffi --env-file=.env src/index.ts",
+        "dev": "deno run --allow-net --allow-read --allow-env --allow-write --allow-ffi --allow-sys --env-file=.env --watch src/index.ts",
+        "db:generate": "deno run -A npm:drizzle-kit generate",
+        "db:migrate": "deno run -A npm:drizzle-kit migrate",
+        "db:rollback": "deno run -A npm:drizzle-kit rollback"
     },
     "imports": {
         "@/": "./src/",
         "@shared/": "../shared/",
         "@hono/hono": "jsr:@hono/hono@^4.12.23",
         "@types/pg": "npm:@types/pg@^8.20.0",
+        "bullmq": "npm:bullmq@^5.78.0",
         "drizzle-kit": "npm:drizzle-kit@^0.31.10",
         "drizzle-orm": "npm:drizzle-orm@^0.45.2",
+        "ioredis": "npm:ioredis@^5.11.1",
         "pg": "npm:pg@^8.21.0"
     }
 }

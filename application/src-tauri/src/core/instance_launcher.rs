@@ -12,12 +12,12 @@ use std::sync::Mutex;
 use std::thread;
 
 // --- Crate Imports ---
+use crate::config::get_config_manager;
 use crate::core::instance_bootstrap::InstanceBootstrap;
 use crate::core::minecraft::MinecraftLauncher as CoreMinecraftLauncher;
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::network_utilities;
 use crate::interfaces::game_launcher::GameLauncher;
-use crate::config::get_config_manager;
 use crate::GLOBAL_APP_HANDLE;
 
 // --- External Crates ---
@@ -135,21 +135,28 @@ lazy_static! {
     static ref SYSTEM: Arc<Mutex<System>> = Arc::new(Mutex::new(System::new_all()));
     // Regex to capture Java version mismatch details from stderr
     static ref RE_JAVA_VERSION: Regex = Regex::new(r"class file version (\d+\.\d+).*, this version of the Java Runtime only recognizes class file versions up to (\d+\.\d+)").unwrap();
-    
+
     // Player tracking regex
     static ref RE_PLAYER_JOIN: Regex = Regex::new(r"\[.*\]: (.*) joined the game").unwrap();
     static ref RE_PLAYER_LEAVE: Regex = Regex::new(r"\[.*\]: (.*) left the game").unwrap();
 }
 
 pub fn get_running_instances_list() -> Vec<RunningInstanceInfo> {
-    RUNNING_INSTANCES.lock().ok().map(|lock| lock.values().cloned().collect()).unwrap_or_default()
+    RUNNING_INSTANCES
+        .lock()
+        .ok()
+        .map(|lock| lock.values().cloned().collect())
+        .unwrap_or_default()
 }
 
 #[tauri::command]
 pub fn get_instance_stats(instance_id: String) -> Result<InstanceStats, String> {
     let stats_data = {
-        let lock = RUNNING_INSTANCES.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
-        lock.get(&instance_id).map(|info| (info.pid, info.player_count))
+        let lock = RUNNING_INSTANCES
+            .lock()
+            .map_err(|e| format!("Lock poisoned: {}", e))?;
+        lock.get(&instance_id)
+            .map(|info| (info.pid, info.player_count))
     };
 
     if let Some((pid, player_count)) = stats_data {
@@ -160,7 +167,7 @@ pub fn get_instance_stats(instance_id: String) -> Result<InstanceStats, String> 
         if let Some(process) = sys.process(Pid::from_u32(pid)) {
             let cpu_usage = process.cpu_usage();
             let cpu_count = sys.cpus().len() as f32;
-            
+
             // Normalizamos el uso de CPU dividiendo por el número de núcleos
             // Así 100% representará el total de la capacidad del sistema
             let normalized_cpu = if cpu_count > 0.0 {
@@ -183,7 +190,9 @@ pub fn get_instance_stats(instance_id: String) -> Result<InstanceStats, String> 
 #[tauri::command]
 pub fn send_server_command(instance_id: String, command: String) -> Result<(), String> {
     let stdin = {
-        let lock = RUNNING_INSTANCES.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
+        let lock = RUNNING_INSTANCES
+            .lock()
+            .map_err(|e| format!("Lock poisoned: {}", e))?;
         lock.get(&instance_id).and_then(|info| info.stdin.clone())
     };
 
@@ -201,7 +210,9 @@ pub fn send_server_command(instance_id: String, command: String) -> Result<(), S
 
 pub fn kill_instance(instance_id: String) -> Result<(), String> {
     let pid = {
-        let lock = RUNNING_INSTANCES.lock().map_err(|e| format!("Lock poisoned: {}", e))?;
+        let lock = RUNNING_INSTANCES
+            .lock()
+            .map_err(|e| format!("Lock poisoned: {}", e))?;
         lock.get(&instance_id).map(|info| info.pid)
     };
 
@@ -721,7 +732,11 @@ impl InstanceLauncher {
         // Give MC time to load by polling for the process to appear in the running instances
         let instance_id = self.instance.instanceId.clone();
         for _ in 0..10 {
-            let found = RUNNING_INSTANCES.lock().ok().map(|lock| lock.contains_key(&instance_id)).unwrap_or(false);
+            let found = RUNNING_INSTANCES
+                .lock()
+                .ok()
+                .map(|lock| lock.contains_key(&instance_id))
+                .unwrap_or(false);
             if found {
                 thread::sleep(std::time::Duration::from_millis(500));
             } else {

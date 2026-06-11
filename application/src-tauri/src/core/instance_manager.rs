@@ -1,5 +1,6 @@
 // src-tauri/src/core/instance_manager.rs
 
+use crate::core::clients::HTTP_CLIENT;
 use crate::config::get_config_manager;
 use crate::core::auth::storage;
 use crate::core::bootstrap_error::BootstrapError;
@@ -235,7 +236,10 @@ async fn handle_latest_version_update(
     instance: &mut MinecraftInstance,
     modpack_id: &str,
 ) -> Result<bool, String> {
-    let current_version_id = instance.modpackVersionId.as_ref().ok_or("modpackVersionId not set")?;
+    let current_version_id = instance
+        .modpackVersionId
+        .as_ref()
+        .ok_or("modpackVersionId not set")?;
 
     // If version is not "latest", no need to check
     if current_version_id != "latest" {
@@ -327,7 +331,7 @@ async fn handle_latest_version_update(
 /// Checks if a modpack requires password and validates it
 /// Returns true if password is valid or not required, false if invalid
 async fn check_and_validate_modpack_password(modpack_id: &str) -> Result<bool, String> {
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let url = format!("{}/explore/modpacks/{}", *crate::API_ENDPOINT, modpack_id);
 
     // First, get modpack info to check if it requires password
@@ -377,7 +381,10 @@ async fn check_and_validate_modpack_password(modpack_id: &str) -> Result<bool, S
 /// Validates modpack assets before launch
 async fn validate_modpack_assets_for_launch(instance: &MinecraftInstance) -> Result<(), String> {
     let modpack_id = instance.modpackId.as_ref().ok_or("modpackId not set")?;
-    let version_id = instance.modpackVersionId.as_ref().ok_or("modpackVersionId not set")?;
+    let version_id = instance
+        .modpackVersionId
+        .as_ref()
+        .ok_or("modpackVersionId not set")?;
 
     // Get actual version ID if it's "latest"
     let actual_version_id = if version_id == "latest" {
@@ -821,7 +828,7 @@ pub async fn check_modpack_updates(
     modpack_id: String,
     current_version: String,
 ) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let url = format!(
         "{}/explore/modpacks/{}/check-update?currentVersion={}",
         *API_ENDPOINT, modpack_id, current_version
@@ -1536,7 +1543,7 @@ async fn create_modpack_instance_struct(
 
 // Funciones auxiliares para API
 async fn fetch_latest_version(modpack_id: &str) -> Result<String, String> {
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let url = format!("{}/explore/modpacks/{}/latest", *API_ENDPOINT, modpack_id);
 
     let mut request = client.get(&url);
@@ -1567,7 +1574,7 @@ async fn fetch_latest_version(modpack_id: &str) -> Result<String, String> {
 }
 
 async fn fetch_modpack_info(modpack_id: &str) -> Result<serde_json::Value, String> {
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let url = format!("{}/explore/modpacks/{}", *API_ENDPOINT, modpack_id);
 
     let mut request = client.get(&url);
@@ -1597,7 +1604,7 @@ pub async fn fetch_modpack_manifest(
     version_id: &str,
     target: Option<&str>,
 ) -> Result<crate::core::modpack_file_manager::ModpackManifest, String> {
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let url = format!(
         "{}/explore/modpacks/{}/versions/{}?target={}",
         *API_ENDPOINT,
@@ -1632,7 +1639,7 @@ pub async fn fetch_modpack_manifest(
 }
 
 async fn download_image_as_base64(url: &str) -> Result<String, String> {
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let response = client
         .get(url)
         .send()
@@ -1676,7 +1683,7 @@ pub async fn validate_modpack_password(
     modpack_id: String,
     password: String,
 ) -> Result<bool, String> {
-    let client = reqwest::Client::new();
+    let client = &*HTTP_CLIENT;
     let url = format!(
         "{}/explore/modpacks/{}/validate-password",
         *crate::API_ENDPOINT,

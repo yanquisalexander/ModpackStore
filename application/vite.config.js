@@ -37,7 +37,7 @@ export default defineConfig(async () => ({
           if (id.includes('@tauri-apps/')) return 'tauri';
           if (id.includes('recharts')) return 'vendor-charts';
           if (id.includes('codemirror') || id.includes('@codemirror') || id.includes('@uiw/react-codemirror')) return 'vendor-codemirror';
-          if (id.includes('motion') || id.includes('framer-motion')) return 'vendor-motion';
+          if (id.includes('/motion/') || id.includes('\\motion\\')) return 'vendor-motion';
           if (id.includes('lottie-react')) return 'vendor-lottie';
           if (id.includes('@paypal/')) return 'vendor-paypal';
           if (id.includes('@uppy/')) return 'vendor-uppy';

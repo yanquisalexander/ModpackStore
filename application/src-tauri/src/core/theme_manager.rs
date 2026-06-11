@@ -74,17 +74,17 @@ pub struct ExternalThemeManifest {
 fn get_themes_directory() -> Result<PathBuf, String> {
     let app_data_dir = dirs::data_local_dir()
         .ok_or_else(|| "No se pudo obtener el directorio de datos de la aplicación".to_string())?;
-    
+
     let themes_dir = app_data_dir
         .join("dev.alexitoo.modpackstore")
         .join("themes");
-    
+
     // Create directory if it doesn't exist
     if !themes_dir.exists() {
         fs::create_dir_all(&themes_dir)
             .map_err(|e| format!("Error al crear directorio de temas: {}", e))?;
     }
-    
+
     Ok(themes_dir)
 }
 
@@ -126,11 +126,12 @@ pub async fn get_external_themes() -> Result<Vec<ExternalThemeManifest>, String>
                                 let bg_path = path.join(bg_image);
                                 if bg_path.exists() {
                                     // Convert to file URL
-                                    manifest.background_image = Some(format!("file://{}", bg_path.display()));
+                                    manifest.background_image =
+                                        Some(format!("file://{}", bg_path.display()));
                                 }
                             }
                         }
-                        
+
                         themes.push(manifest);
                     }
                     Err(e) => {
@@ -140,7 +141,11 @@ pub async fn get_external_themes() -> Result<Vec<ExternalThemeManifest>, String>
                 }
             }
             Err(e) => {
-                log::warn!("Error al leer manifiesto de tema en {:?}: {}", manifest_path, e);
+                log::warn!(
+                    "Error al leer manifiesto de tema en {:?}: {}",
+                    manifest_path,
+                    e
+                );
                 continue;
             }
         }

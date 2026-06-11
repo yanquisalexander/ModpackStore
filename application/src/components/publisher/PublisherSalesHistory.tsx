@@ -67,7 +67,7 @@ export const PublisherSalesHistory = ({ publisherId, className }: PublisherSales
         setIsLoadingPage(true);
 
         try {
-            const response = await fetch(`${API_ENDPOINT}/creators/publishers/${publisherId}/sales?page=${currentPage}&limit=20`, {
+            const response = await fetch(`${API_ENDPOINT}/creators/${publisherId}/sales?page=${currentPage}&limit=20`, {
                 headers: {
                     'Authorization': `Bearer ${sessionTokens.accessToken}`,
                 },

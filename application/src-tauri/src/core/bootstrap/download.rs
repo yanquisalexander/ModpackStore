@@ -4,9 +4,9 @@
 use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::modpack_file_manager::DownloadManager;
+use itertools::Itertools;
 use serde_json::Value;
 use std::fs;
-use itertools::Itertools;
 use std::path::{Path, PathBuf};
 use tauri_plugin_http::reqwest;
 
@@ -96,15 +96,13 @@ pub fn download_libraries(
 
     // Partition libraries into allowed and skipped. Collect skipped items so we can
     // compute the skipped count from the resulting Vec's length.
-    let (allowed_libraries, skipped): (Vec<_>, Vec<_>) = libraries
-        .iter()
-        .partition_map(|lib| {
-            if is_library_allowed(lib) {
-                itertools::Either::Left(lib)
-            } else {
-                itertools::Either::Right(lib)
-            }
-        });
+    let (allowed_libraries, skipped): (Vec<_>, Vec<_>) = libraries.iter().partition_map(|lib| {
+        if is_library_allowed(lib) {
+            itertools::Either::Left(lib)
+        } else {
+            itertools::Either::Right(lib)
+        }
+    });
 
     let skipped_count = skipped.len();
 
@@ -171,9 +169,7 @@ fn download_artifact(
     instance: &MinecraftInstance,
 ) -> Result<(), String> {
     if let Some(artifact) = downloads.get("artifact") {
-        let path = artifact["path"]
-            .as_str()
-            .ok_or("Artifact path not found")?;
+        let path = artifact["path"].as_str().ok_or("Artifact path not found")?;
         let url = artifact["url"].as_str().ok_or("Artifact URL not found")?;
         let target_path = libraries_dir.join(path);
 
@@ -358,7 +354,10 @@ pub async fn download_libraries_enhanced(
     emit_status(
         instance,
         "instance-libraries-downloaded",
-        &format!("Descarga de librerías completada: {} descargadas", total_downloads),
+        &format!(
+            "Descarga de librerías completada: {} descargadas",
+            total_downloads
+        ),
     );
 
     Ok(())
@@ -398,13 +397,21 @@ pub async fn download_forge_libraries_enhanced(
                     "instance-downloading-forge",
                     &Stage::DownloadingForgeLibraries { current, total },
                 );
-                log::info!("Descargando librerías de Forge: {}/{} - {}", current, total, message);
+                log::info!(
+                    "Descargando librerías de Forge: {}/{} - {}",
+                    current,
+                    total,
+                    message
+                );
             },
         )
         .await
         .map_err(|e| format!("Error al descargar librerías de Forge: {}", e))?;
 
-    log::info!("Descarga de {} librerías de Forge completada", total_downloads);
+    log::info!(
+        "Descarga de {} librerías de Forge completada",
+        total_downloads
+    );
     Ok(())
 }
 
@@ -521,7 +528,9 @@ fn collect_downloads(
         if let Some(lib_downloads) = library.get("downloads") {
             // Main artifact
             if let Some(artifact) = lib_downloads.get("artifact") {
-                if let (Some(path), Some(url)) = (artifact["path"].as_str(), artifact["url"].as_str()) {
+                if let (Some(path), Some(url)) =
+                    (artifact["path"].as_str(), artifact["url"].as_str())
+                {
                     let target_path = libraries_dir.join(path);
                     if !target_path.exists() {
                         let hash = artifact["sha1"].as_str().unwrap_or("").to_string();

@@ -38,13 +38,14 @@ export function getOAuthUrl(): string {
 
 export async function exchangeCodeForToken(
   code: string,
+  redirectUri?: string,
 ): Promise<DiscordTokenResponse> {
   const body = new URLSearchParams({
     client_id: DISCORD_CLIENT_ID,
     client_secret: DISCORD_CLIENT_SECRET,
     grant_type: "authorization_code",
     code,
-    redirect_uri: DISCORD_REDIRECT_URI,
+    redirect_uri: redirectUri ?? DISCORD_REDIRECT_URI,
   });
 
   const response = await fetch(DISCORD_TOKEN_URL, {

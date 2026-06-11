@@ -1,4 +1,4 @@
-import { useEffect, useRef, lazy, Suspense } from "react";
+import { useEffect, useRef, lazy, Suspense, memo } from "react";
 import "./App.css";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -13,7 +13,6 @@ import { AppSidebar } from "./components/AppSidebar";
 import { useLayout } from "./providers/LayoutProvider";
 import { initAnalytics } from "./lib/analytics";
 import { trackEvent } from "@aptabase/web";
-import { preloadSounds } from "./utils/sounds";
 
 // Rutas eager (se cargan siempre - usadas por todos los usuarios)
 import { ExploreSection } from "./views/ExploreSection";
@@ -94,6 +93,75 @@ const SectionInMaintenance = ({ title }: { title: string }) => (
   </div>
 );
 
+// --- Componente de Rutas (memoizado, no se recrea en cada render de App) ---
+interface AppRoutesProps {
+  isConnected: boolean;
+  isAuthenticated: boolean;
+  session: any;
+}
+
+const AppRoutes = memo(function AppRoutes({ isConnected, isAuthenticated, session }: AppRoutesProps) {
+  if (!isConnected) {
+    return (
+      <Routes>
+        <Route path="/" element={<OfflineMode />} />
+        <Route path="/my-instances" element={<MyInstancesSection offlineMode={true} />} />
+        <Route path="/mc-accounts" element={<AccountsSection />} />
+        <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <Routes>
+        <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
+        <Route path="*" element={<Login />} />
+      </Routes>
+    );
+  }
+
+  return (
+    <Suspense fallback={<LoadingScreen />}>
+      <Routes>
+        <Route path="/" element={<HomeView />} />
+        <Route path="/explore" element={<SectionInMaintenance title="Explorar" />} />
+        <Route path="/whitelist-instances" element={<WhitelistInstancesView />} />
+        <Route path="/library" element={<LibrarySection />} />
+        <Route path="/my-instances" element={<MyInstancesSection offlineMode={false} />} />
+        <Route path="/servers" element={<ServersSection />} />
+        <Route path="/server/:instanceId" element={<ServerDetailView />} />
+        <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
+        <Route path="/modpack/:modpackId" element={<ModpackOverviewPage />} />
+        <Route path="/mc-accounts" element={<AccountsSection />} />
+        <Route path="/profile" element={<ProfileView />}>
+          <Route index element={<ProfileInformation />} />
+          <Route path="integrations" element={<IntegrationsSection />} />
+          <Route path="tickets" element={<TicketsSection />} />
+          <Route path="help" element={<HelpSection />} />
+        </Route>
+
+        {session?.creatorMemberships && session.creatorMemberships.length > 0 && (
+          <Route path="/creators/*" element={<CreatorsLayout />} />
+        )}
+
+        {session?.creatorMemberships && session.creatorMemberships.length > 0 && (
+          <Route path="/publisher/:publisherId/*" element={<PublisherLayout />} />
+        )}
+
+        {session?.isAdmin?.() && (
+          <Route path="/admin/*" element={<AdminLayout />} />
+        )}
+
+        <Route path="/p/:publisherSlug" element={<PublisherProfileView />} />
+
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
+  );
+});
+
 // --- Componente Principal ---
 function App() {
   const { loading: authLoading, isAuthenticated, session, showSessionExpired, startDiscordAuth } = useAuthentication();
@@ -140,7 +208,6 @@ function App() {
   useEffect(() => {
     if (!hasLaunched.current) {
       initAnalytics();
-      preloadSounds();
       trackEvent("app_launch");
       hasLaunched.current = true;
     }
@@ -185,68 +252,6 @@ function App() {
   }
 
 
-  const renderRoutes = () => {
-    if (!isConnected) {
-      return (
-        <Routes>
-          <Route path="/" element={<OfflineMode />} />
-          <Route path="/my-instances" element={<MyInstancesSection offlineMode={true} />} />
-          <Route path="/mc-accounts" element={<AccountsSection />} />
-          <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      );
-    }
-
-    if (!isAuthenticated) {
-      return (
-        <Routes>
-          <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
-          <Route path="*" element={<Login />} />
-        </Routes>
-      );
-    }
-
-    return (
-      <Suspense fallback={<LoadingScreen />}>
-        <Routes>
-          <Route path="/" element={<HomeView />} />
-          <Route path="/explore" element={<SectionInMaintenance title="Explorar" />} />
-          <Route path="/whitelist-instances" element={<WhitelistInstancesView />} />
-          <Route path="/library" element={<LibrarySection />} />
-          <Route path="/my-instances" element={<MyInstancesSection offlineMode={false} />} />
-          <Route path="/servers" element={<ServersSection />} />
-          <Route path="/server/:instanceId" element={<ServerDetailView />} />
-          <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
-          <Route path="/modpack/:modpackId" element={<ModpackOverviewPage />} />
-          <Route path="/mc-accounts" element={<AccountsSection />} />
-          <Route path="/profile" element={<ProfileView />}>
-            <Route index element={<ProfileInformation />} />
-            <Route path="integrations" element={<IntegrationsSection />} />
-            <Route path="tickets" element={<TicketsSection />} />
-            <Route path="help" element={<HelpSection />} />
-          </Route>
-
-          {session?.publisherMemberships && session.publisherMemberships.length > 0 && (
-            <Route path="/creators/*" element={<CreatorsLayout />} />
-          )}
-
-          {session?.publisherMemberships && session.publisherMemberships.length > 0 && (
-            <Route path="/publisher/:publisherId/*" element={<PublisherLayout />} />
-          )}
-
-          {session?.isAdmin?.() && (
-            <Route path="/admin/*" element={<AdminLayout />} />
-          )}
-
-          <Route path="/p/:publisherSlug" element={<PublisherProfileView />} />
-
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Suspense>
-    );
-  };
-
   return (
     <>
       {(isAuthenticated || !isConnected) && !isFirstRun && !isBanned && <AppSidebar />}
@@ -257,7 +262,11 @@ function App() {
               <OnboardingFlow onComplete={refreshStatus} />
             </Suspense>
           ) : (
-            renderRoutes()
+            <AppRoutes
+              isConnected={isConnected}
+              isAuthenticated={isAuthenticated}
+              session={session}
+            />
           )}
         </div>
 

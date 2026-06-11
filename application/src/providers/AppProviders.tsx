@@ -12,33 +12,38 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "./I18nProvider";
 import { ThemeProvider } from "../stores/ThemeContext";
 
-// Este componente recibe 'children', que será el resto de tu aplicación.
+// Providers que NO dependen de AuthContext — memoizados para aislarlos de re-renders de AuthProvider
+const IndependentProviders = React.memo(({ children }: { children: React.ReactNode }) => (
+    <TasksProvider>
+        <InstancesProvider>
+            <ReloadProvider>
+                <ConfigDialogProvider>
+                    <LayoutProvider>
+                        <TooltipProvider delayDuration={0} skipDelayDuration={0}>
+                            {children}
+                        </TooltipProvider>
+                    </LayoutProvider>
+                </ConfigDialogProvider>
+            </ReloadProvider>
+        </InstancesProvider>
+    </TasksProvider>
+));
+
 export const AppProviders = ({ children }: { children: React.ReactNode }) => {
     return (
         <I18nProvider>
             <GlobalContextProvider>
-                <AuthProvider>
-                    <ThemeProvider>
-                        <ConnectionProvider>
+                <ConnectionProvider>
+                    <AuthProvider>
+                        <ThemeProvider>
                             <RealtimeProvider>
-                                <TasksProvider>
-                                    <InstancesProvider>
-                                        <ReloadProvider>
-                                            <ConfigDialogProvider>
-
-                                                <LayoutProvider>
-                                                    <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-                                                        {children}
-                                                    </TooltipProvider>
-                                                </LayoutProvider>
-                                            </ConfigDialogProvider>
-                                        </ReloadProvider>
-                                    </InstancesProvider>
-                                </TasksProvider>
+                                <IndependentProviders>
+                                    {children}
+                                </IndependentProviders>
                             </RealtimeProvider>
-                        </ConnectionProvider>
-                    </ThemeProvider>
-                </AuthProvider>
+                        </ThemeProvider>
+                    </AuthProvider>
+                </ConnectionProvider>
             </GlobalContextProvider>
         </I18nProvider>
     );

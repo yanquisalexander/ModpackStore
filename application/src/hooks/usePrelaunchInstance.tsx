@@ -96,6 +96,9 @@ export const usePrelaunchInstance = (instanceId: string) => {
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const messageIntervalRef = useRef<number | null>(null);
 
+    const setTitleBarStateRef = useRef(setTitleBarState);
+    setTitleBarStateRef.current = setTitleBarState;
+
     // --- Derived State ---
     const currentInstanceRunning = instances.find(inst => inst.id === instanceId) || null;
     const isPlaying = currentInstanceRunning?.status === "running";
@@ -125,7 +128,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
             const instance = await invoke<TauriCommandReturns['get_instance_by_id']>("get_instance_by_id", { instanceId });
             if (abortSignal.aborted || !instance) throw new Error("Instance not found or request aborted");
 
-            setTitleBarState(prev => ({ ...prev, title: instance.instanceName, canGoBack: true, opaque: true, icon: instance.iconUrl || undefined }));
+            setTitleBarStateRef.current(prev => ({ ...prev, title: instance.instanceName, canGoBack: true, opaque: true, icon: instance.iconUrl || undefined }));
 
             const defaultAppearance = getDefaultAppeareance({ logoUrl: "/images/mc_logo.svg" });
             const customAppearance = await invoke<PreLaunchAppearance>("get_prelaunch_appearance", { instanceId });
@@ -154,7 +157,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
                 dispatch({ type: 'FETCH_ERROR', payload: "Ocurrió un error al cargar la instancia" });
             }
         }
-    }, [instanceId, setTitleBarState]);
+    }, [instanceId]);
 
     const handlePlay = useCallback(async () => {
         if (isLaunchInProgress || isPlaying || isInstanceBootstraping) return;

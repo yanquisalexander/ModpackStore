@@ -54,7 +54,7 @@ interface Modpack {
 
 // API Service for publisher modpacks
 class PublisherModpacksAPI {
-    private static baseUrl = `${API_ENDPOINT}/creators/publishers`;
+    private static baseUrl = `${API_ENDPOINT}/creators`;
 
     static async getModpacks(publisherId: string, accessToken: string): Promise<Modpack[]> {
         const response = await fetch(`${this.baseUrl}/${publisherId}/modpacks`, {
@@ -171,8 +171,8 @@ export const PublisherModpacksView: React.FC = () => {
     });
 
     // Get user role in this publisher
-    const publisherMembership = session?.publisherMemberships?.find(
-        membership => membership.publisherId === publisherId
+    const publisherMembership = session?.creatorMemberships?.find(
+        membership => membership.creatorId === publisherId
     );
     const userRole = publisherMembership?.role || 'member';
     const canCreateModpacks = ['owner', 'admin'].includes(userRole);

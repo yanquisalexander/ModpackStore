@@ -132,7 +132,11 @@ pub trait ModLoaderInstaller: Send + Sync {
         );
 
         // Download loader-specific libraries
-        log::info!("[Instance: {}] [Trait] Calling download_libraries for {}", instance.instanceId, self.name());
+        log::info!(
+            "[Instance: {}] [Trait] Calling download_libraries for {}",
+            instance.instanceId,
+            self.name()
+        );
         self.download_libraries(libraries_dir, instance)?;
 
         // Run post-installation steps

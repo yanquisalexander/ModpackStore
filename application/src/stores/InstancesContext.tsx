@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useMemo } from "react";
+import { createContext, useContext, useEffect, useState, useMemo, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { trackEvent } from "@aptabase/web";
@@ -24,6 +24,8 @@ const InstancesContext = createContext<{
 
 export const InstancesProvider = ({ children }: { children: React.ReactNode }) => {
     const [instances, setInstances] = useState<InstanceState[]>([]);
+    const instancesRef = useRef(instances);
+    instancesRef.current = instances;
 
     // Estas funciones son internas al provider y no se exponen
     const addInstance = (instance: InstanceState) => {
@@ -187,7 +189,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                     message: message || "Ha ocurrido un error"
                 });
 
-                const instance = instances.find(inst => inst.id === id);
+                const instance = instancesRef.current.find(inst => inst.id === id);
 
                 toast.error(`Error al iniciar la instancia "${instance?.name || id}"`, {
                     duration: 10000,

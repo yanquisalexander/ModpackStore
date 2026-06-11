@@ -174,6 +174,7 @@ pub fn main() {
                 let _ = app.emit("open-instance", id);
             }
         }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
@@ -231,6 +232,14 @@ pub fn main() {
                 std::env::consts::OS,
                 std::env::consts::ARCH
             );
+
+            #[cfg(any(windows, target_os = "linux"))]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                if let Err(e) = app.deep_link().register_all() {
+                    log::warn!("Failed to register deep link schemes: {}", e);
+                }
+            }
 
             // Check for minimized start
             let args: Vec<String> = std::env::args().collect();

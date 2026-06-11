@@ -56,20 +56,24 @@ fn create_temp_dir(prefix: &str) -> io::Result<PathBuf> {
 /// Clean up a temporary directory, logging any errors
 fn cleanup_temp_dir(path: &Path) {
     if let Err(e) = fs::remove_dir_all(path) {
-        log::warn!("Failed to clean up temporary directory {}: {}", path.display(), e);
+        log::warn!(
+            "Failed to clean up temporary directory {}: {}",
+            path.display(),
+            e
+        );
     }
 }
 
 /// Calculate the total size of a directory
 fn calculate_directory_size(path: &Path) -> io::Result<u64> {
     let mut total_size = 0u64;
-    
+
     for entry in WalkDir::new(path).into_iter().filter_map(|e| e.ok()) {
         if entry.file_type().is_file() {
             total_size += entry.metadata()?.len();
         }
     }
-    
+
     Ok(total_size)
 }
 
@@ -77,7 +81,8 @@ fn calculate_directory_size(path: &Path) -> io::Result<u64> {
 fn get_last_modified(path: &Path) -> io::Result<u64> {
     let metadata = fs::metadata(path)?;
     let modified = metadata.modified()?;
-    let duration = modified.duration_since(std::time::UNIX_EPOCH)
+    let duration = modified
+        .duration_since(std::time::UNIX_EPOCH)
         .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
     Ok(duration.as_secs())
 }
@@ -90,20 +95,29 @@ fn read_level_dat(path: &Path) -> Result<fastnbt::Value, Box<dyn std::error::Err
     }
 
     let data = fs::read(&level_dat_path)?;
-    
+
     // Minecraft level.dat files are GZip compressed NBT
     let mut decoder = flate2::read::GzDecoder::new(&data[..]);
     let mut decompressed = Vec::new();
     decoder.read_to_end(&mut decompressed)?;
-    
+
     // Parse NBT
     let value: fastnbt::Value = fastnbt::from_bytes(&decompressed)?;
-    
+
     Ok(value)
 }
 
 /// Extract world information from level.dat
-fn extract_world_info(nbt: &fastnbt::Value) -> (Option<String>, Option<i32>, Option<i32>, Option<bool>, Option<bool>, Option<String>) {
+fn extract_world_info(
+    nbt: &fastnbt::Value,
+) -> (
+    Option<String>,
+    Option<i32>,
+    Option<i32>,
+    Option<bool>,
+    Option<bool>,
+    Option<String>,
+) {
     let mut level_name = None;
     let mut game_type = None;
     let mut difficulty = None;
@@ -117,27 +131,27 @@ fn extract_world_info(nbt: &fastnbt::Value) -> (Option<String>, Option<i32>, Opt
             if let Some(fastnbt::Value::String(name)) = data.get("LevelName") {
                 level_name = Some(name.clone());
             }
-            
+
             // Get GameType
             if let Some(fastnbt::Value::Int(gt)) = data.get("GameType") {
                 game_type = Some(*gt);
             }
-            
+
             // Get Difficulty
             if let Some(fastnbt::Value::Byte(diff)) = data.get("Difficulty") {
                 difficulty = Some(*diff as i32);
             }
-            
+
             // Get hardcore
             if let Some(fastnbt::Value::Byte(hc)) = data.get("hardcore") {
                 hardcore = Some(*hc != 0);
             }
-            
+
             // Get allowCommands
             if let Some(fastnbt::Value::Byte(ac)) = data.get("allowCommands") {
                 allow_commands = Some(*ac != 0);
             }
-            
+
             // Get Version
             if let Some(fastnbt::Value::Compound(ver)) = data.get("Version") {
                 if let Some(fastnbt::Value::String(name)) = ver.get("Name") {
@@ -147,7 +161,14 @@ fn extract_world_info(nbt: &fastnbt::Value) -> (Option<String>, Option<i32>, Opt
         }
     }
 
-    (level_name, game_type, difficulty, hardcore, allow_commands, version)
+    (
+        level_name,
+        game_type,
+        difficulty,
+        hardcore,
+        allow_commands,
+        version,
+    )
 }
 
 /// List all worlds in an instance
@@ -155,9 +176,9 @@ fn extract_world_info(nbt: &fastnbt::Value) -> (Option<String>, Option<i32>, Opt
 pub fn list_worlds(instance_id: String) -> Result<Vec<World>, String> {
     let instance = MinecraftInstance::from_instance_id(&instance_id)
         .ok_or("Instance not found".to_string())?;
-    
+
     let saves_path = PathBuf::from(&instance.minecraftPath).join("saves");
-    
+
     if !saves_path.exists() {
         return Ok(Vec::new());
     }
@@ -167,12 +188,13 @@ pub fn list_worlds(instance_id: String) -> Result<Vec<World>, String> {
     for entry in fs::read_dir(&saves_path).map_err(|e| e.to_string())? {
         let entry = entry.map_err(|e| e.to_string())?;
         let path = entry.path();
-        
+
         if !path.is_dir() {
             continue;
         }
 
-        let name = path.file_name()
+        let name = path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or("Unknown")
             .to_string();
@@ -194,7 +216,7 @@ pub fn list_worlds(instance_id: String) -> Result<Vec<World>, String> {
         let size_bytes = calculate_directory_size(&path).unwrap_or(0);
 
         // Try to read level.dat
-        let (level_name, game_type, difficulty, hardcore, allow_commands, version) = 
+        let (level_name, game_type, difficulty, hardcore, allow_commands, version) =
             if let Ok(nbt) = read_level_dat(&path) {
                 extract_world_info(&nbt)
             } else {
@@ -227,11 +249,11 @@ pub fn list_worlds(instance_id: String) -> Result<Vec<World>, String> {
 pub fn delete_world(instance_id: String, world_name: String) -> Result<(), String> {
     let instance = MinecraftInstance::from_instance_id(&instance_id)
         .ok_or("Instance not found".to_string())?;
-    
+
     let world_path = PathBuf::from(&instance.minecraftPath)
         .join("saves")
         .join(&world_name);
-    
+
     if !world_path.exists() {
         return Err("World not found".to_string());
     }
@@ -243,22 +265,26 @@ pub fn delete_world(instance_id: String, world_name: String) -> Result<(), Strin
 
 /// Export a world to a ZIP file
 #[tauri::command]
-pub fn export_world(instance_id: String, world_name: String, destination_path: String) -> Result<(), String> {
+pub fn export_world(
+    instance_id: String,
+    world_name: String,
+    destination_path: String,
+) -> Result<(), String> {
     let instance = MinecraftInstance::from_instance_id(&instance_id)
         .ok_or("Instance not found".to_string())?;
-    
+
     let world_path = PathBuf::from(&instance.minecraftPath)
         .join("saves")
         .join(&world_name);
-    
+
     if !world_path.exists() {
         return Err("World not found".to_string());
     }
 
     let dest_path = PathBuf::from(&destination_path);
-    let file = fs::File::create(&dest_path)
-        .map_err(|e| format!("Failed to create ZIP file: {}", e))?;
-    
+    let file =
+        fs::File::create(&dest_path).map_err(|e| format!("Failed to create ZIP file: {}", e))?;
+
     let mut zip = ZipWriter::new(file);
     let options: FileOptions<'_, ()> = FileOptions::default()
         .compression_method(CompressionMethod::Deflated)
@@ -267,15 +293,15 @@ pub fn export_world(instance_id: String, world_name: String, destination_path: S
     // Walk through the world directory and add files to ZIP
     for entry in WalkDir::new(&world_path).into_iter().filter_map(|e| e.ok()) {
         let path = entry.path();
-        let relative_path = path.strip_prefix(&world_path)
+        let relative_path = path
+            .strip_prefix(&world_path)
             .map_err(|e| format!("Failed to get relative path: {}", e))?;
 
         if path.is_file() {
             zip.start_file(relative_path.to_string_lossy().to_string(), options)
                 .map_err(|e| format!("Failed to add file to ZIP: {}", e))?;
-            
-            let mut f = fs::File::open(path)
-                .map_err(|e| format!("Failed to open file: {}", e))?;
+
+            let mut f = fs::File::open(path).map_err(|e| format!("Failed to open file: {}", e))?;
             io::copy(&mut f, &mut zip)
                 .map_err(|e| format!("Failed to write file to ZIP: {}", e))?;
         } else if path.is_dir() && path != world_path {
@@ -286,23 +312,20 @@ pub fn export_world(instance_id: String, world_name: String, destination_path: S
         }
     }
 
-    zip.finish().map_err(|e| format!("Failed to finalize ZIP: {}", e))?;
+    zip.finish()
+        .map_err(|e| format!("Failed to finalize ZIP: {}", e))?;
 
     Ok(())
 }
 
 /// Import a world from a ZIP file
 #[tauri::command]
-pub fn import_world(
-    instance_id: String,
-    zip_path: String,
-    overwrite: bool,
-) -> Result<(), String> {
+pub fn import_world(instance_id: String, zip_path: String, overwrite: bool) -> Result<(), String> {
     let instance = MinecraftInstance::from_instance_id(&instance_id)
         .ok_or("Instance not found".to_string())?;
-    
+
     let saves_path = PathBuf::from(&instance.minecraftPath).join("saves");
-    
+
     // Create saves directory if it doesn't exist
     if !saves_path.exists() {
         fs::create_dir_all(&saves_path)
@@ -310,10 +333,9 @@ pub fn import_world(
     }
 
     // Open the ZIP file
-    let file = fs::File::open(&zip_path)
-        .map_err(|e| format!("Failed to open ZIP file: {}", e))?;
-    let mut archive = ZipArchive::new(file)
-        .map_err(|e| format!("Failed to read ZIP archive: {}", e))?;
+    let file = fs::File::open(&zip_path).map_err(|e| format!("Failed to open ZIP file: {}", e))?;
+    let mut archive =
+        ZipArchive::new(file).map_err(|e| format!("Failed to read ZIP archive: {}", e))?;
 
     // Create a temporary directory for extraction
     let temp_dir = create_temp_dir("world_import")
@@ -321,7 +343,8 @@ pub fn import_world(
 
     // Extract to temp directory first
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i)
+        let mut file = archive
+            .by_index(i)
             .map_err(|e| format!("Failed to read file from ZIP: {}", e))?;
         let outpath = temp_dir.join(file.name());
 
@@ -335,8 +358,8 @@ pub fn import_world(
                         .map_err(|e| format!("Failed to create parent directory: {}", e))?;
                 }
             }
-            let mut outfile = fs::File::create(&outpath)
-                .map_err(|e| format!("Failed to create file: {}", e))?;
+            let mut outfile =
+                fs::File::create(&outpath).map_err(|e| format!("Failed to create file: {}", e))?;
             io::copy(&mut file, &mut outfile)
                 .map_err(|e| format!("Failed to extract file: {}", e))?;
         }
@@ -374,7 +397,10 @@ pub fn import_world(
     if destination.exists() && !overwrite {
         cleanup_temp_dir(&temp_dir);
         // Return a structured error that the frontend can detect
-        return Err(format!("World '{}' already exists. Use overwrite option to replace it.", world_name));
+        return Err(format!(
+            "World '{}' already exists. Use overwrite option to replace it.",
+            world_name
+        ));
     }
 
     // If overwrite is true and destination exists, remove it
@@ -398,18 +424,18 @@ pub fn validate_world_import(
 ) -> Result<Option<ImportConflict>, String> {
     let instance = MinecraftInstance::from_instance_id(&instance_id)
         .ok_or("Instance not found".to_string())?;
-    
+
     let saves_path = PathBuf::from(&instance.minecraftPath).join("saves");
 
     // Open the ZIP file
-    let file = fs::File::open(&zip_path)
-        .map_err(|e| format!("Failed to open ZIP file: {}", e))?;
-    let mut archive = ZipArchive::new(file)
-        .map_err(|e| format!("Failed to read ZIP archive: {}", e))?;
+    let file = fs::File::open(&zip_path).map_err(|e| format!("Failed to open ZIP file: {}", e))?;
+    let mut archive =
+        ZipArchive::new(file).map_err(|e| format!("Failed to read ZIP archive: {}", e))?;
 
     // Check if level.dat exists in ZIP
     let has_level_dat = (0..archive.len()).any(|i| {
-        archive.by_index(i)
+        archive
+            .by_index(i)
             .ok()
             .map(|f| f.name() == "level.dat")
             .unwrap_or(false)
@@ -425,12 +451,13 @@ pub fn validate_world_import(
 
     // Extract just level.dat
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i)
+        let mut file = archive
+            .by_index(i)
             .map_err(|e| format!("Failed to read file from ZIP: {}", e))?;
         if file.name() == "level.dat" {
             let outpath = temp_dir.join("level.dat");
-            let mut outfile = fs::File::create(&outpath)
-                .map_err(|e| format!("Failed to create file: {}", e))?;
+            let mut outfile =
+                fs::File::create(&outpath).map_err(|e| format!("Failed to create file: {}", e))?;
             io::copy(&mut file, &mut outfile)
                 .map_err(|e| format!("Failed to extract file: {}", e))?;
             break;
@@ -446,15 +473,18 @@ pub fn validate_world_import(
                 .unwrap_or("imported_world")
                 .to_string()
         });
-        
+
         // Check for name conflicts
         let destination = saves_path.join(&name);
         if destination.exists() {
             // Check version mismatch
             if let Ok(existing_nbt) = read_level_dat(&destination) {
                 let (_, _, _, _, _, existing_version) = extract_world_info(&existing_nbt);
-                
-                if existing_version != import_version && existing_version.is_some() && import_version.is_some() {
+
+                if existing_version != import_version
+                    && existing_version.is_some()
+                    && import_version.is_some()
+                {
                     cleanup_temp_dir(&temp_dir);
                     return Ok(Some(ImportConflict {
                         conflict_type: "version_mismatch".to_string(),
@@ -469,7 +499,7 @@ pub fn validate_world_import(
                     }));
                 }
             }
-            
+
             cleanup_temp_dir(&temp_dir);
             return Ok(Some(ImportConflict {
                 conflict_type: "name_exists".to_string(),
@@ -479,7 +509,7 @@ pub fn validate_world_import(
                 import_version: None,
             }));
         }
-        
+
         name
     } else {
         cleanup_temp_dir(&temp_dir);
@@ -500,11 +530,11 @@ pub fn edit_world_settings(
 ) -> Result<(), String> {
     let instance = MinecraftInstance::from_instance_id(&instance_id)
         .ok_or("Instance not found".to_string())?;
-    
+
     let world_path = PathBuf::from(&instance.minecraftPath)
         .join("saves")
         .join(&world_name);
-    
+
     if !world_path.exists() {
         return Err("World not found".to_string());
     }
@@ -515,43 +545,57 @@ pub fn edit_world_settings(
     }
 
     // Read existing level.dat
-    let data = fs::read(&level_dat_path)
-        .map_err(|e| format!("Failed to read level.dat: {}", e))?;
-    
+    let data = fs::read(&level_dat_path).map_err(|e| format!("Failed to read level.dat: {}", e))?;
+
     let mut decoder = flate2::read::GzDecoder::new(&data[..]);
     let mut decompressed = Vec::new();
-    decoder.read_to_end(&mut decompressed)
+    decoder
+        .read_to_end(&mut decompressed)
         .map_err(|e| format!("Failed to decompress level.dat: {}", e))?;
-    
-    let mut nbt: fastnbt::Value = fastnbt::from_bytes(&decompressed)
-        .map_err(|e| format!("Failed to parse NBT: {}", e))?;
+
+    let mut nbt: fastnbt::Value =
+        fastnbt::from_bytes(&decompressed).map_err(|e| format!("Failed to parse NBT: {}", e))?;
 
     // Modify the NBT data
     if let fastnbt::Value::Compound(ref mut root) = nbt {
         if let Some(fastnbt::Value::Compound(ref mut data)) = root.get_mut("Data") {
             // Update GameType
-            data.insert("GameType".to_string(), fastnbt::Value::Int(settings.game_type));
-            
+            data.insert(
+                "GameType".to_string(),
+                fastnbt::Value::Int(settings.game_type),
+            );
+
             // Update Difficulty
-            data.insert("Difficulty".to_string(), fastnbt::Value::Byte(settings.difficulty as i8));
-            
+            data.insert(
+                "Difficulty".to_string(),
+                fastnbt::Value::Byte(settings.difficulty as i8),
+            );
+
             // Update allowCommands
-            data.insert("allowCommands".to_string(), fastnbt::Value::Byte(if settings.allow_commands { 1 } else { 0 }));
-            
+            data.insert(
+                "allowCommands".to_string(),
+                fastnbt::Value::Byte(if settings.allow_commands { 1 } else { 0 }),
+            );
+
             // Update hardcore
-            data.insert("hardcore".to_string(), fastnbt::Value::Byte(if settings.hardcore { 1 } else { 0 }));
+            data.insert(
+                "hardcore".to_string(),
+                fastnbt::Value::Byte(if settings.hardcore { 1 } else { 0 }),
+            );
         }
     }
 
     // Serialize back to NBT
-    let serialized = fastnbt::to_bytes(&nbt)
-        .map_err(|e| format!("Failed to serialize NBT: {}", e))?;
+    let serialized =
+        fastnbt::to_bytes(&nbt).map_err(|e| format!("Failed to serialize NBT: {}", e))?;
 
     // Compress with GZip
     let mut encoder = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
-    encoder.write_all(&serialized)
+    encoder
+        .write_all(&serialized)
         .map_err(|e| format!("Failed to compress NBT: {}", e))?;
-    let compressed = encoder.finish()
+    let compressed = encoder
+        .finish()
         .map_err(|e| format!("Failed to finalize compression: {}", e))?;
 
     // Write back to level.dat
