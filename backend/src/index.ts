@@ -30,6 +30,12 @@ if (SHOULD_INIT_WORKER) {
         return res;
     });
 
+    app.use("*", (c, next) => {
+        // Add X-Server: Modpack Store header to all responses
+        c.res.headers.set("X-Server", "Modpack Store");
+        return next();
+    });
+
     app.route("/v1", v1Router);
 
     app.get("/job", async (c) => {

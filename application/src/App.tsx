@@ -37,7 +37,6 @@ const PublisherProfileView = lazy(() => import("./views/PublisherProfileView").t
 // Layouts lazy (solo para roles específicos)
 const CreatorsLayout = lazy(() => import("./components/layouts/CreatorsLayout").then(m => ({ default: m.CreatorsLayout })));
 const AdminLayout = lazy(() => import("./components/admin/AdminLayout").then(m => ({ default: m.AdminLayout })));
-const PublisherLayout = lazy(() => import("./components/publisher/PublisherLayout").then(m => ({ default: m.PublisherLayout })));
 
 // Dialogos lazy (solo se cargan al abrirse)
 const ConfigurationDialog = lazy(() => import("./components/ConfigurationDialog").then(m => ({ default: m.ConfigurationDialog })));
@@ -144,10 +143,6 @@ const AppRoutes = memo(function AppRoutes({ isConnected, isAuthenticated, sessio
 
         {session?.creatorMemberships && session.creatorMemberships.length > 0 && (
           <Route path="/creators/*" element={<CreatorsLayout />} />
-        )}
-
-        {session?.creatorMemberships && session.creatorMemberships.length > 0 && (
-          <Route path="/publisher/:publisherId/*" element={<PublisherLayout />} />
         )}
 
         {session?.isAdmin?.() && (

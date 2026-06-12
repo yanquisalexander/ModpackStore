@@ -19,7 +19,7 @@ use dirs::config_dir;
 use serde_json::from_str;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tauri::Emitter;
 use tokio::task;
 
@@ -28,6 +28,17 @@ const DEFAULT_VANILLA_ICON: &str = "/images/default_instances/default_vanilla.we
 const DEFAULT_FORGE_ICON: &str = "/images/default_instances/default_forge.webp";
 const MAX_SEARCH_RESULTS: usize = 20;
 const TASK_CLEANUP_DELAY: u64 = 60;
+
+// ── In-memory instance cache ────────────────────────
+
+static INSTANCE_CACHE: once_cell::sync::Lazy<Mutex<Option<Vec<MinecraftInstance>>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(None));
+
+pub fn invalidate_instance_cache() {
+    if let Ok(mut cache) = INSTANCE_CACHE.lock() {
+        *cache = None;
+    }
+}
 
 // Función auxiliar para normalizar rutas
 fn normalize_path(path: &Path) -> String {
@@ -92,6 +103,7 @@ pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
             .map_err(|e| format!("Error saving instance: {}", e))?;
     }
 
+    invalidate_instance_cache();
     Ok(())
 }
 
@@ -108,6 +120,7 @@ pub fn delete_instance(instance_path: String) -> Result<(), String> {
     if path.exists() && path.is_dir() {
         fs::remove_dir_all(path).map_err(|e| format!("Failed to delete instance: {}", e))?;
     }
+    invalidate_instance_cache();
     Ok(())
 }
 
@@ -495,6 +508,13 @@ fn set_instance_last_known_version(instance: &MinecraftInstance, version_id: &st
 }
 
 fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> {
+    // Check in-memory cache first
+    if let Ok(cache) = INSTANCE_CACHE.lock() {
+        if let Some(instances) = &*cache {
+            return Ok(instances.clone());
+        }
+    }
+
     let path = Path::new(instances_dir);
 
     if !path.exists() || !path.is_dir() {
@@ -536,7 +556,13 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
         let mut instance: MinecraftInstance = match from_str(&contents) {
             Ok(i) => i,
             Err(e) => {
-                eprintln!("Error parsing instance config at {:?}: {}", config_file, e);
+                // Self-heal: back up corrupted file instead of silently dropping
+                let backup = config_file.with_extension("json.corrupted");
+                let _ = fs::rename(&config_file, &backup);
+                log::warn!(
+                    "Instance config corrupted at {:?}: {}. Backed up to {:?}",
+                    config_file, e, backup
+                );
                 continue;
             }
         };
@@ -545,15 +571,25 @@ fn get_instances(instances_dir: &str) -> Result<Vec<MinecraftInstance>, String> 
         instance.migrate_legacy_fields();
 
         // Normalizar rutas
+        let old_dir = instance.instanceDirectory.clone();
+        let old_mc = instance.minecraftPath.clone();
+
         instance.instanceDirectory = Some(normalize_path(&instance_path));
         instance.minecraftPath = normalize_path(&instance_path.join("minecraft"));
 
-        // Intentar guardar, pero continuar si falla
-        if let Err(e) = instance.save() {
-            eprintln!("Warning: Failed to save instance config: {}", e);
+        // Only re-save if paths actually changed (avoids write amplification)
+        if instance.instanceDirectory != old_dir || instance.minecraftPath != old_mc {
+            if let Err(e) = instance.save() {
+                eprintln!("Warning: Failed to save instance config: {}", e);
+            }
         }
 
         instances.push(instance);
+    }
+
+    // Populate cache
+    if let Ok(mut cache) = INSTANCE_CACHE.lock() {
+        *cache = Some(instances.clone());
     }
 
     Ok(instances)
@@ -625,6 +661,8 @@ pub async fn create_local_instance(
     instance
         .save()
         .map_err(|e| format!("Failed to save instance: {}", e))?;
+
+    invalidate_instance_cache();
 
     // Crear tarea
     let task_id = add_task(
@@ -788,6 +826,7 @@ pub async fn remove_instance(instance_id: String) -> Result<bool, String> {
             .map_err(|e| format!("Failed to delete instance directory: {}", e))?;
     }
 
+    invalidate_instance_cache();
     Ok(true)
 }
 
@@ -1634,7 +1673,24 @@ pub async fn fetch_modpack_manifest(
         .await
         .map_err(|e| format!("Failed to parse JSON: {}", e))?;
 
-    serde_json::from_value(json["manifest"].clone())
+    let mut manifest_value = json["manifest"].clone();
+
+    // Prefix relative downloadUrl with CDN_URL
+    if let Some(files) = manifest_value["files"].as_array_mut() {
+        for file in files {
+            if let Some(url) = file["downloadUrl"].as_str() {
+                if url.starts_with('/') {
+                    file["downloadUrl"] = serde_json::Value::String(format!(
+                        "{}{}",
+                        *crate::CDN_URL,
+                        url
+                    ));
+                }
+            }
+        }
+    }
+
+    serde_json::from_value(manifest_value)
         .map_err(|e| format!("Failed to parse manifest: {}", e))
 }
 
@@ -1786,6 +1842,8 @@ pub fn toggle_favorite(app: tauri::AppHandle, instance_id: String) -> Result<(),
         return Err(format!("Instance with ID {} not found", instance_id));
     }
 
+    invalidate_instance_cache();
+
     // Emitir evento para sincronizar la UI
     app.emit("favorite_updated", ())
         .map_err(|e| format!("Error emitting event: {}", e))?;
@@ -1810,6 +1868,8 @@ pub fn update_favorite_order(
                 .map_err(|e| format!("Error saving instance {}: {}", instance_id, e))?;
         }
     }
+
+    invalidate_instance_cache();
 
     // Emitir evento para sincronizar la UI
     app.emit("favorite_updated", ())
@@ -2002,6 +2062,8 @@ pub async fn create_instance_from_mrpack(
         );
         format!("Failed to save instance: {}", e)
     })?;
+
+    invalidate_instance_cache();
 
     log::info!("Instance metadata created, starting bootstrap process...");
 

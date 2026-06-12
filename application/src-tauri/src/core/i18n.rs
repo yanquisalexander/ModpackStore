@@ -350,19 +350,23 @@ fn get_nested_value<'a>(data: &'a HashMap<String, Value>, key: &str) -> Option<&
 use once_cell::sync::OnceCell;
 static I18N_MANAGER: OnceCell<Arc<I18nManager>> = OnceCell::new();
 
-/// Inicializa el gestor i18n con un AppHandle
+/// Inicializa el gestor i18n con un AppHandle (eager init opcional)
 pub fn init_i18n_manager(app_handle: AppHandle) -> Result<(), I18nError> {
-    let manager = I18nManager::new(app_handle);
-    I18N_MANAGER
-        .set(Arc::new(manager))
-        .map_err(|_| I18nError::AlreadyInitialized)?;
+    let _ = I18N_MANAGER.set(Arc::new(I18nManager::new(app_handle)));
     Ok(())
 }
 
 pub fn get_i18n_manager() -> Result<&'static Arc<I18nManager>, String> {
-    I18N_MANAGER.get().ok_or_else(|| {
-        "I18nManager no inicializado. Llamar a init_i18n_manager primero.".to_string()
+    I18N_MANAGER.get_or_try_init(|| {
+        let app_handle = GLOBAL_APP_HANDLE
+            .lock()
+            .map_err(|_| "Failed to lock GLOBAL_APP_HANDLE".to_string())?
+            .as_ref()
+            .ok_or("GLOBAL_APP_HANDLE not set yet")?
+            .clone();
+        Ok(Arc::new(I18nManager::new(app_handle)))
     })
+    .map_err(|e: String| e)
 }
 
 // --- Comandos de Tauri ---

@@ -1,0 +1,1 @@
+ALTER TABLE "modpacks" ADD COLUMN "prelaunch_appearance" jsonb;

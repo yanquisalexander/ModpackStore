@@ -13,8 +13,10 @@ import {
     removeMember,
 } from "@/services/creator.service.ts";
 import { CreatorRole } from "@/db/schema.ts";
+import modpackRoutes from "./modpacks.routes.ts";
 
 const app = new Hono();
+app.route("/:creatorId/modpacks", modpackRoutes);
 
 // ── Creator CRUD ──────────────────────────────────
 

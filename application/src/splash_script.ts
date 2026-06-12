@@ -12,6 +12,7 @@ const loader = document.querySelector('.loader')! as HTMLElement;
 
 
 let finished = false;
+let splashPromise: Promise<void> | null = null;
 const splashStart = Date.now();
 const MIN_SPLASH = 3500;
 
@@ -33,10 +34,12 @@ function showProgress() {
     updateProgress(0);
 }
 
-async function splashDone() {
-    if (finished) return;
-    finished = true;
+function resetIndicators() {
+    loader.style.display = 'none';
+    hideProgress();
+}
 
+async function _splashDone() {
     const elapsed = Date.now() - splashStart;
     const remaining = MIN_SPLASH - elapsed;
 
@@ -51,10 +54,16 @@ async function splashDone() {
     }
 }
 
+function splashDone(): Promise<void> {
+    if (finished) return splashPromise!;
+    finished = true;
+    splashPromise = _splashDone();
+    return splashPromise;
+}
+
 async function handleDownload(update: Update) {
     h1.textContent = 'Descargando...';
 
-    // Por defecto, mostramos el cargador circular y ocultamos la barra
     loader.style.display = 'block';
     hideProgress();
 
@@ -67,35 +76,29 @@ async function handleDownload(update: Update) {
         switch (event.event) {
             case 'Started':
                 contentLength = event.data.contentLength ?? 0;
-                // Si conocemos el tamaño, preparamos la barra de progreso
                 if (contentLength > 0) {
-                    loader.style.display = 'none'; // Ocultamos el cargador circular
-                    showProgress(); // Mostramos la barra de progreso
+                    loader.style.display = 'none';
+                    showProgress();
                 }
                 info('Update download started');
                 break;
 
             case 'Progress':
                 info(`[Updater] Downloading ${event.data.chunkLength} / ${contentLength}`)
-                // Solo actualizamos la barra si su lógica está activa (contentLength > 0)
                 if (contentLength > 0) {
                     downloaded += event.data.chunkLength;
                     const percent = Math.round((downloaded / contentLength) * 100);
                     updateProgress(percent);
                 }
-                // Si no, el cargador circular seguirá girando, lo cual es correcto.
                 break;
 
             case 'Finished':
-                // Al terminar, ocultamos ambos indicadores
-                loader.style.display = 'none';
-                hideProgress();
+                resetIndicators();
                 h1.textContent = 'Preparando actualización...';
                 break;
         }
     }).catch(async (err) => {
-        loader.style.display = 'none'; // Ocultamos también en caso de error
-        hideProgress();
+        resetIndicators();
         h1.textContent = 'Error al descargar la actualización';
         error(`Error downloading update: ${err}`);
     });
@@ -105,7 +108,6 @@ async function runUpdateFlow() {
     h1.textContent = 'Comprobando actualizaciones...';
     hideProgress();
 
-    // Si es Halloween, reproducimos un sonido temático
     if (isHalloween()) {
         playSound("LAUNCHER_HALLOWEEN", 0.5);
     }
@@ -119,12 +121,14 @@ async function runUpdateFlow() {
             try {
                 await invoke("set_config", { key: "lastUpdatedAt", value: new Date().toISOString() });
                 await invoke("set_config", { key: "updatedFrom", value: currentVersion });
-            } catch (error) {
-
+            } catch (err) {
+                error(`Error saving update metadata: ${err}`);
             }
             await update.install().catch((err) => {
-                hideProgress();
-                h1.textContent = "Ocurrió un error... Iniciando"
+                resetIndicators();
+                // No mostrar que ocurrió un error al instalar la actualización, ya que el usuario no puede hacer nada al respecto. 
+                // Simplemente cerrar la pantalla de carga y dejar que el usuario inicie la aplicación normalmente.
+                h1.textContent = "Cargando...";
                 error(`Error installing update: ${err}`);
                 splashDone().catch((err) => {
                     error(`Error closing splash screen after update error: ${err}`);

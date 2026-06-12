@@ -16,7 +16,7 @@ interface Props {
     isOpen: boolean;
     onClose: () => void;
     onSuccess?: (created?: Modpack) => void;
-    teamId?: string;
+    creatorId?: string;
 }
 
 // --- Componente de Carga de Imágenes (Mantenido igual) ---
@@ -75,7 +75,7 @@ const STEPS = [
     { id: 4, title: "Configuración", icon: Lock },
 ];
 
-const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, teamId }) => {
+const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, creatorId }) => {
     const { sessionTokens } = useAuthentication();
 
     // Control de Pasos
@@ -139,9 +139,7 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
             case 2: // Multimedia
                 // Opcional, pero podrías requerir icono si quisieras
                 return true;
-            case 3: // Categorías
-                if (selectedCategories.length === 0) { toast.error("Selecciona al menos una categoría"); return false; }
-                if (!primaryCategoryId) { toast.error("Selecciona una categoría primaria"); return false; }
+            case 3: // Categorías (opcional por ahora)
                 return true;
             case 4: // Configuración (Pricing)
                 if (acquisitionMethod === 'paid') {
@@ -168,7 +166,7 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
     // --- Envío del Formulario ---
     const handleSubmit = async () => {
         if (!validateStep(4)) return; // Validar último paso antes de enviar
-        if (!teamId) { toast.error('Error interno: No team ID'); return; }
+        if (!creatorId) { toast.error('Error interno: No creator ID'); return; }
 
         setLoading(true);
         try {
@@ -188,7 +186,7 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, team
             if (iconFile) formData.append('icon', iconFile);
             if (bannerFile) formData.append('banner', bannerFile);
 
-            const res = await fetch(`${API_ENDPOINT}/creators/${teamId}/modpacks`, {
+            const res = await fetch(`${API_ENDPOINT}/creators/${creatorId}/modpacks`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${sessionTokens?.accessToken}` },
                 body: formData,

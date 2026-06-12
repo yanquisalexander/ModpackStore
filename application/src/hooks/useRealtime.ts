@@ -32,7 +32,7 @@ export function useRealtime(
   options: WebSocketHookOptions = {}
 ): WebSocketHookReturn {
   const {
-    autoConnect = true,
+    autoConnect = false,
     reconnectInterval = 1000,
     maxReconnectAttempts = 10,
     debug = false

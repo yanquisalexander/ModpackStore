@@ -64,7 +64,7 @@ export function useModpackProcessing(
 ): ModpackProcessingHookReturn {
   const {
     token,
-    autoConnect = true,
+    autoConnect = false,
     debug = false,
     onProgress,
     onCompleted,
@@ -72,16 +72,16 @@ export function useModpackProcessing(
   } = options;
 
   // WebSocket connection
-  const { 
-    isConnected, 
-    isConnecting, 
-    error: connectionError, 
-    connect, 
-    disconnect, 
-    on, 
-    off 
-  } = useRealtime(token, { 
-    autoConnect, 
+  const {
+    isConnected,
+    isConnecting,
+    error: connectionError,
+    connect,
+    disconnect,
+    on,
+    off
+  } = useRealtime(token, {
+    autoConnect,
     debug,
     reconnectInterval: 2000,
     maxReconnectAttempts: 10

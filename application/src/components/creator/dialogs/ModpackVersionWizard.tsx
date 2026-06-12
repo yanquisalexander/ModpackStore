@@ -36,7 +36,7 @@ interface Props {
     modpack: {
         id: string;
         name: string;
-        publisherId: string;
+        creatorId: string;
     };
     existingVersions: Array<{
         id: string;
@@ -256,7 +256,7 @@ const ModpackVersionWizard: React.FC<Props> = ({
 
         try {
             const response = await fetch(
-                `${API_ENDPOINT}/creators/${modpack.publisherId}/modpacks/${modpack.id}/versions`,
+                `${API_ENDPOINT}/creators/${modpack.creatorId}/modpacks/${modpack.id}/versions`,
                 {
                     method: 'POST',
                     headers: {
@@ -264,11 +264,10 @@ const ModpackVersionWizard: React.FC<Props> = ({
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        versionName: versionName.trim(),
+                        version: versionName.trim(),
                         mcVersion,
                         loaderType,
                         loaderVersion: loaderType === 'vanilla' ? null : loaderVersion,
-                        forgeVersion: loaderType === 'forge' ? loaderVersion : null,
                     }),
                 }
             );

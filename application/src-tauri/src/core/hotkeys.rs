@@ -1,6 +1,10 @@
+use std::sync::Mutex;
 use std::str::FromStr;
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+
+static OVERLAY_POSITION: once_cell::sync::Lazy<Mutex<Option<(i32, i32)>>> =
+    once_cell::sync::Lazy::new(|| Mutex::new(None));
 
 #[tauri::command]
 pub fn reload_hotkeys(app: AppHandle) {
@@ -172,9 +176,22 @@ pub fn toggle_main_window<R: Runtime>(app: &AppHandle<R>) {
 pub fn toggle_overlay<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window("instances-overlay") {
         if window.is_visible().unwrap_or(false) {
+            // Save position before hiding
+            if let Ok(pos) = window.outer_position() {
+                if let Ok(mut saved) = OVERLAY_POSITION.lock() {
+                    *saved = Some((pos.x, pos.y));
+                }
+            }
             let _ = window.hide();
         } else {
-            let _ = window.center();
+            // Restore last position or center on first show
+            if let Ok(mut saved) = OVERLAY_POSITION.lock() {
+                if let Some((x, y)) = *saved {
+                    let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+                } else {
+                    let _ = window.center();
+                }
+            }
             let _ = window.show();
             let _ = window.set_focus();
         }

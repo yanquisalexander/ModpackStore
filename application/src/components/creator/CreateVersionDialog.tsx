@@ -77,7 +77,7 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
 
         try {
             const response = await fetch(
-                `${API_ENDPOINT}/creators/${modpack.publisherId}/modpacks/${modpack.id}/versions`,
+                `${API_ENDPOINT}/creators/${modpack.creatorId}/modpacks/${modpack.id}/versions`,
                 {
                     method: 'POST',
                     headers: {
@@ -85,9 +85,8 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        versionName: formData.versionName.trim(),
+                        version: formData.versionName.trim(),
                         mcVersion: formData.mcVersion,
-                        forgeVersion: formData.forgeVersion === 'none' ? null : formData.forgeVersion || null,
                         loaderType: formData.loaderType,
                         loaderVersion: formData.loaderVersion || null,
                         changelog: formData.changelog.trim() || null
@@ -113,7 +112,7 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                 changelog: ''
             });
 
-            onSuccess(data.version?.id || 'new-version');
+            onSuccess(data.id || 'new-version');
             onClose();
         } catch (error) {
             console.error('Error creating version:', error);

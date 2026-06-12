@@ -1,4 +1,4 @@
-import { processModpackFiles, QUEUE_NAME as ProcessModpackFilesQueueName } from './process-modpack-files.job.ts'
+import { processModpackFiles, QUEUE_NAME as ProcessModpackFilesQueueName } from './process-modpack-file.job.ts'
 import type { Job } from 'bullmq'
 
 type JobHandler = (job: Job) => Promise<void>

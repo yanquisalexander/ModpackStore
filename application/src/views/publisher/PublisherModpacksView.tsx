@@ -57,21 +57,31 @@ class PublisherModpacksAPI {
     private static baseUrl = `${API_ENDPOINT}/creators`;
 
     static async getModpacks(publisherId: string, accessToken: string): Promise<Modpack[]> {
-        const response = await fetch(`${this.baseUrl}/${publisherId}/modpacks`, {
+        const url = `${this.baseUrl}/${publisherId}/modpacks`;
+        console.log('[PublisherModpacksAPI] Fetching:', url);
+
+        const response = await fetch(url, {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
         });
 
+        console.log('[PublisherModpacksAPI] Response status:', response.status);
+
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.detail || `Error fetching modpacks: ${response.statusText}`);
+            let errorMsg = `Error fetching modpacks: ${response.statusText}`;
+            try {
+                const errorData = await response.json();
+                errorMsg = errorData.detail || errorMsg;
+            } catch {}
+            throw new Error(errorMsg);
         }
 
-        const { modpacks } = await response.json();
+        const modpacks = await response.json();
+        console.log('[PublisherModpacksAPI] Raw response:', modpacks);
 
-        return modpacks;
+        return Array.isArray(modpacks) ? modpacks : [];
     }
 
     static async deleteModpack(publisherId: string, modpackId: string, accessToken: string): Promise<void> {
@@ -238,7 +248,7 @@ export const PublisherModpacksView: React.FC = () => {
     };
 
     const handleManageVersions = (modpack: Modpack) => {
-        navigate(`/publisher/${publisherId}/modpacks/${modpack.id}/versions`);
+        navigate(`/creators/org/${publisherId}/modpacks/${modpack.id}/versions`);
     };
 
     const onModpackCreated = () => {
@@ -286,7 +296,7 @@ export const PublisherModpacksView: React.FC = () => {
                 isOpen={createModpackDialogOpen}
                 onClose={() => setCreateModpackDialogOpen(false)}
                 onSuccess={onModpackCreated}
-                teamId={publisherId}
+                creatorId={publisherId}
             />
 
             {/* Edit Modpack Dialog */}
@@ -296,7 +306,6 @@ export const PublisherModpacksView: React.FC = () => {
                     onClose={() => setEditModpackDialog({ open: false, modpack: null })}
                     onSuccess={onModpackUpdated}
                     modpack={editModpackDialog.modpack}
-                    teamId={publisherId}
                 />
             )}
 

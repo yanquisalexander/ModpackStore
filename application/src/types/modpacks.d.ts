@@ -7,15 +7,14 @@ export interface Modpack {
   iconUrl?: string;
   bannerUrl?: string;
   shortDescription?: string;
-  description?: string; // Added from backend schema consideration
-  visibility: 'public' | 'private' | 'patreon'; // Added from backend schema consideration
-  publisherId: string;
-  creatorUserId?: string; // Added from backend schema consideration
-  updatedAt: string; // Or Date
-  createdAt: string; // Or Date
-  organizationId?: string; // ID de la organización a la que pertenece el modpack (opcional para UI contextual)
-  categories?: ModpackCategory[]; // Added for category support
-  // Access control fields
+  description?: string;
+  visibility: 'public' | 'private' | 'patreon';
+  creatorId: string;
+  creatorUserId?: string;
+  updatedAt: string;
+  createdAt: string;
+  organizationId?: string;
+  categories?: ModpackCategory[];
   isPaid?: boolean;
   price?: string;
   acquisitionMethod?: 'free' | 'paid' | 'password';
@@ -24,7 +23,6 @@ export interface Modpack {
   twitchChannels?: TwitchChannel[];
   twitchCreatorIds?: string[];
   allowServerDownload?: boolean;
-  // trailerUrl, showUserAsPublisher can be added if needed
 }
 
 export interface ModpackCategory {

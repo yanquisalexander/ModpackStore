@@ -32,6 +32,10 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState, Shortcut};
 static GLOBAL_APP_HANDLE: once_cell::sync::Lazy<std::sync::Mutex<Option<tauri::AppHandle>>> =
     once_cell::sync::Lazy::new(|| std::sync::Mutex::new(None));
 
+static CDN_URL: once_cell::sync::Lazy<&'static str> = once_cell::sync::Lazy::new(|| {
+    "https://cdn-mstore.saltouruguayserver.com"
+});
+
 static API_ENDPOINT: once_cell::sync::Lazy<&'static str> = once_cell::sync::Lazy::new(|| {
     if cfg!(debug_assertions) {
         // En modo dev, usar el endpoint de desarrollo fijo

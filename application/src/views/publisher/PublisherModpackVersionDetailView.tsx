@@ -56,7 +56,6 @@ import {
 import { Progress } from '@/components/ui/progress';
 import { handleApiError } from '@/lib/utils';
 import { ModpackProcessingStatus } from '@/components/modpack/ModpackProcessingStatus';
-import { uploadFileWithUppy } from '@/utils/uppyUpload';
 
 // --- Interfaces & Types ---
 
@@ -70,11 +69,7 @@ interface ModpackVersion {
     releaseDate?: string;
     createdAt: string;
     updatedAt: string;
-    modpack: {
-        id: string;
-        name: string;
-        publisherId: string;
-    };
+    modpackName: string;
     files: ModpackVersionFile[];
 }
 
@@ -288,7 +283,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     const [changelog, setChangelog] = useState('');
     const [uploadingFile, setUploadingFile] = useState(false);
     const [publishing, setPublishing] = useState(false);
-    const [uploadSide, setUploadSide] = useState<'client' | 'server' | 'both'>('both');
+
     const [uploadDialog, setUploadDialog] = useState<{
         open: boolean;
         type: string;
@@ -385,8 +380,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
             }
 
             const data = await res.json();
-            setVersion(data.version);
-            setChangelog(data.version.changelog || '');
+            setVersion(data);
+            setChangelog(data.changelog || '');
         } catch (error) {
             console.error('Error fetching version details:', error);
             toast.error(error instanceof Error ? error.message : 'Error al cargar los detalles de la versión');
@@ -395,12 +390,12 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         }
     };
 
-    const handleUpdateSide = async (fileHash: string, fileType: string, side: 'client' | 'server' | 'both') => {
+    const handleUpdateSide = async (fileHash: string, _fileType: string, side: 'client' | 'server' | 'both') => {
         if (!version) return;
 
         try {
             const res = await fetch(
-                `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileType}/${fileHash}/side`,
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileHash}/side`,
                 {
                     method: 'PATCH',
                     headers: {
@@ -559,8 +554,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     const handleFileUpload = async (file: File, type: string) => {
         if (!file) return;
 
-        if (!file.name.toLowerCase().endsWith('.zip') && !file.name.toLowerCase().endsWith('.rar') && !file.name.toLowerCase().endsWith('.7z')) {
-            toast.error('Solo se permiten archivos ZIP, RAR o 7z');
+        if (!file.name.toLowerCase().endsWith('.zip')) {
+            toast.error('Solo se permiten archivos ZIP');
             return;
         }
 
@@ -568,40 +563,47 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         setUploadDialog(prev => ({ ...prev, progress: 0 }));
 
         try {
-            await uploadFileWithUppy({
-                file,
-                endpoint: `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}`,
-                headers: {
-                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+            // 1. Get presigned URL
+            const urlRes = await fetch(
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/upload-url/${type}`,
+                {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${sessionTokens?.accessToken}` },
                 },
-                fieldName: 'file',
-                formData: {
-                    side: uploadSide
-                },
-                onProgress: (percentComplete) => {
-                    setUploadDialog(prev => ({ ...prev, progress: percentComplete }));
-                },
-                onSuccess: () => {
-                    setUploadDialog(prev => ({ ...prev, progress: 100 }));
-                    toast.success('Archivo subido correctamente');
-                    fetchVersionDetails();
-                },
-                onError: (error) => {
-                    let message = error.message || 'Error al subir el archivo';
+            );
+            if (!urlRes.ok) { await handleApiError(urlRes); return; }
+            const { uploadUrl } = await urlRes.json();
 
-                    // Try to parse error message if it contains API error details
-                    try {
-                        const errorData = JSON.parse(error.message);
-                        if (errorData.errors && Array.isArray(errorData.errors) && errorData.errors.length > 0) {
-                            message = errorData.errors.map((err: any) => err.detail || err.title || err.code || JSON.stringify(err)).join('; ');
-                        }
-                    } catch (e) {
-                        // Keep original message if parsing fails
+            // 2. PUT file to presigned URL (track progress via XMLHttpRequest)
+            await new Promise<void>((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        setUploadDialog(prev => ({ ...prev, progress: Math.round((e.loaded / e.total) * 90) }));
                     }
-
-                    toast.error(message);
-                }
+                });
+                xhr.addEventListener('load', () => resolve());
+                xhr.addEventListener('error', () => reject(new Error('Error al subir el archivo a R2')));
+                xhr.open('PUT', uploadUrl);
+                xhr.setRequestHeader('Content-Type', 'application/octet-stream');
+                xhr.send(file);
             });
+
+            setUploadDialog(prev => ({ ...prev, progress: 95 }));
+
+            // 3. Confirm upload
+            const confirmRes = await fetch(
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/confirm-upload/${type}`,
+                {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${sessionTokens?.accessToken}` },
+                },
+            );
+            if (!confirmRes.ok) { await handleApiError(confirmRes); return; }
+
+            setUploadDialog(prev => ({ ...prev, progress: 100 }));
+            toast.success('Archivo subido correctamente, procesando...');
+            fetchVersionDetails();
         } catch (error) {
             console.error('Error uploading file:', error);
             toast.error(error instanceof Error ? error.message : 'Error al subir el archivo');
@@ -624,10 +626,10 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     };
 
     const confirmDeleteFile = async () => {
-        const { fileHash, fileType } = deleteFileDialog;
+        const { fileHash } = deleteFileDialog;
         try {
             const res = await fetch(
-                `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileType}/${fileHash}`,
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${fileHash}`,
                 {
                     method: 'DELETE',
                     headers: {
@@ -693,9 +695,26 @@ const PublisherModpackVersionDetailView: React.FC = () => {
             }
 
             const data = await res.json();
+            const filesByVersion: Record<string, typeof data> = {};
+            for (const f of data) {
+                if (!filesByVersion[f.versionId]) filesByVersion[f.versionId] = [];
+                filesByVersion[f.versionId].push(f);
+            }
+            const versionIds = [...new Set(data.map((f: any) => f.versionId))];
+            const previousFiles = await Promise.all(versionIds.map(async (vid) => {
+                const vRes = await fetch(`${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${vid}`, {
+                    headers: { 'Authorization': `Bearer ${sessionTokens?.accessToken}` },
+                });
+                const vData = await vRes.json();
+                return {
+                    version: (vData || {}).version || vid,
+                    versionId: vid,
+                    files: filesByVersion[vid] || [],
+                };
+            }));
             setReuseDialog(prev => ({
                 ...prev,
-                previousFiles: data.previousFiles || [],
+                previousFiles,
                 selectedFiles: [],
                 loading: false
             }));
@@ -1242,31 +1261,6 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider flex items-center gap-1.5">
-                                        <LucideMonitor className="h-3.5 w-3.5" /> Entorno de instalación
-                                    </label>
-                                    <Select value={uploadSide} onValueChange={(v: any) => setUploadSide(v)}>
-                                        <SelectTrigger className="w-full bg-slate-50 border-slate-200">
-                                            <SelectValue placeholder="Seleccionar entorno" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem value="both">
-                                                <div className="flex items-center gap-2">
-                                                    <LucideGlobe className="h-4 w-4" /> Ambos (Cliente y Servidor)
-                                                </div>
-                                            </SelectItem>
-                                            <SelectItem value="client">
-                                                <div className="flex items-center gap-2">
-                                                    <LucideMonitor className="h-4 w-4" /> Solo Cliente
-                                                </div>
-                                            </SelectItem>
-                                            <SelectItem value="server">
-                                                <div className="flex items-center gap-2">
-                                                    <LucideServer className="h-4 w-4" /> Solo Servidor
-                                                </div>
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
                                     <p className="text-[10px] text-gray-400">
                                         Define dónde se instalarán los archivos contenidos en este ZIP.
                                     </p>
@@ -1397,7 +1391,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-white/5">
                     <div className="space-y-1">
                         <div className="flex items-center gap-3">
-                            <h1 className="text-3xl font-bold text-white tracking-tight">{version.modpack.name}</h1>
+                            <h1 className="text-3xl font-bold text-white tracking-tight">{version.modpackName}</h1>
                             <Badge variant={getStatusBadgeVariant(version.status)} className="px-3 py-0.5">
                                 {getStatusLabel(version.status)}
                             </Badge>

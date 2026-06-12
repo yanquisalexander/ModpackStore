@@ -113,7 +113,7 @@ export const TrayWindow = () => {
     const currentView = hasRunning ? viewMode : 'list';
 
     return (
-        <div className="w-full h-screen bg-transparent flex flex-col justify-end pb-8 px-4 select-none font-sans overflow-hidden">
+        <div className="w-full h-screen bg-transparent flex flex-col justify-end pb-8 px-4 select-none font-sans overflow-hidden pointer-events-none">
             <AnimatePresence mode="wait" onExitComplete={onExitComplete}>
                 {isVisible && (
                     <motion.div
@@ -122,15 +122,15 @@ export const TrayWindow = () => {
                         animate={{ y: 0, opacity: 1, scale: 1 }}
                         exit={{ y: 80, opacity: 0, scale: 0.95 }}
                         transition={{ type: "spring", stiffness: 400, damping: 28 }}
-                        className="w-full flex justify-center"
+                        className="w-full flex justify-center pointer-events-auto"
                     >
                         <div
+                            data-tauri-drag-region
                             className={cn(
                                 "relative bg-[#09090b] border border-white/10 shadow-2xl overflow-hidden transition-all duration-300 ease-[cubic-bezier(0.23,1,0.32,1)]",
                                 currentView === 'pill' ? "rounded-full w-[400px] h-[80px]" : "rounded-[32px] w-[360px] max-h-[500px]"
                             )}
                         >
-                            <div className="absolute inset-0 z-0" data-tauri-drag-region />
 
                             <AnimatePresence mode="wait">
                                 {currentView === 'pill' && currentRunning ? (
@@ -167,7 +167,7 @@ export const TrayWindow = () => {
                                         </div>
 
                                         {/* --- CENTRO: INFO --- */}
-                                        <div className="flex-1 min-w-0 flex flex-col justify-center" data-tauri-drag-region>
+                                        <div className="flex-1 min-w-0 flex flex-col justify-center">
                                             <motion.div
                                                 key={currentRunning.id}
                                                 initial={{ y: 10, opacity: 0 }}
@@ -224,7 +224,7 @@ export const TrayWindow = () => {
                                         exit={{ opacity: 0 }}
                                         className="flex flex-col h-full relative z-10"
                                     >
-                                        <div className="px-5 py-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]" data-tauri-drag-region>
+                                        <div className="px-5 py-4 border-b border-white/5 flex justify-between items-center bg-white/[0.02]">
                                             <div className="flex items-center gap-2 pointer-events-none">
                                                 <LucidePackage className="size-4 text-white/50" />
                                                 <span className="text-xs font-bold text-white/80 uppercase tracking-wide">Biblioteca</span>

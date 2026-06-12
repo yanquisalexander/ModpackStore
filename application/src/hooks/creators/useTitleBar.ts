@@ -11,8 +11,9 @@ export const useTitleBar = (isOrgRoute: boolean, teams: any[], orgId?: string) =
             const currentTeam = teams.find(team => team.id === orgId);
 
             // Si no hay teams cargados o no se encuentra el team, mostrar un título genérico
-            const title = currentTeam?.publisherName
-                ? `Administrando ${currentTeam.publisherName}`
+            const teamName = currentTeam?.displayName ?? currentTeam?.publisherName;
+            const title = teamName
+                ? `Administrando ${teamName}`
                 : teams.length === 0
                     ? "Cargando organización..."
                     : "Organización no encontrada";

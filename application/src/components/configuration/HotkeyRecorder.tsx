@@ -38,6 +38,11 @@ export const HotkeyRecorder: React.FC<HotkeyRecorderProps> = ({ value, onChange 
             if (e.shiftKey) modifiers.push('Shift');
             if (e.metaKey) modifiers.push('Super');
 
+            // Require at least one modifier key
+            if (modifiers.length === 0) {
+                return;
+            }
+
             let keyName = e.key.toUpperCase();
 
             // Map common keys to standard names if needed

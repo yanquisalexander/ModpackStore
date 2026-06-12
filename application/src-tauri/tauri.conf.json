@@ -102,6 +102,8 @@
         "width": 450,
         "height": 600,
         "resizable": false,
+        "minWidth": 300,
+        "minHeight": 400,
         "fullscreen": false,
         "decorations": false,
         "acceptFirstMouse": true,

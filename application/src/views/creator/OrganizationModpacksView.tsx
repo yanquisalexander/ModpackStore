@@ -109,10 +109,10 @@ interface OrganizationModpacksViewProps {
 
 export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> = ({ teams }) => {
     const { sessionTokens } = useAuthentication();
-    const { orgId } = useParams();
+    const { publisherId } = useParams<{ publisherId: string }>();
     const navigate = useNavigate();
 
-    const team = teams.find((t: { id: string }) => t.id === orgId);
+    const team = teams.find((t: { id: string }) => t.id === publisherId);
 
     const [modpacks, setModpacks] = useState<Modpack[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -174,7 +174,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
             return;
         }
         // Navigate to the new edit page instead of opening a dialog
-        navigate(`/creators/org/${orgId}/modpacks/${modpack.id}/edit`);
+        navigate(`/creators/org/${publisherId}/modpacks/${modpack.id}/edit`);
     };
 
     const openDeleteDialog = (modpack: Modpack) => {

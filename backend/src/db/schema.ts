@@ -121,6 +121,7 @@ export const modpacksTable = pgTable("modpacks", {
     bannerUrl: text('banner_url').notNull(),
     trailerUrl: text('trailer_url'),
     password: text('password'), // nullable
+    prelaunchAppearance: jsonb('prelaunch_appearance'),
     visibility: modpackVisibilityEnum('visibility').notNull().default(ModpackVisibility.PRIVATE),
     creatorId: uuid('creator_id').references(() => creatorsTable.id).notNull(),
     showUserAsPublisher: boolean('show_user_as_publisher').default(false),

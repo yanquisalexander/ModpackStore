@@ -229,7 +229,13 @@ impl MinecraftInstance {
         let config_file = Path::new(&self.instanceDirectory.as_ref().unwrap_or(&String::new()))
             .join("instance.json");
         let content = serde_json::to_string_pretty(self)?;
-        fs::write(config_file, content)
+        // Atomic write: temp file + rename to prevent truncation on crash
+        let temp_path = config_file.with_extension("json.tmp");
+        fs::write(&temp_path, &content)?;
+        fs::rename(&temp_path, &config_file)?;
+        // Invalidate the cached instance list so next read is fresh
+        crate::core::instance_manager::invalidate_instance_cache();
+        Ok(())
     }
 
     pub fn delete(&self) -> IoResult<()> {

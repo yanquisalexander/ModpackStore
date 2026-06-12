@@ -9,7 +9,6 @@ interface ModpackStatusManagerProps {
     currentStatus: 'draft' | 'published' | 'archived' | 'deleted';
     onStatusChange: (newStatus: 'draft' | 'published' | 'archived') => void;
     disabled?: boolean;
-    hasPrimaryCategory?: boolean;
     className?: string;
 }
 
@@ -44,13 +43,10 @@ export const ModpackStatusManager: React.FC<ModpackStatusManagerProps> = ({
     currentStatus,
     onStatusChange,
     disabled = false,
-    hasPrimaryCategory = false,
     className
 }) => {
     const currentConfig = statusConfig[currentStatus];
     const IconComponent = currentConfig.icon;
-
-    const canPublish = hasPrimaryCategory;
     const isDeleted = currentStatus === 'deleted';
 
     return (
@@ -89,18 +85,10 @@ export const ModpackStatusManager: React.FC<ModpackStatusManagerProps> = ({
                                         Borrador
                                     </div>
                                 </SelectItem>
-                                <SelectItem 
-                                    value="published" 
-                                    disabled={!canPublish}
-                                >
+                                <SelectItem value="published">
                                     <div className="flex items-center gap-2">
                                         <LucideEye className="h-4 w-4" />
                                         Publicado
-                                        {!canPublish && (
-                                            <span className="text-xs text-red-400 ml-2">
-                                                (Requiere categoría primaria)
-                                            </span>
-                                        )}
                                     </div>
                                 </SelectItem>
                                 <SelectItem value="archived">
@@ -113,13 +101,6 @@ export const ModpackStatusManager: React.FC<ModpackStatusManagerProps> = ({
                         </Select>
 
                         {/* Validation Messages */}
-                        {currentStatus === 'draft' && !canPublish && (
-                            <div className="text-sm text-yellow-600 bg-yellow-50 border border-yellow-200 rounded p-2">
-                                <LucideCheck className="h-4 w-4 inline mr-2" />
-                                Para publicar el modpack, debe tener al menos una categoría primaria asignada.
-                            </div>
-                        )}
-
                         {currentStatus === 'published' && (
                             <div className="text-sm text-green-600 bg-green-50 border border-green-200 rounded p-2">
                                 <LucideCheck className="h-4 w-4 inline mr-2" />

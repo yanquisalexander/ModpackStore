@@ -28,6 +28,7 @@ import {
 import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from '@/consts';
 import { toast } from 'sonner';
+import { useWizard } from '@/components/creators/WizardContext';
 
 // Types
 interface ModpackVersion {
@@ -66,7 +67,7 @@ interface Modpack {
 class PublisherVersionsAPI {
     private static baseUrl = `${API_ENDPOINT}/creators`;
 
-    static async getVersions(publisherId: string, modpackId: string, accessToken: string): Promise<{ versions: ModpackVersion[], modpack: Modpack }> {
+    static async getVersions(publisherId: string, modpackId: string, accessToken: string): Promise<ModpackVersion[]> {
         const response = await fetch(`${this.baseUrl}/${publisherId}/modpacks/${modpackId}/versions`, {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
@@ -79,7 +80,8 @@ class PublisherVersionsAPI {
             throw new Error(errorData.detail || `Error fetching versions: ${response.statusText}`);
         }
 
-        return await response.json();
+        const data = await response.json();
+        return Array.isArray(data) ? data : [];
     }
 
     static async deleteVersion(publisherId: string, modpackId: string, versionId: string, accessToken: string): Promise<void> {
@@ -134,14 +136,11 @@ const getStatusLabel = (status: string) => {
     }
 };
 
-interface PublisherModpackVersionsViewProps {
-    onOpenWizard?: (modpack: any, existingVersions: any[], onSuccess: () => void) => void;
-}
-
-export const PublisherModpackVersionsView: React.FC<PublisherModpackVersionsViewProps> = ({ onOpenWizard }) => {
+export const PublisherModpackVersionsView: React.FC = () => {
     const { publisherId, modpackId } = useParams<{ publisherId: string; modpackId: string }>();
     const { session, sessionTokens } = useAuthentication();
     const navigate = useNavigate();
+    const { openWizard } = useWizard();
 
     // State
     const [versions, setVersions] = useState<ModpackVersion[]>([]);
@@ -175,15 +174,10 @@ export const PublisherModpackVersionsView: React.FC<PublisherModpackVersionsView
         setError(null);
 
         try {
-            const data = await PublisherVersionsAPI.getVersions(publisherId, modpackId, sessionTokens.accessToken);
-            let modpackData = data.modpack;
+            const versionsData = await PublisherVersionsAPI.getVersions(publisherId, modpackId, sessionTokens.accessToken);
+            let modpackData = await PublisherVersionsAPI.getModpack(publisherId, modpackId, sessionTokens.accessToken);
 
-            // If modpack is not included in the response, fetch it separately
-            if (!modpackData) {
-                modpackData = await PublisherVersionsAPI.getModpack(publisherId, modpackId, sessionTokens.accessToken);
-            }
-
-            setVersions(data.versions || []);
+            setVersions(versionsData);
             setModpack(modpackData ? { ...modpackData, publisherId } : null);
         } catch (error) {
             console.error('Error loading versions:', error);
@@ -217,13 +211,13 @@ export const PublisherModpackVersionsView: React.FC<PublisherModpackVersionsView
 
     const handleCreateVersion = () => {
         console.log('handleCreateVersion called, modpack:', modpack, 'canCreateVersions:', canCreateVersions);
-        if (onOpenWizard && modpack) {
-            onOpenWizard(modpack, versions, onVersionCreated);
+        if (modpack) {
+            openWizard(modpack, versions, onVersionCreated);
         }
     };
 
     const handleViewVersion = (version: ModpackVersion) => {
-        navigate(`/publisher/${publisherId}/modpacks/${modpackId}/versions/${version.id}`);
+        navigate(`/creators/org/${publisherId}/modpacks/${modpackId}/versions/${version.id}`);
     };
 
     const handleDeleteVersion = (version: ModpackVersion) => {
@@ -251,7 +245,7 @@ export const PublisherModpackVersionsView: React.FC<PublisherModpackVersionsView
     };
 
     const handleBackToModpacks = () => {
-        navigate(`/publisher/${publisherId}/modpacks`);
+        navigate(`/creators/org/${publisherId}/modpacks`);
     };
 
     const onVersionCreated = () => {
