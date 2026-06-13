@@ -98,7 +98,7 @@ export const LibrarySection = () => {
     };
 
     return (
-        <div className="relative min-h-dvh bg-[#0a0a0a] text-white overflow-hidden">
+        <div className="relative min-h-full bg-[#0a0a0a] text-white overflow-hidden">
 
             {/* Background Glows */}
             <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-purple-900/10 blur-[120px] rounded-full pointer-events-none" />

@@ -1,4 +1,4 @@
-import { useEffect, useRef, lazy, Suspense, memo } from "react";
+import { useEffect, useRef, lazy, Suspense, memo, Fragment } from "react";
 import "./App.css";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -58,7 +58,7 @@ import GlassCircleWrench from "./icons/GlassCircleWrench";
 
 // --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
 const LoadingScreen = () => (
-  <div className="absolute inset-0 flex items-center justify-center min-h-dvh h-full w-full">
+  <div className="absolute inset-0 flex items-center justify-center min-h-full h-full w-full">
     <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
   </div>
 );
@@ -74,7 +74,7 @@ const ModpackOverviewPage = () => {
 };
 
 const SectionInMaintenance = ({ title }: { title: string }) => (
-  <div className="flex flex-col items-center justify-center min-h-dvh h-full text-center">
+  <div className="flex flex-col items-center justify-center min-h-full h-full text-center">
     <div className="relative flex items-center justify-center w-20 h-20 mb-8">
       <svg width="80" height="80" viewBox="0 0 80 80" className="absolute inset-0 animate-[pulse-ring_2.6s_ease-in-out_infinite]">
         <circle cx="40" cy="40" r="36" fill="none" stroke="#7F77DD" strokeWidth="1.5" strokeDasharray="4 7" />
@@ -125,7 +125,7 @@ const AppRoutes = memo(function AppRoutes({ isConnected, isAuthenticated, sessio
     <Suspense fallback={<LoadingScreen />}>
       <Routes>
         <Route path="/" element={<HomeView />} />
-        <Route path="/explore" element={<SectionInMaintenance title="Explorar" />} />
+        <Route path="/explore" element={<ExploreSection />} />
         <Route path="/whitelist-instances" element={<WhitelistInstancesView />} />
         <Route path="/library" element={<LibrarySection />} />
         <Route path="/my-instances" element={<MyInstancesSection offlineMode={false} />} />
@@ -250,8 +250,8 @@ function App() {
   return (
     <>
       {(isAuthenticated || !isConnected) && !isFirstRun && !isBanned && <AppSidebar />}
-      <main className={`overflow-y-auto h-full border-t ${isShowingLogin ? "border-transparent" : "relative bg-[var(--background)]"} ${hasSidebar ? 'rounded-tl-md border-l' : 'border-l-transparent'}`} style={{ gridArea: 'main' }}>
-        <div className="">
+      <main className={`overflow-y-auto h-full border-t p-0 m-0 ${isShowingLogin ? "border-transparent" : "relative bg-[var(--background)]"} ${hasSidebar ? 'rounded-tl-md border-l' : 'border-l-transparent'}`} style={{ gridArea: 'main' }}>
+        <Fragment>
           {isFirstRun ? (
             <Suspense fallback={<LoadingScreen />}>
               <OnboardingFlow onComplete={refreshStatus} />
@@ -263,7 +263,7 @@ function App() {
               session={session}
             />
           )}
-        </div>
+        </Fragment>
 
         {/* Componentes globales */}
         <CommandPalette />

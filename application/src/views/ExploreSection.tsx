@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from "react"
 import { useGlobalContext } from "../stores/GlobalContext"
+import { useSearchBar } from "../stores/SearchBarContext"
+import { TitleBarSearch } from "@/components/appbar/TitleBarSearch"
 import {
     LucideLoader, LucideSearch, LucideShoppingBag,
     LucideSparkles, LucideZap, LucideGamepad2,
@@ -152,9 +154,8 @@ export const ExploreSection = () => {
     const [searchResults, setSearchResults] = useState<any[]>([])
     const [loading, setLoading] = useState(false)
     const [initialLoading, setInitialLoading] = useState(true)
-    const [search, setSearch] = useState("")
+    const { query: search, setQuery: setSearch, isFocused: isSearchFocused, setIsFocused: setIsSearchFocused } = useSearchBar()
     const [debouncedSearch] = useDebounce(search, 300)
-    const [isSearchFocused, setIsSearchFocused] = useState(false)
     const [activeChip, setActiveChip] = useState<string | null>(null)
 
     const { onboardingStatus } = useOnboarding()
@@ -177,6 +178,7 @@ export const ExploreSection = () => {
             canGoBack: false,
             customIconClassName: "bg-green-500/20 text-green-400",
             opaque: true,
+            rightSlot: <TitleBarSearch />,
         })
         trackSectionView("explore")
 
@@ -195,7 +197,14 @@ export const ExploreSection = () => {
             .catch(console.error)
             .finally(() => setInitialLoading(false))
 
-        return () => { clearActivity().catch(console.error) }
+        return () => {
+            clearActivity().catch(console.error)
+            setTitleBarState(prev => ({
+                ...prev,
+                rightSlot: undefined,
+                centerSlot: undefined,
+            }))
+        }
     }, [])
 
     // Search
@@ -245,7 +254,7 @@ export const ExploreSection = () => {
 
                 {initialLoading ? (
                     /* ── Loading ── */
-                    <div className="flex flex-col items-center justify-center h-full min-h-dvh gap-4">
+                    <div className="flex flex-col items-center justify-center h-full min-h-full gap-4">
                         <LucideLoader className="w-10 h-10 animate-spin text-[#bcfe47]/60" />
                         <p className="text-neutral-500 text-sm animate-pulse">Cargando la tienda...</p>
                     </div>

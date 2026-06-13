@@ -19,6 +19,10 @@ import { isHalloween } from "@/utils/SPECIAL_DATES";
 // Componentes UI
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import type { MinecraftInstance } from "@/types/TauriCommandReturns";
+import GlassGamingButtons from "@/icons/GlassGamingButtons";
+import GlassUsers from "@/icons/GlassUsers";
+import GlassGridPlus from "@/icons/GlassGridPlus";
+import GlassMagnifier from "@/icons/GlassMagnifier";
 
 // --- SUBCOMPONENTES ---
 
@@ -255,11 +259,11 @@ export const AppSidebar: React.FC = memo(() => {
 
     const NAV_ITEMS = useMemo(() => {
         const baseItems = [
-            { name: "Explorar", icon: GridIcon, path: "/explore", requiresConnection: true },
+            { name: "Explorar", icon: GlassMagnifier, path: "/explore", requiresConnection: true },
             { name: "Biblioteca", icon: LucideLibrary, path: "/library", requiresConnection: true },
-            { name: "Instancias", icon: LucideGamepad2, path: (!isConnected && !isLoadingConnectionCheck) ? "/" : "/my-instances", requiresConnection: false },
+            { name: "Instancias", icon: GlassGamingButtons, path: (!isConnected && !isLoadingConnectionCheck) ? "/" : "/my-instances", requiresConnection: false },
             { name: "Servidores", icon: LucideServer, path: "/servers", requiresConnection: true },
-            { name: "Cuentas", icon: LucideUsers, path: "/mc-accounts", requiresConnection: false }
+            { name: "Cuentas", icon: GlassUsers, path: "/mc-accounts", requiresConnection: false }
         ];
 
         if (hasWhitelists && isConnected) {

@@ -126,7 +126,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
   const StepComponent = currentStep.component;
 
   return (
-    <div className="relative min-h-dvh w-full bg-[#050505] text-white overflow-hidden flex flex-col items-center justify-center selection:bg-white/20">
+    <div className="relative min-h-full w-full bg-[#050505] text-white overflow-hidden flex flex-col items-center justify-center selection:bg-white/20">
 
       {/* Background Gradients (Subtle) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">

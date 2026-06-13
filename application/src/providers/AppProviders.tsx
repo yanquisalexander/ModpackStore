@@ -5,6 +5,7 @@ import { TasksProvider } from "../stores/TasksContext";
 import { InstancesProvider } from "../stores/InstancesContext";
 import { ReloadProvider } from "../stores/ReloadContext";
 import { ConfigDialogProvider } from "../stores/ConfigDialogContext";
+import { SearchBarProvider } from "../stores/SearchBarContext";
 import { ConnectionProvider } from "../utils/ConnectionContext";
 import { RealtimeProvider } from "./RealtimeProvider";
 import { LayoutProvider } from "./LayoutProvider";
@@ -20,7 +21,9 @@ const IndependentProviders = React.memo(({ children }: { children: React.ReactNo
                 <ConfigDialogProvider>
                     <LayoutProvider>
                         <TooltipProvider delayDuration={0} skipDelayDuration={0}>
-                            {children}
+                            <SearchBarProvider>
+                                {children}
+                            </SearchBarProvider>
                         </TooltipProvider>
                     </LayoutProvider>
                 </ConfigDialogProvider>

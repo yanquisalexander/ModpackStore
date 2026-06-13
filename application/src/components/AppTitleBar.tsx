@@ -165,7 +165,7 @@ export const AppTitleBar = () => {
                     ref={contextMenuTriggerRef}
                     data-tauri-drag-region
                     style={{ gridArea: 'appbar' }}
-                    className={`flex z-40 top-0 h-[var(--app-top-bar-height)] transition ease-in-out w-full items-center justify-between 
+                    className={`flex relative z-40 top-0 h-[var(--app-top-bar-height)] transition ease-in-out w-full items-center justify-between
                      text-[var(--sidebar-foreground)] select-none ${titleBarState.opaque ? 'bg-[var(--sidebar)]' : 'bg-transparent'}`}
                 >
                     <div className="flex items-center justify-center">
@@ -209,12 +209,31 @@ export const AppTitleBar = () => {
                                     {titleBarState.title}
                                 </span>
                             </div>
+
+                            {titleBarState.leftSlot && (
+                                <div className="flex items-center ml-2">
+                                    {titleBarState.leftSlot}
+                                </div>
+                            )}
                         </div>
                     </div>
+
+                    {titleBarState.centerSlot && (
+                        <div className="absolute left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none">
+                            <div className="pointer-events-auto">
+                                {titleBarState.centerSlot}
+                            </div>
+                        </div>
+                    )}
 
                     <div className="flex ml-auto border-r px-1 mr-1 border-[var(--border)]" onContextMenu={(e) => {
                         e.preventDefault();
                     }}>
+                        {titleBarState.rightSlot && (
+                            <div className="flex items-center mr-2">
+                                {titleBarState.rightSlot}
+                            </div>
+                        )}
                         {
                             showReloadOnOffline && (
                                 <button

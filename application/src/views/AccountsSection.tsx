@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { useGlobalContext } from "@/stores/GlobalContext"
 import { useConnection } from "@/utils/ConnectionContext"
 import { motion } from "motion/react"
+import GlassUsers from "@/icons/GlassUsers"
 
 export const AccountsSection = () => {
     const [accounts, setAccounts] = useState<TauriCommandReturns['get_all_accounts']>([])
@@ -38,7 +39,7 @@ export const AccountsSection = () => {
         setTitleBarState({
             ...titleBarState,
             title: "Gestión de Cuentas",
-            icon: LucideUsers,
+            icon: GlassUsers,
             canGoBack: true,
             customIconClassName: "bg-purple-500/20 text-purple-400",
             opaque: false,
@@ -76,7 +77,7 @@ export const AccountsSection = () => {
     }
 
     return (
-        <div className="relative min-h-dvh bg-[#0a0a0a] text-white overflow-hidden">
+        <div className="relative min-h-full bg-[#0a0a0a] text-white overflow-hidden">
 
             {/* Background Glows */}
             <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-600/10 blur-[120px] rounded-full pointer-events-none" />
@@ -88,7 +89,7 @@ export const AccountsSection = () => {
                 <header className="mb-12 border-b border-white/5 pb-6">
                     <div className="flex items-center gap-3 mb-3">
                         <div className="p-2 rounded-lg bg-purple-500/10 border border-purple-500/20">
-                            <LucideUsers className="w-6 h-6 text-purple-400" />
+                            <GlassUsers className="w-6 h-6 text-purple-400" />
                         </div>
                         <h1 className="tracking-tight inline font-semibold text-3xl bg-gradient-to-b from-purple-200 to-purple-500 bg-clip-text text-transparent">
                             Mis cuentas

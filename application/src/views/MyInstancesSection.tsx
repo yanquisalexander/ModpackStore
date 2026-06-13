@@ -17,6 +17,7 @@ import type { MrpackManifest, MrpackCompatibility } from "@/types/mrpack";
 import { useActionLimit } from "@/hooks/useUserFlags";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { motion, AnimatePresence } from "motion/react";
+import GlassGamingButtons from "@/icons/GlassGamingButtons";
 
 export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) => {
     const { setTitleBarState } = useGlobalContext()
@@ -56,7 +57,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
     const fetchInstances = useCallback(async () => {
         setIsLoading(true)
         try {
-            await sleep(1000) // Simulate a short delay for better UX
+            await sleep(500) // Simulate a short delay for better UX
             const allInstances = await invoke('get_all_instances') as TauriCommandReturns['get_instance_by_id'][]
             // Filter out servers from My Instances
             setInstances(allInstances.filter(inst => inst?.instanceType !== 'server'))
@@ -77,7 +78,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
         if (offlineMode) return
         setTitleBarState({
             title: "Mis instancias",
-            icon: LucidePackageOpen,
+            icon: GlassGamingButtons,
             canGoBack: true,
             customIconClassName: "bg-teal-500/20 text-teal-400", // Adjusted to match theme
             opaque: false,
@@ -190,7 +191,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
 
     return (
         <div
-            className="relative min-h-dvh bg-[#0a0a0a] text-white overflow-hidden"
+            className="relative min-h-full bg-[#0a0a0a] text-white overflow-hidden"
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
@@ -225,7 +226,7 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                 <header className="mb-12 border-b border-white/5 pb-6">
                     <div className="flex items-center gap-3 mb-3">
                         <div className="p-2 rounded-lg bg-teal-500/10 border border-teal-500/20">
-                            <LucidePackageOpen className="w-6 h-6 text-teal-400" />
+                            <GlassGamingButtons className="w-6 h-6 text-teal-400" />
                         </div>
                         <h1 className="tracking-tight inline font-semibold text-3xl bg-gradient-to-b from-teal-200 to-teal-500 bg-clip-text text-transparent">
                             Mis Instancias

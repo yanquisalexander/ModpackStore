@@ -74,7 +74,7 @@ export const ServersSection = () => {
     }
 
     return (
-        <div className="relative min-h-dvh bg-[#0a0a0a] text-white overflow-hidden">
+        <div className="relative min-h-full bg-[#0a0a0a] text-white overflow-hidden">
             <div className="absolute top-0 left-1/4 w-96 h-96 bg-purple-600/10 blur-[120px] rounded-full pointer-events-none" />
             <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-indigo-600/10 blur-[120px] rounded-full pointer-events-none" />
 

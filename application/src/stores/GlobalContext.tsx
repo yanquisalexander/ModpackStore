@@ -18,12 +18,15 @@ import { useNotifications } from "@/hooks/useNotifications";
 
 interface TitleBarState {
     title: string;
-    icon?: string | LucideIcon;
+    icon?: string | LucideIcon | React.FC<React.SVGProps<SVGSVGElement>>;
     canGoBack?: boolean | {
         history: boolean;
     }
     customIconClassName?: string;
     opaque?: boolean;
+    leftSlot?: React.ReactNode;
+    centerSlot?: React.ReactNode;
+    rightSlot?: React.ReactNode;
 }
 
 // Estado de actualización
