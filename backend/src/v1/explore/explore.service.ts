@@ -4,14 +4,16 @@ import {
     modpackVersionsTable,
     modpackVersionFilesTable,
     modpackFilesTable,
+    creatorsTable,
     ModpackVisibility,
     ModpackStatus,
 } from "@/db/schema.ts";
-import { eq, and, desc, sql, type SQL } from "drizzle-orm";
+import { eq, and, or, desc, ilike, inArray, sql, type SQL } from "drizzle-orm";
 import { NotFoundError } from "@/lib/errors/index.ts";
+import { hasAccess as checkWhitelistAccess } from "@/services/whitelist.service.ts";
 
-export async function getModpack(modpackId: string) {
-    const [modpack] = await db.select({
+export async function getModpack(modpackId: string, userId?: string) {
+    const [row] = await db.select({
         id: modpacksTable.id,
         name: modpacksTable.name,
         slug: modpacksTable.slug,
@@ -22,20 +24,37 @@ export async function getModpack(modpackId: string) {
         trailerUrl: modpacksTable.trailerUrl,
         visibility: modpacksTable.visibility,
         status: modpacksTable.status,
+        showUserAsPublisher: modpacksTable.showUserAsPublisher,
         prelaunchAppearance: modpacksTable.prelaunchAppearance,
-        isPaid: modpacksTable.isPaid,
-        price: modpacksTable.price,
+        acquisitionMethod: modpacksTable.acquisitionMethod,
+        requiresTwitchSubscription: modpacksTable.requiresTwitchSubscription,
+        twitchCreatorIds: modpacksTable.twitchCreatorIds,
+        twitchChannels: modpacksTable.twitchChannels,
         createdAt: modpacksTable.createdAt,
         updatedAt: modpacksTable.updatedAt,
+        creator: {
+            id: creatorsTable.id,
+            name: creatorsTable.displayName,
+            slug: creatorsTable.slug,
+            verified: creatorsTable.verified,
+            logoUrl: creatorsTable.logoUrl,
+            partner: creatorsTable.partner,
+            hostingPartner: creatorsTable.hostingPartner,
+        },
     })
         .from(modpacksTable)
-        .where(and(
-            eq(modpacksTable.id, modpackId),
-            eq(modpacksTable.visibility, ModpackVisibility.PUBLIC),
-        ))
+        .leftJoin(creatorsTable, eq(modpacksTable.creatorId, creatorsTable.id))
+        .where(eq(modpacksTable.id, modpackId))
         .limit(1);
 
-    return modpack ?? null;
+    if (!row) return null;
+    if (row.visibility === ModpackVisibility.PUBLIC) return row;
+    if (row.visibility === ModpackVisibility.WHITELIST && userId) {
+        const allowed = await checkWhitelistAccess(modpackId, userId);
+        if (allowed) return row;
+    }
+
+    return null;
 }
 
 export async function getPrelaunchAppearance(modpackId: string) {
@@ -50,7 +69,7 @@ export async function getPrelaunchAppearance(modpackId: string) {
 }
 
 export async function getPublishedVersions(modpackId: string) {
-    return db.select({
+    const versions = await db.select({
         id: modpackVersionsTable.id,
         version: modpackVersionsTable.version,
         mcVersion: modpackVersionsTable.mcVersion,
@@ -60,6 +79,7 @@ export async function getPublishedVersions(modpackId: string) {
         releaseDate: modpackVersionsTable.releaseDate,
         status: modpackVersionsTable.status,
         createdAt: modpackVersionsTable.createdAt,
+        updatedAt: modpackVersionsTable.updatedAt,
     })
         .from(modpackVersionsTable)
         .where(and(
@@ -67,6 +87,32 @@ export async function getPublishedVersions(modpackId: string) {
             eq(modpackVersionsTable.status, ModpackStatus.PUBLISHED),
         ))
         .orderBy(desc(modpackVersionsTable.releaseDate));
+
+    if (versions.length === 0) return [];
+
+    const versionIds = versions.map(v => v.id);
+    const allFiles = await db.select({
+        versionId: modpackVersionFilesTable.modpackVersionId,
+        path: modpackVersionFilesTable.path,
+        fileType: modpackVersionFilesTable.fileType,
+    })
+        .from(modpackVersionFilesTable)
+        .where(inArray(modpackVersionFilesTable.modpackVersionId, versionIds));
+
+    const filesByVersion = new Map<string, typeof allFiles>();
+    for (const f of allFiles) {
+        const list = filesByVersion.get(f.versionId);
+        if (list) list.push(f);
+        else filesByVersion.set(f.versionId, [f]);
+    }
+
+    return versions.map(v => ({
+        ...v,
+        files: (filesByVersion.get(v.id) || []).map(f => ({
+            path: f.fileType ? `${f.fileType}/${f.path}` : f.path,
+            file: { type: f.fileType },
+        })),
+    }));
 }
 
 export async function getVersion(versionId: string, modpackId: string) {
@@ -140,22 +186,100 @@ export async function getVersionFiles(versionId: string, target: "client" | "ser
         .where(and(...conditions));
 }
 
-export function validatePassword(password: string, hashedPassword: string | null): boolean {
-    if (!hashedPassword) return true;
-    return password === hashedPassword;
-}
-
 export async function getModpackBasicInfo(modpackId: string) {
     const [modpack] = await db.select({
         id: modpacksTable.id,
         name: modpacksTable.name,
     })
         .from(modpacksTable)
-        .where(and(
-            eq(modpacksTable.id, modpackId),
-            eq(modpacksTable.visibility, ModpackVisibility.PUBLIC),
-        ))
+        .where(eq(modpacksTable.id, modpackId))
         .limit(1);
 
     return modpack ?? null;
+}
+
+export async function getModpackPassword(modpackId: string) {
+    const [result] = await db.select({
+        password: modpacksTable.password,
+    })
+        .from(modpacksTable)
+        .where(eq(modpacksTable.id, modpackId))
+        .limit(1);
+
+    return result?.password ?? null;
+}
+
+export async function getExploreHomepage() {
+    const rows = await db.select({
+        id: modpacksTable.id,
+        name: modpacksTable.name,
+        slug: modpacksTable.slug,
+        shortDescription: modpacksTable.shortDescription,
+        description: modpacksTable.description,
+        iconUrl: modpacksTable.iconUrl,
+        bannerUrl: modpacksTable.bannerUrl,
+        trailerUrl: modpacksTable.trailerUrl,
+        acquisitionMethod: modpacksTable.acquisitionMethod,
+        createdAt: modpacksTable.createdAt,
+        updatedAt: modpacksTable.updatedAt,
+        creator: {
+            id: creatorsTable.id,
+            name: creatorsTable.displayName,
+            slug: creatorsTable.slug,
+            verified: creatorsTable.verified,
+            logoUrl: creatorsTable.logoUrl,
+        },
+    })
+        .from(modpacksTable)
+        .leftJoin(creatorsTable, eq(modpacksTable.creatorId, creatorsTable.id))
+        .where(and(
+            eq(modpacksTable.visibility, ModpackVisibility.PUBLIC),
+            eq(modpacksTable.status, ModpackStatus.PUBLISHED),
+        ))
+        .orderBy(desc(modpacksTable.updatedAt));
+
+    const categories = [{
+        id: "uncategorized",
+        name: "Uncategorized",
+        displayOrder: 999,
+        modpacks: rows,
+    }];
+
+    return { categories, featured: [] };
+}
+
+export async function searchModpacks(query: string) {
+    const pattern = `%${query}%`;
+    return db.select({
+        id: modpacksTable.id,
+        name: modpacksTable.name,
+        slug: modpacksTable.slug,
+        shortDescription: modpacksTable.shortDescription,
+        iconUrl: modpacksTable.iconUrl,
+        bannerUrl: modpacksTable.bannerUrl,
+        visibility: modpacksTable.visibility,
+        status: modpacksTable.status,
+        acquisitionMethod: modpacksTable.acquisitionMethod,
+        createdAt: modpacksTable.createdAt,
+        updatedAt: modpacksTable.updatedAt,
+        creator: {
+            id: creatorsTable.id,
+            name: creatorsTable.displayName,
+            slug: creatorsTable.slug,
+            verified: creatorsTable.verified,
+            logoUrl: creatorsTable.logoUrl,
+        },
+    })
+        .from(modpacksTable)
+        .leftJoin(creatorsTable, eq(modpacksTable.creatorId, creatorsTable.id))
+        .where(and(
+            or(
+                ilike(modpacksTable.name, pattern),
+                ilike(modpacksTable.slug, pattern),
+            ),
+            eq(modpacksTable.visibility, ModpackVisibility.PUBLIC),
+            eq(modpacksTable.status, ModpackStatus.PUBLISHED),
+        ))
+        .orderBy(modpacksTable.name)
+        .limit(20);
 }

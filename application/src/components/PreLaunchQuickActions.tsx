@@ -13,8 +13,6 @@ import { toast } from "sonner";
 import { EditInstanceInfo } from "@/components/EditInstanceInfo";
 import { WorldManagerDialog } from "@/components/WorldManagerDialog";
 
-// --- SUB-COMPONENTE PARA LOS ÍTEMS DEL MENÚ ---
-// Reduce la repetición de clases CSS
 const ActionItem = ({
     onClick,
     icon: Icon,
@@ -29,15 +27,13 @@ const ActionItem = ({
     <button
         onClick={onClick}
         disabled={variant === "disabled"}
-        className={`
-            group flex items-center gap-x-3 w-full px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200
-            ${variant === "disabled"
-                ? "opacity-50 cursor-not-allowed text-neutral-500"
-                : "text-neutral-200 hover:bg-white/10 hover:text-white cursor-pointer"
-            }
-        `}
+        className={`flex items-center gap-3 w-full px-3 py-2 text-sm transition-colors ${
+            variant === "disabled"
+                ? "opacity-50 cursor-not-allowed text-neutral-600"
+                : "text-neutral-400 hover:text-white hover:bg-white/[0.04] cursor-pointer"
+        }`}
     >
-        <Icon className={`size-4 ${variant === "disabled" ? "text-neutral-600" : "text-neutral-400 group-hover:text-white"}`} />
+        <Icon className="size-4 shrink-0" />
         {label}
     </button>
 );
@@ -59,7 +55,6 @@ const PreLaunchQuickActions = ({
     const [worldManagerOpen, setWorldManagerOpen] = useState(false);
     const quickActionsRef = useRef<HTMLDivElement>(null);
 
-    // Click outside handler
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (quickActionsRef.current && !quickActionsRef.current.contains(event.target as Node)) {
@@ -70,7 +65,6 @@ const PreLaunchQuickActions = ({
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [quickActionsOpen]);
 
-    // Handlers
     const openGameDir = async () => {
         try {
             setQuickActionsOpen(false);
@@ -98,7 +92,6 @@ const PreLaunchQuickActions = ({
         try {
             let toastId: string | number = toast.loading("Iniciando verificación...", { description: "Preparando archivos..." });
 
-            // Listeners
             const unlistenStatus = await listen("instance-verifying-status", (event: any) => {
                 const { status, message } = event.payload;
                 if (status === "instance-verifying-complete") {
@@ -130,13 +123,10 @@ const PreLaunchQuickActions = ({
                 unlistenTask();
             };
 
-            // Iniciar comando
             const taskId = `integrity_${Date.now()}`;
             await invoke(invokeCommand, { instanceId, taskId });
 
-            // Timeout de seguridad para limpiar listeners
-            setTimeout(cleanup, 300000); // 5 min
-
+            setTimeout(cleanup, 300000);
         } catch (error: any) {
             console.error(error);
             toast.error("Error de verificación", { description: error.message || "Ocurrió un error inesperado." });
@@ -147,37 +137,25 @@ const PreLaunchQuickActions = ({
         <div className="absolute right-0 bottom-40 z-40" ref={quickActionsRef}>
             <div className="relative flex items-center justify-end">
 
-                {/* --- TOGGLE BUTTON --- */}
                 <button
                     onClick={() => setQuickActionsOpen(!quickActionsOpen)}
-                    className={`
-                        size-12 flex items-center justify-center rounded-l-xl
-                        bg-[#1E1E20] border-y border-l border-white/5 shadow-xl cursor-pointer
-                        hover:bg-white/10 hover:border-white/10 transition-all duration-200
-                        ${quickActionsOpen ? "bg-white/10 text-white" : "text-neutral-400"}
-                    `}
+                    className={`size-12 flex items-center justify-center rounded-l-xl border-y border-l transition-colors ${
+                        quickActionsOpen
+                            ? "bg-[#252528] border-white/[0.08] text-white"
+                            : "bg-[#1E1E20] border-white/5 text-neutral-500 hover:bg-white/[0.04] hover:border-white/[0.06]"
+                    }`}
                 >
-                    <LucideSettings
-                        className={`size-6 transition-transform duration-300 ease-out ${quickActionsOpen ? "rotate-90 text-white" : ""}`}
-                    />
+                    <LucideSettings className={`size-5 transition-transform duration-200 ${quickActionsOpen ? "rotate-90" : ""}`} />
                 </button>
 
-                {/* --- DROPDOWN MENU --- */}
                 <div
-                    className={`
-                        absolute right-full bottom-0 mr-3 w-64 origin-bottom-right
-                        transition-all duration-200 ease-out
-                        ${quickActionsOpen
+                    className={`absolute right-full bottom-0 mr-3 w-64 origin-bottom-right transition-all duration-200 ease-out ${
+                        quickActionsOpen
                             ? "opacity-100 scale-100 translate-x-0 pointer-events-auto"
                             : "opacity-0 scale-95 translate-x-4 pointer-events-none"
-                        }
-                    `}
+                    }`}
                 >
-                    <div className="bg-[#121214]/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-2 space-y-1">
-
-                        <div className="px-3 py-2 text-xs font-bold text-neutral-500 uppercase tracking-wider">
-                            Acciones Rápidas
-                        </div>
+                    <div className="bg-[#121214] border border-white/[0.06] rounded-lg py-1">
 
                         <ActionItem
                             onClick={openGameDir}
@@ -191,7 +169,6 @@ const PreLaunchQuickActions = ({
                             label="Administrar mundos"
                         />
 
-                        {/* Edit Info Dialog Trigger Wrapper */}
                         <div onClick={() => setQuickActionsOpen(false)}>
                             <EditInstanceInfo
                                 instanceId={instanceId}
@@ -200,7 +177,7 @@ const PreLaunchQuickActions = ({
                             />
                         </div>
 
-                        <div className="h-px bg-white/5 my-1 mx-2" />
+                        <div className="h-px bg-white/[0.04] mx-3 my-1" />
 
                         {isForge && !isModpack && (
                             <ActionItem
@@ -221,7 +198,6 @@ const PreLaunchQuickActions = ({
                 </div>
             </div>
 
-            {/* --- DIALOGS --- */}
             <WorldManagerDialog
                 open={worldManagerOpen}
                 onOpenChange={setWorldManagerOpen}

@@ -157,19 +157,14 @@ impl<'a> ForgeInstaller<'a> {
             )
         })?;
 
-        // Determine installation option based on instance type
-        let primary_option = if instance.is_server() {
-            "--installServer"
+        let mc_dir_str = minecraft_dir.to_string_lossy().into_owned();
+        let install_options: Vec<Vec<&str>> = if instance.is_server() {
+            vec![vec!["--installServer"]]
         } else {
-            "--installClient"
-        };
-
-        // We still keep the fallback mechanism if needed, but prioritize the correct one
-        // Ideally we should just use the correct one.
-        let install_options = if instance.is_server() {
-            vec!["--installServer"]
-        } else {
-            vec!["--installClient", "--installDir"]
+            vec![
+                vec!["--installClient"],
+                vec!["--installClient", "--installDir", &mc_dir_str],
+            ]
         };
 
         let mut success = false;
@@ -177,42 +172,34 @@ impl<'a> ForgeInstaller<'a> {
         let mut attempted_options = Vec::new();
 
         log::info!(
-            "[Instance: {}] Attempting Forge installation for {} (options: {:?})",
+            "[Instance: {}] Attempting Forge installation for {} ({} strategies)",
             instance.instanceId,
-            if instance.is_server() {
-                "Server"
-            } else {
-                "Client"
-            },
-            install_options
+            if instance.is_server() { "Server" } else { "Client" },
+            install_options.len()
         );
 
-        for option in &install_options {
-            attempted_options.push(option);
+        for args in &install_options {
+            let label = args.join(" ");
+            attempted_options.push(label.clone());
 
             let mut install_cmd = Command::new(java_path);
-            install_cmd.arg("-jar").arg(installer_path).arg(option);
-
-            // For server installation, we might need to be explicit about the directory if not implied by cwd
-            if *option == "--installServer" {
-                // Usually run in the dir, but some installers take a path argument?
-                // Standard: java -jar installer.jar --installServer
-                // It installs into current dir.
+            install_cmd.arg("-jar").arg(installer_path);
+            for arg in args {
+                install_cmd.arg(arg);
             }
 
             install_cmd.current_dir(minecraft_dir);
 
-            // On Windows, use CREATE_NO_WINDOW to prevent CMD window popup
             #[cfg(target_os = "windows")]
             {
                 use std::os::windows::process::CommandExt;
-                install_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+                install_cmd.creation_flags(0x08000000);
             }
 
             log::info!(
-                "[Instance: {}] Executing Forge installer with option '{}': {:?}",
+                "[Instance: {}] Executing Forge installer with args '{}': {:?}",
                 instance.instanceId,
-                option,
+                label,
                 install_cmd
             );
 
@@ -221,9 +208,9 @@ impl<'a> ForgeInstaller<'a> {
                     if output.status.success() {
                         success = true;
                         log::info!(
-                            "[Instance: {}] Forge installation completed successfully using option '{}'",
+                            "[Instance: {}] Forge installation completed successfully using '{}'",
                             instance.instanceId,
-                            option
+                            label
                         );
                         break;
                     } else {
@@ -231,9 +218,9 @@ impl<'a> ForgeInstaller<'a> {
                         let stdout_msg = String::from_utf8_lossy(&output.stdout);
 
                         log::warn!(
-                            "[Instance: {}] Forge installation failed with option '{}' - Exit code: {:?}",
+                            "[Instance: {}] Forge installation failed with '{}' - Exit code: {:?}",
                             instance.instanceId,
-                            option,
+                            label,
                             output.status.code()
                         );
                         log::debug!(
@@ -248,18 +235,18 @@ impl<'a> ForgeInstaller<'a> {
                         );
 
                         last_error =
-                            format!("Forge installation error with {}: {}", option, error_msg);
+                            format!("Forge installation error with {}: {}", label, error_msg);
                     }
                 }
                 Err(e) => {
                     log::error!(
-                        "[Instance: {}] Failed to execute Forge installer with option '{}': {}",
+                        "[Instance: {}] Failed to execute Forge installer with '{}': {}",
                         instance.instanceId,
-                        option,
+                        label,
                         e
                     );
                     last_error =
-                        format!("Failed to execute Forge installer with {}: {}", option, e);
+                        format!("Failed to execute Forge installer with {}: {}", label, e);
                 }
             }
         }

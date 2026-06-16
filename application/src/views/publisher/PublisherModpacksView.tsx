@@ -43,8 +43,6 @@ interface Modpack {
     status: string;
     createdAt: string;
     updatedAt: string;
-    isPaid?: boolean;
-    price?: string;
     acquisitionMethod?: string;
     password?: string;
     creatorUser?: {
@@ -376,7 +374,6 @@ export const PublisherModpacksView: React.FC = () => {
                                         <TableHead>Modpack</TableHead>
                                         <TableHead>Visibilidad</TableHead>
                                         <TableHead>Estado</TableHead>
-                                        <TableHead>Acceso</TableHead>
                                         <TableHead>Última Actualización</TableHead>
                                         <TableHead className="w-[50px]"></TableHead>
                                     </TableRow>
@@ -414,23 +411,6 @@ export const PublisherModpacksView: React.FC = () => {
                                                 <Badge variant={getStatusBadgeVariant(modpack.status)}>
                                                     {getStatusLabel(modpack.status)}
                                                 </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                {modpack.isPaid ? (
-                                                    <div className="flex items-center gap-1">
-                                                        <Badge variant="default" className="bg-green-600">
-                                                            ${parseFloat(modpack.price || '0').toFixed(2)} USD
-                                                        </Badge>
-                                                    </div>
-                                                ) : modpack.password ? (
-                                                    <Badge variant="secondary" className="bg-yellow-600">
-                                                        🔒 Contraseña
-                                                    </Badge>
-                                                ) : (
-                                                    <Badge variant="outline" className="text-blue-600 border-blue-600">
-                                                        Gratuito
-                                                    </Badge>
-                                                )}
                                             </TableCell>
                                             <TableCell>
                                                 {new Date(modpack.updatedAt).toLocaleDateString('es-ES')}

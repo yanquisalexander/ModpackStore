@@ -35,6 +35,7 @@ export enum CreatorRole {
 export enum ModpackVisibility {
     PUBLIC = "public",
     PRIVATE = "private",
+    WHITELIST = "whitelist",
 }
 
 export enum ModpackStatus {
@@ -54,6 +55,27 @@ export enum ModLoaderType {
 export type ModpackFileType = 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'datapacks' | 'extras';
 export type ModpackFileSide = 'client' | 'server' | 'both';
 
+export enum AcquisitionMethod {
+    FREE = "free",
+    PASSWORD = "password",
+    TWITCH_SUB = "twitch_sub",
+}
+
+export enum AcquisitionStatus {
+    ACTIVE = "active",
+    REVOKED = "revoked",
+    SUSPENDED = "suspended",
+}
+
+export enum ProcessingJobStatus {
+    PENDING = "pending",
+    PROCESSING = "processing",
+    COMPLETED = "completed",
+    FAILED = "failed",
+}
+
+
+
 export function enumToPgEnum<T extends Record<string, string>>(
     myEnum: T,
 ): [T[keyof T], ...T[keyof T][]] {
@@ -66,6 +88,7 @@ export const creatorRoleEnum = pgEnum('creator_role', enumToPgEnum(CreatorRole))
 export const modpackVisibilityEnum = pgEnum('modpack_visibility', enumToPgEnum(ModpackVisibility));
 export const modpackStatusEnum = pgEnum('modpack_status', enumToPgEnum(ModpackStatus));
 export const modLoaderTypeEnum = pgEnum('mod_loader_type', enumToPgEnum(ModLoaderType));
+export const processingJobStatusEnum = pgEnum('processing_job_status', enumToPgEnum(ProcessingJobStatus));
 
 export const users = pgTable("users", {
     id: uuid("id").primaryKey().notNull().defaultRandom(),
@@ -80,6 +103,12 @@ export const users = pgTable("users", {
     patreonId: text("patreon_id"),
     patreonAccessToken: text("patreon_access_token"),
     patreonRefreshToken: text("patreon_refresh_token"),
+    // Twitch
+    twitchId: text("twitch_id"),
+    twitchAccessToken: text("twitch_access_token"),
+    twitchRefreshToken: text("twitch_refresh_token"),
+    twitchDisplayName: text("twitch_display_name"),
+    twitchAvatarUrl: text("twitch_avatar_url"),
     role: roleEnum("role").notNull().default(UserRole.USER),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -127,8 +156,10 @@ export const modpacksTable = pgTable("modpacks", {
     showUserAsPublisher: boolean('show_user_as_publisher').default(false),
     creatorUserId: uuid('creator_user_id').references(() => users.id),
     status: modpackStatusEnum('status').notNull().default(ModpackStatus.DRAFT),
-    isPaid: boolean('is_paid').default(false),
-    price: numeric('price', { precision: 10, scale: 2 }).default('0').notNull(),
+    acquisitionMethod: text('acquisition_method').notNull().default(AcquisitionMethod.FREE),
+    requiresTwitchSubscription: boolean('requires_twitch_subscription').default(false),
+    twitchCreatorIds: jsonb('twitch_creator_ids'),
+    twitchChannels: jsonb('twitch_channels'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
@@ -158,8 +189,17 @@ export const modpackVersionFilesTable = pgTable("modpack_version_files", {
     pk: primaryKey({ columns: [table.fileHash, table.modpackVersionId, table.path] })
 }));
 
-
-
+export const modpackVersionProcessingJobsTable = pgTable("modpack_version_processing_jobs", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    versionId: uuid("version_id").notNull().references(() => modpackVersionsTable.id, { onDelete: "cascade" }),
+    fileType: text("file_type").notNull(),
+    jobId: text("job_id").notNull().unique(),
+    status: processingJobStatusEnum("status").notNull().default(ProcessingJobStatus.PENDING),
+    progress: numeric("progress").notNull().default('0'),
+    error: text("error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
 
 // Creators (a.k.a modpack authors / publishers)
 // This is separate from users because not all users are creators
@@ -176,6 +216,7 @@ export const creatorsTable = pgTable("creators", {
     verified: boolean("verified").notNull().default(false),
     partner: boolean("partner").notNull().default(false),
     hostingPartner: boolean("hosting_partner").notNull().default(false),
+    banned: boolean("banned").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -211,6 +252,33 @@ export const permissionsTable = pgTable("permissions", {
 }));
 
 
+/* Acquisitions */
+
+export const modpackAcquisitionsTable = pgTable("modpack_acquisitions", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    modpackId: uuid("modpack_id").notNull().references(() => modpacksTable.id, { onDelete: "cascade" }),
+    method: text("method").notNull(), // free | password | twitch_sub
+    status: text("status").notNull().default(AcquisitionStatus.ACTIVE), // active | revoked | suspended
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+    uniqueUserModpack: uniqueIndex("uq_acq_user_modpack").on(table.userId, table.modpackId)
+}));
+
+/* Whitelist */
+
+export const modpackWhitelistsTable = pgTable("modpack_whitelists", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    modpackId: uuid("modpack_id").notNull().references(() => modpacksTable.id, { onDelete: "cascade" }),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    addedByUserId: uuid("added_by_user_id").references(() => users.id),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+    uniqueUserModpack: uniqueIndex("uq_whitelist_user_modpack").on(table.modpackId, table.userId)
+}));
+
 /* 
     Relationships
 */
@@ -225,6 +293,8 @@ export const usersRelations = relations(users, ({ many }) => ({
     devices: many(userDevices),
     creatorMemberships: many(creatorUsersTable),
     permissions: many(permissionsTable),
+    acquisitions: many(modpackAcquisitionsTable),
+    whitelistEntries: many(modpackWhitelistsTable),
 }));
 
 export const modpacksRelations = relations(modpacksTable, ({ one, many }) => ({
@@ -237,4 +307,32 @@ export const modpacksRelations = relations(modpacksTable, ({ one, many }) => ({
         references: [users.id],
     }),
     versions: many(modpackVersionsTable),
+    acquisitions: many(modpackAcquisitionsTable),
+    whitelists: many(modpackWhitelistsTable),
+}));
+
+export const modpackWhitelistsRelations = relations(modpackWhitelistsTable, ({ one }) => ({
+    modpack: one(modpacksTable, {
+        fields: [modpackWhitelistsTable.modpackId],
+        references: [modpacksTable.id],
+    }),
+    user: one(users, {
+        fields: [modpackWhitelistsTable.userId],
+        references: [users.id],
+    }),
+    addedBy: one(users, {
+        fields: [modpackWhitelistsTable.addedByUserId],
+        references: [users.id],
+    }),
+}));
+
+export const modpackAcquisitionsRelations = relations(modpackAcquisitionsTable, ({ one }) => ({
+    user: one(users, {
+        fields: [modpackAcquisitionsTable.userId],
+        references: [users.id],
+    }),
+    modpack: one(modpacksTable, {
+        fields: [modpackAcquisitionsTable.modpackId],
+        references: [modpacksTable.id],
+    }),
 }));

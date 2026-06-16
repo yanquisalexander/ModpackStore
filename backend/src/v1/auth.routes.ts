@@ -2,6 +2,14 @@ import { Hono } from "@hono/hono";
 import type { Context } from "@hono/hono";
 import { authService } from "@/auth/service.ts";
 import { requireAuth, type AuthVariables } from "@/auth/middleware.ts";
+import {
+    getOAuthUrl,
+    linkTwitchToUser,
+    unlinkTwitchFromUser,
+    getTwitchLinkStatus,
+} from "@/services/twitch.service.ts";
+import { ForbiddenError, NotFoundError } from "@/lib/errors/index.ts";
+import { log } from "@/lib/logger.ts";
 
 const authRoutes = new Hono();
 
@@ -41,6 +49,73 @@ authRoutes.post(
     await authService.logout(jwtPayload.sessionId);
     return c.body(null, 204);
   },
+);
+
+// ── Twitch ──────────────────────────────────────────
+
+authRoutes.get(
+    "/twitch/url",
+    requireAuth,
+    async (c: Context<{ Variables: AuthVariables }>) => {
+        const url = getOAuthUrl();
+        return c.json({ url });
+    },
+);
+
+authRoutes.post(
+    "/twitch/link",
+    requireAuth,
+    async (c: Context<{ Variables: AuthVariables }>) => {
+        const userId = c.get("userId");
+        const { code } = await c.req.json();
+
+        if (!code) {
+            return c.json({ errors: [{ status: "400", title: "Bad Request", detail: "Authorization code is required." }] }, 400);
+        }
+
+        try {
+            await linkTwitchToUser(userId, code);
+            return c.json({ status: "linked" }, 200);
+        } catch (error) {
+            if (error instanceof ForbiddenError) {
+                return c.json({ errors: [{ status: "403", title: "Forbidden", detail: error.message }] }, 403);
+            }
+            log("[AUTH] Twitch link error:", error);
+            return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to link Twitch account." }] }, 500);
+        }
+    },
+);
+
+authRoutes.post(
+    "/twitch/unlink",
+    requireAuth,
+    async (c: Context<{ Variables: AuthVariables }>) => {
+        const userId = c.get("userId");
+
+        try {
+            await unlinkTwitchFromUser(userId);
+            return c.json({ status: "unlinked" }, 200);
+        } catch (error) {
+            log("[AUTH] Twitch unlink error:", error);
+            return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to unlink Twitch account." }] }, 500);
+        }
+    },
+);
+
+authRoutes.get(
+    "/twitch/status",
+    requireAuth,
+    async (c: Context<{ Variables: AuthVariables }>) => {
+        const userId = c.get("userId");
+
+        try {
+            const status = await getTwitchLinkStatus(userId);
+            return c.json({ data: status }, 200);
+        } catch (error) {
+            log("[AUTH] Twitch status error:", error);
+            return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to get Twitch status." }] }, 500);
+        }
+    },
 );
 
 export default authRoutes;

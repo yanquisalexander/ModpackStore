@@ -183,22 +183,14 @@ pub fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .on_window_event(|window, event| {
+            // The frontend (AppTitleBar) fully controls the close behavior.
+            // We only prevent the OS close to allow the frontend to decide:
+            // - hide to tray, or
+            // - show confirmation dialog → close + exit(0)
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if window.label() == "main" {
-                    let mut minimize_on_close = true;
-
-                    if let Ok(config_mgr) = crate::config::get_config_manager().lock() {
-                        if let Ok(config) = config_mgr.as_ref() {
-                            minimize_on_close = config.get("minimizeOnClose")
-                                .and_then(|v| v.as_bool())
-                                .unwrap_or(true);
-                        }
-                    }
-
-                    if minimize_on_close {
-                        api.prevent_close();
-                        let _ = window.hide();
-                    }
+                    api.prevent_close();
+                    let _ = window.emit("close-requested", ());
                 }
             }
         })

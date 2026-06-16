@@ -67,7 +67,7 @@ export interface WhitelistedModpack {
     shortDescription?: string;
     iconUrl?: string;
     bannerUrl?: string;
-    publisher: {
+    creator: {
         id: string;
         name: string;
         logoUrl?: string;

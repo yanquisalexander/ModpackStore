@@ -96,7 +96,7 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
             return;
         }
 
-        if (stats && stats.remainingSlots <= 0) {
+        if (stats && stats.remainingSlots !== -1 && stats.remainingSlots <= 0) {
             toast.error('Whitelist llena', {
                 description: `Has alcanzado el límite máximo de ${stats.maxAllowed} usuarios.`
             });
@@ -195,8 +195,8 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
         }
     };
 
-    // Calcular porcentaje de uso para barra de progreso
-    const usagePercentage = stats ? Math.min((stats.totalWhitelisted / stats.maxAllowed) * 100, 100) : 0;
+    const isUnlimited = stats && stats.maxAllowed === -1;
+    const usagePercentage = stats && !isUnlimited ? Math.min((stats.totalWhitelisted / stats.maxAllowed) * 100, 100) : 0;
 
     return (
         <>
@@ -232,26 +232,39 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
                                             <span className="font-medium text-muted-foreground">Ocupación</span>
                                             <div className="flex gap-2 items-center">
                                                 <span className="font-bold text-foreground">{stats.totalWhitelisted}</span>
-                                                <span className="text-muted-foreground">/ {stats.maxAllowed}</span>
+                                                {!isUnlimited && (
+                                                    <span className="text-muted-foreground">/ {stats.maxAllowed}</span>
+                                                )}
                                             </div>
                                         </div>
 
                                         {/* Barra de progreso visual */}
-                                        <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
-                                            <div
-                                                className={`h-full transition-all duration-500 ease-out ${stats.remainingSlots === 0 ? 'bg-destructive' : 'bg-primary'}`}
-                                                style={{ width: `${usagePercentage}%` }}
-                                            />
-                                        </div>
+                                        {!isUnlimited && (
+                                            <>
+                                                <div className="h-2 w-full bg-secondary rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full transition-all duration-500 ease-out ${stats.remainingSlots === 0 ? 'bg-destructive' : 'bg-primary'}`}
+                                                        style={{ width: `${usagePercentage}%` }}
+                                                    />
+                                                </div>
 
-                                        <div className="flex justify-between items-center text-xs">
-                                            <Badge variant={stats.remainingSlots === 0 ? 'destructive' : 'secondary'} className="font-normal">
-                                                {stats.remainingSlots === 0 ? 'Lleno' : `${stats.remainingSlots} espacios disponibles`}
-                                            </Badge>
-                                            {stats.remainingSlots === 0 && (
-                                                <span className="text-destructive font-medium">Límite alcanzado</span>
-                                            )}
-                                        </div>
+                                                <div className="flex justify-between items-center text-xs">
+                                                    <Badge variant={stats.remainingSlots === 0 ? 'destructive' : 'secondary'} className="font-normal">
+                                                        {stats.remainingSlots === 0 ? 'Lleno' : `${stats.remainingSlots} espacios disponibles`}
+                                                    </Badge>
+                                                    {stats.remainingSlots === 0 && (
+                                                        <span className="text-destructive font-medium">Límite alcanzado</span>
+                                                    )}
+                                                </div>
+                                            </>
+                                        )}
+                                        {isUnlimited && (
+                                            <div className="flex justify-between items-center text-xs">
+                                                <Badge variant="secondary" className="font-normal">
+                                                    Sin límite
+                                                </Badge>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 

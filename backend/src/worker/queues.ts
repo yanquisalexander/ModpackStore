@@ -8,6 +8,8 @@ export const ProcessModpackFilesQueue = new Queue('process-modpack-files', {
     },
     defaultJobOptions: {
         removeOnComplete: true,
-        delay: 5_000, // Optional: Add a small delay between job addition and processing to simulate real-world conditions
+        delay: 5_000,
+        attempts: 3,
+        backoff: { type: 'exponential', delay: 5_000 },
     },
 })

@@ -46,9 +46,25 @@ export const AppTitleBar = () => {
             console.error("Error initializing window:", error);
         });
 
+    }, []);
 
+    useEffect(() => {
+        let unlisten: (() => void) | undefined;
 
+        const setupListener = async () => {
+            const currentWindow = await getCurrentWindow();
+            unlisten = await currentWindow.listen("close-requested", () => {
+                handleClose();
+            });
+        };
 
+        setupListener().catch(error => {
+            console.error("Error setting up close-requested listener:", error);
+        });
+
+        return () => {
+            if (unlisten) unlisten();
+        };
     }, []);
 
     useEffect(() => {
@@ -138,8 +154,7 @@ export const AppTitleBar = () => {
     };
 
     const confirmClose = async () => {
-        await window?.close();
-        exit(0); // Close the application after closing the window
+        exit(0);
     };
 
     const handleMinimize = () => {
@@ -249,7 +264,6 @@ export const AppTitleBar = () => {
 
                         <UpdateButton updateState={updateState} applyUpdate={applyUpdate} />
                         <TicketNotificationButton />
-                        {/* <SocialButton titleBarOpaque={titleBarState.opaque} /> */}
                         <RunningTasks />
                         <RunningInstances />
 

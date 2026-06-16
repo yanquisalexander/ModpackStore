@@ -163,14 +163,13 @@ export const InstanceCard = ({
             <ContextMenu onOpenChange={setIsOpen}>
                 <ContextMenuTrigger asChild>
                     <div className={cn(
-                        "group relative aspect-video overflow-hidden rounded-2xl border border-white/5 bg-[#121212] transition-all duration-300 hover:border-white/20 hover:shadow-2xl hover:-translate-y-1 select-none cursor-pointer",
+                        "group relative aspect-video overflow-hidden rounded-xl border border-white/[0.06] bg-[#121212] transition-all duration-300 hover:border-white/20 hover:-translate-y-0.5 select-none cursor-pointer",
                         className,
-                        isOpen && "ring-2 ring-purple-500/50"
+                        isOpen && "ring-1 ring-white/20"
                     )}>
 
-                        <Link to={isServer ? `/server/${instance.instanceId}` : `/prelaunch/${instance.instanceId}`} className="block w-full h-full">
+                        <Link to={isServer ? `/server/${instance.instanceId}` : `/prelaunch/${instance.instanceId}`} className="block w-full h-full" draggable={false}>
 
-                            {/* --- BACKGROUND --- */}
                             <div className="absolute inset-0 overflow-hidden">
                                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/10 to-transparent z-10 transition-opacity duration-300 group-hover:via-black/50" />
                                 <img
@@ -184,17 +183,13 @@ export const InstanceCard = ({
                                 />
                             </div>
 
-                            {/* --- CONTENT (Bottom) --- */}
                             <div className="absolute bottom-0 left-0 w-full p-5 z-20">
-                                {/* Usamos translate para mover el título hacia arriba al hacer hover */}
                                 <div className="transform transition-all duration-300 translate-y-6 group-hover:translate-y-0">
 
-                                    {/* TITULO: Peso corregido a semibold */}
                                     <h3 className="text-white font-semibold text-lg leading-tight mb-1 truncate drop-shadow-md pr-8">
                                         {instance.instanceName}
                                     </h3>
 
-                                    {/* META INFO: Oculta por defecto (opacity-0), aparece en hover */}
                                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-300 font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-75">
                                         <span>MC {instance.minecraftVersion}</span>
                                         {loaderText && (
@@ -205,10 +200,9 @@ export const InstanceCard = ({
                                         )}
                                     </div>
 
-                                    {/* PLAY BUTTON: Se expande en hover */}
                                     <div className="grid grid-rows-[0fr] group-hover:grid-rows-[1fr] transition-all duration-300 ease-out mt-0 group-hover:mt-3 opacity-0 group-hover:opacity-100">
                                         <div className="overflow-hidden">
-                                            <div className="w-full flex items-center justify-center gap-2 bg-white text-black font-bold py-2 rounded-lg hover:bg-neutral-200 transition-colors shadow-lg">
+                                            <div className="w-full flex items-center justify-center gap-2 bg-white text-black font-semibold py-2 rounded-lg hover:bg-neutral-200 transition-colors">
                                                 {isServer ? (
                                                     <><LucideTerminal className="w-4 h-4" /> Abrir Panel</>
                                                 ) : (
@@ -221,42 +215,37 @@ export const InstanceCard = ({
                             </div>
                         </Link>
 
-                        {/* --- OVERLAYS --- */}
-
                         <div className="absolute top-3 left-3 z-20 flex flex-col gap-2 items-start pointer-events-none">
                             {isServer && (
-                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-purple-500/90 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wide border border-white/10 shadow-lg">
+                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-500/20 text-purple-300 text-[10px] font-bold uppercase tracking-wide border border-purple-500/20">
                                     <LucideServer className="w-3 h-3" /> SERVIDOR
                                 </span>
                             )}
                             {running && (
-                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/90 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wide border border-white/10 shadow-lg animate-pulse">
+                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-500/20 text-emerald-300 text-[10px] font-bold uppercase tracking-wide border border-emerald-500/20 animate-pulse">
                                     <LucideGamepad2 className="w-3 h-3" /> En Ejecución
                                 </span>
                             )}
                             {isBootstrapping && (
-                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-500/90 backdrop-blur-md text-white text-[10px] font-bold uppercase tracking-wide border border-white/10 shadow-lg">
+                                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-500/20 text-blue-300 text-[10px] font-bold uppercase tracking-wide border border-blue-500/20">
                                     <LucideRefreshCw className="w-3 h-3 animate-spin" /> Iniciando...
                                 </span>
                             )}
                         </div>
 
-                        {/* Actions (Fuera del Link) */}
                         <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
 
-                            {/* Badges Tipo: Ahora ocultos por defecto, solo visibles en hover */}
                             <span className={cn(
-                                "flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide backdrop-blur-md border transition-all duration-300 pointer-events-none",
+                                "flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide border transition-all duration-300 pointer-events-none",
                                 installationType === "modpack"
-                                    ? "bg-purple-500/20 text-purple-200 border-purple-500/30"
-                                    : "bg-orange-500/20 text-orange-200 border-orange-500/30",
+                                    ? "bg-purple-500/20 text-purple-300 border-purple-500/20"
+                                    : "bg-orange-500/20 text-orange-300 border-orange-500/20",
                                 "opacity-0 -translate-y-2 group-hover:opacity-100 group-hover:translate-y-0"
                             )}>
                                 {installationType === "modpack" ? <LucidePackageOpen className="w-3 h-3" /> : <LucideHardDrive className="w-3 h-3" />}
                                 {installationType === "modpack" ? "Modpack" : "Local"}
                             </span>
 
-                            {/* Favorito */}
                             <button
                                 onClick={(e) => {
                                     e.preventDefault();
@@ -264,9 +253,9 @@ export const InstanceCard = ({
                                     handleToggleFavorite();
                                 }}
                                 className={cn(
-                                    "p-1.5 rounded-full backdrop-blur-md border transition-all duration-200 hover:scale-110 cursor-pointer z-40",
+                                    "p-1.5 rounded-md border transition-all duration-200 hover:scale-110 cursor-pointer z-40",
                                     isFavorite
-                                        ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-400 opacity-100 shadow-[0_0_10px_rgba(234,179,8,0.2)]"
+                                        ? "bg-yellow-500/20 border-yellow-500/40 text-yellow-400"
                                         : "bg-black/40 border-white/10 text-white/50 opacity-0 -translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 hover:bg-black/60 hover:text-white"
                                 )}
                                 title={isFavorite ? "Quitar de favoritos" : "Añadir a favoritos"}
@@ -278,36 +267,36 @@ export const InstanceCard = ({
                     </div>
                 </ContextMenuTrigger>
 
-                <ContextMenuContent className="w-56 bg-[#1a1a1a] border-white/10 text-gray-200 p-1.5 rounded-xl shadow-xl">
-                    <ContextMenuItem onClick={() => handleContextAction("settings")} className="rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer">
-                        <LucideSettings className="mr-2 h-4 w-4 text-purple-400" /> Configuración
+                <ContextMenuContent className="w-56 bg-[#121214] border-white/[0.06] text-neutral-400 p-1 rounded-lg">
+                    <ContextMenuItem onClick={() => handleContextAction("settings")} className="rounded-md text-sm hover:text-white hover:bg-white/[0.04] focus:bg-white/[0.04] cursor-pointer">
+                        <LucideSettings className="mr-2 h-4 w-4" /> Configuración
                     </ContextMenuItem>
-                    <ContextMenuItem onClick={() => handleContextAction("create_shortcut")} className="rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer">
-                        <LucideFolderSymlink className="mr-2 h-4 w-4 text-blue-400" /> Crear acceso directo
+                    <ContextMenuItem onClick={() => handleContextAction("create_shortcut")} className="rounded-md text-sm hover:text-white hover:bg-white/[0.04] focus:bg-white/[0.04] cursor-pointer">
+                        <LucideFolderSymlink className="mr-2 h-4 w-4" /> Crear acceso directo
                     </ContextMenuItem>
                     {installationType === "local" && (
                         <>
-                            <ContextMenuSeparator className="bg-white/10 my-1" />
-                            <ContextMenuItem onClick={() => handleContextAction("manage_mods")} className="rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer">
-                                <LucideWrench className="mr-2 h-4 w-4 text-orange-400" /> Gestionar Mods
+                            <ContextMenuSeparator className="bg-white/[0.04] my-1" />
+                            <ContextMenuItem onClick={() => handleContextAction("manage_mods")} className="rounded-md text-sm hover:text-white hover:bg-white/[0.04] focus:bg-white/[0.04] cursor-pointer">
+                                <LucideWrench className="mr-2 h-4 w-4" /> Gestionar Mods
                             </ContextMenuItem>
-                            <ContextMenuItem onClick={() => handleContextAction("download_mods")} className="rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer">
-                                <LucideDownload className="mr-2 h-4 w-4 text-green-400" /> Descargar Mods
+                            <ContextMenuItem onClick={() => handleContextAction("download_mods")} className="rounded-md text-sm hover:text-white hover:bg-white/[0.04] focus:bg-white/[0.04] cursor-pointer">
+                                <LucideDownload className="mr-2 h-4 w-4" /> Descargar Mods
                             </ContextMenuItem>
-                            <ContextMenuSeparator className="bg-white/10 my-1" />
-                            <ContextMenuItem onClick={() => handleContextAction("export_mrpack")} className="rounded-lg hover:bg-white/10 focus:bg-white/10 cursor-pointer">
-                                <LucideUpload className="mr-2 h-4 w-4 text-green-400" /> Exportar .mrpack
+                            <ContextMenuSeparator className="bg-white/[0.04] my-1" />
+                            <ContextMenuItem onClick={() => handleContextAction("export_mrpack")} className="rounded-md text-sm hover:text-white hover:bg-white/[0.04] focus:bg-white/[0.04] cursor-pointer">
+                                <LucideUpload className="mr-2 h-4 w-4" /> Exportar .mrpack
                             </ContextMenuItem>
                         </>
                     )}
-                    <ContextMenuSeparator className="bg-white/10 my-1" />
+                    <ContextMenuSeparator className="bg-white/[0.04] my-1" />
                     <ContextMenuItem
                         onClick={() => {
                             if (running || isBootstrapping || isDeleting) return;
                             setShowDeleteAlert(true);
                         }}
                         disabled={running || isBootstrapping || isDeleting}
-                        className="rounded-lg hover:bg-red-500/20 focus:bg-red-500/20 text-red-400 hover:text-red-300 focus:text-red-300 cursor-pointer"
+                        className="rounded-md text-sm hover:text-red-400 hover:bg-red-500/10 focus:bg-red-500/10 cursor-pointer disabled:opacity-50"
                     >
                         <LucideTrash2 className="mr-2 h-4 w-4" />
                         {isDeleting ? "Eliminando..." : "Eliminar instancia"}
@@ -315,24 +304,23 @@ export const InstanceCard = ({
                 </ContextMenuContent>
             </ContextMenu>
 
-            {/* Alert Dialog */}
             <AlertDialog open={showDeleteAlert} onOpenChange={setShowDeleteAlert}>
-                <AlertDialogContent className="bg-[#0a0a0a] border-white/10 text-white sm:max-w-[400px]">
+                <AlertDialogContent className="bg-[#0e0e10] border-white/[0.06] text-white sm:max-w-[400px]">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>¿Eliminar instancia?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-neutral-400">
+                        <AlertDialogTitle className="text-base font-semibold">¿Eliminar instancia?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-sm text-neutral-500">
                             Estás a punto de borrar <span className="text-white font-medium">{instance.instanceName}</span>.
                             Esta acción eliminará todos los archivos, mundos y datos de forma permanente.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isDeleting} className="bg-transparent border-white/10 text-neutral-300 hover:bg-white/5 hover:text-white hover:border-white/20">
+                        <AlertDialogCancel disabled={isDeleting} className="bg-transparent border-white/[0.06] text-neutral-400 hover:bg-white/[0.04] hover:text-white text-sm">
                             Cancelar
                         </AlertDialogCancel>
                         <AlertDialogAction
                             onClick={(e) => { e.preventDefault(); handleDeleteInstance(); }}
                             disabled={isDeleting}
-                            className="bg-red-600 hover:bg-red-700 text-white border-0"
+                            className="bg-red-500/10 text-red-400 hover:bg-red-500/20 border-0 text-sm"
                         >
                             {isDeleting ? <LucideLoader2 className="w-4 h-4 animate-spin" /> : "Eliminar"}
                         </AlertDialogAction>
@@ -340,7 +328,6 @@ export const InstanceCard = ({
                 </AlertDialogContent>
             </AlertDialog>
 
-            {/* Mod Manager Dialog */}
             {installationType === "local" && (
                 <ModManagerDialog
                     isOpen={showModManager}
@@ -350,7 +337,6 @@ export const InstanceCard = ({
                 />
             )}
 
-            {/* Mod Downloader Dialog */}
             {installationType === "local" && instance.loaderType && instance.loaderType !== 'vanilla' && (
                 <ModDownloaderDialog
                     isOpen={showModDownloader}

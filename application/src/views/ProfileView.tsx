@@ -8,48 +8,37 @@ import {
 import { useEffect, useState } from "react";
 import { useGlobalContext } from "@/stores/GlobalContext";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { DiscordIcon } from "@/icons/DiscordIcon";
 import { Link, useLocation, Outlet } from "react-router-dom";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "motion/react";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 
-// --- COMPONENTS ---
-
 const SidebarItem = ({ to, icon: Icon, label, isActive }: { to: string, icon: any, label: string, isActive: boolean }) => (
-  <Link to={to} className="relative group block w-full">
-    {isActive && (
-      <motion.div
-        layoutId="active-profile-tab"
-        className="absolute inset-0 bg-white/10 rounded-xl"
-        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-      />
+  <Link
+    to={to}
+    className={cn(
+      "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+      isActive ? "bg-white/[0.04] text-white" : "text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.02]"
     )}
-    <div className={cn(
-      "relative flex items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-200",
-      isActive ? "text-white" : "text-neutral-400 hover:text-white hover:bg-white/5"
-    )}>
-      <Icon className={cn("w-5 h-5", isActive ? "text-purple-400" : "text-neutral-500 group-hover:text-neutral-300")} />
-      <span className="font-medium text-sm">{label}</span>
-    </div>
+  >
+    <Icon className="w-4 h-4" />
+    <span>{label}</span>
   </Link>
 );
 
 const InfoCard = ({ icon: Icon, label, value, subValue }: { icon: any, label: string, value: string, subValue?: string }) => (
-  <div className="bg-[#151515] border border-white/5 rounded-xl p-4 flex items-start gap-4 hover:border-white/10 transition-colors">
-    <div className="p-2.5 rounded-lg bg-white/5 text-neutral-400">
-      <Icon className="w-5 h-5" />
+  <div className="bg-black/20 border border-white/[0.04] rounded-lg p-4 flex items-start gap-3">
+    <div className="p-2 rounded-md bg-white/[0.04] text-neutral-500">
+      <Icon className="w-4 h-4" />
     </div>
     <div className="flex-1 min-w-0">
-      <p className="text-xs font-bold text-neutral-500 uppercase tracking-wider mb-0.5">{label}</p>
-      <p className="text-sm font-medium text-white truncate">{value}</p>
-      {subValue && <p className="text-xs text-neutral-500 mt-0.5">{subValue}</p>}
+      <p className="text-[10px] font-medium text-neutral-600 uppercase tracking-wider mb-0.5">{label}</p>
+      <p className="text-sm font-medium text-white/90 truncate">{value}</p>
+      {subValue && <p className="text-xs text-neutral-600 mt-0.5">{subValue}</p>}
     </div>
   </div>
 );
-
-// --- SECTIONS ---
 
 export const ProfileInformation = () => {
   const { session } = useAuthentication();
@@ -72,43 +61,36 @@ export const ProfileInformation = () => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
+      className="space-y-5"
     >
-      {/* Header Banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-[#121212] border border-white/10 p-8 flex flex-col md:flex-row items-center gap-6 md:gap-8">
-        <div className="absolute inset-0 bg-gradient-to-r from-purple-500/10 to-blue-500/10 opacity-50" />
+      <div className="relative overflow-hidden rounded-xl bg-[#121214] border border-white/[0.06] p-6 flex flex-col md:flex-row items-center gap-5 md:gap-6">
 
-        {/* Avatar with Glow */}
         <div className="relative shrink-0">
-          <div className="absolute inset-0 bg-purple-500/30 blur-2xl rounded-full" />
           <img
             src={session.avatarUrl || "https://github.com/shadcn.png"}
             alt="Avatar"
-            className="relative w-24 h-24 rounded-full border-4 border-[#121212] shadow-xl object-cover"
+            className="relative w-20 h-20 rounded-full border-2 border-white/[0.06] object-cover"
           />
-          <div className="absolute bottom-1 right-1 bg-green-500 w-5 h-5 rounded-full border-4 border-[#121212]" title="Online" />
         </div>
 
-        {/* User Info */}
-        <div className="relative text-center md:text-left space-y-2 flex-1">
-          <div className="flex flex-col md:flex-row items-center gap-3">
-            <h2 className="text-2xl font-bold text-white">{session.username}</h2>
-            <Badge className="bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border-purple-500/50 uppercase text-[10px] tracking-wider px-2 py-0.5">
+        <div className="text-center md:text-left space-y-2 flex-1">
+          <div className="flex flex-col md:flex-row items-center gap-2">
+            <h2 className="text-xl font-bold text-white">{session.username}</h2>
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-500 px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.06]">
               {session.role || "Usuario"}
-            </Badge>
+            </span>
           </div>
 
-          <div className="flex items-center gap-2 justify-center md:justify-start bg-black/20 w-fit px-3 py-1 rounded-full border border-white/5 mx-auto md:mx-0">
-            <span className="text-xs text-neutral-500 font-mono">ID: {session.id}</span>
-            <button onClick={copyUserId} className="text-neutral-400 hover:text-white transition-colors">
-              {copiedId ? <LucideCheck className="w-3 h-3 text-green-400" /> : <LucideCopy className="w-3 h-3" />}
+          <div className="flex items-center gap-2 justify-center md:justify-start">
+            <span className="text-xs text-neutral-600 font-mono">ID: {session.id}</span>
+            <button onClick={copyUserId} className="text-neutral-600 hover:text-white transition-colors">
+              {copiedId ? <LucideCheck className="w-3 h-3 text-green-500" /> : <LucideCopy className="w-3 h-3" />}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Grid Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <InfoCard
           icon={LucideMail}
           label="Correo Electrónico"
@@ -140,25 +122,23 @@ export const IntegrationsSection = () => {
   if (!session) return null;
 
   return (
-    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-xl font-bold text-white">Conexiones</h2>
-        <p className="text-sm text-neutral-400">Gestiona las aplicaciones conectadas a tu cuenta.</p>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
+      <div className="space-y-0.5">
+        <h2 className="text-lg font-semibold text-white">Conexiones</h2>
+        <p className="text-sm text-neutral-500">Gestiona las aplicaciones conectadas a tu cuenta.</p>
       </div>
 
-      <div className="grid gap-4">
-        {/* Discord (Core) */}
-        <div className="relative group overflow-hidden bg-[#151515] border border-indigo-500/20 rounded-xl p-6 transition-all hover:border-indigo-500/40">
-          <div className="absolute inset-0 bg-indigo-500/5 group-hover:bg-indigo-500/10 transition-colors" />
-          <div className="relative flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-[#5865F2]/20 rounded-xl text-[#5865F2]">
-                <DiscordIcon className="w-6 h-6" />
+      <div className="space-y-3">
+        <div className="bg-[#121214] border border-white/[0.06] rounded-lg p-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-[#5865F2]/20">
+                <DiscordIcon className="w-5 h-5 text-[#5865F2]" />
               </div>
               <div>
-                <h3 className="font-semibold text-white">Discord</h3>
-                <div className="flex items-center gap-2 mt-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.5)]" />
+                <h3 className="text-sm font-semibold text-white">Discord</h3>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
                   <span className="text-xs text-green-400 font-medium">Conectado como {session.username}</span>
                 </div>
               </div>
@@ -171,8 +151,7 @@ export const IntegrationsSection = () => {
           </div>
         </div>
 
-        {/* Other Integrations */}
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-2 gap-3">
           <TwitchLinkingComponent />
           <PatreonLinkingComponent />
         </div>
@@ -182,18 +161,18 @@ export const IntegrationsSection = () => {
 };
 
 export const HelpSection = () => (
-  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="h-full flex items-center justify-center min-h-[400px]">
+  <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="h-full flex items-center justify-center min-h-[300px]">
     <div className="text-center space-y-4 max-w-md">
-      <div className="mx-auto w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mb-6">
-        <LucideTicket className="w-8 h-8 text-neutral-400" />
+      <div className="mx-auto w-12 h-12 bg-white/[0.04] rounded-full flex items-center justify-center">
+        <LucideTicket className="w-6 h-6 text-neutral-500" />
       </div>
-      <h2 className="text-xl font-bold text-white">Centro de Ayuda</h2>
-      <p className="text-neutral-400 text-sm leading-relaxed">
+      <h2 className="text-lg font-semibold text-white">Centro de Ayuda</h2>
+      <p className="text-neutral-500 text-sm leading-relaxed">
         ¿Tienes problemas con tu cuenta o necesitas reportar un bug?
         Nuestro sistema de tickets está integrado para ayudarte.
       </p>
-      <div className="pt-4">
-        <Button asChild className="bg-white text-black hover:bg-neutral-200">
+      <div className="pt-2">
+        <Button asChild className="bg-white text-black hover:bg-white/90 text-sm font-semibold">
           <Link to="/profile/tickets">
             Abrir Ticket de Soporte <LucideExternalLink className="ml-2 w-4 h-4" />
           </Link>
@@ -203,14 +182,11 @@ export const HelpSection = () => (
   </motion.div>
 );
 
-// --- MAIN LAYOUT ---
-
 export const ProfileView = () => {
   const { session } = useAuthentication();
   const { setTitleBarState, titleBarState } = useGlobalContext();
   const location = useLocation();
 
-  // Determine active tab
   const getActiveTab = () => {
     if (location.pathname.includes('/integrations')) return 'integrations';
     if (location.pathname.includes('/tickets')) return 'tickets';
@@ -231,26 +207,60 @@ export const ProfileView = () => {
   }, []);
 
   if (!session) return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a]">
-      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500" />
+    <div className="min-h-full h-full flex items-center justify-center bg-[#0e0e10]">
+      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-neutral-500" />
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white">
-      <div className="max-w-6xl mx-auto p-6 md:p-8">
+    <div className="min-h-full h-full bg-[#0e0e10] text-white">
+      <div className="max-w-6xl mx-auto p-4 md:p-8">
 
-        {/* Title Mobile */}
-        <div className="md:hidden mb-6">
-          <h1 className="text-2xl font-bold text-white">Mi Cuenta</h1>
+        <div className="md:hidden mb-4">
+          <h1 className="text-lg font-semibold text-white">Mi Cuenta</h1>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Horizontal tabs en mobile, vertical sidebar en desktop */}
+        <div className="flex md:block gap-2 overflow-x-auto md:overflow-visible mb-5 md:mb-0">
+          <div className="flex md:hidden gap-1">
+            <Link
+              to="/profile"
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs whitespace-nowrap transition-colors",
+                activeTab === 'profile' ? "bg-white/[0.06] text-white" : "text-neutral-500 hover:text-neutral-300"
+              )}
+            >
+              <LucideUser className="w-3.5 h-3.5" />
+              Perfil
+            </Link>
+            <Link
+              to="/profile/integrations"
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs whitespace-nowrap transition-colors",
+                activeTab === 'integrations' ? "bg-white/[0.06] text-white" : "text-neutral-500 hover:text-neutral-300"
+              )}
+            >
+              <LucideLayoutGrid className="w-3.5 h-3.5" />
+              Integraciones
+            </Link>
+            <Link
+              to="/profile/tickets"
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs whitespace-nowrap transition-colors",
+                activeTab === 'tickets' ? "bg-white/[0.06] text-white" : "text-neutral-500 hover:text-neutral-300"
+              )}
+            >
+              <LucideTicket className="w-3.5 h-3.5" />
+              Tickets
+            </Link>
+          </div>
+        </div>
 
-          {/* SIDEBAR NAVIGATION */}
-          <div className="lg:col-span-3 space-y-6">
-            <nav className="space-y-1">
-              <p className="px-4 text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2">General</p>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+
+          <div className="hidden md:block md:col-span-3 space-y-4">
+            <nav className="space-y-0.5">
+              <p className="px-3 text-[10px] font-medium text-neutral-600 uppercase tracking-wider mb-1.5">General</p>
               <SidebarItem
                 to="/profile"
                 icon={LucideUser}
@@ -265,27 +275,20 @@ export const ProfileView = () => {
               />
             </nav>
 
-            <nav className="space-y-1">
-              <p className="px-4 text-xs font-bold text-neutral-500 uppercase tracking-wider mb-2">Soporte</p>
+            <nav className="space-y-0.5">
+              <p className="px-3 text-[10px] font-medium text-neutral-600 uppercase tracking-wider mb-1.5">Soporte</p>
               <SidebarItem
                 to="/profile/tickets"
                 icon={LucideTicket}
                 label="Tickets"
                 isActive={activeTab === 'tickets'}
               />
-              {/* Help is visually separate but kept here logic-wise */}
             </nav>
           </div>
 
-          {/* MAIN CONTENT AREA */}
-          <div className="lg:col-span-9">
-            <div className="bg-[#0f0f0f] border border-white/5 rounded-2xl p-1 min-h-[600px] shadow-2xl relative overflow-hidden">
-              {/* Decorative background blur */}
-              <div className="absolute top-0 right-0 w-96 h-96 bg-purple-600/5 blur-[100px] rounded-full pointer-events-none" />
-
-              <div className="relative p-6 md:p-8 h-full">
-                <Outlet />
-              </div>
+          <div className="md:col-span-9">
+            <div className="relative min-h-[400px]">
+              <Outlet />
             </div>
           </div>
 

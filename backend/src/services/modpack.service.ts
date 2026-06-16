@@ -1,7 +1,20 @@
 import { db } from "@/db/client.ts";
-import { modpacksTable, ModpackStatus, ModpackVisibility } from "@/db/schema.ts";
+import { modpacksTable, ModpackStatus, ModpackVisibility, AcquisitionMethod } from "@/db/schema.ts";
 import { eq } from "drizzle-orm";
 import { NotFoundError, ValidationError } from "@/lib/errors/index.ts";
+import * as bcrypt from "npm:bcryptjs";
+
+function validateVisibilityConstraints(visibility: string | undefined, acquisitionMethod: string | undefined, password: string | null | undefined) {
+    if (visibility === ModpackVisibility.WHITELIST) {
+        const method = acquisitionMethod ?? AcquisitionMethod.FREE;
+        if (method !== AcquisitionMethod.FREE) {
+            throw new ValidationError("Whitelist modpacks must be free", "WHITELIST_NOT_FREE");
+        }
+        if (password) {
+            throw new ValidationError("Whitelist modpacks cannot have a password", "WHITELIST_HAS_PASSWORD");
+        }
+    }
+}
 
 export async function createModpack(
     creatorId: string,
@@ -13,6 +26,11 @@ export async function createModpack(
         visibility?: ModpackVisibility;
         iconUrl?: string;
         bannerUrl?: string;
+        acquisitionMethod?: string;
+        password?: string;
+        requiresTwitchSubscription?: boolean;
+        twitchCreatorIds?: string[];
+        twitchChannels?: Array<{ id: string; username: string; displayName: string }>;
     },
 ) {
     if (!data.name?.trim()) {
@@ -37,6 +55,15 @@ export async function createModpack(
         throw new ValidationError("A modpack with this name already exists", "SLUG_TAKEN");
     }
 
+    const visibility = data.visibility ?? ModpackVisibility.PRIVATE;
+    const acquisitionMethod = data.acquisitionMethod ?? "free";
+    validateVisibilityConstraints(visibility, acquisitionMethod, data.password);
+
+    let hashedPassword: string | null = null;
+    if (data.password) {
+        hashedPassword = await bcrypt.hash(data.password, 10);
+    }
+
     const [modpack] = await db.insert(modpacksTable)
         .values({
             name: data.name,
@@ -45,10 +72,15 @@ export async function createModpack(
             slug,
             iconUrl: data.iconUrl ?? "",
             bannerUrl: data.bannerUrl ?? "",
-            visibility: data.visibility ?? ModpackVisibility.PRIVATE,
+            visibility,
             creatorId,
             creatorUserId: userId,
             status: ModpackStatus.DRAFT,
+            acquisitionMethod,
+            password: hashedPassword,
+            requiresTwitchSubscription: data.requiresTwitchSubscription ?? false,
+            twitchCreatorIds: data.twitchCreatorIds ? JSON.stringify(data.twitchCreatorIds) : null,
+            twitchChannels: data.twitchChannels ? JSON.stringify(data.twitchChannels) : null,
         })
         .returning();
 
@@ -65,8 +97,11 @@ export async function getModpacksByCreator(creatorId: string) {
         bannerUrl: modpacksTable.bannerUrl,
         visibility: modpacksTable.visibility,
         status: modpacksTable.status,
-        isPaid: modpacksTable.isPaid,
-        price: modpacksTable.price,
+        creatorId: modpacksTable.creatorId,
+        acquisitionMethod: modpacksTable.acquisitionMethod,
+        requiresTwitchSubscription: modpacksTable.requiresTwitchSubscription,
+        twitchCreatorIds: modpacksTable.twitchCreatorIds,
+        twitchChannels: modpacksTable.twitchChannels,
         updatedAt: modpacksTable.updatedAt,
         createdAt: modpacksTable.createdAt,
     })
@@ -97,10 +132,34 @@ export async function updateModpack(
         iconUrl: string;
         bannerUrl: string;
         status: ModpackStatus;
+        acquisitionMethod: string;
+        password: string;
+        requiresTwitchSubscription: boolean;
+        twitchCreatorIds: string[];
+        twitchChannels: Array<{ id: string; username: string; displayName: string }>;
     }>,
 ) {
+    const current = await getModpackById(modpackId);
+
+    const newVisibility = data.visibility ?? current.visibility;
+    const newAcquisitionMethod = data.acquisitionMethod ?? current.acquisitionMethod;
+    const newPassword = data.password !== undefined ? data.password : current.password;
+    validateVisibilityConstraints(newVisibility, newAcquisitionMethod, newPassword);
+
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+
+    for (const [key, value] of Object.entries(data)) {
+        if (key === "password" && value) {
+            updateData[key] = await bcrypt.hash(value as string, 10);
+        } else if (key === "twitchCreatorIds" || key === "twitchChannels") {
+            updateData[key] = value ? JSON.stringify(value) : null;
+        } else if (value !== undefined) {
+            updateData[key] = value;
+        }
+    }
+
     const [modpack] = await db.update(modpacksTable)
-        .set({ ...data, updatedAt: new Date() })
+        .set(updateData)
         .where(eq(modpacksTable.id, modpackId))
         .returning();
 

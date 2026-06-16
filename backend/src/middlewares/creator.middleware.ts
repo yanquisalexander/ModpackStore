@@ -1,8 +1,16 @@
 import type { Context, Next } from "@hono/hono";
-import { ForbiddenError } from "@/lib/errors/index.ts";
+import { ForbiddenError, ValidationError } from "@/lib/errors/index.ts";
 import { db } from "@/db/client.ts";
 import { creatorUsersTable, CreatorRole, CreatorStatus, creatorsTable } from "@/db/schema.ts";
 import { eq, and } from "drizzle-orm";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function assertValidUUID(value: string, label: string): void {
+    if (!UUID_RE.test(value)) {
+        throw new ValidationError(`Invalid ${label}: must be a valid UUID`);
+    }
+}
 
 const cu = creatorUsersTable
 
@@ -11,6 +19,7 @@ export async function requireCreatorAccess(c: Context, next: Next) {
     const creatorId = c.req.param("creatorId");
 
     if (!creatorId) throw new ForbiddenError("Missing creator ID", "MISSING_CREATOR_ID");
+    assertValidUUID(creatorId, "creator ID");
 
     const [membership] = await db.select()
         .from(cu)
@@ -29,6 +38,7 @@ export function requireCreatorRole(...roles: CreatorRole[]) {
         const creatorId = c.req.param("creatorId");
 
         if (!creatorId) throw new ForbiddenError("Missing creator ID", "MISSING_CREATOR_ID");
+        assertValidUUID(creatorId, "creator ID");
 
         const [membership] = await db.select()
             .from(cu)

@@ -7,7 +7,6 @@ use tauri_plugin_http::reqwest;
 /// Constants for manifest URLs
 pub const MOJANG_VERSION_MANIFEST_URL: &str =
     "https://launchermeta.mojang.com/mc/game/version_manifest.json";
-pub const FORGE_API_BASE_URL: &str = "https://mc-versions-api.net/api/forge";
 pub const CACHE_EXPIRY_MS: u64 = 3600000; // 1 hour
 
 /// Fetches and caches the Mojang version manifest with failover support

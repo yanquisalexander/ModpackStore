@@ -1,5 +1,5 @@
 import { Hono } from "@hono/hono";
-import type { Context, Next } from "@hono/hono";
+import type { Context } from "@hono/hono";
 import { requireAuth, optionalAuth, type AuthVariables } from "@/auth/middleware.ts";
 import { getFileKey } from "@/lib/r2.ts";
 import { eq } from "drizzle-orm";
@@ -12,21 +12,61 @@ import {
     getVersion,
     getLatestPublishedVersion,
     getVersionFiles,
-    validatePassword,
     getModpackBasicInfo,
+    getExploreHomepage,
+    getModpackPassword,
+    searchModpacks,
 } from "./explore.service.ts";
+import { searchTwitchChannels } from "./twitch.service.ts";
 import { NotFoundError, ForbiddenError, APIError } from "@/lib/errors/index.ts";
 import { log } from "@/lib/logger.ts";
+import { checkAccess } from "@/services/acquisition.service.ts";
 
 const app = new Hono<{ Variables: AuthVariables }>();
+
+// ── Homepage ───────────────────────────────────────
+
+app.get("/", optionalAuth, async (c) => {
+    try {
+        const result = await getExploreHomepage();
+        return c.json({ data: result });
+    } catch (error) {
+        log("[EXPLORE] Failed to fetch homepage:", error);
+        return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to fetch homepage." }] }, 500);
+    }
+});
+
+// ── Search ─────────────────────────────────────────
+
+app.get("/search", async (c) => {
+    const query = c.req.query("q");
+    if (!query || query.length < 1) {
+        return c.json({ data: [] });
+    }
+
+    try {
+        const results = await searchModpacks(query);
+        return c.json({
+            data: results.map((m) => ({
+                id: m.id,
+                type: "modpack",
+                attributes: m,
+            })),
+        });
+    } catch (error) {
+        log("[EXPLORE] Error searching modpacks:", error);
+        return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Search failed." }] }, 500);
+    }
+});
 
 // ── Modpack public info ────────────────────────────
 
 app.get("/modpacks/:modpackId", optionalAuth, async (c) => {
     const modpackId = c.req.param("modpackId")!;
+    const userId = c.get("userId");
 
     try {
-        const modpack = await getModpack(modpackId);
+        const modpack = await getModpack(modpackId, userId);
         if (!modpack) {
             return c.json({ errors: [{ status: "404", title: "Not Found", detail: "Modpack not found." }] }, 404);
         }
@@ -78,6 +118,26 @@ app.get("/modpacks/:modpackId/latest", requireAuth, async (c) => {
     const modpackId = c.req.param("modpackId")!;
 
     try {
+        const [modpackData] = await db.select({
+            acquisitionMethod: modpacksTable.acquisitionMethod,
+        })
+            .from(modpacksTable)
+            .where(eq(modpacksTable.id, modpackId))
+            .limit(1);
+
+        if (modpackData && modpackData.acquisitionMethod !== "free") {
+            const { hasAccess } = await checkAccess(c.get("userId"), modpackId);
+            if (!hasAccess) {
+                throw new ForbiddenError("You need to acquire this modpack first.", "ACCESS_DENIED");
+            }
+        } else if (modpackData && modpackData.acquisitionMethod === "free") {
+            // Free modpacks also require acquisition (add to library)
+            const { hasAccess } = await checkAccess(c.get("userId"), modpackId);
+            if (!hasAccess) {
+                throw new ForbiddenError("Add this modpack to your library first.", "NOT_ACQUIRED");
+            }
+        }
+
         const latestVersion = await getLatestPublishedVersion(modpackId);
         const modpack = await getModpackBasicInfo(modpackId);
 
@@ -96,6 +156,9 @@ app.get("/modpacks/:modpackId/latest", requireAuth, async (c) => {
     } catch (error) {
         if (error instanceof NotFoundError) {
             return c.json({ errors: [{ status: "404", title: "Not Found", detail: error.message }] }, 404);
+        }
+        if (error instanceof ForbiddenError) {
+            return c.json({ errors: [{ status: "403", title: "Forbidden", detail: error.message }] }, 403);
         }
         log("[EXPLORE] Error in getLatestVersion:", error);
         return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to fetch latest version." }] }, 500);
@@ -120,20 +183,10 @@ app.get("/modpacks/:modpackId/versions/:versionId", requireAuth, async (c) => {
         const version = await getVersion(versionId, modpackId);
         const files = await getVersionFiles(versionId, target);
 
-        // Validate access
-        const [modpack] = await db.select({
-            password: modpacksTable.password,
-            isPaid: modpacksTable.isPaid,
-        })
-            .from(modpacksTable)
-            .where(eq(modpacksTable.id, modpackId))
-            .limit(1);
-
-        if (modpack) {
-            if (modpack.password || modpack.isPaid) {
-                // For now, restrict paid/password modpacks
-                throw new ForbiddenError("Access denied. This modpack requires authentication or purchase.", "ACCESS_DENIED");
-            }
+        // Validate access — all modpacks require acquisition
+        const { hasAccess } = await checkAccess(c.get("userId"), modpackId);
+        if (!hasAccess) {
+            throw new ForbiddenError("You need to acquire this modpack first.", "ACCESS_DENIED");
         }
 
         // Build manifest
@@ -192,7 +245,7 @@ app.get("/modpacks/:modpackId/versions/:versionId", requireAuth, async (c) => {
 
 // ── Check update ───────────────────────────────────
 
-app.get("/modpacks/:modpackId/check-update", async (c) => {
+app.get("/modpacks/:modpackId/check-update", optionalAuth, async (c) => {
     const modpackId = c.req.param("modpackId")!;
     const currentVersion = c.req.query("currentVersion");
 
@@ -201,6 +254,25 @@ app.get("/modpacks/:modpackId/check-update", async (c) => {
     }
 
     try {
+        const [modpackData] = await db.select({
+            acquisitionMethod: modpacksTable.acquisitionMethod,
+        })
+            .from(modpacksTable)
+            .where(eq(modpacksTable.id, modpackId))
+            .limit(1);
+
+        // Non-free modpacks require auth + access check for updates
+        if (modpackData && modpackData.acquisitionMethod !== "free") {
+            const userId = c.get("userId");
+            if (!userId) {
+                throw new ForbiddenError("Authentication required", "AUTH_REQUIRED");
+            }
+            const { hasAccess } = await checkAccess(userId, modpackId);
+            if (!hasAccess) {
+                throw new ForbiddenError("You need to acquire this modpack first.", "ACCESS_DENIED");
+            }
+        }
+
         const latestVersion = await getLatestPublishedVersion(modpackId);
         const modpack = await getModpackBasicInfo(modpackId);
 
@@ -224,8 +296,28 @@ app.get("/modpacks/:modpackId/check-update", async (c) => {
         if (error instanceof NotFoundError) {
             return c.json({ errors: [{ status: "404", title: "Not Found", detail: error.message }] }, 404);
         }
+        if (error instanceof ForbiddenError) {
+            return c.json({ errors: [{ status: "403", title: "Forbidden", detail: error.message }] }, 403);
+        }
         log("[EXPLORE] Error in checkUpdate:", error);
         return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to check for updates." }] }, 500);
+    }
+});
+
+// ── Twitch channel search ─────────────────────────
+
+app.get("/twitch-channels/search", async (c) => {
+    const query = c.req.query("query");
+    if (!query || query.length < 2) {
+        return c.json({ channels: [] });
+    }
+
+    try {
+        const channels = await searchTwitchChannels(query);
+        return c.json({ channels });
+    } catch (error) {
+        log("[EXPLORE] Error searching Twitch channels:", error);
+        return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to search Twitch channels." }] }, 500);
     }
 });
 
@@ -240,16 +332,15 @@ app.post("/modpacks/:modpackId/validate-password", requireAuth, async (c) => {
     }
 
     try {
-        const [modpack] = await db.select({ password: modpacksTable.password })
-            .from(modpacksTable)
-            .where(eq(modpacksTable.id, modpackId))
-            .limit(1);
+        const modpack = await getModpack(modpackId);
 
         if (!modpack) {
             return c.json({ errors: [{ status: "404", title: "Not Found", detail: "Modpack not found." }] }, 404);
         }
 
-        const valid = validatePassword(password, modpack.password);
+        const hashedPassword = await getModpackPassword(modpackId);
+        const { default: bcrypt } = await import("npm:bcryptjs");
+        const valid = hashedPassword ? await bcrypt.compare(password, hashedPassword) : false;
 
         return c.json({
             valid,

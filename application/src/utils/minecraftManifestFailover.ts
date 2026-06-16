@@ -3,6 +3,9 @@
  */
 
 import { MINECRAFT_MANIFEST_SERVERS } from "../consts";
+import { withCache } from "./versionCache";
+
+const MANIFEST_CACHE_TTL = 5 * 60 * 1000;
 
 export interface FetchWithFailoverOptions {
     /**
@@ -26,7 +29,7 @@ export interface FetchWithFailoverOptions {
  * @returns Promise resolving to the manifest JSON data
  * @throws Error if all servers fail
  */
-export async function fetchMinecraftManifestWithFailover(
+async function fetchMinecraftManifestImpl(
     options: FetchWithFailoverOptions = {}
 ): Promise<any> {
     const {
@@ -82,6 +85,12 @@ export async function fetchMinecraftManifestWithFailover(
     throw new Error(
         `All manifest servers failed. Last error: ${lastError?.message || 'Unknown error'}`
     );
+}
+
+export async function fetchMinecraftManifestWithFailover(
+    options: FetchWithFailoverOptions = {}
+): Promise<any> {
+    return withCache('minecraft_manifest', () => fetchMinecraftManifestImpl(options), MANIFEST_CACHE_TTL);
 }
 
 /**

@@ -4,8 +4,10 @@ import {
     modpackVersionsTable,
     modpackVersionFilesTable,
     modpackFilesTable,
+    modpackVersionProcessingJobsTable,
     ModpackStatus,
     ModLoaderType,
+    ProcessingJobStatus,
 } from "@/db/schema.ts";
 import { eq, and, desc, inArray, ne } from "drizzle-orm";
 import { NotFoundError, ValidationError } from "@/lib/errors/index.ts";
@@ -99,15 +101,6 @@ export async function updateVersion(versionId: string, data: { changelog?: strin
     return version;
 }
 
-export async function deleteVersion(versionId: string) {
-    const [version] = await db.update(modpackVersionsTable)
-        .set({ status: ModpackStatus.ARCHIVED, updatedAt: new Date() })
-        .where(eq(modpackVersionsTable.id, versionId))
-        .returning();
-
-    if (!version) throw new NotFoundError("Version not found", "VERSION_NOT_FOUND");
-    return version;
-}
 
 export async function publishVersion(versionId: string) {
     const [version] = await db.update(modpackVersionsTable)
@@ -152,7 +145,43 @@ export async function confirmUpload(modpackId: string, versionId: string, fileTy
 
     const jobId = `process-${modpackId}-${versionId}-${fileType}-${Date.now()}`;
     await ProcessModpackFilesQueue.add("process-modpack-files", { versionId, fileType }, { jobId });
+
+    await db.insert(modpackVersionProcessingJobsTable).values({
+        versionId,
+        fileType,
+        jobId,
+        status: ProcessingJobStatus.PENDING,
+    });
+
     return { jobId };
+}
+
+export async function getProcessingJobs(versionId: string) {
+    return db.select()
+        .from(modpackVersionProcessingJobsTable)
+        .where(eq(modpackVersionProcessingJobsTable.versionId, versionId))
+        .orderBy(modpackVersionProcessingJobsTable.createdAt);
+}
+
+export async function retryProcessingJob(jobId: string) {
+    const [record] = await db.select()
+        .from(modpackVersionProcessingJobsTable)
+        .where(eq(modpackVersionProcessingJobsTable.jobId, jobId))
+        .limit(1);
+
+    if (!record) throw new NotFoundError("Processing job not found");
+
+    await db.update(modpackVersionProcessingJobsTable)
+        .set({ status: ProcessingJobStatus.PENDING, error: null, updatedAt: new Date() })
+        .where(eq(modpackVersionProcessingJobsTable.jobId, jobId));
+
+    const queue = ProcessModpackFilesQueue;
+    const job = await queue.getJob(jobId);
+    if (job) {
+        await job.retry();
+    } else {
+        await queue.add("process-modpack-files", { versionId: record.versionId, fileType: record.fileType }, { jobId });
+    }
 }
 
 // ── Reuse files from previous versions ────────────

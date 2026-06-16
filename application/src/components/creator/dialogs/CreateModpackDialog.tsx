@@ -6,7 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Modpack } from '@/types/modpacks';
-import { UploadCloud, Check, ChevronRight, ChevronLeft, Info, DollarSign, Lock, Eye } from 'lucide-react';
+import { UploadCloud, Check, ChevronRight, ChevronLeft, Info, Lock, Eye } from 'lucide-react';
 import { useAuthentication } from "@/stores/AuthContext";
 import { API_ENDPOINT } from "@/consts";
 import { CategorySelector } from '@/components/CategorySelector';
@@ -97,9 +97,8 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, crea
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [primaryCategoryId, setPrimaryCategoryId] = useState<string>('');
 
-    // Pricing
-    const [acquisitionMethod, setAcquisitionMethod] = useState<'free' | 'paid' | 'password'>('free');
-    const [price, setPrice] = useState('');
+    // Access
+    const [acquisitionMethod, setAcquisitionMethod] = useState<'free' | 'password'>('free');
     const [password, setPassword] = useState('');
 
     // Auto-generar slug
@@ -124,7 +123,6 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, crea
         setSelectedCategories([]);
         setPrimaryCategoryId('');
         setAcquisitionMethod('free');
-        setPrice('');
         setPassword('');
         setCurrentStep(1);
     };
@@ -141,11 +139,7 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, crea
                 return true;
             case 3: // Categorías (opcional por ahora)
                 return true;
-            case 4: // Configuración (Pricing)
-                if (acquisitionMethod === 'paid') {
-                    const p = parseFloat(price);
-                    if (!price || isNaN(p) || p <= 0) { toast.error("Precio inválido"); return false; }
-                }
+            case 4: // Configuración
                 if (acquisitionMethod === 'password' && !password.trim()) { toast.error("Contraseña obligatoria"); return false; }
                 return true;
             default:
@@ -180,7 +174,6 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, crea
             formData.append('primaryCategoryId', primaryCategoryId);
 
             formData.append('acquisitionMethod', acquisitionMethod);
-            if (acquisitionMethod === 'paid' && price) formData.append('price', parseFloat(price).toFixed(2));
             if (acquisitionMethod === 'password' && password) formData.append('password', password);
 
             if (iconFile) formData.append('icon', iconFile);
@@ -326,7 +319,7 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, crea
                             </div>
                         </div>
 
-                        {/* Pricing */}
+                        {/* Access */}
                         <div className="space-y-3">
                             <label className="text-sm font-medium text-zinc-200">Método de Acceso</label>
                             <Select value={acquisitionMethod} onValueChange={(v: any) => setAcquisitionMethod(v)}>
@@ -335,28 +328,9 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, crea
                                 </SelectTrigger>
                                 <SelectContent className="bg-zinc-800 border-zinc-700">
                                     <SelectItem value="free">Gratuito</SelectItem>
-                                    <SelectItem value="paid">De pago (USD)</SelectItem>
                                     <SelectItem value="password">Con Contraseña</SelectItem>
                                 </SelectContent>
                             </Select>
-
-                            {acquisitionMethod === 'paid' && (
-                                <div className="bg-zinc-800/50 p-4 rounded-lg border border-zinc-700 space-y-2 animate-in slide-in-from-top-2">
-                                    <label className="text-sm text-zinc-300">Precio (USD)</label>
-                                    <div className="relative">
-                                        <DollarSign className="absolute left-3 top-2.5 h-4 w-4 text-zinc-500" />
-                                        <Input
-                                            type="number"
-                                            step="0.01"
-                                            value={price}
-                                            onChange={(e) => setPrice(e.target.value)}
-                                            className="pl-9 bg-zinc-900 border-zinc-700"
-                                            placeholder="0.00"
-                                        />
-                                    </div>
-                                    <p className="text-xs text-amber-500/80">⚠️ No podrás cambiar a gratuito después.</p>
-                                </div>
-                            )}
 
                             {acquisitionMethod === 'password' && (
                                 <div className="bg-zinc-800/50 p-4 rounded-lg border border-zinc-700 space-y-2 animate-in slide-in-from-top-2">

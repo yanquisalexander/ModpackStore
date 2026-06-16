@@ -5,6 +5,7 @@ import {
     DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { FetchHttpHandler } from "@smithy/fetch-http-handler";
 
 const accountId = Deno.env.get("R2_ACCOUNT_ID") ?? "";
 const bucket = Deno.env.get("R2_BUCKET") ?? "";
@@ -25,6 +26,7 @@ function getS3Client(): S3Client {
                 accessKeyId: Deno.env.get("R2_ACCESS_KEY_ID")!,
                 secretAccessKey: Deno.env.get("R2_SECRET_ACCESS_KEY")!,
             },
+            requestHandler: new FetchHttpHandler({}),
         });
     }
     return client;
@@ -43,6 +45,16 @@ export function getPublicUrl(hash: string): string {
         return `${publicDomain}/${getFileKey(hash)}`;
     }
     return getFileKey(hash);
+}
+
+export function getModpackImageKey(modpackId: string, type: 'icon' | 'banner'): string {
+    return `modpack-images/${modpackId}/${type}`;
+}
+
+export function getModpackImageUrl(modpackId: string, type: 'icon' | 'banner'): string {
+    const key = getModpackImageKey(modpackId, type);
+    const ts = Date.now();
+    return publicDomain ? `${publicDomain}/${key}?t=${ts}` : `${key}?t=${ts}`;
 }
 
 export async function generatePresignedUploadUrl(key: string, expiresIn = 3600): Promise<string> {
@@ -71,5 +83,7 @@ export async function uploadObject(key: string, body: Uint8Array, contentType?: 
 
 export async function deleteObject(key: string) {
     const command = new DeleteObjectCommand({ Bucket: bucket, Key: key });
-    await getS3Client().send(command);
+    const url = await getSignedUrl(getS3Client(), command, { expiresIn: 60 });
+    const res = await fetch(url, { method: 'DELETE' });
+    if (!res.ok) throw new Error(`R2 delete failed: ${res.status}`);
 }

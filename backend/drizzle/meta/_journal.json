@@ -29,6 +29,41 @@
       "when": 1781231647989,
       "tag": "0003_overjoyed_madame_hydra",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1781389904234,
+      "tag": "0004_secret_oracle",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1781500000000,
+      "tag": "0005_add_banned_to_creators",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781577460538,
+      "tag": "0006_daffy_ulik",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1781612074301,
+      "tag": "0007_elite_red_ghost",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1781615615638,
+      "tag": "0008_same_fixer",
+      "breakpoints": true
     }
   ]
 }

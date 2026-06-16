@@ -10,6 +10,7 @@ import { API_ENDPOINT } from '@/consts';
 import { useAuthentication } from '@/stores/AuthContext';
 import { handleApiError } from '@/lib/utils';
 import { fetchMinecraftManifestWithFailover } from '@/utils/minecraftManifestFailover';
+import { fetchForgeVersions } from '@/utils/modloaderVersions';
 
 interface Props {
     isOpen: boolean;
@@ -57,8 +58,6 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
         time?: string;
         releaseTime?: string;
     }
-
-    const FORGE_VERSIONS_URL = "https://mc-versions-api.net/api/forge";
 
     const [minecraftVersions, setMinecraftVersions] = useState<MinecraftVersion[]>([]);
     const [forgeVersionsMap, setForgeVersionsMap] = useState<Record<string, string[]>>({});
@@ -160,10 +159,8 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
     const fetchMinecraftVersions = async (): Promise<void> => {
         setLoadingVersions(true);
         try {
-            // Fetch Minecraft versions with automatic failover to alternative servers
             const data = await fetchMinecraftManifestWithFailover();
 
-            // Filter to releases (sensible default for modpack versions)
             const releaseVersions = data.versions.filter((version: MinecraftVersion) => version.type === 'release');
 
             setMinecraftVersions(releaseVersions);
@@ -172,36 +169,13 @@ export const CreateVersionDialog: React.FC<Props> = ({ isOpen, onClose, onSucces
                 setFormData(prev => ({ ...prev, mcVersion: releaseVersions[0].id }));
             }
 
-            await fetchForgeVersions();
+            const forgeMap = await fetchForgeVersions();
+            setForgeVersionsMap(forgeMap);
         } catch (error) {
             console.error('Error fetching Minecraft versions:', error);
             toast.error('No se pudieron cargar las versiones de Minecraft');
         } finally {
             setLoadingVersions(false);
-        }
-    };
-
-    const fetchForgeVersions = async (): Promise<void> => {
-        try {
-            const response = await fetch(FORGE_VERSIONS_URL);
-            const data = await response.json();
-
-            const rawData = data.result?.[0] || {};
-            const processedData: Record<string, string[]> = {};
-
-            for (const mcVersion in rawData) {
-                if (Object.prototype.hasOwnProperty.call(rawData, mcVersion)) {
-                    processedData[mcVersion] = rawData[mcVersion].filter((version: string) => {
-                        const versionParts = version.split('.');
-                        return versionParts.length > 1 && (parseInt(versionParts[0]) > 1 || (parseInt(versionParts[0]) === 1 && parseInt(versionParts[1]) >= 5));
-                    });
-                }
-            }
-
-            setForgeVersionsMap(processedData);
-        } catch (error) {
-            console.error('Error fetching Forge versions:', error);
-            toast.error('No se pudieron cargar las versiones de Forge');
         }
     };
 

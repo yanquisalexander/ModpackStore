@@ -10,7 +10,7 @@ import { API_ENDPOINT } from '@/consts';
 import { useAuthentication } from '@/stores/AuthContext';
 import { toast } from 'sonner';
 import { Modpack } from '@/types/modpacks';
-import { UploadCloud, X, Search, Check, AlertTriangle, Lock, DollarSign, Tv } from 'lucide-react';
+import { UploadCloud, X, Search, Check, AlertTriangle, Lock, Tv, Code } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
 import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
@@ -18,7 +18,6 @@ import { basicSetup } from 'codemirror';
 import { CategorySelector } from '@/components/CategorySelector';
 import { ModpackStatusManager } from '@/components/creator/ModpackStatusManager';
 
-// --- Interfaces ---
 interface Props {
     isOpen: boolean;
     onClose: () => void;
@@ -26,7 +25,6 @@ interface Props {
     modpack: Modpack | null;
 }
 
-// --- SUB-COMPONENTE: Image Uploader (Optimizado) ---
 const ImageUploader = ({ label, currentImageUrl, onFileChange, id, aspectRatio = "square" }: {
     label: string,
     currentImageUrl: string,
@@ -50,7 +48,6 @@ const ImageUploader = ({ label, currentImageUrl, onFileChange, id, aspectRatio =
         e.preventDefault();
         setPreview(null);
         onFileChange(null);
-        // Nota: Esto no borra la imagen del servidor, solo limpia la selección actual o resetea al estado inicial
     };
 
     const activeImage = preview || currentImageUrl;
@@ -87,45 +84,37 @@ const ImageUploader = ({ label, currentImageUrl, onFileChange, id, aspectRatio =
     );
 };
 
-// --- COMPONENTE PRINCIPAL ---
 export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, modpack }) => {
     const { sessionTokens } = useAuthentication();
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState("general");
 
-    // Form States
     const [formData, setFormData] = useState({
         name: '',
         shortDescription: '',
         description: '',
         visibility: 'public' as 'public' | 'private' | 'whitelist',
-        price: '',
         password: '',
         confirmPassword: '',
         allowServerDownload: false,
     });
 
-    // Specialized States
     const [iconFile, setIconFile] = useState<File | null>(null);
     const [bannerFile, setBannerFile] = useState<File | null>(null);
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
     const [primaryCategoryId, setPrimaryCategoryId] = useState<string>('');
     const [modpackStatus, setModpackStatus] = useState<'draft' | 'published' | 'archived' | 'deleted'>('draft');
 
-    // Access Logic
-    const [accessMode, setAccessMode] = useState<'free' | 'paid' | 'password'>('free');
+    const [accessMode, setAccessMode] = useState<'free' | 'password'>('free');
     const [twitchAccessEnabled, setTwitchAccessEnabled] = useState(false);
     const [twitchChannels, setTwitchChannels] = useState<{ id: string; username: string; displayName: string; }[]>([]);
 
-    // Twitch Search Logic
     const [channelSearchQuery, setChannelSearchQuery] = useState('');
     const [isSearchingChannels, setIsSearchingChannels] = useState(false);
 
-    // Advanced JSON Logic
     const [prelaunchJson, setPrelaunchJson] = useState('{}');
     const [isJsonValid, setIsJsonValid] = useState(true);
 
-    // --- Efecto de Inicialización ---
     useEffect(() => {
         if (!modpack) return;
 
@@ -134,30 +123,26 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             shortDescription: modpack.shortDescription || '',
             description: modpack.description || '',
             visibility: (modpack.visibility as any) || 'public',
-            price: modpack.price ? parseFloat(modpack.price).toFixed(2) : '0.00',
             password: '',
             confirmPassword: '',
             allowServerDownload: modpack.allowServerDownload || false,
         });
 
-        // Categorías
         const catIds = modpack.categories?.map(c => c.categoryId) || [];
         const primCat = modpack.categories?.find(c => c.isPrimary)?.categoryId || '';
         setSelectedCategories(catIds);
         setPrimaryCategoryId(primCat);
         setModpackStatus(modpack.status as any || 'draft');
 
-        // Access Mode
-        let mode: 'free' | 'paid' | 'password' = 'free';
-        if (modpack.isPaid) mode = 'paid';
-        else if (modpack.password) mode = 'password';
+        let mode: 'free' | 'password' = 'free';
+        if (modpack.password) mode = 'password';
         setAccessMode(mode);
 
-        // Twitch
-        setTwitchChannels(modpack.twitchChannels || []);
-        setTwitchAccessEnabled((modpack.twitchChannels && modpack.twitchChannels.length > 0) || false);
+        const raw = modpack.twitchChannels;
+        const channels = typeof raw === 'string' ? JSON.parse(raw) : Array.isArray(raw) ? raw : [];
+        setTwitchChannels(channels);
+        setTwitchAccessEnabled(channels.length > 0);
 
-        // JSON
         try {
             const jsonStr = typeof modpack.prelaunchAppearance === 'string'
                 ? modpack.prelaunchAppearance
@@ -167,12 +152,9 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             setPrelaunchJson('{}');
         }
 
-        // Reset Files
         setIconFile(null);
         setBannerFile(null);
     }, [modpack, isOpen]);
-
-    // --- Handlers Auxiliares ---
 
     const handleJsonChange = (val: string) => {
         setPrelaunchJson(val);
@@ -219,16 +201,15 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
         }
     };
 
-    // --- Submit Logic ---
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!modpack) return;
+        if (!modpack.creatorId) { toast.error('Error interno: ID del creador no disponible'); return; }
         setLoading(true);
 
         try {
             const submission = new FormData();
 
-            // Base Data
             submission.append('name', formData.name);
             submission.append('shortDescription', formData.shortDescription);
             submission.append('description', formData.description);
@@ -237,30 +218,18 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             submission.append('acquisitionMethod', accessMode);
             submission.append('allowServerDownload', formData.allowServerDownload.toString());
 
-            // Files
             if (iconFile) submission.append('icon', iconFile);
             if (bannerFile) submission.append('banner', bannerFile);
 
-            // Categories
             submission.append('categories', JSON.stringify(selectedCategories));
             if (primaryCategoryId) submission.append('primaryCategoryId', primaryCategoryId);
 
-            // JSON
             if (!isJsonValid) throw new Error("JSON de apariencia inválido");
             submission.append('prelaunchAppearance', prelaunchJson);
 
-            // Access Logic Specifics
             if (accessMode === 'free') {
                 if (twitchAccessEnabled && twitchChannels.length === 0) throw new Error("Añade al menos un canal de Twitch o desactiva la restricción.");
                 submission.append('twitchChannels', JSON.stringify(twitchAccessEnabled ? twitchChannels : []));
-            }
-
-            if (accessMode === 'paid') {
-                const newPrice = parseFloat(formData.price);
-                const currentPrice = parseFloat(modpack.price || '0');
-                if (currentPrice === 0 && newPrice > 0) throw new Error("No puedes convertir un modpack gratuito a pago.");
-                if (newPrice > currentPrice) throw new Error("No puedes aumentar el precio.");
-                submission.append('price', newPrice.toFixed(2));
             }
 
             if (accessMode === 'password') {
@@ -273,7 +242,6 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                 }
             }
 
-            // API Call
             const res = await fetch(`${API_ENDPOINT}/creators/${modpack.creatorId}/modpacks/${modpack.id}`, {
                 method: 'PATCH',
                 headers: { 'Authorization': `Bearer ${sessionTokens?.accessToken}` },
@@ -312,14 +280,12 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                             <TabsList className="bg-transparent gap-4 p-0 h-auto">
                                 <TabTriggerItem value="general" label="General" />
                                 <TabTriggerItem value="appearance" label="Apariencia" />
-                                <TabTriggerItem value="access" label="Acceso y Precio" />
-                                <TabTriggerItem value="advanced" label="Avanzado" />
+                                <TabTriggerItem value="access" label="Acceso" />
                             </TabsList>
                         </div>
 
                         <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
 
-                            {/* --- TAB: GENERAL --- */}
                             <TabsContent value="general" className="mt-0 space-y-5">
                                 <div className="grid gap-4">
                                     <div className="space-y-2">
@@ -383,10 +349,24 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                             disabled={loading}
                                         />
                                     </div>
+
+                                    <div className="pt-4 border-t border-zinc-800">
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <h4 className="text-sm font-medium text-zinc-200">Descarga de Servidor</h4>
+                                                <p className="text-xs text-zinc-500 mt-1">
+                                                    Permitir a los usuarios descargar los archivos de servidor de este modpack.
+                                                </p>
+                                            </div>
+                                            <Switch
+                                                checked={formData.allowServerDownload}
+                                                onCheckedChange={(checked) => setFormData({ ...formData, allowServerDownload: checked })}
+                                            />
+                                        </div>
+                                    </div>
                                 </div>
                             </TabsContent>
 
-                            {/* --- TAB: APARIENCIA --- */}
                             <TabsContent value="appearance" className="mt-0 space-y-6">
                                 <div className="flex gap-8 items-start">
                                     <ImageUploader
@@ -405,43 +385,54 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                         />
                                     </div>
                                 </div>
-                                <div className="bg-zinc-900/50 p-4 rounded-md border border-zinc-800">
-                                    <h4 className="text-sm font-semibold text-zinc-300 mb-1">Previsualización en Launcher</h4>
-                                    <p className="text-xs text-zinc-500">
-                                        El icono se mostrará estático. Asegúrate de usar imágenes de alta calidad (PNG/JPG).
-                                    </p>
+
+                                <div className="pt-4 border-t border-zinc-800">
+                                    <div className="flex items-center justify-between mb-3">
+                                        <div className="flex flex-col">
+                                            <label className="text-sm font-medium text-zinc-300">Configuración Pre-Launch</label>
+                                            <span className="text-xs text-zinc-500">Personalización avanzada de la ventana de carga.</span>
+                                        </div>
+                                        <Button type="button" size="sm" variant="outline" onClick={formatJson} disabled={!isJsonValid}>
+                                            Formatear JSON
+                                        </Button>
+                                    </div>
+                                    <div className={`border rounded-md overflow-hidden ${!isJsonValid ? 'border-red-500' : 'border-zinc-800'}`}>
+                                        <CodeMirror
+                                            value={prelaunchJson}
+                                            onChange={handleJsonChange}
+                                            extensions={[basicSetup, json(), oneDark]}
+                                            theme={oneDark}
+                                            className="text-sm"
+                                            height="250px"
+                                        />
+                                    </div>
+                                    {!isJsonValid && <p className="text-xs text-red-400 mt-2">Sintaxis JSON inválida.</p>}
                                 </div>
                             </TabsContent>
 
-                            {/* --- TAB: ACCESO & PRECIO --- */}
                             <TabsContent value="access" className="mt-0 space-y-6">
-                                <div className="grid grid-cols-3 gap-4">
-                                    <AccessCard
-                                        active={accessMode === 'free'}
-                                        onClick={() => setAccessMode('free')}
-                                        icon={<Check className="text-green-400" />}
-                                        title="Gratuito"
-                                        desc="Acceso libre para todos"
-                                    />
-                                    <AccessCard
-                                        active={accessMode === 'paid'}
-                                        onClick={() => setAccessMode('paid')}
-                                        icon={<DollarSign className="text-blue-400" />}
-                                        title="De Pago"
-                                        desc="Compra única"
-                                    />
-                                    <AccessCard
-                                        active={accessMode === 'password'}
-                                        onClick={() => setAccessMode('password')}
-                                        icon={<Lock className="text-orange-400" />}
-                                        title="Protegido"
-                                        desc="Requiere contraseña"
-                                    />
+                                <div>
+                                    <label className="text-sm font-medium text-zinc-300 mb-3 block">Método de Adquisición</label>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <AccessCard
+                                            active={accessMode === 'free'}
+                                            onClick={() => setAccessMode('free')}
+                                            icon={<Check className="text-green-400" />}
+                                            title="Gratuito"
+                                            desc="Acceso libre para todos"
+                                        />
+                                        <AccessCard
+                                            active={accessMode === 'password'}
+                                            onClick={() => setAccessMode('password')}
+                                            icon={<Lock className="text-orange-400" />}
+                                            title="Protegido"
+                                            desc="Requiere contraseña"
+                                        />
+                                    </div>
                                 </div>
 
-                                {/* Lógica para Gratuito (Twitch) */}
                                 {accessMode === 'free' && (
-                                    <div className="space-y-4 pt-4 border-t border-zinc-800 animate-in fade-in slide-in-from-top-2">
+                                    <div className="space-y-4 pt-4 border-t border-zinc-800">
                                         <div className="flex items-center justify-between">
                                             <div>
                                                 <h3 className="font-medium text-zinc-200 flex items-center gap-2">
@@ -478,7 +469,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                                 </div>
 
                                                 <div className="flex flex-wrap gap-2">
-                                                    {twitchChannels.map(channel => (
+                                                    {Array.isArray(twitchChannels) && twitchChannels.map(channel => (
                                                         <div key={channel.id} className="bg-purple-900/40 border border-purple-500/30 px-3 py-1 rounded-full text-xs flex items-center gap-2">
                                                             <span className="text-purple-200">{channel.displayName}</span>
                                                             <button
@@ -490,45 +481,15 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                                             </button>
                                                         </div>
                                                     ))}
-                                                    {twitchChannels.length === 0 && <span className="text-xs text-zinc-500 italic">No hay canales añadidos.</span>}
+                                                    {(!Array.isArray(twitchChannels) || twitchChannels.length === 0) && <span className="text-xs text-zinc-500 italic">No hay canales añadidos.</span>}
                                                 </div>
                                             </div>
                                         )}
                                     </div>
                                 )}
 
-                                {/* Lógica para Pago */}
-                                {accessMode === 'paid' && (
-                                    <div className="bg-blue-950/20 border border-blue-900/50 p-4 rounded-lg space-y-3 animate-in fade-in">
-                                        <div className="flex items-center gap-2 text-blue-400 mb-2">
-                                            <AlertTriangle size={16} />
-                                            <span className="text-xs font-semibold">Política de Precios</span>
-                                        </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="text-xs text-zinc-400 block mb-1">Precio Actual (USD)</label>
-                                                <Input disabled value={modpack?.price || "0.00"} className="bg-zinc-900 border-zinc-800" />
-                                            </div>
-                                            <div>
-                                                <label className="text-xs text-zinc-400 block mb-1">Nuevo Precio (USD)</label>
-                                                <Input
-                                                    type="number"
-                                                    step="0.01"
-                                                    min="0"
-                                                    max={modpack?.price}
-                                                    value={formData.price}
-                                                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                                                    className="bg-zinc-900 border-blue-900/50 focus:border-blue-500"
-                                                />
-                                            </div>
-                                        </div>
-                                        <p className="text-xs text-zinc-500">Solo puedes reducir el precio, no aumentarlo una vez publicado.</p>
-                                    </div>
-                                )}
-
-                                {/* Lógica para Password */}
                                 {accessMode === 'password' && (
-                                    <div className="bg-orange-950/20 border border-orange-900/50 p-4 rounded-lg space-y-3 animate-in fade-in">
+                                    <div className="bg-orange-950/20 border border-orange-900/50 p-4 rounded-lg space-y-3 pt-4 border-t border-zinc-800">
                                         <div className="space-y-2">
                                             <label className="text-xs text-zinc-400">Nueva Contraseña</label>
                                             <Input
@@ -553,45 +514,6 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                 )}
                             </TabsContent>
 
-                            {/* --- TAB: AVANZADO (JSON) --- */}
-                            <TabsContent value="advanced" className="mt-0 h-full flex flex-col">
-                                <div className="mb-6 p-4 border border-zinc-800 rounded-lg bg-zinc-900/30">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <h4 className="text-sm font-medium text-zinc-200">Descarga de Servidor</h4>
-                                            <p className="text-xs text-zinc-500 mt-1">
-                                                Permitir a los usuarios descargar los archivos de servidor de este modpack.
-                                            </p>
-                                        </div>
-                                        <Switch
-                                            checked={formData.allowServerDownload}
-                                            onCheckedChange={(checked) => setFormData({ ...formData, allowServerDownload: checked })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center justify-between mb-3">
-                                    <div className="flex flex-col">
-                                        <label className="text-sm font-medium text-zinc-300">Configuración Pre-Launch</label>
-                                        <span className="text-xs text-zinc-500">Personalización avanzada de la ventana de carga.</span>
-                                    </div>
-                                    <Button type="button" size="sm" variant="outline" onClick={formatJson} disabled={!isJsonValid}>
-                                        Formatear JSON
-                                    </Button>
-                                </div>
-                                <div className={`border rounded-md overflow-hidden flex-1 ${!isJsonValid ? 'border-red-500' : 'border-zinc-800'}`}>
-                                    <CodeMirror
-                                        value={prelaunchJson}
-                                        onChange={handleJsonChange}
-                                        extensions={[basicSetup, json(), oneDark]}
-                                        theme={oneDark}
-                                        className="text-sm h-full"
-                                        height="300px"
-                                    />
-                                </div>
-                                {!isJsonValid && <p className="text-xs text-red-400 mt-2">Sintaxis JSON inválida.</p>}
-                            </TabsContent>
-
                         </div>
 
                         <DialogFooter className="px-6 py-4 border-t border-zinc-800 bg-zinc-900/30">
@@ -609,7 +531,6 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
     );
 };
 
-// --- Componentes de UI Auxiliares para limpieza ---
 const TabTriggerItem = ({ value, label }: { value: string, label: string }) => (
     <TabsTrigger
         value={value}

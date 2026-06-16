@@ -134,3 +134,15 @@ hotkeyKillInstance:
   default: "Ctrl+Alt+Shift+X"
   description: "Atajo para forzar cierre de instancia activa"
   ui_section: hotkeys
+
+developerMode:
+  type: boolean
+  default: false
+  description: "Activar modo desarrollador y sección Flags"
+  ui_section: internal
+
+enableExtendedSidebar:
+  type: boolean
+  default: false
+  description: "Extiende el sidebar lateral con información adicional de instancias"
+  ui_section: experimental

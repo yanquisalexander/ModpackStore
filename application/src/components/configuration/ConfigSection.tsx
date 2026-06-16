@@ -76,7 +76,7 @@ export const ConfigSection: React.FC<ConfigSectionProps> = ({
                                     {renderConfigControl(key, def)}
 
                                     {def.type === "slider" && (
-                                        <div className="flex justify-between text-[10px] text-white/20 px-1">
+                                        <div className="flex justify-between text-xs text-white/20 px-1">
                                             <span>Min: {def.min}</span>
                                             <span>Max: {def.max}</span>
                                         </div>

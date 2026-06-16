@@ -20,7 +20,7 @@ export const OfflineMode = () => {
     }, [])
 
     return (
-        <div className="flex flex-col h-screen text-white">
+        <div className="flex flex-col min-h-full h-full p-0 text-white bg-ms-primary">
             <div className="px-6 pt-6">
                 <Alert>
                     <LucideWifiOff className="size-16  !text-red-400" />
@@ -31,7 +31,7 @@ export const OfflineMode = () => {
                 </Alert>
             </div>
 
-            <div className="mt-0 h-full pb-16">
+            <div className="mt-0 h-full">
                 <MyInstancesSection offlineMode={true} />
             </div>
         </div>

@@ -3,7 +3,6 @@ import {
     Package,
     Users,
     BarChart3,
-    HandCoins,
     Cloud,
     Settings,
     type LucideIcon,
@@ -25,7 +24,6 @@ export const getOrgNavItems = (orgId: string): NavItem[] => [
     { path: `/creators/org/${orgId}/modpacks`, label: "Modpacks", icon: Package },
     { path: `/creators/org/${orgId}/team`, label: "Equipo", icon: Users },
     { path: `/creators/org/${orgId}/analytics`, label: "Métricas", icon: BarChart3 },
-    { path: `/creators/org/${orgId}/payments`, label: "Pagos", icon: HandCoins },
     { path: `/creators/org/${orgId}/storage`, label: "Archivos", icon: Cloud },
     { path: `/creators/org/${orgId}/settings`, label: "Ajustes", icon: Settings },
 ];

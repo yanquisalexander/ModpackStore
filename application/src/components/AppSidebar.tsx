@@ -23,6 +23,7 @@ import GlassGamingButtons from "@/icons/GlassGamingButtons";
 import GlassUsers from "@/icons/GlassUsers";
 import GlassGridPlus from "@/icons/GlassGridPlus";
 import GlassMagnifier from "@/icons/GlassMagnifier";
+import GlassLock from "@/icons/GlassLock";
 
 // --- SUBCOMPONENTES ---
 
@@ -262,12 +263,12 @@ export const AppSidebar: React.FC = memo(() => {
             { name: "Explorar", icon: GlassMagnifier, path: "/explore", requiresConnection: true },
             { name: "Biblioteca", icon: LucideLibrary, path: "/library", requiresConnection: true },
             { name: "Instancias", icon: GlassGamingButtons, path: (!isConnected && !isLoadingConnectionCheck) ? "/" : "/my-instances", requiresConnection: false },
-            { name: "Servidores", icon: LucideServer, path: "/servers", requiresConnection: true },
+            /*    { name: "Servidores", icon: LucideServer, path: "/servers", requiresConnection: true }, */
             { name: "Cuentas", icon: GlassUsers, path: "/mc-accounts", requiresConnection: false }
         ];
 
         if (hasWhitelists && isConnected) {
-            baseItems.splice(1, 0, { name: "Whitelist", icon: LucideShield, path: "/whitelist-instances", requiresConnection: true });
+            baseItems.splice(1, 0, { name: "Whitelist", icon: GlassLock, path: "/whitelist-instances", requiresConnection: true });
         }
 
         return isConnected ? baseItems : baseItems.filter(item => !item.requiresConnection);

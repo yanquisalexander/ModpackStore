@@ -1,6 +1,5 @@
-// components/ErrorScreen.tsx
-import React from "react";
-import { AlertTriangle, Wrench, Wifi, HardDrive, FileX, Settings } from "lucide-react";
+import { Link } from "react-router-dom"
+import { AlertTriangle, Wrench, Wifi, HardDrive, FileX, Settings, LucideHome, LucideArrowLeft } from "lucide-react"
 
 interface BootstrapError {
     step: string;
@@ -16,19 +15,20 @@ interface ErrorScreenProps {
 }
 
 const getErrorIcon = (category?: string) => {
+    const className = "w-10 h-10 text-neutral-600 mb-5"
     switch (category) {
         case "Java":
-            return <Settings className="w-12 h-12 text-red-400 mb-4" />;
+            return <Settings className={className} />;
         case "Network":
-            return <Wifi className="w-12 h-12 text-red-400 mb-4" />;
+            return <Wifi className={className} />;
         case "Filesystem":
-            return <HardDrive className="w-12 h-12 text-red-400 mb-4" />;
+            return <HardDrive className={className} />;
         case "Forge":
-            return <Wrench className="w-12 h-12 text-red-400 mb-4" />;
+            return <Wrench className={className} />;
         case "Configuration":
-            return <FileX className="w-12 h-12 text-red-400 mb-4" />;
+            return <FileX className={className} />;
         default:
-            return <AlertTriangle className="w-12 h-12 text-red-400 mb-4" />;
+            return <AlertTriangle className={className} />;
     }
 };
 
@@ -51,46 +51,56 @@ const getStepDisplayName = (step: string): string => {
 };
 
 export const ErrorScreen: React.FC<ErrorScreenProps> = ({ error, bootstrapError }) => {
-    if (bootstrapError) {
-        return (
-            <div className="flex min-h-screen bg-[#202020] text-gray-100 items-center justify-center p-4">
-                <div className="max-w-md w-full p-8 rounded-lg bg-red-900/30 border border-red-500/50 text-center">
-                    {getErrorIcon(bootstrapError.category)}
-                    <h2 className="text-xl font-bold text-red-400 mb-2">Error de instalación</h2>
-                    <p className="text-sm text-red-300 mb-4">
-                        Falló en: {getStepDisplayName(bootstrapError.step)}
-                    </p>
-                    <p className="text-gray-300 mb-4">{bootstrapError.message}</p>
-                    
-                    {bootstrapError.suggestion && (
-                        <div className="bg-yellow-900/30 border border-yellow-500/50 rounded p-3 mb-4">
-                            <p className="text-sm text-yellow-200">
-                                <strong>Sugerencia:</strong> {bootstrapError.suggestion}
-                            </p>
-                        </div>
-                    )}
-                    
-                    {bootstrapError.technical_details && (
-                        <details className="text-left text-xs text-gray-400 mt-4">
-                            <summary className="cursor-pointer hover:text-gray-300">
-                                Ver detalles técnicos
-                            </summary>
-                            <pre className="mt-2 p-2 bg-gray-800 rounded overflow-x-auto">
-                                {bootstrapError.technical_details}
-                            </pre>
-                        </details>
-                    )}
-                </div>
-            </div>
-        );
-    }
-
     return (
-        <div className="flex min-h-screen bg-[#202020] text-gray-100 items-center justify-center">
-            <div className="p-8 rounded-lg bg-red-900/30 border border-red-500/50 text-center">
-                <AlertTriangle className="w-12 h-12 text-red-400 mb-4 mx-auto" />
-                <h2 className="text-xl font-bold text-red-400">Ha ocurrido un error</h2>
-                <p className="mt-2 text-gray-300">{error}</p>
+        <div className="h-full flex flex-col items-center justify-center px-4">
+            {getErrorIcon(bootstrapError?.category)}
+
+            <h1 className="text-base font-semibold text-white/80">
+                {bootstrapError ? "Error de instalación" : "Ha ocurrido un error"}
+            </h1>
+
+            {bootstrapError && (
+                <p className="text-xs text-neutral-500 mt-1">
+                    Falló en: {getStepDisplayName(bootstrapError.step)}
+                </p>
+            )}
+
+            <p className="text-sm text-neutral-600 mt-3 max-w-xs text-center leading-relaxed">
+                {bootstrapError ? bootstrapError.message : error}
+            </p>
+
+            {bootstrapError?.suggestion && (
+                <p className="text-sm text-amber-600/80 mt-3 max-w-xs text-center leading-relaxed">
+                    {bootstrapError.suggestion}
+                </p>
+            )}
+
+            {bootstrapError?.technical_details && (
+                <details className="mt-4 text-xs text-neutral-600 max-w-xs w-full">
+                    <summary className="cursor-pointer hover:text-neutral-400 text-center">
+                        Ver detalles técnicos
+                    </summary>
+                    <pre className="mt-2 p-3 bg-black/20 rounded overflow-x-auto text-neutral-500">
+                        {bootstrapError.technical_details}
+                    </pre>
+                </details>
+            )}
+
+            <div className="flex items-center gap-3 mt-8">
+                <Link
+                    to="/"
+                    className="flex items-center gap-1.5 bg-white text-black text-sm font-semibold px-4 py-2 rounded-lg hover:bg-white/90 transition-colors active:scale-95"
+                >
+                    <LucideHome className="w-4 h-4" />
+                    Ir al inicio
+                </Link>
+                <button
+                    onClick={() => window.history.back()}
+                    className="flex items-center gap-1.5 text-sm font-medium text-neutral-500 px-4 py-2 rounded-lg hover:text-neutral-300 hover:bg-white/[0.04] transition-colors"
+                >
+                    <LucideArrowLeft className="w-4 h-4" />
+                    Volver
+                </button>
             </div>
         </div>
     );

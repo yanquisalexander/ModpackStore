@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence, useScroll, useTransform } from "motion/react";
+import { motion, AnimatePresence } from "motion/react";
 import { getModpacks } from "@/services/getModpacks";
 import { Link } from "react-router-dom";
 import { LucideChevronLeft, LucideChevronRight, LucideGamepad2, LucideStar } from "lucide-react";
@@ -19,10 +19,6 @@ export const FeaturedSlideshow: React.FC<{
         const timerRef = useRef<number | null>(null);
         const containerRef = useRef<HTMLDivElement>(null);
         const interval = 6000; // 6s
-
-        // Scroll-based parallax effect
-        const { scrollYProgress } = useScroll();
-        const parallaxY = useTransform(scrollYProgress, [0, 1], [0, -50]);
 
         useEffect(() => {
             setSlides(propSlides);
@@ -104,24 +100,6 @@ export const FeaturedSlideshow: React.FC<{
                 onMouseEnter={() => setIsAutoPlaying(false)}
                 onMouseLeave={() => setIsAutoPlaying(true)}
             >
-                {/* Background layers for depth */}
-                <div className="absolute inset-0">
-                    <AnimatePresence mode="wait">
-                        <motion.div
-                            key={`blur-${currentSlide.id}`}
-                            className="absolute inset-0 bg-cover bg-center w-full h-full opacity-40 blur-2xl"
-                            style={{
-                                backgroundImage: `url(${currentSlide.bannerUrl || currentSlide.iconUrl || '/images/modpack-fallback.webp'})`,
-                            }}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 0.3 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 1 }}
-                        />
-                    </AnimatePresence>
-                </div>
-
-                {/* ======== NEW SLIDE WRAPPER ADDED ======== */}
                 <div className="absolute inset-0 overflow-hidden">
                     {/* Main slide */}
                     <AnimatePresence mode="wait">
@@ -135,10 +113,7 @@ export const FeaturedSlideshow: React.FC<{
                                 ease: [0.25, 0.46, 0.45, 0.94],
                                 scale: { duration: 1.2 }
                             }}
-                            className="absolute w-full h-full" // overflow-hidden is optional here
-                            style={{
-                                y: parallaxY,
-                            }}
+                            className="absolute w-full h-full"
                         >
                             <img
                                 draggable={false}
@@ -195,7 +170,6 @@ export const FeaturedSlideshow: React.FC<{
                         </motion.div>
                     </AnimatePresence>
                 </div>
-                {/* ======================================= */}
 
                 {/* Featured badge - always visible */}
                 <motion.div
@@ -268,14 +242,6 @@ export const FeaturedSlideshow: React.FC<{
                     </div>
                 )}
 
-                {/* Auto-play indicator */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: isAutoPlaying ? 0 : 1 }}
-                    className="absolute top-6 right-6 z-30 bg-black/20 backdrop-blur-md px-3 py-1 rounded-full text-white/80 text-xs"
-                >
-                    Pausado
-                </motion.div>
             </div>
         );
     };

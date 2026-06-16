@@ -74,7 +74,7 @@ export const RunningTasks = () => {
                 aria-label="Tareas en progreso"
             >
                 {taskCount >= 1 && (
-                    <span className="absolute top-0.5 -right-0.5 bg-sky-600 size-4 text-[10px] flex items-center justify-center text-white rounded-full">
+                    <span className="absolute top-0.5 right-0 bg-sky-600 size-4 text-[10px] flex items-center justify-center text-white rounded-full">
                         {taskCount}
                     </span>
                 )}

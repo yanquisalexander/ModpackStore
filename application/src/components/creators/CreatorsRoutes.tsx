@@ -10,7 +10,6 @@ import { PublisherModpackVersionsView } from "@/views/publisher/PublisherModpack
 import PublisherModpackVersionDetailView from "@/views/publisher/PublisherModpackVersionDetailView";
 import { PublisherTeamView } from "@/views/publisher/PublisherTeamViewEnhanced";
 import { PublisherAnalyticsView } from "@/views/publisher/PublisherAnalyticsView";
-import { PublisherPaymentsView } from "@/views/publisher/PublisherPaymentsView";
 import { PublisherStorageView } from "@/views/publisher/PublisherStorageView";
 import { PublisherSettingsView } from "@/views/publisher/PublisherSettingsView";
 
@@ -30,7 +29,6 @@ export const CreatorsRoutes: React.FC<CreatorsRoutesProps> = ({ teams }) => {
                 <Route path="org/:publisherId/modpacks/:modpackId/versions/:versionId" element={<PublisherModpackVersionDetailView />} />
                 <Route path="org/:publisherId/team" element={<PublisherTeamView />} />
                 <Route path="org/:publisherId/analytics" element={<PublisherAnalyticsView />} />
-                <Route path="org/:publisherId/payments" element={<PublisherPaymentsView />} />
                 <Route path="org/:publisherId/storage" element={<PublisherStorageView />} />
                 <Route path="org/:publisherId/settings" element={<PublisherSettingsView />} />
                 <Route path="org/:publisherId" element={<OrganizationModpacksView teams={teams} />} />

@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/table";
 import {
     LucideShield,
-    LucideShoppingCart,
     LucideHistory,
     LucideLoader2,
     LucideCheck,
@@ -32,34 +31,23 @@ import { toast } from "sonner";
 import { useAuthentication } from "@/stores/AuthContext";
 import { API_ENDPOINT } from "@/consts";
 
-interface ModpackAcquisition {
-    id: string;
+interface AcquisitionItem {
+    acquisition: {
+        id: string;
+        method: string;
+        status: string;
+        createdAt: string;
+    };
     modpack: {
         id: string;
         name: string;
-        iconUrl?: string;
         slug: string;
+        iconUrl: string;
     };
-    method: 'free' | 'paid' | 'password' | 'twitch_sub';
-    status: 'active' | 'revoked' | 'suspended';
-    createdAt: string;
-    transactionId?: string;
-}
-
-interface AcquisitionsData {
-    acquisitions: ModpackAcquisition[];
-    total: number;
-    page: number;
-    totalPages: number;
 }
 
 export const ModpackAccessStatus = () => {
-    const [acquisitions, setAcquisitions] = useState<AcquisitionsData>({
-        acquisitions: [],
-        total: 0,
-        page: 1,
-        totalPages: 1
-    });
+    const [items, setItems] = useState<AcquisitionItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [showHistoryDialog, setShowHistoryDialog] = useState(false);
 
@@ -81,8 +69,8 @@ export const ModpackAccessStatus = () => {
             });
 
             if (response.ok) {
-                const data = await response.json();
-                setAcquisitions(data);
+                const json = await response.json();
+                setItems(json.data || []);
             } else {
                 toast.error('Error al cargar tus modpacks adquiridos');
             }
@@ -94,50 +82,8 @@ export const ModpackAccessStatus = () => {
         }
     };
 
-    const getMethodIcon = (method: ModpackAcquisition['method']) => {
-        switch (method) {
-            case 'password': return <LucideShield className="w-4 h-4" />;
-            case 'free':
-            case 'paid': return <LucideShoppingCart className="w-4 h-4" />;
-            case 'twitch_sub': return <MdiTwitch className="w-4 h-4" />;
-        }
-    };
-
-    const getMethodText = (method: ModpackAcquisition['method']) => {
-        switch (method) {
-            case 'password': return 'Contraseña';
-            case 'free': return 'Gratuito';
-            case 'paid': return 'Compra';
-            case 'twitch_sub': return 'Twitch';
-        }
-    };
-
-    const getStatusBadgeVariant = (status: ModpackAcquisition['status']) => {
-        switch (status) {
-            case 'active': return 'default';
-            case 'suspended': return 'secondary';
-            case 'revoked': return 'destructive';
-        }
-    };
-
-    const getStatusText = (status: ModpackAcquisition['status']) => {
-        switch (status) {
-            case 'active': return 'Activo';
-            case 'suspended': return 'Suspendido';
-            case 'revoked': return 'Revocado';
-        }
-    };
-
-    const getStatusIcon = (status: ModpackAcquisition['status']) => {
-        switch (status) {
-            case 'active': return <LucideCheck className="w-4 h-4" />;
-            case 'suspended': return <LucideClock className="w-4 h-4" />;
-            case 'revoked': return <LucideX className="w-4 h-4" />;
-        }
-    };
-
-    const activeAcquisitions = acquisitions.acquisitions.filter(a => a.status === 'active');
-    const inactiveAcquisitions = acquisitions.acquisitions.filter(a => a.status !== 'active');
+    const activeItems = items.filter(i => i.acquisition.status === 'active');
+    const inactiveItems = items.filter(i => i.acquisition.status !== 'active');
 
     if (isLoading) {
         return (
@@ -162,9 +108,9 @@ export const ModpackAccessStatus = () => {
             <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                     <LucideShield className="w-5 h-5" />
-                    Mis Modpacks Adquiridos ({acquisitions.total})
+                    Mis Modpacks Adquiridos ({items.length})
                 </CardTitle>
-                {acquisitions.total > 0 && (
+                {items.length > 0 && (
                     <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
                         <DialogTrigger asChild>
                             <Button variant="outline" size="sm">
@@ -188,47 +134,39 @@ export const ModpackAccessStatus = () => {
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {acquisitions.acquisitions.map((acquisition) => (
-                                            <TableRow key={acquisition.id}>
+                                        {items.map((item) => (
+                                            <TableRow key={item.acquisition.id}>
                                                 <TableCell>
                                                     <div className="flex items-center gap-2">
-                                                        {acquisition.modpack.iconUrl && (
+                                                        {item.modpack.iconUrl && (
                                                             <img
-                                                                src={acquisition.modpack.iconUrl}
-                                                                alt={acquisition.modpack.name}
+                                                                src={item.modpack.iconUrl}
+                                                                alt={item.modpack.name}
                                                                 className="w-8 h-8 rounded"
                                                             />
                                                         )}
                                                         <div>
-                                                            <div className="font-medium">{acquisition.modpack.name}</div>
+                                                            <div className="font-medium">{item.modpack.name}</div>
                                                             <div className="text-sm text-muted-foreground">
-                                                                {acquisition.modpack.slug}
+                                                                {item.modpack.slug}
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </TableCell>
+                                                <TableCell>{item.acquisition.method}</TableCell>
                                                 <TableCell>
-                                                    <div className="flex items-center gap-2">
-                                                        {getMethodIcon(acquisition.method)}
-                                                        {getMethodText(acquisition.method)}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell>
-                                                    <Badge variant={getStatusBadgeVariant(acquisition.status)}>
-                                                        <div className="flex items-center gap-1">
-                                                            {getStatusIcon(acquisition.status)}
-                                                            {getStatusText(acquisition.status)}
-                                                        </div>
+                                                    <Badge variant={item.acquisition.status === 'active' ? 'default' : 'secondary'}>
+                                                        {item.acquisition.status}
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>
-                                                    {new Date(acquisition.createdAt).toLocaleDateString()}
+                                                    {new Date(item.acquisition.createdAt).toLocaleDateString()}
                                                 </TableCell>
                                                 <TableCell>
-                                                    <Button 
-                                                        size="sm" 
+                                                    <Button
+                                                        size="sm"
                                                         variant="outline"
-                                                        onClick={() => window.open(`/modpack/${acquisition.modpack.slug}`, '_blank')}
+                                                        onClick={() => window.open(`/modpack/${item.modpack.slug}`, '_blank')}
                                                     >
                                                         <LucideLink className="w-3 h-3 mr-1" />
                                                         Ver
@@ -244,7 +182,7 @@ export const ModpackAccessStatus = () => {
                 )}
             </CardHeader>
             <CardContent>
-                {acquisitions.total === 0 ? (
+                {items.length === 0 ? (
                     <div className="text-center py-8">
                         <LucideShield className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
                         <p className="text-lg font-medium">No tienes modpacks adquiridos</p>
@@ -254,33 +192,31 @@ export const ModpackAccessStatus = () => {
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        {/* Active Acquisitions */}
-                        {activeAcquisitions.length > 0 && (
+                        {activeItems.length > 0 && (
                             <div>
                                 <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                                    Acceso Activo ({activeAcquisitions.length})
+                                    Acceso Activo ({activeItems.length})
                                 </h4>
                                 <div className="grid gap-2">
-                                    {activeAcquisitions.slice(0, 5).map((acquisition) => (
+                                    {activeItems.slice(0, 5).map((item) => (
                                         <div
-                                            key={acquisition.id}
+                                            key={item.acquisition.id}
                                             className="flex items-center justify-between p-3 border rounded-lg"
                                         >
                                             <div className="flex items-center gap-3">
-                                                {acquisition.modpack.iconUrl && (
+                                                {item.modpack.iconUrl && (
                                                     <img
-                                                        src={acquisition.modpack.iconUrl}
-                                                        alt={acquisition.modpack.name}
+                                                        src={item.modpack.iconUrl}
+                                                        alt={item.modpack.name}
                                                         className="w-10 h-10 rounded"
                                                     />
                                                 )}
                                                 <div>
-                                                    <div className="font-medium">{acquisition.modpack.name}</div>
+                                                    <div className="font-medium">{item.modpack.name}</div>
                                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                        {getMethodIcon(acquisition.method)}
-                                                        Adquirido por {getMethodText(acquisition.method)}
+                                                        Adquirido por {item.acquisition.method}
                                                         <span>•</span>
-                                                        {new Date(acquisition.createdAt).toLocaleDateString()}
+                                                        {new Date(item.acquisition.createdAt).toLocaleDateString()}
                                                     </div>
                                                 </div>
                                             </div>
@@ -289,10 +225,10 @@ export const ModpackAccessStatus = () => {
                                                     <LucideCheck className="w-3 h-3 mr-1" />
                                                     Activo
                                                 </Badge>
-                                                <Button 
-                                                    size="sm" 
+                                                <Button
+                                                    size="sm"
                                                     variant="ghost"
-                                                    onClick={() => window.open(`/modpack/${acquisition.modpack.slug}`, '_blank')}
+                                                    onClick={() => window.open(`/modpack/${item.modpack.slug}`, '_blank')}
                                                 >
                                                     <LucideLink className="w-3 h-3" />
                                                 </Button>
@@ -300,40 +236,38 @@ export const ModpackAccessStatus = () => {
                                         </div>
                                     ))}
                                 </div>
-                                {activeAcquisitions.length > 5 && (
+                                {activeItems.length > 5 && (
                                     <p className="text-sm text-muted-foreground mt-2">
-                                        Y {activeAcquisitions.length - 5} más...
+                                        Y {activeItems.length - 5} más...
                                     </p>
                                 )}
                             </div>
                         )}
 
-                        {/* Inactive Acquisitions */}
-                        {inactiveAcquisitions.length > 0 && (
+                        {inactiveItems.length > 0 && (
                             <div>
                                 <h4 className="text-sm font-medium text-muted-foreground mb-2">
-                                    Acceso Inactivo ({inactiveAcquisitions.length})
+                                    Acceso Inactivo ({inactiveItems.length})
                                 </h4>
                                 <div className="grid gap-2">
-                                    {inactiveAcquisitions.slice(0, 3).map((acquisition) => (
+                                    {inactiveItems.slice(0, 3).map((item) => (
                                         <div
-                                            key={acquisition.id}
+                                            key={item.acquisition.id}
                                             className="flex items-center justify-between p-3 border rounded-lg opacity-60"
                                         >
                                             <div className="flex items-center gap-3">
-                                                {acquisition.modpack.iconUrl && (
+                                                {item.modpack.iconUrl && (
                                                     <img
-                                                        src={acquisition.modpack.iconUrl}
-                                                        alt={acquisition.modpack.name}
+                                                        src={item.modpack.iconUrl}
+                                                        alt={item.modpack.name}
                                                         className="w-8 h-8 rounded grayscale"
                                                     />
                                                 )}
                                                 <div>
-                                                    <div className="font-medium">{acquisition.modpack.name}</div>
+                                                    <div className="font-medium">{item.modpack.name}</div>
                                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                        {getMethodIcon(acquisition.method)}
-                                                        {getMethodText(acquisition.method)}
-                                                        {acquisition.status === 'suspended' && (
+                                                        {item.acquisition.method}
+                                                        {item.acquisition.status === 'suspended' && (
                                                             <span className="text-orange-500">
                                                                 • Renovar suscripción para reactivar
                                                             </span>
@@ -341,9 +275,8 @@ export const ModpackAccessStatus = () => {
                                                     </div>
                                                 </div>
                                             </div>
-                                            <Badge variant={getStatusBadgeVariant(acquisition.status)}>
-                                                {getStatusIcon(acquisition.status)}
-                                                {getStatusText(acquisition.status)}
+                                            <Badge variant="secondary">
+                                                {item.acquisition.status}
                                             </Badge>
                                         </div>
                                     ))}

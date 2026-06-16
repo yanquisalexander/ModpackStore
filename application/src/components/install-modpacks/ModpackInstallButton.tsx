@@ -29,11 +29,9 @@ interface InstallButtonProps {
     modpackId: string;
     modpackName: string;
     localInstances: TauriCommandReturns["get_instances_by_modpack_id"];
-    acquisitionMethod?: 'free' | 'paid' | 'password' | 'twitch_sub';
+    acquisitionMethod?: 'free' | 'password' | 'twitch_sub';
     isPasswordProtected?: boolean;
-    isPaid?: boolean;
     isFree?: boolean;
-    price?: string;
     requiresTwitchSubscription?: boolean;
     requiredTwitchChannels?: string[];
     selectedVersionId?: string;
@@ -43,9 +41,7 @@ interface InstallButtonProps {
 
 interface ModpackAccess {
     requiresPassword?: boolean;
-    isPaid?: boolean;
     isFree?: boolean;
-    price?: string;
     requiresTwitchSubscription?: boolean;
     requiredTwitchChannels?: string[];
 }
@@ -56,9 +52,7 @@ export const InstallButton = ({
     localInstances,
     acquisitionMethod = 'free',
     isPasswordProtected = false,
-    isPaid = false,
     isFree = true,
-    price,
     requiresTwitchSubscription = false,
     requiredTwitchChannels = [],
     selectedVersionId,
@@ -74,12 +68,10 @@ export const InstallButton = ({
     const [hasAccess, setHasAccess] = useState<boolean>(false)
     const [isCheckingAccess, setIsCheckingAccess] = useState<boolean>(true)
 
-    const [acquisitionMethodState, setAcquisitionMethodState] = useState<'free' | 'paid' | 'password' | 'twitch_sub'>(acquisitionMethod);
+    const [acquisitionMethodState, setAcquisitionMethodState] = useState<'free' | 'password' | 'twitch_sub'>(acquisitionMethod);
     const [requiresPasswordState, setRequiresPasswordState] = useState(isPasswordProtected);
     const [requiresTwitchState, setRequiresTwitchState] = useState(requiresTwitchSubscription);
-    const [isPaidState, setIsPaidState] = useState(isPaid);
     const [isFreeState, setIsFreeState] = useState(isFree);
-    const [priceState, setPriceState] = useState(price);
     const [requiredTwitchChannelsState, setRequiredTwitchChannelsState] = useState(requiredTwitchChannels);
     const [totalInstances, setTotalInstances] = useState<number>(0);
 
@@ -128,30 +120,31 @@ export const InstallButton = ({
         }
 
         try {
-            const response = await fetch(`${API_ENDPOINT}/explore/modpacks/${modpackId}/check-access`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${sessionTokens.accessToken}`,
-                },
-            });
+            const [accessRes, acqRes] = await Promise.all([
+                fetch(`${API_ENDPOINT}/explore/modpacks/${modpackId}/access`, {
+                    headers: { 'Authorization': `Bearer ${sessionTokens.accessToken}` },
+                }),
+                fetch(`${API_ENDPOINT}/explore/user/acquisitions`, {
+                    headers: { 'Authorization': `Bearer ${sessionTokens.accessToken}` },
+                }),
+            ]);
 
-            const data = await response.json();
+            if (accessRes.ok) {
+                const accessJson = await accessRes.json();
+                const info = accessJson.data || {};
+                setAcquisitionMethodState(info.acquisitionMethod || 'free');
+                setRequiresPasswordState(info.requiresPassword || false);
+                setRequiresTwitchState(info.requiresTwitchSubscription || false);
+                setIsFreeState(info.isFree || true);
+                setRequiredTwitchChannelsState(info.twitchChannels || requiredTwitchChannels);
+            }
 
-            console.log('API Response:', data);
-
-            // Update access status
-            setHasAccess(data.canAccess || false);
-
-            // Update local state with API response if available
-            if (data.modpackAccessInfo) {
-                console.log('Updating local state with modpackAccessInfo:', data.modpackAccessInfo);
-                setAcquisitionMethodState(data.modpackAccessInfo.acquisitionMethod || 'free');
-                setRequiresPasswordState(data.modpackAccessInfo.requiresPassword || false);
-                setRequiresTwitchState(data.modpackAccessInfo.requiresTwitchSubscription || false);
-                setIsPaidState(data.modpackAccessInfo.isPaid || false);
-                setIsFreeState(data.modpackAccessInfo.isFree || true);
-                setPriceState(data.modpackAccessInfo.price || price);
-                setRequiredTwitchChannelsState(data.modpackAccessInfo.requiredTwitchChannels || requiredTwitchChannels);
+            if (acqRes.ok) {
+                const acqJson = await acqRes.json();
+                const acquisitions = acqJson.data || [];
+                setHasAccess(acquisitions.some((a: any) => a.acquisition?.modpackId === modpackId && a.acquisition?.status === 'active'));
+            } else {
+                setHasAccess(false);
             }
         } catch (error) {
             console.error('Error checking modpack access:', error);
@@ -388,7 +381,6 @@ export const InstallButton = ({
                     id: modpackId,
                     name: modpackName,
                     acquisitionMethod: acquisitionMethodState,
-                    price: priceState,
                     requiresTwitchSubscription: requiresTwitchState,
                 }}
             />
@@ -403,11 +395,6 @@ export const InstallButton = ({
                         </AlertDialogTitle>
                         <AlertDialogDescription>
                             Para adquirir el modpack "{modpackName}" necesitas iniciar sesión en tu cuenta.
-                            {isPaidState && !isFreeState && (
-                                <span className="block mt-2 font-medium">
-                                    Este modpack cuesta ${priceState} USD y requiere autenticación para completar la compra.
-                                </span>
-                            )}
                             {requiresPasswordState && (
                                 <span className="block mt-2 font-medium">
                                     Este modpack está protegido con contraseña.

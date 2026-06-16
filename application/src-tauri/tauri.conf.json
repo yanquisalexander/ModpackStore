@@ -81,7 +81,7 @@
         "minWidth": 960,
         "decorations": false,
         "center": true,
-        "dragDropEnabled": false,
+        "dragDropEnabled": true,
         "visible": false
       },
       {

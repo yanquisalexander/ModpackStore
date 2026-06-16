@@ -7,6 +7,7 @@ import { db } from "@/db/client.ts";
 import { modpacksTable } from "@/db/schema.ts";
 import { eq } from "drizzle-orm";
 import { NotFoundError } from "@/lib/errors/index.ts";
+import { uploadObject, getModpackImageKey, getModpackImageUrl } from "@/lib/r2.ts";
 import {
     createModpack,
     getModpacksByCreator,
@@ -19,7 +20,7 @@ import {
     getVersions,
     getVersion,
     updateVersion,
-    deleteVersion,
+
     publishVersion,
     archiveVersion,
     getUploadUrl,
@@ -28,6 +29,8 @@ import {
     reuseFiles,
     updateFileSide,
     deleteFileFromVersion,
+    getProcessingJobs,
+    retryProcessingJob,
 } from "@/services/version.service.ts";
 
 const app = new Hono<{ Variables: AuthVariables }>();
@@ -91,6 +94,18 @@ app.patch("/:modpackId", requireAuth, requireCreatorRole(CreatorRole.OWNER, Crea
     for (const [key, val] of Object.entries(body)) {
         if (typeof val === "string") data[key] = val;
     }
+
+    if (body.icon instanceof File) {
+        const bytes = new Uint8Array(await body.icon.arrayBuffer());
+        await uploadObject(getModpackImageKey(modpackId, 'icon'), bytes, body.icon.type);
+        data.iconUrl = getModpackImageUrl(modpackId, 'icon');
+    }
+    if (body.banner instanceof File) {
+        const bytes = new Uint8Array(await body.banner.arrayBuffer());
+        await uploadObject(getModpackImageKey(modpackId, 'banner'), bytes, body.banner.type);
+        data.bannerUrl = getModpackImageUrl(modpackId, 'banner');
+    }
+
     const modpack = await updateModpack(modpackId, data as any);
     return c.json(modpack);
 });
@@ -127,12 +142,6 @@ app.patch("/:modpackId/versions/:versionId", requireAuth, requireCreatorRole(Cre
     const versionId = c.req.param("versionId")!;
     const body = await c.req.json();
     const version = await updateVersion(versionId, body);
-    return c.json(version);
-});
-
-app.delete("/:modpackId/versions/:versionId", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN), requireModpackAccess, async (c) => {
-    const versionId = c.req.param("versionId")!;
-    const version = await deleteVersion(versionId);
     return c.json(version);
 });
 
@@ -204,6 +213,30 @@ app.post("/:modpackId/versions/:versionId/reuse-files/:fileType",
         const { fileRefs } = await c.req.json();
         const count = await reuseFiles(versionId, fileType, fileRefs);
         return c.json({ reused: count });
+    },
+);
+
+// ── Processing jobs ─────────────────────────────────
+
+app.get("/:modpackId/versions/:versionId/processing-jobs",
+    requireAuth,
+    requireCreatorAccess,
+    requireModpackAccess,
+    async (c) => {
+        const versionId = c.req.param("versionId")!;
+        const jobs = await getProcessingJobs(versionId);
+        return c.json(jobs);
+    },
+);
+
+app.post("/:modpackId/versions/:versionId/processing-jobs/:jobId/retry",
+    requireAuth,
+    requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN),
+    requireModpackAccess,
+    async (c) => {
+        const jobId = c.req.param("jobId")!;
+        await retryProcessingJob(jobId);
+        return c.json({ success: true });
     },
 );
 

@@ -56,6 +56,7 @@ const Logo = memo(({ logo, onLoadError }: { logo: PreLaunchAppearance['logo'], o
     return (
         <img
             src={logo.url}
+            draggable={false}
             alt="Logo"
             onError={(e) => {
                 onLoadError("Logo", `Failed to load ${logo.url}`);
@@ -201,7 +202,7 @@ export const PreLaunchInstance = () => {
 
     if (prelaunchState.isLoading) {
         return (
-            <div className="flex items-center justify-center min-h-screen">
+            <div className="flex items-center justify-center min-h-full h-full">
                 <LucideLoaderCircle className="size-10 animate-spin-clockwise text-white" />
             </div>
         );

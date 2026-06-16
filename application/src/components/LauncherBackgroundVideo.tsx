@@ -36,6 +36,7 @@ export const BackgroundVideo = memo(function BackgroundVideo({ videoUrls }: { vi
             className="absolute inset-0 z-0 h-full w-full object-cover animate-fade-in ease-in-out duration-1000"
             autoPlay
             muted
+            onContextMenu={(e) => e.preventDefault()}
             playsInline
             loop={isSingleVideo}
         />

@@ -1,55 +1,47 @@
 import { API_ENDPOINT } from "@/consts";
 
-export interface ModpackAcquisition {
+export interface AcquisitionRecord {
     id: string;
     userId: string;
     modpackId: string;
     method: string;
     status: string;
     createdAt: string;
-    modpack: {
-        id: string;
-        name: string;
-        slug: string;
-        shortDescription?: string;
-        iconUrl: string;
-        visibility: string;
-        status: string;
-        createdAt: string;
-        updatedAt: string;
-        publisher?: {
-            id: string;
-            publisherName: string;
-        };
-    };
+    updatedAt: string;
+}
+
+export interface ModpackBrief {
+    id: string;
+    name: string;
+    slug: string;
+    iconUrl: string;
+    creatorId: string;
+    creatorName: string;
+}
+
+export interface AcquisitionItem {
+    acquisition: AcquisitionRecord;
+    modpack: ModpackBrief;
 }
 
 export interface UserAcquisitionsResponse {
-    data: ModpackAcquisition[];
-    meta: {
-        page: number;
-        totalPages: number;
-        total: number;
-    };
+    data: AcquisitionItem[];
 }
 
 export const getUserAcquisitions = async (
     accessToken: string,
-    page: number = 1,
-    limit: number = 20
 ): Promise<UserAcquisitionsResponse> => {
-    const url = new URL(`${API_ENDPOINT}/explore/user/acquisitions`);
-    url.searchParams.append("page", page.toString());
-    url.searchParams.append("limit", limit.toString());
-
-    const response = await fetch(url.toString(), {
-        method: "GET",
-        headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Authorization": `Bearer ${accessToken}`
+    const response = await fetch(
+        `${API_ENDPOINT}/explore/user/acquisitions`,
+        {
+            method: "GET",
+            headers: {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Authorization": `Bearer ${accessToken}`
+            }
         }
-    });
+    );
 
     if (!response.ok) {
         throw new Error(`Failed to fetch user acquisitions: ${response.statusText}`);

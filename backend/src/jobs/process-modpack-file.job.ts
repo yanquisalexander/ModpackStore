@@ -5,10 +5,30 @@ import {
     modpackVersionsTable,
     modpackFilesTable,
     modpackVersionFilesTable,
+    modpackVersionProcessingJobsTable,
+    ProcessingJobStatus,
 } from "@/db/schema.ts";
 import { eq } from "drizzle-orm";
 import { log } from "@/lib/logger.ts";
 import { downloadObject, uploadObject, deleteObject, getTempZipKey, getFileKey } from "@/lib/r2.ts";
+
+async function updateProcessingJob(jobId: string, updates: Partial<{
+    status: ProcessingJobStatus;
+    progress: number;
+    error: string | null;
+}>) {
+    try {
+        const dbUpdates: Record<string, unknown> = { updatedAt: new Date() };
+        if (updates.status !== undefined) dbUpdates.status = updates.status;
+        if (updates.progress !== undefined) dbUpdates.progress = String(updates.progress);
+        if (updates.error !== undefined) dbUpdates.error = updates.error;
+        await db.update(modpackVersionProcessingJobsTable)
+            .set(dbUpdates as any)
+            .where(eq(modpackVersionProcessingJobsTable.jobId, jobId));
+    } catch (err) {
+        log(`  [WARN] Failed to update processing job status: ${err}`);
+    }
+}
 
 export const QUEUE_NAME = "process-modpack-files";
 
@@ -64,8 +84,12 @@ function manifestSideToSide(env: { client?: string; server?: string } | undefine
 export async function processModpackFiles(job: Job) {
     const { versionId, fileType } = job.data as { versionId: string; fileType: string };
     const start = Date.now();
+    const jobId = job.id!;
 
-    log(`═══ process-modpack-files [${job.id}] ═══`);
+    try {
+        await updateProcessingJob(jobId, { status: ProcessingJobStatus.PROCESSING, progress: 0 });
+
+    log(`═══ process-modpack-files [${jobId}] ═══`);
     log(`  FileType: ${fileType}`);
     log(`  VersionId: ${versionId}`);
 
@@ -76,6 +100,7 @@ export async function processModpackFiles(job: Job) {
 
     if (!version) {
         log(`  [ERROR] Version ${versionId} not found, aborting`);
+        await updateProcessingJob(jobId, { status: ProcessingJobStatus.FAILED, error: "Version not found" });
         return;
     }
 
@@ -89,8 +114,11 @@ export async function processModpackFiles(job: Job) {
         zipBuffer = await downloadObject(zipKey);
     } catch (err) {
         log(`  [ERROR] Failed to download ZIP: ${err}`);
+        await updateProcessingJob(jobId, { status: ProcessingJobStatus.FAILED, error: `Failed to download ZIP: ${err}` });
         throw err;
     }
+
+    await updateProcessingJob(jobId, { progress: 20 });
 
     log(`  Downloaded ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB (${zipBuffer.length} bytes)`);
     log(`  Extracting ZIP contents...`);
@@ -131,6 +159,8 @@ export async function processModpackFiles(job: Job) {
         log(`  Detected root folder "${fileType}/" — stripped prefix from all paths`);
     }
 
+    await updateProcessingJob(jobId, { progress: 40 });
+
     log(`  Parsed ${processed.length} files (${skipped} skipped)`);
     log(`  Extensions: ${Array.from(extCounts.entries()).sort((a, b) => b[1] - a[1]).map(([ext, count]) => `${ext}: ${count}`).join(", ")}`);
 
@@ -160,6 +190,7 @@ export async function processModpackFiles(job: Job) {
 
     // Upload unique files to R2
     log(`  Uploading ${uniqueByHash.size} unique files to R2...`);
+    await updateProcessingJob(jobId, { progress: 60 });
     let uploaded = 0;
     for (const [hash, pf] of uniqueByHash) {
         const key = getFileKey(hash);
@@ -167,6 +198,8 @@ export async function processModpackFiles(job: Job) {
         uploaded++;
         log(`    [${uploaded}/${uniqueByHash.size}] uploaded ${hash.slice(0, 12)}... (${pf.path})`);
     }
+
+    await updateProcessingJob(jobId, { progress: 80 });
 
     log(`  All uploads done in ${((Date.now() - start) / 1000).toFixed(1)}s`);
     log(`  Inserting DB records...`);
@@ -201,6 +234,8 @@ export async function processModpackFiles(job: Job) {
             .onConflictDoNothing();
     }
 
+    await updateProcessingJob(jobId, { progress: 95 });
+
     log(`  DB inserts done in ${((Date.now() - insertStart) / 1000).toFixed(2)}s (${fileRows.length} file records, ${versionFileRows.length} version-file records)`);
 
     // Delete the temp ZIP from R2
@@ -213,5 +248,13 @@ export async function processModpackFiles(job: Job) {
 
     const elapsed = ((Date.now() - start) / 1000).toFixed(1);
     log(`  ✅ Completed in ${elapsed}s — ${processed.length} files processed, ${uniqueByHash.size} unique`);
-    log(`═══ end [${job.id}] ═══`);
+    log(`═══ end [${jobId}] ═══`);
+
+        await updateProcessingJob(jobId, { status: ProcessingJobStatus.COMPLETED, progress: 100 });
+    } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        log(`  [ERROR] Job failed: ${message}`);
+        await updateProcessingJob(jobId, { status: ProcessingJobStatus.FAILED, error: message });
+        throw err;
+    }
 }

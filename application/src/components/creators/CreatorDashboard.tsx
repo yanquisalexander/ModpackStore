@@ -7,7 +7,6 @@ import {
   LucideSparkles,
   LucideArrowRight,
   LucideBuilding2,
-  LucideClock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,13 +16,13 @@ interface CreatorDashboardProps {
 
 function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: string | number; color: string }) {
   return (
-    <div className="bg-[#111119] ring-1 ring-white/[0.04] rounded-xl p-5 flex items-center gap-4">
-      <div className={cn("size-10 rounded-lg flex items-center justify-center shrink-0", color)}>
-        <Icon size={18} className="text-white" />
+    <div className="bg-black/20 border border-white/[0.04] rounded-lg p-4 flex items-center gap-3">
+      <div className={cn("size-9 rounded-md flex items-center justify-center shrink-0", color)}>
+        <Icon size={16} />
       </div>
       <div>
-        <div className="text-2xl font-bold text-white">{value}</div>
-        <div className="text-xs text-white/40 uppercase tracking-wider mt-0.5">{label}</div>
+        <div className="text-xl font-bold text-white">{value}</div>
+        <div className="text-[10px] text-neutral-600 uppercase tracking-wider mt-0.5">{label}</div>
       </div>
     </div>
   );
@@ -36,13 +35,13 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ teams }) => 
   const approvedTeams = teams.filter((t: any) => t.status === "approved").length;
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-        <p className="text-sm text-white/40 mt-1">Resumen de tu actividad como creador</p>
+    <div className="space-y-6">
+      <div className="space-y-0.5">
+        <h1 className="text-lg font-semibold text-white">Dashboard</h1>
+        <p className="text-sm text-neutral-500">Resumen de tu actividad como creador</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <StatCard
           icon={LucidePackage}
           label="Modpacks"
@@ -70,43 +69,43 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ teams }) => 
       </div>
 
       {teams.length === 0 ? (
-        <div className="bg-[#111119] ring-1 ring-white/[0.04] rounded-xl p-12 text-center">
-          <div className="size-12 rounded-xl bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
-            <LucideBuilding2 size={24} className="text-white/30" />
+        <div className="bg-black/20 border border-white/[0.04] rounded-lg p-10 text-center">
+          <div className="size-10 rounded-md bg-white/[0.04] flex items-center justify-center mx-auto mb-3">
+            <LucideBuilding2 size={18} className="text-neutral-500" />
           </div>
-          <h3 className="text-lg font-semibold text-white/70">No tienes equipos</h3>
-          <p className="text-sm text-white/30 mt-1 max-w-sm mx-auto">
+          <h3 className="text-sm font-semibold text-white/70">No tienes equipos</h3>
+          <p className="text-xs text-neutral-600 mt-1 max-w-sm mx-auto">
             Crea o únete a un equipo de creadores para empezar a publicar modpacks.
           </p>
         </div>
       ) : (
         <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-white/40 uppercase tracking-wider">Tus equipos</h2>
-          <div className="grid gap-3">
+          <h2 className="text-xs font-medium text-neutral-600 uppercase tracking-wider">Tus equipos</h2>
+          <div className="space-y-1.5">
             {teams.map((team: any) => (
               <Link
                 key={team.id}
                 to={`/creators/org/${team.id}`}
-                className="group flex items-center gap-4 bg-[#111119] ring-1 ring-white/[0.04] hover:ring-white/[0.08] rounded-xl p-4 transition-all"
+                className="group flex items-center gap-3 bg-black/20 border border-white/[0.04] hover:border-white/10 rounded-lg p-3.5 transition-colors"
               >
-                <div className="size-10 rounded-lg bg-gradient-to-br from-neutral-800 to-neutral-900 ring-1 ring-white/10 flex items-center justify-center shrink-0 overflow-hidden">
+                <div className="size-9 rounded-md bg-black/20 ring-1 ring-white/[0.04] flex items-center justify-center shrink-0 overflow-hidden">
                   {team.logoUrl ? (
                     <img src={team.logoUrl} alt="" className="size-full object-cover" />
                   ) : (
-                    <LucideBuilding2 size={18} className="text-white/50" />
+                    <LucideBuilding2 size={16} className="text-neutral-500" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="font-medium text-white truncate">
+                  <div className="text-sm font-medium text-white truncate">
                     {team.displayName || team.publisherName || "Sin nombre"}
                   </div>
-                  <div className="text-xs text-white/30 truncate">
+                  <div className="text-xs text-neutral-600 truncate">
                     {team.description || "Sin descripción"}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <span className={cn(
-                    "text-xs font-medium px-2 py-0.5 rounded-full",
+                    "text-[10px] font-medium px-1.5 py-0.5 rounded-md",
                     team.status === "approved"
                       ? "bg-emerald-500/10 text-emerald-400"
                       : team.status === "rejected"
@@ -115,7 +114,7 @@ export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ teams }) => 
                   )}>
                     {team.status === "approved" ? "Activo" : team.status === "rejected" ? "Rechazado" : "Pendiente"}
                   </span>
-                  <LucideArrowRight size={16} className="text-white/20 group-hover:text-white/50 transition-colors" />
+                  <LucideArrowRight size={14} className="text-neutral-600 group-hover:text-neutral-400 transition-colors shrink-0" />
                 </div>
               </Link>
             ))}

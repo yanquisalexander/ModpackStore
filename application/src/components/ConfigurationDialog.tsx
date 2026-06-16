@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from "sonner";
 import { useAuthentication } from '@/stores/AuthContext';
@@ -8,31 +8,32 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { useI18n } from '@/hooks/useI18n';
 import { getVersion } from '@tauri-apps/api/app';
 
-// Lucide Icons
 import {
     Settings as LucideSettings,
     Folder as LucideFolder,
     Save as LucideSave,
     Loader as LucideLoader,
     X as LucideX,
-    Search as LucideSearch
+    Search as LucideSearch,
+    Home as LucideHome,
+    Gamepad2 as LucideGamepad2,
+    Keyboard as LucideKeyboard,
+    FlaskConical as LucideFlaskConical,
+    Bug as LucideBug,
+    Wrench as LucideWrench,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
-// UI Components
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 
-// Sub-components
 import { ConfigSection } from '@/components/configuration/ConfigSection';
 import { ThemeSelector } from '@/components/theme/ThemeSelector';
 import { WhitelistModeSettings } from '@/components/WhitelistModeSettings';
 import { HotkeyRecorder } from '@/components/configuration/HotkeyRecorder';
 
-// Types
 import type {
     ConfigDefinition,
     ConfigSchema,
@@ -41,11 +42,19 @@ import type {
 } from '@/types/configuration';
 import { TranslatedText } from "@/providers/I18nProvider";
 
+const sectionIconMap: Record<string, LucideIcon> = {
+    'Inicio': LucideHome,
+    'directories': LucideFolder,
+    'general': LucideSettings,
+    'gameplay': LucideGamepad2,
+    'hotkeys': LucideKeyboard,
+    'experimental': LucideFlaskConical,
+};
+
 export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProps) => {
     const { isAuthenticated } = useAuthentication();
     const { availableLanguages, detectedSystemLanguage, resetToSystemLanguage, t } = useI18n();
 
-    // State
     const [config, setConfig] = useState<ConfigState>({
         values: {},
         schema: {},
@@ -58,8 +67,9 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
     const [selectedSection, setSelectedSection] = useState<string | null>(null);
     const [sidebarSearch, setSidebarSearch] = useState<string>('');
     const [appVersion, setAppVersion] = useState<string>('Loading...');
+    const [clickHint, setClickHint] = useState('');
+    const clickRef = useRef({ count: 0, lastTime: 0 });
 
-    // --- DATA LOADING ---
     const loadConfig = useCallback(async () => {
         try {
             setConfig(prev => ({ ...prev, loading: true }));
@@ -76,7 +86,7 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
             ));
 
             setConfig({ values, schema, sections, loading: false, saving: false, gitHash });
-            setSelectedSection('Inicio'); // Mostrar Inicio por defecto
+            setSelectedSection('Inicio');
 
             try {
                 const v = await getVersion();
@@ -105,16 +115,49 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
         return () => document.removeEventListener('keydown', handleKeyDown);
     }, [isOpen, onClose]);
 
-    // --- HANDLERS (Iguales que antes) ---
     const getConfigsForSection = useMemo(() => (section: string) => {
         return Object.entries(config.schema)
             .filter(([_, def]) => def.ui_section === section)
             .sort(([a], [b]) => a.localeCompare(b));
     }, [config.schema]);
 
+    const experimentalConfigs = useMemo(() =>
+        Object.entries(config.schema)
+            .filter(([_, def]) => def.ui_section === "experimental")
+            .sort(([a], [b]) => a.localeCompare(b)),
+        [config.schema]
+    );
+
     const handleConfigChange = useCallback((key: string, value: any) => {
         setConfig(prev => ({ ...prev, values: { ...prev.values, [key]: value } }));
     }, []);
+
+    const handleGitHashClick = async () => {
+        const now = Date.now();
+        if (now - clickRef.current.lastTime > 2000) {
+            clickRef.current = { count: 1, lastTime: now };
+            setClickHint('(1/7)');
+            return;
+        }
+        const newCount = clickRef.current.count + 1;
+        clickRef.current = { count: newCount, lastTime: now };
+
+        if (newCount >= 7) {
+            clickRef.current = { count: 0, lastTime: now };
+            setClickHint('');
+
+            const newDevMode = !(config.values.developerMode === true);
+            try {
+                await invoke('set_config', { key: 'developerMode', value: newDevMode });
+                await loadConfig();
+                toast.success(newDevMode ? '🔧 Modo desarrollador activado' : 'Modo desarrollador desactivado');
+            } catch {
+                toast.error('Error al cambiar modo desarrollador');
+            }
+        } else {
+            setClickHint(`(${newCount}/7)`);
+        }
+    };
 
     const handleRestoreDefaults = useCallback((section: string) => {
         const defaults: Record<string, any> = {};
@@ -139,7 +182,6 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
             const configToSave = Object.entries(config.values).filter(([key]) => key !== 'selectedTheme');
             await Promise.all(configToSave.map(([key, value]) => invoke('set_config', { key, value })));
 
-            // Recargar hotkeys con la nueva configuración
             await invoke('reload_hotkeys');
 
             toast.success(t('config.saveSuccess'), { description: t('config.saveSuccessDescription') });
@@ -152,7 +194,6 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
         }
     }, [config.values, onClose, t]);
 
-    // --- RENDERERS ---
     const renderConfigControl = useCallback((key: string, def: ConfigDefinition) => {
         const value = config.values[key] ?? def.default;
         const commonClass = "bg-black/20 border-white/10 text-white placeholder:text-white/20 focus:border-white/20 transition-all rounded-lg";
@@ -185,17 +226,17 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                 return (
                     <div className="flex gap-2">
                         <Input className={commonClass} value={value || ''} onChange={(e) => handleConfigChange(key, e.target.value)} readOnly={def.validator !== undefined} />
-                        <Button variant="secondary" onClick={() => selectDirectory(key, value)} className="shrink-0 bg-white/5 hover:bg-white/10 text-white border border-white/5">
-                            <LucideFolder className="h-4 w-4 mr-2" /> Examinar
-                        </Button>
+                        <button onClick={() => selectDirectory(key, value)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-neutral-400 hover:text-white hover:bg-white/[0.06] border border-white/[0.06] transition-colors flex-shrink-0">
+                            <LucideFolder className="h-3.5 w-3.5" /> Examinar
+                        </button>
                     </div>
                 );
             case "enum":
                 return (
                     <Select value={value || def.default} onValueChange={(val) => handleConfigChange(key, val)}>
                         <SelectTrigger className={commonClass}><SelectValue placeholder={def.description} /></SelectTrigger>
-                        <SelectContent className="bg-[#121212] border-white/10 text-white">
-                            {def.choices?.map((c, i) => <SelectItem key={i} value={c} className="focus:bg-white/10 cursor-pointer">{c}</SelectItem>)}
+                        <SelectContent className="bg-[#121214] border-white/[0.06] text-white">
+                            {def.choices?.map((c, i) => <SelectItem key={i} value={c} className="focus:bg-white/[0.04] cursor-pointer">{c}</SelectItem>)}
                         </SelectContent>
                     </Select>
                 );
@@ -204,18 +245,18 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                     <div className="space-y-2">
                         <Select value={value || def.default} onValueChange={(val) => handleConfigChange(key, val)}>
                             <SelectTrigger className={commonClass}><SelectValue placeholder="Seleccionar idioma" /></SelectTrigger>
-                            <SelectContent className="bg-[#121212] border-white/10 text-white">
+                            <SelectContent className="bg-[#121214] border-white/[0.06] text-white">
                                 {availableLanguages.map((lang) => (
-                                    <SelectItem key={lang} value={lang} className="focus:bg-white/10 cursor-pointer">
+                                    <SelectItem key={lang} value={lang} className="focus:bg-white/[0.04] cursor-pointer">
                                         <TranslatedText id={`languages.${lang}`} /> {lang === detectedSystemLanguage && "(Detectado)"}
                                     </SelectItem>
-                                ))}
+                                    ))}
                             </SelectContent>
                         </Select>
                         {detectedSystemLanguage && detectedSystemLanguage !== value && (
-                            <Button variant="ghost" size="sm" onClick={() => { resetToSystemLanguage(); handleConfigChange(key, detectedSystemLanguage); }} className="w-full text-xs text-white/50 hover:text-white">
+                            <button onClick={() => { resetToSystemLanguage(); handleConfigChange(key, detectedSystemLanguage); }} className="w-full text-xs text-neutral-600 hover:text-neutral-400 transition-colors text-left">
                                 Usar idioma del sistema
-                            </Button>
+                            </button>
                         )}
                     </div>
                 );
@@ -230,115 +271,137 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
 
     return (
         <AnimatePresence>
-            {/* CORRECCIÓN AQUÍ:
-                1. top-8 (32px): Empuja el modal hacia abajo para no tapar el titlebar.
-                2. border-t: Crea una línea divisoria sutil arriba.
-                3. z-[40]: Asegura que esté encima del contenido pero debajo de alertas (z-50) o titlebar si es flotante.
-            */}
             <motion.div
-                className="fixed inset-x-0 bottom-0 top-8 z-[40] overflow-hidden border-t border-white/10"
+                className="fixed inset-x-0 bottom-0 top-8 z-[40] overflow-hidden border-t border-white/[0.06]"
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
             >
-                {/* FONDO Y BLUR
-                   Aplicamos el fondo sólido translúcido aquí para que cubra todo el espacio disponible
-                */}
-                <div className="absolute inset-0 bg-[#09090b]/95 backdrop-blur-2xl flex flex-col">
+                <div className="absolute inset-0 bg-[#0e0e10] flex flex-col">
 
-                    {/* CONTAINER GRID */}
                     <div className="flex-1 flex overflow-hidden">
 
-                        {/* --- SIDEBAR --- */}
-                        <aside className="w-64 min-w-[240px] flex flex-col gap-4 p-4 border-r border-white/5 bg-white/[0.02]">
-                            <div className="flex items-center justify-between pl-2">
-                                <div className="flex items-center gap-2 text-white">
-                                    <LucideSettings className="h-5 w-5 text-blue-500" />
-                                    <h3 className="font-bold tracking-tight">Ajustes</h3>
+                        <aside className="w-64 min-w-[240px] flex flex-col gap-4 p-4 border-r border-white/[0.04]">
+                            <div className="flex items-center justify-between pl-1">
+                                <div className="flex items-center gap-2 text-white/80">
+                                    <LucideSettings className="h-4 w-4" />
+                                    <h3 className="text-base font-semibold">Ajustes</h3>
                                 </div>
-                                <Button variant="ghost" size="icon" onClick={onClose} className="h-8 w-8 rounded-full hover:bg-white/10 text-white/60 hover:text-white">
+                                <button onClick={onClose} className="flex size-7 items-center justify-center text-neutral-600 hover:text-neutral-400 hover:bg-white/[0.04] rounded-md transition-colors">
                                     <LucideX className="h-4 w-4" />
-                                </Button>
+                                </button>
                             </div>
 
                             <div className="relative">
-                                <LucideSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+                                <LucideSearch className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-600" />
                                 <Input
                                     placeholder="Buscar..."
                                     value={sidebarSearch}
                                     onChange={(e) => setSidebarSearch(e.target.value)}
-                                    className="pl-9 bg-black/20 border-white/5 text-white placeholder:text-white/20 h-9 rounded-lg focus:border-white/10 focus:bg-black/40 transition-all"
+                                    className="pl-8 bg-black/20 border-white/[0.04] text-white placeholder:text-neutral-600 h-9 text-sm rounded-md focus:border-white/10 transition-all"
                                 />
                             </div>
 
-                            <nav className="flex-1 overflow-y-auto space-y-1 pr-2 scrollbar-thin scrollbar-thumb-white/10">
-                                {/* Tab Inicio fijo al principio */}
+                            <nav className="flex-1 overflow-y-auto space-y-0.5 pr-1 scrollbar-thin scrollbar-thumb-white/10">
                                 <button
                                     key="Inicio"
                                     onClick={() => setSelectedSection('Inicio')}
-                                    className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-sm transition-all ${selectedSection === 'Inicio'
-                                        ? 'bg-blue-600/10 text-blue-400 font-medium'
-                                        : 'text-white/60 hover:bg-white/5 hover:text-white'
-                                        }`}
+                                    className={`w-full text-left px-2.5 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${
+                                        selectedSection === 'Inicio'
+                                            ? 'bg-white/[0.04] text-white'
+                                            : 'text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.02]'
+                                    }`}
                                 >
+                                    <LucideHome className="h-4 w-4 shrink-0" />
                                     <span className="capitalize">Inicio</span>
-                                    {selectedSection === 'Inicio' && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
                                 </button>
                                 {config.sections
-                                    .filter(s => s.toLowerCase().includes(sidebarSearch.toLowerCase()))
-                                    .map((section) => (
-                                        <button
-                                            key={section}
-                                            onClick={() => setSelectedSection(section)}
-                                            className={`w-full text-left px-3 py-2 rounded-lg flex items-center justify-between text-sm transition-all ${selectedSection === section
-                                                ? 'bg-blue-600/10 text-blue-400 font-medium'
-                                                : 'text-white/60 hover:bg-white/5 hover:text-white'
+                                    .filter(s => {
+                                        if (config.values.developerMode === true && s === "experimental") return false;
+                                        return s.toLowerCase().includes(sidebarSearch.toLowerCase());
+                                    })
+                                    .map((section) => {
+                                        const Icon = sectionIconMap[section] ?? LucideWrench;
+                                        return (
+                                            <button
+                                                key={section}
+                                                onClick={() => setSelectedSection(section)}
+                                                className={`w-full text-left px-2.5 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${
+                                                    selectedSection === section
+                                                        ? 'bg-white/[0.04] text-white'
+                                                        : 'text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.02]'
                                                 }`}
-                                        >
-                                            <span className="capitalize">{section}</span>
-                                            {selectedSection === section && <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
-                                        </button>
-                                    ))}
+                                            >
+                                                <Icon className="h-4 w-4 shrink-0" />
+                                                <span className="capitalize">{section}</span>
+                                            </button>
+                                        );
+                                    })}
+
+                                {config.values.developerMode === true && (
+                                    <button
+                                        key="Flags"
+                                        onClick={() => setSelectedSection('Flags')}
+                                        className={`w-full text-left px-2.5 py-1.5 rounded-md text-sm transition-colors flex items-center gap-2 ${
+                                            selectedSection === 'Flags'
+                                                ? 'bg-white/[0.04] text-white'
+                                                : 'text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.02]'
+                                        }`}
+                                    >
+                                        <LucideFlaskConical className="h-4 w-4 shrink-0" />
+                                        <span>Flags</span>
+                                        <span className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400 font-semibold">DEV</span>
+                                    </button>
+                                )}
                             </nav>
 
-                            <div className="text-[10px] text-white/20 font-mono text-center pt-2 border-t border-white/5">
-                                v{appVersion} ({config.gitHash.slice(0, 7)})
-                            </div>
+                            <button
+                                onClick={handleGitHashClick}
+                                className="w-full text-xs text-neutral-700 font-mono text-center pt-2 border-t border-white/[0.04] hover:text-neutral-500 transition-colors"
+                                title={clickHint || undefined}
+                            >
+                                v{appVersion} ({config.gitHash.slice(0, 7)}){clickHint && ` ${clickHint}`}
+                            </button>
                         </aside>
 
-                        {/* --- MAIN CONTENT --- */}
-                        <main className="flex-1 overflow-y-auto p-8 relative scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
+                        <main className="flex-1 overflow-y-auto p-6 relative scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
                             {config.loading ? (
-                                <div className="flex flex-col items-center justify-center h-full text-white/30 gap-4">
-                                    <LucideLoader className="h-10 w-10 animate-spin" />
+                                <div className="flex flex-col items-center justify-center h-full text-neutral-600 gap-3">
+                                    <LucideLoader className="h-8 w-8 animate-spin" />
                                     <p className="text-sm font-medium tracking-wider uppercase">Cargando...</p>
                                 </div>
                             ) : (
-                                <div className="max-w-3xl mx-auto space-y-8 pb-24">
+                                <div className="max-w-3xl mx-auto space-y-6 pb-24">
                                     {selectedSection === 'Inicio' ? (
                                         <>
-                                            <Card className="bg-white/[0.02] border-white/5">
-                                                <CardHeader>
-                                                    <CardTitle className="text-white">Temas</CardTitle>
-                                                    <CardDescription className="text-white/40">Personaliza la apariencia</CardDescription>
-                                                </CardHeader>
-                                                <CardContent>
-                                                    <ThemeSelector />
-                                                </CardContent>
-                                            </Card>
+                                            <section>
+                                                <div className="mb-4">
+                                                    <h2 className="text-base font-semibold text-white/80">Temas</h2>
+                                                    <p className="text-sm text-neutral-600 mt-0.5">Personaliza la apariencia</p>
+                                                </div>
+                                                <ThemeSelector />
+                                            </section>
 
                                             {isAuthenticated && (
                                                 <>
                                                     <WhitelistModeSettings />
-                                                    <Card className="bg-white/[0.02] border-white/5 border-dashed">
-                                                        <CardContent className="h-32 flex items-center justify-center text-white/20 text-sm">
-                                                            Más opciones próximamente
-                                                        </CardContent>
-                                                    </Card>
+                                                    <div className="h-24 flex items-center justify-center text-neutral-700 text-sm border border-dashed border-white/[0.04] rounded-lg">
+                                                        Más opciones próximamente
+                                                    </div>
                                                 </>
                                             )}
                                         </>
+                                    ) : selectedSection === 'Flags' ? (
+                                        <ConfigSection
+                                            title="Flags"
+                                            description="Opciones experimentales — úsalas con precaución"
+                                            configs={experimentalConfigs}
+                                            values={config.values}
+                                            onConfigChange={handleConfigChange}
+                                            onRestoreDefaults={() => handleRestoreDefaults('experimental')}
+                                            renderConfigControl={renderConfigControl}
+                                        />
                                     ) : selectedSection ? (
                                         <ConfigSection
                                             title={selectedSection}
@@ -355,24 +418,22 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
                         </main>
                     </div>
 
-                    {/* --- FOOTER ACTIONS --- */}
                     <div className="absolute bottom-6 right-8 flex gap-3 z-50">
-                        <Button
-                            variant="ghost"
+                        <button
                             onClick={onClose}
                             disabled={config.saving}
-                            className="text-white/60 hover:text-white hover:bg-white/10"
+                            className="px-4 py-2 rounded-lg text-sm font-medium text-neutral-500 hover:text-neutral-300 hover:bg-white/[0.04] transition-colors"
                         >
                             Cancelar
-                        </Button>
-                        <Button
+                        </button>
+                        <button
                             onClick={handleSaveConfig}
                             disabled={config.loading || config.saving}
-                            className="bg-blue-600 hover:bg-blue-500 text-white font-medium px-6 shadow-lg shadow-blue-900/20"
+                            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold bg-white text-black hover:bg-white/90 transition-colors disabled:opacity-50"
                         >
-                            {config.saving ? <LucideLoader className="h-4 w-4 mr-2 animate-spin" /> : <LucideSave className="h-4 w-4 mr-2" />}
+                            {config.saving ? <LucideLoader className="h-3.5 w-3.5 animate-spin" /> : <LucideSave className="h-3.5 w-3.5" />}
                             {config.saving ? 'Guardando...' : 'Guardar Cambios'}
-                        </Button>
+                        </button>
                     </div>
 
                 </div>

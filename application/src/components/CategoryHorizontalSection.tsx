@@ -1,18 +1,14 @@
-import { useState, useRef, useEffect, FC } from "react";
-// Asegúrate de tener estas importaciones si aún no las tienes
+import { useState, useRef, useEffect } from "react";
 import { ModpackCard } from "./ModpackCard";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-
-// --- COMPONENTE AUXILIAR PARA LOS CONTROLES DE SCROLL ---
-// Esta versión refina el comportamiento visual del gradiente y la flecha.
 
 type ScrollControlProps = {
     direction: 'left' | 'right';
     onClick: () => void;
-    isVisible: boolean; // Esta prop controla todo
+    isVisible: boolean;
 };
 
-const ScrollControl: FC<ScrollControlProps> = ({ direction, onClick, isVisible }) => {
+const ScrollControl = ({ direction, onClick, isVisible }: ScrollControlProps) => {
     const isLeft = direction === 'left';
 
     const gradientClass = isLeft
@@ -23,23 +19,14 @@ const ScrollControl: FC<ScrollControlProps> = ({ direction, onClick, isVisible }
 
     return (
         <>
-            {/* GRADIENTE:
-              - Siempre está en el DOM para que la transición de opacidad funcione.
-              - Su visibilidad (`opacity`) se anima suavemente gracias a `transition-opacity`.
-            */}
             <div
                 style={{ opacity: isVisible ? 1 : 0 }}
                 className={`pointer-events-none absolute top-0 bottom-0 ${isLeft ? 'left-0' : 'right-0'} w-40 transition-opacity duration-300 z-10 ${gradientClass}`}
             />
-
-            {/* FLECHA (BOTÓN):
-              - Solo se renderiza en el DOM cuando `isVisible` es true.
-              - Esto hace que aparezca y desaparezca junto con el gradiente.
-            */}
             {isVisible && (
                 <button
                     onClick={onClick}
-                    className={`absolute top-1/2 -translate-y-1/2 cursor-pointer transition-opacity bg-gray-800/80 hover:bg-gray-700 w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg z-20 ${buttonPositionClass}`}
+                    className={`absolute top-1/2 -translate-y-1/2 cursor-pointer transition-opacity bg-neutral-800/80 hover:bg-neutral-700 w-10 h-10 rounded-full flex items-center justify-center text-white shadow-lg z-20 ${buttonPositionClass}`}
                     aria-label={`Scroll ${direction}`}
                 >
                     {isLeft ? <ChevronLeft size={24} /> : <ChevronRight size={24} />}
@@ -49,8 +36,6 @@ const ScrollControl: FC<ScrollControlProps> = ({ direction, onClick, isVisible }
     );
 };
 
-
-// --- COMPONENTE PRINCIPAL (SIN CAMBIOS, YA ERA CORRECTO) ---
 export const CategoryHorizontalSection = ({
     id,
     title,
@@ -61,33 +46,27 @@ export const CategoryHorizontalSection = ({
     title: string;
     shortDescription?: string;
     modpacks: any[];
-    href?: string;
 }) => {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [showLeftArrow, setShowLeftArrow] = useState(false);
     const [showRightArrow, setShowRightArrow] = useState(false);
 
-    // ESTA FUNCIÓN ES EL "CEREBRO" DE LA LÓGICA
     const updateArrowVisibility = () => {
         const container = scrollContainerRef.current;
         if (!container) return;
 
         const { scrollLeft, scrollWidth, clientWidth } = container;
-        const scrollEndBuffer = 10; // Margen de seguridad
+        const scrollEndBuffer = 10;
 
-        // Condición para la flecha izquierda: ¿Nos hemos movido del inicio?
         setShowLeftArrow(scrollLeft > 0);
-
-        // Condición para la flecha derecha: ¿Aún no hemos llegado al final?
         setShowRightArrow(scrollLeft < scrollWidth - clientWidth - scrollEndBuffer);
     };
 
-    // Se asegura de que la visibilidad sea correcta al cargar y al cambiar tamaño
     useEffect(() => {
-        updateArrowVisibility(); // Llamada inicial
+        updateArrowVisibility();
         window.addEventListener('resize', updateArrowVisibility);
         return () => window.removeEventListener('resize', updateArrowVisibility);
-    }, [modpacks]); // Se re-ejecuta si los modpacks cambian
+    }, [modpacks]);
 
     const scroll = (offset: number) => {
         if (!scrollContainerRef.current) return;
@@ -95,29 +74,27 @@ export const CategoryHorizontalSection = ({
     };
 
     return (
-        <div className="mb-12 z-10">
-            {/* ... (código del encabezado sin cambios) ... */}
-            <div className="flex justify-between items-center mb-4 px-4">
-                <div className="flex flex-col gap-1">
-                    <h2 className="text-2xl font-semibold text-white">{title}</h2>
+        <div className="mb-10 z-10">
+            <div className="flex justify-between items-end mb-4 px-4">
+                <div className="flex flex-col">
+                    <h3 className="text-base font-semibold text-white/90">{title}</h3>
                     {shortDescription && (
-                        <p className="text-gray-400 text-sm">{shortDescription}</p>
+                        <p className="text-neutral-600 text-xs mt-0.5">{shortDescription}</p>
                     )}
                 </div>
                 <a
                     href={`/category/${id}`}
-                    className="text-blue-400 hover:text-blue-300 text-sm font-medium transition"
+                    className="text-neutral-500 hover:text-[#bcfe47] text-xs font-medium transition-colors"
                 >
                     Ver todo
                 </a>
             </div>
 
             <div className="relative">
-                {/* Contenedor que escucha el evento onScroll */}
                 <div
                     ref={scrollContainerRef}
-                    onScroll={updateArrowVisibility} // <-- ¡AQUÍ ESTÁ LA CLAVE!
-                    className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide gap-4 px-4 scroll-p-4" // <-- ¡Añade scroll-p-4 aquí!
+                    onScroll={updateArrowVisibility}
+                    className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide gap-4 px-4 scroll-p-4"
                 >
                     {modpacks.length > 0 &&
                         modpacks.map((modpack) => (
@@ -130,7 +107,6 @@ export const CategoryHorizontalSection = ({
                         ))}
                 </div>
 
-                {/* Los controles reciben la prop "isVisible" y actúan en consecuencia */}
                 <ScrollControl
                     direction="left"
                     onClick={() => scroll(-350)}

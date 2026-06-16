@@ -84,9 +84,9 @@ class PublisherVersionsAPI {
         return Array.isArray(data) ? data : [];
     }
 
-    static async deleteVersion(publisherId: string, modpackId: string, versionId: string, accessToken: string): Promise<void> {
-        const response = await fetch(`${this.baseUrl}/${publisherId}/modpacks/${modpackId}/versions/${versionId}`, {
-            method: 'DELETE',
+    static async archiveVersion(publisherId: string, modpackId: string, versionId: string, accessToken: string): Promise<void> {
+        const response = await fetch(`${this.baseUrl}/${publisherId}/modpacks/${modpackId}/versions/${versionId}/archive`, {
+            method: 'PATCH',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
@@ -95,7 +95,7 @@ class PublisherVersionsAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error deleting version: ${response.statusText}`);
+            throw new Error(errorData.detail || `Error archiving version: ${response.statusText}`);
         }
     }
 
@@ -150,7 +150,7 @@ export const PublisherModpackVersionsView: React.FC = () => {
 
 
     // AlertDialog states for confirmations
-    const [deleteDialog, setDeleteDialog] = useState<{
+    const [archiveDialog, setArchiveDialog] = useState<{
         open: boolean;
         version: ModpackVersion | null;
     }>({
@@ -164,7 +164,7 @@ export const PublisherModpackVersionsView: React.FC = () => {
     );
     const userRole = publisherMembership?.role || 'member';
     const canCreateVersions = ['owner', 'admin', 'member'].includes(userRole); // Most users can create versions
-    const canDeleteVersions = ['owner', 'admin'].includes(userRole);
+    const canArchiveVersions = ['owner', 'admin'].includes(userRole);
 
     // Load versions
     const loadVersions = async () => {
@@ -220,27 +220,27 @@ export const PublisherModpackVersionsView: React.FC = () => {
         navigate(`/creators/org/${publisherId}/modpacks/${modpackId}/versions/${version.id}`);
     };
 
-    const handleDeleteVersion = (version: ModpackVersion) => {
-        setDeleteDialog({
+    const handleArchiveVersion = (version: ModpackVersion) => {
+        setArchiveDialog({
             open: true,
             version
         });
     };
 
-    const confirmDeleteVersion = async () => {
-        const version = deleteDialog.version;
+    const confirmArchiveVersion = async () => {
+        const version = archiveDialog.version;
         if (!version) return;
 
         try {
-            await PublisherVersionsAPI.deleteVersion(publisherId!, modpackId!, version.id, sessionTokens!.accessToken);
+            await PublisherVersionsAPI.archiveVersion(publisherId!, modpackId!, version.id, sessionTokens!.accessToken);
 
-            toast.success(`Versión "${version.version}" eliminada correctamente`);
-            setDeleteDialog({ open: false, version: null });
+            toast.success(`Versión "${version.version}" archivada correctamente`);
+            setArchiveDialog({ open: false, version: null });
             // Refresh the list
             loadVersions();
         } catch (error) {
-            console.error('Error deleting version:', error);
-            toast.error(error instanceof Error ? error.message : 'Error al eliminar la versión');
+            console.error('Error archiving version:', error);
+            toast.error(error instanceof Error ? error.message : 'Error al archivar la versión');
         }
     };
 
@@ -262,23 +262,23 @@ export const PublisherModpackVersionsView: React.FC = () => {
 
     return (
         <>
-            {/* AlertDialog for Delete Version Confirmation */}
-            <AlertDialog open={deleteDialog.open} onOpenChange={(open) => setDeleteDialog(prev => ({ ...prev, open }))}>
+            {/* AlertDialog for Archive Version Confirmation */}
+            <AlertDialog open={archiveDialog.open} onOpenChange={(open) => setArchiveDialog(prev => ({ ...prev, open }))}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                        <AlertDialogTitle>¿Archivar esta versión?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Esta acción eliminará la versión "{deleteDialog.version?.version}" del modpack "{modpack?.name}".
-                            Esta operación no se puede deshacer.
+                            Esta acción archivará la versión "{archiveDialog.version?.version}" del modpack "{modpack?.name}".
+                            Una versión archivada no estará disponible para los usuarios, pero podrás restaurarla después.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancelar</AlertDialogCancel>
                         <AlertDialogAction
-                            onClick={confirmDeleteVersion}
+                            onClick={confirmArchiveVersion}
                             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                         >
-                            Eliminar Versión
+                            Archivar Versión
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -407,13 +407,13 @@ export const PublisherModpackVersionsView: React.FC = () => {
                                                             <LucideEye className="h-4 w-4 mr-2" />
                                                             Ver/Editar
                                                         </DropdownMenuItem>
-                                                        {canDeleteVersions && !['published', 'deleted'].includes(version.status.toLowerCase()) && (
+                                                        {canArchiveVersions && !['published', 'archived'].includes(version.status.toLowerCase()) && (
                                                             <DropdownMenuItem
-                                                                onClick={() => handleDeleteVersion(version)}
+                                                                onClick={() => handleArchiveVersion(version)}
                                                                 className="text-destructive"
                                                             >
                                                                 <LucideTrash2 className="h-4 w-4 mr-2" />
-                                                                Eliminar
+                                                                Archivar
                                                             </DropdownMenuItem>
                                                         )}
                                                     </DropdownMenuContent>

@@ -186,7 +186,7 @@ export const RelatedModpacks: React.FC<RelatedModpacksProps> = ({
                                 </h4>
                                 <div className="flex items-center justify-between mt-1">
                                     <span className="text-xs text-neutral-500 truncate max-w-[80%]">
-                                        {modpack.publisher?.publisherName || "Desconocido"}
+                                        {modpack.creator?.name || "Desconocido"}
                                     </span>
                                 </div>
                             </div>

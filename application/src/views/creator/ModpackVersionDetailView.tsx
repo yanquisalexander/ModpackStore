@@ -3,9 +3,6 @@ import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import {
     LucideEdit2,
     LucideSave,
@@ -47,7 +44,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Progress } from '@/components/ui/progress';
-import { handleApiError } from '@/lib/utils';
+import { handleApiError, cn } from '@/lib/utils';
 import { uploadFileWithUppy } from '@/utils/uppyUpload';
 
 // --- Interfaces & Types ---
@@ -115,7 +112,7 @@ const getFileIcon = (fileName: string) => {
         case 'webp':
             return <LucideFileImage className="h-4 w-4 mr-2 text-purple-500 flex-shrink-0" />;
         default:
-            return <LucideFile className="h-4 w-4 mr-2 text-gray-500 flex-shrink-0" />;
+            return <LucideFile className="h-4 w-4 mr-2 text-neutral-500 flex-shrink-0" />;
     }
 };
 
@@ -125,25 +122,97 @@ const FileTreeNode: React.FC<{
     expandedFolders: { [key: string]: boolean };
     setExpandedFolders: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>;
     path: string;
-    versionStatus: string;
-    onDelete: (fileHash: string, fileType: string) => void;
-    onUpdateSide: (fileHash: string, fileType: string, side: 'client' | 'server' | 'both') => void;
+    mode: 'manage' | 'select';
+    // manage mode:
+    versionStatus?: string;
+    onDelete?: (fileHash: string, fileType: string) => void;
+    onUpdateSide?: (fileHash: string, fileType: string, side: 'client' | 'server' | 'both') => void;
     selectedFiles?: Set<string>;
     onToggleSelection?: (fileHash: string) => void;
-}> = ({ name, node, expandedFolders, setExpandedFolders, path, versionStatus, onDelete, onUpdateSide, selectedFiles, onToggleSelection }) => {
+    // select mode:
+    onToggleFolderSelection?: (folderPath: string, fileHashes: string[]) => void;
+    versionId?: string;
+}> = ({ name, node, expandedFolders, setExpandedFolders, path, mode, versionStatus, onDelete, onUpdateSide, selectedFiles, onToggleSelection, onToggleFolderSelection, versionId }) => {
     if (node.type === 'folder') {
         const isExpanded = expandedFolders[path];
         const toggleExpand = () => setExpandedFolders(prev => ({ ...prev, [path]: !isExpanded }));
 
+        if (mode === 'select') {
+            const getAllFileHashes = (folderNode: FolderNodeData): string[] => {
+                const hashes: string[] = [];
+                Object.values(folderNode.children).forEach(child => {
+                    if (child.type === 'file') {
+                        hashes.push(child.data.fileHash);
+                    } else {
+                        hashes.push(...getAllFileHashes(child));
+                    }
+                });
+                return hashes;
+            };
+
+            const folderFileHashes = getAllFileHashes(node);
+            const allSelected = folderFileHashes.length > 0 && folderFileHashes.every(hash =>
+                (selectedFiles as Set<string>)?.has(hash)
+            );
+            const someSelected = folderFileHashes.some(hash =>
+                (selectedFiles as Set<string>)?.has(hash)
+            );
+
+            return (
+                <div>
+                    <div className="flex items-center cursor-pointer hover:bg-white/[0.04] p-1 rounded transition-colors group">
+                        <input
+                            type="checkbox"
+                            checked={allSelected}
+                            ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                            onChange={() => onToggleFolderSelection?.(path, folderFileHashes)}
+                            className="mr-2 rounded border-white/20 bg-transparent"
+                        />
+                        <div onClick={toggleExpand} className="flex items-center flex-1">
+                            {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-neutral-500 group-hover:text-neutral-300 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-neutral-500 group-hover:text-neutral-300 flex-shrink-0" />}
+                            <LucideFolder className="h-4 w-4 mr-2 text-sky-500 flex-shrink-0" />
+                            <span className="text-neutral-200 font-medium">{name}</span>
+                            <span className="text-xs text-neutral-500 ml-2">({folderFileHashes.length})</span>
+                        </div>
+                    </div>
+                    {isExpanded && (
+                        <div className="pl-6 border-l border-white/[0.04] ml-2">
+                            {Object.entries(node.children)
+                                .sort(([aName, aNode], [bName, bNode]) => {
+                                    if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
+                                    if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
+                                    return aName.localeCompare(bName);
+                                })
+                                .map(([childName, childNode]) => (
+                                    <FileTreeNode
+                                        key={childName}
+                                        name={childName}
+                                        node={childNode}
+                                        expandedFolders={expandedFolders}
+                                        setExpandedFolders={setExpandedFolders}
+                                        path={`${path}/${childName}`}
+                                        mode={mode}
+                                        selectedFiles={selectedFiles}
+                                        onToggleSelection={onToggleSelection}
+                                        onToggleFolderSelection={onToggleFolderSelection}
+                                        versionId={versionId}
+                                    />
+                                ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
         return (
             <div>
-                <div onClick={toggleExpand} className="flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded transition-colors">
-                    {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" />}
-                    <LucideFolder className="h-4 w-4 mr-2 text-sky-600 flex-shrink-0" />
-                    <span className="text-gray-800 font-medium">{name}</span>
+                <div onClick={toggleExpand} className="flex items-center cursor-pointer hover:bg-white/[0.04] p-1 rounded transition-colors group">
+                    {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-neutral-500 group-hover:text-neutral-300 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-neutral-500 group-hover:text-neutral-300 flex-shrink-0" />}
+                    <LucideFolder className="h-4 w-4 mr-2 text-sky-500 flex-shrink-0" />
+                    <span className="text-neutral-200 font-medium">{name}</span>
                 </div>
                 {isExpanded && (
-                    <div className="pl-6 border-l border-gray-200 ml-2">
+                    <div className="pl-6 border-l border-white/[0.04] ml-2 mt-0.5">
                         {Object.entries(node.children)
                             .sort(([aName, aNode], [bName, bNode]) => {
                                 if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
@@ -158,9 +227,12 @@ const FileTreeNode: React.FC<{
                                     expandedFolders={expandedFolders}
                                     setExpandedFolders={setExpandedFolders}
                                     path={`${path}/${childName}`}
+                                    mode={mode}
                                     versionStatus={versionStatus}
                                     onDelete={onDelete}
                                     onUpdateSide={onUpdateSide}
+                                    selectedFiles={selectedFiles}
+                                    onToggleSelection={onToggleSelection}
                                 />
                             ))}
                     </div>
@@ -169,24 +241,65 @@ const FileTreeNode: React.FC<{
         );
     }
 
-    // It's a file
     const fileData = node.data;
-    const isSelected = selectedFiles?.has(fileData.fileHash) || false;
+
+    if (mode === 'select') {
+        const isSelected = (selectedFiles as Set<string>)?.has(fileData.fileHash) || false;
+
+        return (
+            <div className="flex items-center justify-between p-1 ml-4 group hover:bg-white/[0.04] rounded transition-colors">
+                <div className="flex items-center min-w-0 flex-1">
+                    <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => onToggleSelection?.(fileData.fileHash)}
+                        className="mr-2 rounded border-white/20 bg-transparent flex-shrink-0"
+                    />
+                    <div className="w-4 mr-2 flex-shrink-0"></div>
+                    {getFileIcon(name)}
+                    <span className="text-neutral-300 truncate text-sm" title={fileData.path}>{name}</span>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger asChild>
+                                <div className="flex-shrink-0">
+                                    {fileData.side === 'client' && <LucideMonitor className="h-3 w-3 text-neutral-500" />}
+                                    {fileData.side === 'server' && <LucideServer className="h-3 w-3 text-neutral-500" />}
+                                    {(!fileData.side || fileData.side === 'both') && <LucideGlobe className="h-3 w-3 text-neutral-500" />}
+                                </div>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p className="text-[10px]">
+                                    {fileData.side === 'client' ? 'Entorno: Cliente solo' :
+                                        fileData.side === 'server' ? 'Entorno: Servidor solo' :
+                                            'Entorno: Ambos'}
+                                </p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                    <div className="text-[10px] text-neutral-500 flex-shrink-0">{formatFileSize(fileData.size || 0)}</div>
+                </div>
+            </div>
+        );
+    }
+
+    const isSelected = (selectedFiles as Set<string>)?.has(fileData.fileHash) || false;
 
     return (
-        <div className="flex items-center justify-between p-1 ml-4 group hover:bg-gray-100 rounded">
+        <div className="flex items-center justify-between p-1 ml-4 group hover:bg-white/[0.04] rounded transition-colors">
             <div className="flex items-center min-w-0 flex-1">
                 {selectedFiles && onToggleSelection && (
                     <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => onToggleSelection(fileData.fileHash)}
-                        className="mr-2 rounded border-gray-300 flex-shrink-0"
+                        className="mr-2 rounded border-white/20 bg-transparent flex-shrink-0"
                     />
                 )}
-                <div className="w-4 mr-2 flex-shrink-0"></div> {/* Indent spacer */}
+                <div className="w-4 mr-2 flex-shrink-0"></div>
                 {getFileIcon(name)}
-                <span className="text-gray-700 truncate" title={fileData.path}>{name}</span>
+                <span className="text-neutral-300 truncate text-sm" title={fileData.path}>{name}</span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                 <TooltipProvider>
@@ -195,16 +308,11 @@ const FileTreeNode: React.FC<{
                             <div className="flex items-center">
                                 <Select
                                     value={fileData.side || 'both'}
-                                    onValueChange={(value: any) => onUpdateSide(fileData.fileHash, fileData.file.type, value)}
+                                    onValueChange={(value: any) => onUpdateSide?.(fileData.fileHash, fileData.file.type, value)}
                                     disabled={versionStatus === 'published'}
                                 >
-                                    <SelectTrigger className="h-7 w-[90px] text-[10px] px-2 bg-white/50 border-none shadow-none focus:ring-0">
-                                        <div className="flex items-center gap-1">
-                                            {fileData.side === 'client' && <LucideMonitor className="h-3 w-3" />}
-                                            {fileData.side === 'server' && <LucideServer className="h-3 w-3" />}
-                                            {(!fileData.side || fileData.side === 'both') && <LucideGlobe className="h-3 w-3" />}
-                                            <SelectValue />
-                                        </div>
+                                    <SelectTrigger className="h-7 w-[90px] text-[10px] px-2 bg-black/20 border-white/[0.04] focus:ring-0">
+                                        <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="both">
@@ -240,11 +348,234 @@ const FileTreeNode: React.FC<{
                     <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => onDelete(fileData.fileHash, fileData.file.type)}
-                        className="h-7 w-7 text-red-500 hover:text-red-700 hover:bg-red-100 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        onClick={() => onDelete?.(fileData.fileHash, fileData.file.type)}
+                        className="h-7 w-7 text-red-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                     >
                         <LucideTrash2 className="h-4 w-4" />
                     </Button>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// --- Main Component ---
+
+// --- FileSection Component ---
+
+interface FileSectionProps {
+    title: string;
+    description: string;
+    type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras';
+    files: ModpackVersionFile[];
+    icon: React.ReactNode;
+    versionStatus: string;
+    onDeleteFile: (fileHash: string, fileType: string) => void;
+    onUpdateSide: (fileHash: string, fileType: string, side: 'client' | 'server' | 'both') => void;
+    uploadingFile: boolean;
+    onOpenUpload: (type: string) => void;
+    onOpenReuse: (type: string) => void;
+    onDragOver: (e: React.DragEvent) => void;
+    onDrop: (e: React.DragEvent, type: string) => void;
+    publisherId: string;
+    modpackId: string;
+    versionId: string;
+    accessToken: string;
+    onRefresh: () => void;
+}
+
+const FileSection: React.FC<FileSectionProps> = ({ title, description, type, files, icon, versionStatus, onDeleteFile, onUpdateSide, uploadingFile, onOpenUpload, onOpenReuse, onDragOver, onDrop, publisherId, modpackId, versionId, accessToken, onRefresh }) => {
+    const [expandedFolders, setExpandedFolders] = useState<{ [key: string]: boolean }>({});
+    const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
+    const [isDeleting, setIsDeleting] = useState(false);
+
+    const filteredFiles = files.filter(file => {
+        const fileType = file.fileType || file.file?.type || 'extras';
+        return fileType === type;
+    });
+
+    const toggleFileSelection = useCallback((fileHash: string) => {
+        setSelectedFiles(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(fileHash)) {
+                newSet.delete(fileHash);
+            } else {
+                newSet.add(fileHash);
+            }
+            return newSet;
+        });
+    }, []);
+
+    const selectAllFiles = useCallback(() => {
+        const allHashes = filteredFiles.map(f => f.fileHash);
+        setSelectedFiles(new Set(allHashes));
+    }, [filteredFiles]);
+
+    const deselectAllFiles = useCallback(() => {
+        setSelectedFiles(new Set());
+    }, []);
+
+    const deleteSelectedFiles = async () => {
+        if (selectedFiles.size === 0) return;
+
+        setIsDeleting(true);
+        try {
+            const res = await fetch(`${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}/delete-multiple`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ fileHashes: Array.from(selectedFiles) })
+            });
+
+            if (!res.ok) { await handleApiError(res); return; }
+
+            const data = await res.json();
+            toast.success(data.message || 'Archivos eliminados correctamente');
+            setSelectedFiles(new Set());
+            onRefresh();
+        } catch (error) {
+            console.error('Error deleting files:', error);
+            toast.error(error instanceof Error ? error.message : 'Error al eliminar archivos');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const deleteAllFiles = async () => {
+        if (!confirm(`¿Estás seguro de que quieres eliminar todos los archivos de ${title.toLowerCase()}?`)) return;
+
+        setIsDeleting(true);
+        try {
+            const res = await fetch(`${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${accessToken}` }
+            });
+
+            if (!res.ok) { await handleApiError(res); return; }
+
+            const data = await res.json();
+            toast.success(data.message || 'Todos los archivos eliminados correctamente');
+            onRefresh();
+        } catch (error) {
+            console.error('Error deleting all files:', error);
+            toast.error(error instanceof Error ? error.message : 'Error al eliminar todos los archivos');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
+    const fileTree = useMemo(() => {
+        const buildFileTree = (filesToProcess: ModpackVersionFile[]): { [key: string]: TreeNode } => {
+            const tree: { [key: string]: TreeNode } = {};
+            filesToProcess.forEach(fileData => {
+                const pathParts = fileData.path.split('/');
+                let currentLevel: any = tree;
+                pathParts.forEach((part, index) => {
+                    if (index === pathParts.length - 1) {
+                        currentLevel[part] = { type: 'file', data: fileData };
+                    } else {
+                        if (!currentLevel[part]) {
+                            currentLevel[part] = { type: 'folder', children: {} };
+                        }
+                        currentLevel = currentLevel[part].children;
+                    }
+                });
+            });
+            return tree;
+        };
+        return buildFileTree(filteredFiles);
+    }, [filteredFiles]);
+
+    useEffect(() => {
+        const initialExpansionState: { [key: string]: boolean } = {};
+        Object.keys(fileTree).forEach(key => {
+            if (fileTree[key].type === 'folder') {
+                initialExpansionState[key] = true;
+            }
+        });
+        setExpandedFolders(initialExpansionState);
+    }, [fileTree]);
+
+    return (
+        <div
+            className="bg-[#121214] border border-white/[0.06] rounded-xl overflow-hidden"
+            onDragOver={onDragOver}
+            onDrop={(e) => onDrop(e, type)}
+        >
+            <div className="px-5 py-3.5 border-b border-white/[0.06]">
+                <div className="flex items-center gap-2">
+                    {icon}
+                    <h3 className="text-lg font-semibold text-white">{title}</h3>
+                    {versionStatus !== 'published' && (
+                        <span className="text-[10px] text-neutral-500 ml-auto">Arrastra ZIP aquí</span>
+                    )}
+                </div>
+                <p className="text-sm text-neutral-500 mt-0.5">{description}</p>
+            </div>
+            <div className="p-5 space-y-4">
+                {versionStatus !== 'published' && (
+                    <>
+                        <div className="flex gap-2">
+                            <Button size="sm" onClick={() => onOpenUpload(type)} disabled={uploadingFile} className="bg-white text-black hover:bg-neutral-200 h-9">
+                                <LucideUpload className="h-4 w-4 mr-2" />
+                                {uploadingFile ? 'Subiendo...' : 'Subir ZIP'}
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => onOpenReuse(type)} disabled={uploadingFile} className="h-9 border-white/[0.06] text-neutral-400 hover:text-white hover:bg-white/[0.04]">
+                                <LucidePackage className="h-4 w-4 mr-2" /> Reutilizar
+                            </Button>
+                        </div>
+                        {filteredFiles.length > 0 && (
+                            <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={selectAllFiles} disabled={selectedFiles.size === filteredFiles.length} className="border-white/[0.06] text-neutral-400 hover:text-white hover:bg-white/[0.04]">
+                                    Seleccionar todo
+                                </Button>
+                                <Button variant="outline" size="sm" onClick={deselectAllFiles} disabled={selectedFiles.size === 0} className="border-white/[0.06] text-neutral-400 hover:text-white hover:bg-white/[0.04]">
+                                    Deseleccionar todo
+                                </Button>
+                                <Button size="sm" onClick={deleteSelectedFiles} disabled={selectedFiles.size === 0 || isDeleting} className="bg-red-500/10 text-red-400 hover:bg-red-500/20">
+                                    {isDeleting ? 'Eliminando...' : `Eliminar ${selectedFiles.size}`}
+                                </Button>
+                                <Button size="sm" onClick={deleteAllFiles} disabled={isDeleting} className="bg-red-500/10 text-red-400 hover:bg-red-500/20">
+                                    {isDeleting ? 'Eliminando...' : 'Eliminar todo'}
+                                </Button>
+                            </div>
+                        )}
+                    </>
+                )}
+                {filteredFiles.length > 0 ? (
+                    <div className="bg-[#0e0e10] rounded-lg border border-white/[0.04] p-4 space-y-1 font-mono text-xs max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                        {Object.entries(fileTree)
+                            .sort(([aName, aNode], [bName, bNode]) => {
+                                if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
+                                if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
+                                return aName.localeCompare(bName);
+                            })
+                            .map(([name, node]) => (
+                                <FileTreeNode
+                                    key={name}
+                                    name={name}
+                                    node={node}
+                                    expandedFolders={expandedFolders}
+                                    setExpandedFolders={setExpandedFolders}
+                                    path={name}
+                                    mode="manage"
+                                    versionStatus={versionStatus}
+                                    onDelete={onDeleteFile}
+                                    onUpdateSide={onUpdateSide}
+                                    selectedFiles={selectedFiles}
+                                    onToggleSelection={toggleFileSelection}
+                                />
+                            ))
+                        }
+                    </div>
+                ) : (
+                    versionStatus !== 'published' && (
+                        <div className="h-[200px] flex flex-col items-center justify-center text-center p-8">
+                            <div className="bg-white/[0.04] p-4 rounded-full mb-3">
+                                <LucideUpload className="h-8 w-8 text-neutral-500" />
+                            </div>
+                            <p className="text-sm text-neutral-600">Sube nuevos archivos o reutiliza de versiones anteriores.</p>
+                        </div>
+                    )
                 )}
             </div>
         </div>
@@ -266,6 +597,7 @@ const ModpackVersionDetailView: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [editingChangelog, setEditingChangelog] = useState(false);
     const [changelog, setChangelog] = useState('');
+    const [changelogExpanded, setChangelogExpanded] = useState(false);
     const [uploadingFile, setUploadingFile] = useState(false);
     const [publishing, setPublishing] = useState(false);
     const [uploadDialog, setUploadDialog] = useState<{
@@ -751,387 +1083,20 @@ const ModpackVersionDetailView: React.FC = () => {
         }
     };
 
-    const FileSection: React.FC<{
-        title: string;
-        description: string;
-        type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras';
-        files: ModpackVersionFile[];
-        icon: React.ReactNode;
-        versionStatus: string;
-        onDeleteFile: (fileHash: string, fileType: string) => void;
-        onUpdateSide: (fileHash: string, fileType: string, side: 'client' | 'server' | 'both') => void;
-    }> = ({ title, description, type, files, icon, versionStatus, onDeleteFile, onUpdateSide }) => {
-        const [expandedFolders, setExpandedFolders] = useState<{ [key: string]: boolean }>({});
-        const [selectedFiles, setSelectedFiles] = useState<Set<string>>(new Set());
-        const [isDeleting, setIsDeleting] = useState(false);
-
-        const filteredFiles = files.filter(file => {
-            // Prefer fileType from ModpackVersionFile, fallback to file.type for backward compatibility
-            const fileType = file.fileType || file.file?.type || 'extras';
-            return fileType === type;
-        });
-
-        const toggleFileSelection = useCallback((fileHash: string) => {
-            setSelectedFiles(prev => {
-                const newSet = new Set(prev);
-                if (newSet.has(fileHash)) {
-                    newSet.delete(fileHash);
-                } else {
-                    newSet.add(fileHash);
-                }
-                return newSet;
-            });
-        }, []);
-
-        const selectAllFiles = useCallback(() => {
-            const allHashes = filteredFiles.map(f => f.fileHash);
-            setSelectedFiles(new Set(allHashes));
-        }, [filteredFiles]);
-
-        const deselectAllFiles = useCallback(() => {
-            setSelectedFiles(new Set());
-        }, []);
-
-        const deleteSelectedFiles = async () => {
-            if (selectedFiles.size === 0) return;
-
-            setIsDeleting(true);
-            try {
-                const res = await fetch(`${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}/delete-multiple`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${sessionTokens?.accessToken}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        fileHashes: Array.from(selectedFiles)
-                    })
-                });
-
-                if (!res.ok) {
-                    await handleApiError(res);
-                    return;
-                }
-
-                const data = await res.json();
-                toast.success(data.message || 'Archivos eliminados correctamente');
-                setSelectedFiles(new Set());
-                fetchVersionDetails();
-            } catch (error) {
-                console.error('Error deleting files:', error);
-                toast.error(error instanceof Error ? error.message : 'Error al eliminar archivos');
-            } finally {
-                setIsDeleting(false);
-            }
-        };
-
-        const deleteAllFiles = async () => {
-            if (!confirm(`¿Estás seguro de que quieres eliminar todos los archivos de ${title.toLowerCase()}? Esta acción no se puede deshacer.`)) {
-                return;
-            }
-
-            setIsDeleting(true);
-            try {
-                const res = await fetch(`${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/files/${type}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${sessionTokens?.accessToken}`,
-                    }
-                });
-
-                if (!res.ok) {
-                    await handleApiError(res);
-                    return;
-                }
-
-                const data = await res.json();
-                toast.success(data.message || 'Todos los archivos eliminados correctamente');
-                fetchVersionDetails();
-            } catch (error) {
-                console.error('Error deleting all files:', error);
-                toast.error(error instanceof Error ? error.message : 'Error al eliminar todos los archivos');
-            } finally {
-                setIsDeleting(false);
-            }
-        };
-
-        const fileTree = useMemo(() => {
-            const buildFileTree = (filesToProcess: ModpackVersionFile[]): { [key: string]: TreeNode } => {
-                const tree: { [key: string]: TreeNode } = {};
-                filesToProcess.forEach(fileData => {
-                    const pathParts = fileData.path.split('/');
-                    let currentLevel: any = tree;
-                    pathParts.forEach((part, index) => {
-                        if (index === pathParts.length - 1) {
-                            currentLevel[part] = { type: 'file', data: fileData };
-                        } else {
-                            if (!currentLevel[part]) {
-                                currentLevel[part] = { type: 'folder', children: {} };
-                            }
-                            currentLevel = currentLevel[part].children;
-                        }
-                    });
-                });
-                return tree;
-            };
-            return buildFileTree(filteredFiles);
-        }, [filteredFiles]);
-
-        useEffect(() => {
-            const initialExpansionState: { [key: string]: boolean } = {};
-            Object.keys(fileTree).forEach(key => {
-                if (fileTree[key].type === 'folder') {
-                    initialExpansionState[key] = true;
-                }
-            });
-            setExpandedFolders(initialExpansionState);
-        }, [fileTree]);
-
-        return (
-            <Card
-                className="transition-all duration-200 hover:shadow-md"
-                onDragOver={handleDragOver}
-                onDrop={(e) => handleDrop(e, type)}
-            >
-                <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                        {icon} {title}
-                        {versionStatus !== 'published' && (
-                            <span className="text-xs text-gray-400 ml-auto font-normal">
-                                Arrastra ZIP aquí
-                            </span>
-                        )}
-                    </CardTitle>
-                    <CardDescription>{description}</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-4">
-                        {versionStatus !== 'published' && (
-                            <div className="flex flex-col items-center space-y-2">
-                                <div className="flex gap-2">
-                                    <Button variant="outline" size="sm" onClick={() => openUploadDialog(type)} disabled={uploadingFile}>
-                                        <LucideUpload className="h-4 w-4 mr-2" />
-                                        {uploadingFile ? 'Subiendo...' : 'Subir ZIP'}
-                                    </Button>
-                                    <Button variant="secondary" size="sm" onClick={() => openReuseDialog(type)} disabled={uploadingFile}>
-                                        <LucidePackage className="h-4 w-4 mr-2" /> Reutilizar
-                                    </Button>
-                                </div>
-                                {filteredFiles.length > 0 && (
-                                    <div className="flex flex-col gap-2 w-full">
-                                        <div className="flex gap-2 justify-center">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={selectAllFiles}
-                                                disabled={selectedFiles.size === filteredFiles.length}
-                                            >
-                                                Seleccionar todo
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={deselectAllFiles}
-                                                disabled={selectedFiles.size === 0}
-                                            >
-                                                Deseleccionar todo
-                                            </Button>
-                                        </div>
-                                        <div className="flex gap-2 justify-center">
-                                            <Button
-                                                variant="destructive"
-                                                size="sm"
-                                                onClick={deleteSelectedFiles}
-                                                disabled={selectedFiles.size === 0 || isDeleting}
-                                            >
-                                                {isDeleting ? 'Eliminando...' : `Eliminar ${selectedFiles.size} archivo(s)`}
-                                            </Button>
-                                            <Button
-                                                variant="destructive"
-                                                size="sm"
-                                                onClick={deleteAllFiles}
-                                                disabled={isDeleting}
-                                            >
-                                                {isDeleting ? 'Eliminando...' : 'Eliminar todo'}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                        {filteredFiles.length > 0 ? (
-                            <div className="space-y-1 mt-4 max-h-60 overflow-y-auto font-mono text-xs border-t pt-4">
-                                {Object.entries(fileTree)
-                                    .sort(([aName, aNode], [bName, bNode]) => {
-                                        if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
-                                        if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
-                                        return aName.localeCompare(bName);
-                                    })
-                                    .map(([name, node]) => (
-                                        <FileTreeNode
-                                            key={name}
-                                            name={name}
-                                            node={node}
-                                            expandedFolders={expandedFolders}
-                                            setExpandedFolders={setExpandedFolders}
-                                            path={name}
-                                            versionStatus={versionStatus}
-                                            onDelete={onDeleteFile}
-                                            onUpdateSide={onUpdateSide}
-                                            selectedFiles={selectedFiles}
-                                            onToggleSelection={toggleFileSelection}
-                                        />
-                                    ))
-                                }
-                            </div>
-                        ) : (
-                            versionStatus !== 'published' && (
-                                <p className="text-xs text-center text-gray-500 mt-2">
-                                    Sube nuevos archivos o reutiliza de versiones anteriores.
-                                </p>
-                            )
-                        )}
-                    </div>
-                </CardContent>
-            </Card>
-        );
-    };
-
-    const SelectableFileTreeNode: React.FC<{
-        name: string;
-        node: TreeNode;
-        expandedFolders: { [key: string]: boolean };
-        setExpandedFolders: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>;
-        path: string;
-        selectedFiles: string[];
-        onToggleSelection: (fileHash: string) => void;
-        onToggleFolderSelection: (folderPath: string, fileHashes: string[]) => void;
-    }> = ({ name, node, expandedFolders, setExpandedFolders, path, selectedFiles, onToggleSelection, onToggleFolderSelection }) => {
-        if (node.type === 'folder') {
-            const isExpanded = expandedFolders[path];
-            const toggleExpand = () => setExpandedFolders(prev => ({ ...prev, [path]: !isExpanded }));
-
-            // Get all file hashes in this folder recursively
-            const getAllFileHashes = (folderNode: FolderNodeData): string[] => {
-                const hashes: string[] = [];
-                Object.values(folderNode.children).forEach(child => {
-                    if (child.type === 'file') {
-                        hashes.push(child.data.fileHash);
-                    } else {
-                        hashes.push(...getAllFileHashes(child));
-                    }
-                });
-                return hashes;
-            };
-
-            const folderFileHashes = getAllFileHashes(node);
-            const allSelected = folderFileHashes.length > 0 && folderFileHashes.every(hash => selectedFiles.includes(hash));
-            const someSelected = folderFileHashes.some(hash => selectedFiles.includes(hash));
-
-            const handleFolderCheckboxChange = () => {
-                onToggleFolderSelection(path, folderFileHashes);
-            };
-
-            return (
-                <div>
-                    <div className="flex items-center cursor-pointer hover:bg-gray-100 p-1 rounded transition-colors">
-                        <input
-                            type="checkbox"
-                            checked={allSelected}
-                            ref={(el) => {
-                                if (el) el.indeterminate = someSelected && !allSelected;
-                            }}
-                            onChange={handleFolderCheckboxChange}
-                            className="mr-2 rounded border-gray-300"
-                        />
-                        {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-gray-600 flex-shrink-0" />}
-                        <LucideFolder className="h-4 w-4 mr-2 text-sky-600 flex-shrink-0" />
-                        <span className="text-gray-800 font-medium">{name}</span>
-                        <span className="text-xs text-gray-500 ml-2">({folderFileHashes.length} archivos)</span>
-                    </div>
-                    {isExpanded && (
-                        <div className="pl-6 border-l border-gray-200 ml-2">
-                            {Object.entries(node.children)
-                                .sort(([aName, aNode], [bName, bNode]) => {
-                                    if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
-                                    if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
-                                    return aName.localeCompare(bName);
-                                })
-                                .map(([childName, childNode]) => (
-                                    <SelectableFileTreeNode
-                                        key={childName}
-                                        name={childName}
-                                        node={childNode}
-                                        expandedFolders={expandedFolders}
-                                        setExpandedFolders={setExpandedFolders}
-                                        path={`${path}/${childName}`}
-                                        selectedFiles={selectedFiles}
-                                        onToggleSelection={onToggleSelection}
-                                        onToggleFolderSelection={onToggleFolderSelection}
-                                    />
-                                ))}
-                        </div>
-                    )}
-                </div>
-            );
-        }
-
-        // It's a file
-        const fileData = node.data;
-        const isSelected = selectedFiles.includes(fileData.fileHash);
-
-        return (
-            <div className="flex items-center justify-between p-1 ml-4 group hover:bg-gray-100 rounded">
-                <div className="flex items-center min-w-0 flex-1">
-                    <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => onToggleSelection(fileData.fileHash)}
-                        className="mr-2 rounded border-gray-300 flex-shrink-0"
-                    />
-                    <div className="w-4 mr-2 flex-shrink-0"></div> {/* Indent spacer */}
-                    {getFileIcon(name)}
-                    <span className="text-gray-700 truncate" title={fileData.path}>{name}</span>
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <div className="ml-2 flex-shrink-0">
-                                    {fileData.side === 'client' && <LucideMonitor className="h-3 w-3 text-gray-400" />}
-                                    {fileData.side === 'server' && <LucideServer className="h-3 w-3 text-gray-400" />}
-                                    {(!fileData.side || fileData.side === 'both') && <LucideGlobe className="h-3 w-3 text-gray-400" />}
-                                </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p className="text-[10px]">
-                                    {fileData.side === 'client' ? 'Entorno: Cliente solo' :
-                                        fileData.side === 'server' ? 'Entorno: Servidor solo' :
-                                            'Entorno: Ambos'}
-                                </p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                </div>
-                <div className="text-xs text-gray-500 flex-shrink-0 ml-2">
-                    {formatFileSize(fileData.size || 0)}
-                </div>
-            </div>
-        );
-    };
-
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="min-h-full h-full flex items-center justify-center bg-[#0e0e10]">
+                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-neutral-600"></div>
             </div>
         );
     }
 
     if (!version) {
         return (
-            <div className="min-h-screen flex items-center justify-center">
+            <div className="min-h-full h-full flex items-center justify-center bg-[#0e0e10]">
                 <div className="text-center">
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Versión no encontrada</h2>
-                    <p className="text-gray-600">La versión que buscas no existe o no tienes permisos para verla.</p>
+                    <h2 className="text-xl font-semibold text-white mb-2">Versión no encontrada</h2>
+                    <p className="text-sm text-neutral-500">La versión que buscas no existe o no tienes permisos para verla.</p>
                 </div>
             </div>
         );
@@ -1322,14 +1287,15 @@ const ModpackVersionDetailView: React.FC = () => {
                                                             return aName.localeCompare(bName);
                                                         })
                                                         .map(([name, node]) => (
-                                                            <SelectableFileTreeNode
+                                                            <FileTreeNode
                                                                 key={name}
                                                                 name={name}
                                                                 node={node}
                                                                 expandedFolders={reuseExpandedFolders}
                                                                 setExpandedFolders={setReuseExpandedFolders}
                                                                 path={name}
-                                                                selectedFiles={reuseDialog.selectedFiles}
+                                                                mode="select"
+                                                                selectedFiles={new Set(reuseDialog.selectedFiles)}
                                                                 onToggleSelection={toggleFileSelection}
                                                                 onToggleFolderSelection={toggleFolderSelection}
                                                             />
@@ -1393,192 +1359,218 @@ const ModpackVersionDetailView: React.FC = () => {
                 </DialogContent>
             </Dialog>
 
-            <div className="min-h-screen">
-                <div className="max-w-6xl mx-auto px-4 py-8">
-                    {/* Header */}
-                    <div className="flex items-center justify-between mb-8">
-                        <div>
-                            <h1 className="text-3xl font-bold text-zinc-800">{version.modpack.name}</h1>
-                            <p className="text-zinc-500">Versión {version.version}</p>
+            <div className="min-h-full bg-[#0e0e10]">
+                <div className="max-w-6xl mx-auto p-6 space-y-6">
+                    {/* Compact Header Card */}
+                    <div className="bg-[#121214] border border-white/[0.06] rounded-xl p-6">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                            <div className="space-y-1">
+                                <div className="flex items-center gap-3 flex-wrap">
+                                    <h1 className="text-3xl font-bold text-white tracking-tight">{version.modpack.name}</h1>
+                                    <span className={cn(
+                                        "text-[10px] font-medium px-2 py-0.5 rounded-md",
+                                        version.status === "published" ? "bg-emerald-500/10 text-emerald-400" :
+                                        version.status === "draft" ? "bg-amber-500/10 text-amber-400" :
+                                        version.status === "archived" ? "bg-neutral-500/10 text-neutral-400" :
+                                        "bg-red-500/10 text-red-400"
+                                    )}>
+                                        {version.status}
+                                    </span>
+                                </div>
+                                <p className="text-neutral-500 flex items-center gap-2 text-sm">
+                                    Versión <code className="bg-white/[0.04] px-1.5 py-0.5 rounded text-neutral-400 font-mono text-sm">{version.version}</code>
+                                    <span className="text-neutral-700">•</span>
+                                    <span>Enviada el {new Date(version.createdAt).toLocaleDateString()}</span>
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {version.status !== 'published' && (
+                                    <Button onClick={publishVersion} disabled={publishing} className="bg-white text-black hover:bg-neutral-200">
+                                        <LucideSend className="h-4 w-4 mr-2" />
+                                        {publishing ? 'Publicando...' : 'Publicar'}
+                                    </Button>
+                                )}
+                            </div>
                         </div>
-                        <div className="flex items-center space-x-4">
-                            {version.status !== 'published' && (
-                                <Button
-                                    onClick={publishVersion}
-                                    disabled={publishing}
-                                    className="bg-green-600 hover:bg-green-700 text-white"
-                                >
-                                    <LucideSend className="h-4 w-4 mr-2" />
-                                    {publishing ? 'Publicando...' : 'Publicar'}
-                                </Button>
+
+                        {/* Stat chips */}
+                        <div className="flex flex-wrap items-center gap-3 mt-5 pt-5 border-t border-white/[0.06]">
+                            <div className="bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 min-w-[100px]">
+                                <p className="text-[10px] uppercase font-bold text-neutral-600 tracking-widest">Minecraft</p>
+                                <p className="text-sm font-medium text-white">{version.mcVersion}</p>
+                            </div>
+                            <div className="bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 min-w-[100px]">
+                                <p className="text-[10px] uppercase font-bold text-neutral-600 tracking-widest">Loader</p>
+                                <p className="text-sm font-medium text-white">{version.forgeVersion || 'Vanilla'}</p>
+                            </div>
+                            <div className="bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 min-w-[100px]">
+                                <p className="text-[10px] uppercase font-bold text-neutral-600 tracking-widest">Archivos</p>
+                                <p className="text-sm font-medium text-white">{version.files?.length || 0}</p>
+                            </div>
+                            <div className="bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 min-w-[100px]">
+                                <p className="text-[10px] uppercase font-bold text-neutral-600 tracking-widest">Creado</p>
+                                <p className="text-sm font-medium text-white">{new Date(version.createdAt).toLocaleDateString()}</p>
+                            </div>
+                            {version.releaseDate && (
+                                <div className="bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 min-w-[100px]">
+                                    <p className="text-[10px] uppercase font-bold text-neutral-600 tracking-widest">Publicado</p>
+                                    <p className="text-sm font-medium text-white">{new Date(version.releaseDate).toLocaleDateString()}</p>
+                                </div>
                             )}
-                            <Badge
-                                variant={version.status === 'published' ? 'default' : 'secondary'}
-                                className={version.status === 'published' ? 'bg-green-100 text-green-800' : ''}
-                            >
-                                {version.status}
-                            </Badge>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Main Content */}
-                        <div className="lg:col-span-2 space-y-6">
-                            {/* Version Info */}
-                            <Card>
-                                <CardHeader>
-                                    <CardTitle>Información de la Versión</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-500">Versión</label>
-                                            <p className="text-lg font-semibold">{version.version}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-500">Minecraft</label>
-                                            <p className="text-lg">{version.mcVersion}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-500">Forge</label>
-                                            <p className="text-lg">{version.forgeVersion || 'N/A'}</p>
-                                        </div>
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-500">Estado</label>
-                                            <p className="text-lg capitalize">{version.status || 'Desconocido'}</p>
-                                        </div>
-                                    </div>
-                                    <Separator />
-                                    <div className='grid grid-cols-2 gap-4'>
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-500">Creado</label>
-                                            <p>{new Date(version.createdAt).toLocaleString()}</p>
-                                        </div>
-                                        {version.releaseDate && (
-                                            <div>
-                                                <label className="text-sm font-medium text-gray-500">Publicado</label>
-                                                <p>{new Date(version.releaseDate).toLocaleString()}</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </CardContent>
-                            </Card>
-
-                            {/* Changelog */}
-                            <Card>
-                                <CardHeader>
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <CardTitle>Changelog</CardTitle>
-                                            <CardDescription>
-                                                Describe los cambios en esta versión
-                                            </CardDescription>
-                                        </div>
-                                        {!editingChangelog && version.status !== 'published' ? (
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setEditingChangelog(true)}
-                                            >
-                                                <LucideEdit2 className="h-4 w-4 mr-2" />
-                                                Editar
-                                            </Button>
-                                        ) : editingChangelog ? (
-                                            <div className="flex space-x-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => {
-                                                        setEditingChangelog(false);
-                                                        setChangelog(version.changelog || '');
-                                                    }}
-                                                >
+                    {/* Expandable Changelog */}
+                    <div className="bg-[#121214] border border-white/[0.06] rounded-xl overflow-hidden">
+                        <button
+                            onClick={() => setChangelogExpanded(!changelogExpanded)}
+                            className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-white/[0.02] transition-colors"
+                        >
+                            <div className="flex items-center gap-2">
+                                {changelogExpanded ? <LucideChevronDown className="h-4 w-4 text-neutral-500" /> : <LucideChevronRight className="h-4 w-4 text-neutral-500" />}
+                                <h3 className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-2">
+                                    <LucideFileText className="h-4 w-4" /> Changelog
+                                </h3>
+                            </div>
+                            {version.status !== 'published' && !editingChangelog && (
+                                <button onClick={(e) => { e.stopPropagation(); setEditingChangelog(true); }} className="text-neutral-600 hover:text-neutral-300 transition-colors">
+                                    <LucideEdit2 className="h-3.5 w-3.5" />
+                                </button>
+                            )}
+                        </button>
+                        {changelogExpanded && (
+                            <div className="px-5 pb-5 border-t border-white/[0.06]">
+                                <div className="pt-4">
+                                    {editingChangelog ? (
+                                        <div className="space-y-3">
+                                            <Textarea
+                                                value={changelog}
+                                                onChange={(e) => setChangelog(e.target.value)}
+                                                placeholder="¿Qué ha cambiado?"
+                                                rows={8}
+                                                className="bg-black/20 border-white/[0.06] focus:ring-0 text-sm rounded-lg"
+                                            />
+                                            <div className="flex gap-2 justify-end">
+                                                <Button variant="ghost" size="sm" onClick={() => { setEditingChangelog(false); setChangelog(version.changelog || ''); }} className="text-neutral-500 hover:text-white">
                                                     Cancelar
                                                 </Button>
-                                                <Button
-                                                    size="sm"
-                                                    onClick={updateChangelog}
-                                                >
-                                                    <LucideSave className="h-4 w-4 mr-2" />
-                                                    Guardar
+                                                <Button size="sm" onClick={updateChangelog} className="bg-white text-black hover:bg-neutral-200">
+                                                    <LucideSave className="h-3 w-3 mr-2" /> Guardar
                                                 </Button>
                                             </div>
-                                        ) : null}
-                                    </div>
-                                </CardHeader>
-                                <CardContent>
-                                    {editingChangelog ? (
-                                        <Textarea
-                                            value={changelog}
-                                            onChange={(e) => setChangelog(e.target.value)}
-                                            placeholder="Describe los cambios en esta versión..."
-                                            rows={8}
-                                            className="w-full"
-                                        />
+                                        </div>
                                     ) : (
-                                        <div className="prose max-w-none text-sm p-4 bg-gray-50 rounded-md border max-h-60 overflow-auto">
-                                            <pre className="whitespace-pre-wrap font-sans text-gray-800">
-                                                {version.changelog || 'No hay changelog disponible.'}
-                                            </pre>
+                                        <div className="text-sm text-neutral-300 whitespace-pre-wrap bg-black/20 p-4 rounded-lg border border-white/[0.04] max-h-60 overflow-auto custom-scrollbar italic leading-relaxed">
+                                            {version.changelog || 'No se ha proporcionado un registro de cambios.'}
                                         </div>
                                     )}
-                                </CardContent>
-                            </Card>
-                        </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
 
-                        {/* Sidebar with File Sections */}
-                        <div className="space-y-6">
-                            <FileSection
-                                title="Mods"
-                                description="Archivos para la carpeta /mods"
-                                type="mods"
-                                files={version.files || []}
-                                icon={<LucidePackage className="h-5 w-5" />}
-                                versionStatus={version.status}
-                                onDeleteFile={deleteFile}
-                                onUpdateSide={updateFileSide}
-                            />
-                            <FileSection
-                                title="Resource Packs"
-                                description="Archivos para la carpeta /resourcepacks"
-                                type="resourcepacks"
-                                files={version.files || []}
-                                icon={<LucideImage className="h-5 w-5" />}
-                                versionStatus={version.status}
-                                onDeleteFile={deleteFile}
-                                onUpdateSide={updateFileSide}
-                            />
-                            <FileSection
-                                title="Config"
-                                description="Archivos para la carpeta /config"
-                                type="config"
-                                files={version.files || []}
-                                icon={<LucideSettings className="h-5 w-5" />}
-                                versionStatus={version.status}
-                                onDeleteFile={deleteFile}
-                                onUpdateSide={updateFileSide}
-                            />
-                            <FileSection
-                                title="Shader Packs"
-                                description="Archivos para la carpeta /shaderpacks"
-                                type="shaderpacks"
-                                files={version.files || []}
-                                icon={<LucidePalette className="h-5 w-5" />}
-                                versionStatus={version.status}
-                                onDeleteFile={deleteFile}
-                                onUpdateSide={updateFileSide}
-                            />
-                            <FileSection
-                                title="Extras"
-                                description="Archivos para la raíz de .minecraft"
-                                type="extras"
-                                files={version.files || []}
-                                icon={<LucideFolder className="h-5 w-5" />}
-                                versionStatus={version.status}
-                                onDeleteFile={deleteFile}
-                                onUpdateSide={updateFileSide}
-                            />
-                        </div>
+                    {/* Full-width File Sections */}
+                    <div className="space-y-6">
+                        <FileSection
+                            title="Mods"
+                            description="Archivos para la carpeta /mods"
+                            type="mods"
+                            files={version.files || []}
+                            icon={<LucidePackage className="h-5 w-5 text-neutral-400" />}
+                            versionStatus={version.status}
+                            onDeleteFile={deleteFile}
+                            onUpdateSide={updateFileSide}
+                            uploadingFile={uploadingFile}
+                            onOpenUpload={openUploadDialog}
+                            onOpenReuse={openReuseDialog}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                            publisherId={publisherId}
+                            modpackId={modpackId}
+                            versionId={versionId}
+                            accessToken={sessionTokens?.accessToken || ''}
+                            onRefresh={fetchVersionDetails}
+                        />
+                        <FileSection
+                            title="Resource Packs"
+                            description="Archivos para la carpeta /resourcepacks"
+                            type="resourcepacks"
+                            files={version.files || []}
+                            icon={<LucideImage className="h-5 w-5 text-neutral-400" />}
+                            versionStatus={version.status}
+                            onDeleteFile={deleteFile}
+                            onUpdateSide={updateFileSide}
+                            uploadingFile={uploadingFile}
+                            onOpenUpload={openUploadDialog}
+                            onOpenReuse={openReuseDialog}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                            publisherId={publisherId}
+                            modpackId={modpackId}
+                            versionId={versionId}
+                            accessToken={sessionTokens?.accessToken || ''}
+                            onRefresh={fetchVersionDetails}
+                        />
+                        <FileSection
+                            title="Config"
+                            description="Archivos para la carpeta /config"
+                            type="config"
+                            files={version.files || []}
+                            icon={<LucideSettings className="h-5 w-5 text-neutral-400" />}
+                            versionStatus={version.status}
+                            onDeleteFile={deleteFile}
+                            onUpdateSide={updateFileSide}
+                            uploadingFile={uploadingFile}
+                            onOpenUpload={openUploadDialog}
+                            onOpenReuse={openReuseDialog}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                            publisherId={publisherId}
+                            modpackId={modpackId}
+                            versionId={versionId}
+                            accessToken={sessionTokens?.accessToken || ''}
+                            onRefresh={fetchVersionDetails}
+                        />
+                        <FileSection
+                            title="Shader Packs"
+                            description="Archivos para la carpeta /shaderpacks"
+                            type="shaderpacks"
+                            files={version.files || []}
+                            icon={<LucidePalette className="h-5 w-5 text-neutral-400" />}
+                            versionStatus={version.status}
+                            onDeleteFile={deleteFile}
+                            onUpdateSide={updateFileSide}
+                            uploadingFile={uploadingFile}
+                            onOpenUpload={openUploadDialog}
+                            onOpenReuse={openReuseDialog}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                            publisherId={publisherId}
+                            modpackId={modpackId}
+                            versionId={versionId}
+                            accessToken={sessionTokens?.accessToken || ''}
+                            onRefresh={fetchVersionDetails}
+                        />
+                        <FileSection
+                            title="Extras"
+                            description="Archivos para la raíz de .minecraft"
+                            type="extras"
+                            files={version.files || []}
+                            icon={<LucideFolder className="h-5 w-5 text-neutral-400" />}
+                            versionStatus={version.status}
+                            onDeleteFile={deleteFile}
+                            onUpdateSide={updateFileSide}
+                            uploadingFile={uploadingFile}
+                            onOpenUpload={openUploadDialog}
+                            onOpenReuse={openReuseDialog}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                            publisherId={publisherId}
+                            modpackId={modpackId}
+                            versionId={versionId}
+                            accessToken={sessionTokens?.accessToken || ''}
+                            onRefresh={fetchVersionDetails}
+                        />
                     </div>
                 </div>
             </div>

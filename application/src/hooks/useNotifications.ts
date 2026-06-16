@@ -16,7 +16,6 @@ export enum NotificationType {
     ERROR = 'error',
     WARNING = 'warning',
     INFO = 'info',
-    GAME_INVITATION = 'game_invitation',
     DOWNLOAD_COMPLETE = 'download_complete',
     UPDATE_AVAILABLE = 'update_available',
 }
@@ -27,7 +26,6 @@ const NOTIFICATION_SOUNDS = {
     [NotificationType.ERROR]: 'ERROR_NOTIFICATION',
     [NotificationType.WARNING]: 'WARNING_NOTIFICATION',
     [NotificationType.INFO]: 'INFO_NOTIFICATION',
-    [NotificationType.GAME_INVITATION]: 'GAME_INVITATION_NOTIFICATION',
     [NotificationType.DOWNLOAD_COMPLETE]: 'DOWNLOAD_COMPLETE_NOTIFICATION',
     [NotificationType.UPDATE_AVAILABLE]: 'UPDATE_AVAILABLE_NOTIFICATION',
 } as const;
@@ -57,12 +55,6 @@ const DEFAULT_CONFIGS = {
         icon: 'ℹ️',
         sound: true,
         soundVolume: 0.5,
-    },
-    [NotificationType.GAME_INVITATION]: {
-        title: 'Invitación de Juego',
-        icon: '🎮',
-        sound: true,
-        soundVolume: 0.9,
     },
     [NotificationType.DOWNLOAD_COMPLETE]: {
         title: 'Descarga Completa',
@@ -104,7 +96,6 @@ export interface UseNotificationsReturn {
     notifyError: (body: string, options?: Partial<NotificationOptions>) => Promise<void>;
     notifyWarning: (body: string, options?: Partial<NotificationOptions>) => Promise<void>;
     notifyInfo: (body: string, options?: Partial<NotificationOptions>) => Promise<void>;
-    notifyGameInvitation: (body: string, options?: Partial<NotificationOptions>) => Promise<void>;
     notifyDownloadComplete: (body: string, options?: Partial<NotificationOptions>) => Promise<void>;
     notifyUpdateAvailable: (body: string, options?: Partial<NotificationOptions>) => Promise<void>;
 }
@@ -234,9 +225,6 @@ export function useNotifications(): UseNotificationsReturn {
     const notifyInfo = useCallback((body: string, options?: Partial<NotificationOptions>) =>
         notify(NotificationType.INFO, body, options), [notify]);
 
-    const notifyGameInvitation = useCallback((body: string, options?: Partial<NotificationOptions>) =>
-        notify(NotificationType.GAME_INVITATION, body, options), [notify]);
-
     const notifyDownloadComplete = useCallback((body: string, options?: Partial<NotificationOptions>) =>
         notify(NotificationType.DOWNLOAD_COMPLETE, body, options), [notify]);
 
@@ -258,7 +246,6 @@ export function useNotifications(): UseNotificationsReturn {
         notifyError,
         notifyWarning,
         notifyInfo,
-        notifyGameInvitation,
         notifyDownloadComplete,
         notifyUpdateAvailable,
     };

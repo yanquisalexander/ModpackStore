@@ -11,15 +11,14 @@ export const getModpacks = async (): Promise<{ categories: any[], featured: any[
         }
     })
 
-
     if (!response.ok) {
-        throw new Error('Network response was not ok');
+        throw new Error(`Explore API error: ${response.status}`);
     }
 
     const json = await response.json()
     return {
-        categories: json.data?.categories?.data?.map((item: any) => item.attributes) || [],
-        featured: json.data?.featured?.data?.map((item: any) => item.attributes) || []
+        categories: json.data?.categories || [],
+        featured: json.data?.featured || []
     }
 }
 
@@ -58,5 +57,5 @@ export const getModpackById = async (modpackId: string): Promise<Modpack> => {
     }
 
     const json = await response.json()
-    return json.data.attributes
+    return json.data
 }

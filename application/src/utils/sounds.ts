@@ -3,7 +3,6 @@ export const SOUNDS = {
     "SUCCESS_NOTIFICATION": "/sounds/success-notification.mp3",
     "WARNING_NOTIFICATION": "/sounds/warning-notification.mp3",
     "INFO_NOTIFICATION": "/sounds/info-notification.mp3",
-    "GAME_INVITATION_NOTIFICATION": "/sounds/game-invitation-notification.mp3",
     "DOWNLOAD_COMPLETE_NOTIFICATION": "/sounds/download-complete-notification.mp3",
     "UPDATE_AVAILABLE_NOTIFICATION": "/sounds/update-available-notification.mp3",
     "LAUNCHER_HALLOWEEN": "/sounds/launcher-halloween.mp3",

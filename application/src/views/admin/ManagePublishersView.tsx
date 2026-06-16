@@ -43,24 +43,19 @@ interface Publisher {
     partnered: boolean;
     banned: boolean;
     isHostingPartner: boolean;
+    memberCount: number;
+    modpackCount: number;
     createdAt: string;
     members?: PublisherMember[];
-    modpacks?: any[];
 }
 
 interface PublisherMember {
-    id: number;
-    publisherId: string;
     userId: string;
     role: 'owner' | 'admin' | 'member';
-    createdAt: string;
-    updatedAt: string;
-    user?: {
-        id: string;
-        username: string;
-        email: string;
-        avatarUrl?: string;
-    };
+    username: string;
+    email: string;
+    avatarUrl?: string;
+    joinedAt: string;
 }
 
 interface PublisherFormData {
@@ -76,7 +71,7 @@ interface PublisherFormData {
 
 // API Service
 class AdminPublishersAPI {
-    private static baseUrl = `${API_ENDPOINT}/admin/publishers`;
+    private static baseUrl = `${API_ENDPOINT}/admin/creators`;
 
     static async getPublishers(options: {
         page?: number;
@@ -117,25 +112,28 @@ class AdminPublishersAPI {
         });
 
         if (!response.ok) {
-            throw new Error(`Error fetching publisher: ${response.statusText}`);
+            throw new Error(`Error fetching creator: ${response.statusText}`);
         }
 
         return response.json();
     }
 
     static async createPublisher(data: PublisherFormData, accessToken: string): Promise<any> {
+        const { tosUrl, privacyUrl, websiteUrl, publisherName, ...rest } = data;
+        const body = { ...rest, displayName: publisherName };
+
         const response = await fetch(this.baseUrl, {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(data),
+            body: JSON.stringify(body),
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error creating publisher: ${response.statusText}`);
+            throw new Error(errorData.error || `Error creating creator: ${response.statusText}`);
         }
 
         return response.json();
@@ -146,19 +144,37 @@ class AdminPublishersAPI {
         partnered: boolean;
         banned: boolean;
         isHostingPartner: boolean;
+        displayName?: string;
     }>, accessToken: string): Promise<any> {
+        const body: Record<string, unknown> = { ...data };
+        if (body.publisherName !== undefined) {
+            body.displayName = body.publisherName;
+            delete body.publisherName;
+        }
+        if (body.partnered !== undefined) {
+            body.partner = body.partnered;
+            delete body.partnered;
+        }
+        if (body.isHostingPartner !== undefined) {
+            body.hostingPartner = body.isHostingPartner;
+            delete body.isHostingPartner;
+        }
+        delete (body as any).tosUrl;
+        delete (body as any).privacyUrl;
+        delete (body as any).websiteUrl;
+
         const response = await fetch(`${this.baseUrl}/${id}`, {
-            method: 'PUT',
+            method: 'PATCH',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(data),
+            body: JSON.stringify(body),
         });
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error updating publisher: ${response.statusText}`);
+            throw new Error(errorData.error || `Error updating creator: ${response.statusText}`);
         }
 
         return response.json();
@@ -174,12 +190,12 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error deleting publisher: ${response.statusText}`);
+            throw new Error(errorData.error || `Error deleting creator: ${response.statusText}`);
         }
     }
 
-    static async getPublisherMembers(publisherId: string, page = 1, limit = 20, accessToken: string): Promise<any> {
-        const response = await fetch(`${this.baseUrl}/${publisherId}/members?page=${page}&limit=${limit}`, {
+    static async getPublisherMembers(publisherId: string, accessToken: string): Promise<any> {
+        const response = await fetch(`${this.baseUrl}/${publisherId}/members`, {
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
@@ -187,7 +203,7 @@ class AdminPublishersAPI {
         });
 
         if (!response.ok) {
-            throw new Error(`Error fetching publisher members: ${response.statusText}`);
+            throw new Error(`Error fetching creator members: ${response.statusText}`);
         }
 
         return response.json();
@@ -205,7 +221,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error adding member: ${response.statusText}`);
+            throw new Error(errorData.error || `Error adding member: ${response.statusText}`);
         }
 
         return response.json();
@@ -221,13 +237,13 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error removing member: ${response.statusText}`);
+            throw new Error(errorData.error || `Error removing member: ${response.statusText}`);
         }
     }
 
     static async updateMemberRole(publisherId: string, userId: string, role: string, accessToken: string): Promise<any> {
         const response = await fetch(`${this.baseUrl}/${publisherId}/members/${userId}`, {
-            method: 'PUT',
+            method: 'PATCH',
             headers: {
                 'Authorization': `Bearer ${accessToken}`,
                 'Content-Type': 'application/json',
@@ -237,7 +253,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error updating member role: ${response.statusText}`);
+            throw new Error(errorData.error || `Error updating member role: ${response.statusText}`);
         }
 
         return response.json();
@@ -338,6 +354,36 @@ class AdminPublishersAPI {
         return response.json();
     }
 }
+
+// Response mapper: backend uses `displayName`, frontend uses `publisherName`
+const mapCreatorToPublisher = (item: any): Publisher => ({
+    id: item.id,
+    publisherName: item.displayName ?? '',
+    description: item.description ?? '',
+    tosUrl: '',
+    privacyUrl: '',
+    bannerUrl: item.bannerUrl ?? '',
+    logoUrl: item.logoUrl ?? '',
+    websiteUrl: '',
+    discordUrl: item.discordUrl ?? '',
+    verified: item.verified ?? false,
+    partnered: item.partner ?? false,
+    banned: item.banned ?? false,
+    isHostingPartner: item.hostingPartner ?? false,
+    memberCount: item.memberCount ?? 0,
+    modpackCount: item.modpackCount ?? 0,
+    createdAt: item.createdAt,
+    members: item.members?.map(mapCreatorMemberToPublisherMember),
+});
+
+const mapCreatorMemberToPublisherMember = (m: any): PublisherMember => ({
+    userId: m.userId,
+    role: m.role,
+    username: m.username,
+    email: m.email,
+    avatarUrl: m.avatarUrl,
+    joinedAt: m.joinedAt ?? m.createdAt,
+});
 
 // Helper functions
 const getRoleBadgeVariant = (role: string) => {
@@ -836,8 +882,9 @@ const PublisherDetails: React.FC<{
 
         setMembersLoading(true);
         try {
-            const result = await AdminPublishersAPI.getPublisherMembers(publisher.id, 1, 20, sessionTokens.accessToken);
-            setMembers(result.data || []);
+            const result = await AdminPublishersAPI.getPublisherMembers(publisher.id, sessionTokens.accessToken);
+            const rawMembers = result.data || [];
+            setMembers(rawMembers.map(mapCreatorMemberToPublisherMember));
         } catch (error) {
             console.error('Error loading members:', error);
         } finally {
@@ -962,7 +1009,7 @@ const PublisherDetails: React.FC<{
                 <TabsList>
                     <TabsTrigger value="info">Información</TabsTrigger>
                     <TabsTrigger value="members">Miembros ({members.length})</TabsTrigger>
-                    <TabsTrigger value="modpacks">Modpacks ({publisher.modpacks?.length || 0})</TabsTrigger>
+                    <TabsTrigger value="modpacks">Modpacks ({publisher.modpackCount || 0})</TabsTrigger>
                     <TabsTrigger value="subscriptions">Suscripción</TabsTrigger>
                     <TabsTrigger value="status">Estado</TabsTrigger>
                 </TabsList>
@@ -1040,19 +1087,19 @@ const PublisherDetails: React.FC<{
                                     </TableHeader>
                                     <TableBody>
                                         {members.map((member) => (
-                                            <TableRow key={member.id}>
+                                            <TableRow key={member.userId}>
                                                 <TableCell>
                                                     <div className="flex items-center gap-2">
-                                                        {member.user?.avatarUrl && (
+                                                        {member.avatarUrl && (
                                                             <img
-                                                                src={member.user.avatarUrl}
-                                                                alt={member.user.username}
+                                                                src={member.avatarUrl}
+                                                                alt={member.username}
                                                                 className="w-6 h-6 rounded-full"
                                                             />
                                                         )}
                                                         <div>
-                                                            <p className="font-medium">{member.user?.username}</p>
-                                                            <p className="text-sm text-muted-foreground">{member.user?.email}</p>
+                                                            <p className="font-medium">{member.username}</p>
+                                                            <p className="text-sm text-muted-foreground">{member.email}</p>
                                                         </div>
                                                     </div>
                                                 </TableCell>
@@ -1062,7 +1109,7 @@ const PublisherDetails: React.FC<{
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>
-                                                    {new Date(member.createdAt).toLocaleDateString('es-ES')}
+                                                    {new Date(member.joinedAt).toLocaleDateString('es-ES')}
                                                 </TableCell>
                                                 <TableCell>
                                                     <div className="flex gap-2">
@@ -1109,7 +1156,7 @@ const PublisherDetails: React.FC<{
                         </CardHeader>
                         <CardContent>
                             <p className="text-muted-foreground">
-                                {publisher.modpacks?.length || 0} modpacks asociados
+                                {publisher.modpackCount || 0} modpacks asociados
                             </p>
                         </CardContent>
                     </Card>
@@ -1243,7 +1290,7 @@ const PublisherDetails: React.FC<{
                         <div>
                             <label className="block text-sm font-medium mb-2">Usuario</label>
                             <Input
-                                value={selectedMember?.user?.username}
+                                value={selectedMember?.username}
                                 readOnly
                             />
                         </div>
@@ -1296,7 +1343,7 @@ const PublisherDetails: React.FC<{
                     <AlertDialogHeader>
                         <AlertDialogTitle>Remover Miembro</AlertDialogTitle>
                         <AlertDialogDescription>
-                            ¿Estás seguro de que quieres remover a {memberToRemove?.user?.username} del publisher?
+                            ¿Estás seguro de que quieres remover a {memberToRemove?.username} del publisher?
                             Esta acción no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
@@ -1378,7 +1425,8 @@ export const ManagePublishersView: React.FC = () => {
 
             const result = await AdminPublishersAPI.getPublishers(options, sessionTokens.accessToken);
 
-            setPublishers(result.data || []);
+            const rawList = result.data || [];
+            setPublishers(rawList.map(mapCreatorToPublisher));
             setTotal(result.meta?.total || 0);
             setTotalPages(result.meta?.totalPages || 1);
         } catch (err: any) {
@@ -1671,7 +1719,7 @@ export const ManagePublishersView: React.FC = () => {
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                {publisher.members?.length || 0}
+                                                {publisher.memberCount || 0}
                                             </TableCell>
                                             <TableCell>
                                                 {new Date(publisher.createdAt).toLocaleDateString('es-ES')}

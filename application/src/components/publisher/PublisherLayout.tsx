@@ -12,7 +12,6 @@ import {
     LucideSettings,
     LucideBuilding2,
     LucideShield,
-    LucideHandCoins,
     LucideBarChart3,
     LucideCloud,
     LucideCrown,
@@ -28,7 +27,6 @@ import { PublisherModpacksView } from '@/views/publisher/PublisherModpacksView';
 import { PublisherTeamView } from '@/views/publisher/PublisherTeamViewEnhanced';
 import { PublisherModpackVersionsView } from '@/views/publisher/PublisherModpackVersionsView';
 import PublisherModpackVersionDetailView from '@/views/publisher/PublisherModpackVersionDetailView';
-import { PublisherPaymentsView } from '@/views/publisher/PublisherPaymentsView';
 import PublisherModpackVersionWizard from '@/components/publisher/PublisherModpackVersionWizard';
 import { PublisherAnalyticsView } from '@/views/publisher/PublisherAnalyticsView';
 import { PublisherStorageView } from '@/views/publisher/PublisherStorageView';
@@ -54,7 +52,7 @@ const getPublisherNavItems = (publisherId: string) => [
         items: [
             { path: `/publisher/${publisherId}/team`, label: 'Equipo', icon: LucideUsers, desc: "Miembros y roles" },
             { path: `/publisher/${publisherId}/subscription`, label: 'Plan Pro', icon: LucideCrown, desc: "Facturación", disabled: import.meta.env.PROD },
-            { path: `/publisher/${publisherId}/payments`, label: 'Ingresos', icon: LucideHandCoins, desc: "Retiros", disabled: true },
+
         ]
     },
     {
@@ -236,7 +234,6 @@ export const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) =>
                                     <Route path="/modpacks/:modpackId/versions/:versionId" element={<PublisherModpackVersionDetailView />} />
                                     <Route path="/subscription" element={<PublisherSubscriptionView />} />
                                     <Route path="/team" element={<PublisherTeamView />} />
-                                    <Route path="/payments" element={<PublisherPaymentsView />} />
                                     <Route path="/analytics" element={<PublisherAnalyticsView />} />
                                     <Route path="/storage" element={<PublisherStorageView />} />
                                     <Route path="/settings" element={<PublisherSettingsView />} />

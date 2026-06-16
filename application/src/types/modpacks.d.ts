@@ -15,9 +15,7 @@ export interface Modpack {
   createdAt: string;
   organizationId?: string;
   categories?: ModpackCategory[];
-  isPaid?: boolean;
-  price?: string;
-  acquisitionMethod?: 'free' | 'paid' | 'password';
+  acquisitionMethod?: 'free' | 'password' | 'twitch_sub';
   password?: string;
   requiresTwitchSubscription?: boolean;
   twitchChannels?: TwitchChannel[];
