@@ -1,12 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { motion } from 'motion/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import {
     LucideLoader,
@@ -17,142 +16,113 @@ import {
     LucideRefreshCw,
     LucideBan,
     LucideShieldCheck,
-    LucideHistory
+    LucideHistory,
+    LucideUsers,
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { API_ENDPOINT } from "@/consts";
-import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger } from '@/components/ui/context-menu';
 
-// Types
 interface User {
     id: string;
     username: string;
     email: string;
-    role: 'user' | 'admin' | 'superadmin';
+    role: 'user' | 'admin' | 'super_admin';
     avatarUrl?: string;
     createdAt: string;
     updatedAt: string;
-    isBanned: boolean; // Now included directly from API
+    isBanned: boolean;
 }
 
 interface BanHistoryItem {
     id: string;
     userId: string;
-    user: {
-        id: string;
-        username: string;
-        avatarUrl?: string;
-    };
+    user: { id: string; username: string; avatarUrl?: string };
     adminId: string;
-    admin: {
-        id: string;
-        username: string;
-        avatarUrl?: string;
-    };
+    admin: { id: string; username: string; avatarUrl?: string };
     reason?: string;
     banDate: string;
     unbanDate?: string;
-    unbannedBy?: {
-        id: string;
-        username: string;
-        avatarUrl?: string;
-    };
+    unbannedBy?: { id: string; username: string; avatarUrl?: string };
     isActive: boolean;
-}
-
-interface PaginatedUsers {
-    users: User[];
-    total: number;
-    page: number;
-    totalPages: number;
 }
 
 interface UserFormData {
     username: string;
     email: string;
-    role: 'user' | 'admin' | 'superadmin';
+    role: 'user' | 'admin' | 'super_admin' | 'system';
     avatarUrl?: string;
 }
 
-// API Service
+const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { duration: 0.4 } },
+};
+
+const tableRowVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 90, damping: 18 } },
+} as const;
+
+const tableContainerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.04 } },
+} as const;
+
 class AdminUsersAPI {
     private static baseUrl = `${API_ENDPOINT}/admin/users`;
 
     static async fetchUsers(params: {
-        page?: number;
-        limit?: number;
-        search?: string;
-        role?: string;
-        sortBy?: string;
-        sortOrder?: string;
-    } = {}, accessToken: string): Promise<PaginatedUsers> {
+        page?: number; limit?: number; search?: string; role?: string; sortBy?: string; sortOrder?: string;
+    } = {}, accessToken: string) {
         const queryParams = new URLSearchParams();
         Object.entries(params).forEach(([key, value]) => {
-            if (value !== undefined && value !== '') {
-                queryParams.set(key, value.toString());
-            }
+            if (value !== undefined && value !== '') queryParams.set(key, value.toString());
         });
 
         const response = await fetch(`${this.baseUrl}?${queryParams}`, {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
         });
+        if (!response.ok) throw new Error('Failed to fetch users');
 
-        if (!response.ok) {
-            throw new Error('Failed to fetch users');
-        }
-
-        return response.json();
+        const json = await response.json();
+        return { users: json.data, total: json.meta.total, page: json.meta.page, totalPages: json.meta.totalPages };
     }
 
     static async createUser(userData: UserFormData, accessToken: string): Promise<User> {
         const response = await fetch(this.baseUrl, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify(userData),
         });
-
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Failed to create user');
         }
-
-        return response.json();
+        const json = await response.json();
+        return json.data;
     }
 
     static async updateUser(userId: string, userData: Partial<UserFormData>, accessToken: string): Promise<User> {
         const response = await fetch(`${this.baseUrl}/${userId}`, {
             method: 'PATCH',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify(userData),
         });
-
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Failed to update user');
         }
-
-        return response.json();
+        const json = await response.json();
+        return json.data;
     }
 
     static async deleteUser(userId: string, accessToken: string): Promise<void> {
         const response = await fetch(`${this.baseUrl}/${userId}`, {
             method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers: { 'Authorization': `Bearer ${accessToken}` },
         });
-
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Failed to delete user');
@@ -162,13 +132,9 @@ class AdminUsersAPI {
     static async banUser(userId: string, reason: string, accessToken: string): Promise<void> {
         const response = await fetch(`${API_ENDPOINT}/admin/bans`, {
             method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId, reason }),
         });
-
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Failed to ban user');
@@ -178,11 +144,8 @@ class AdminUsersAPI {
     static async unbanUser(userId: string, accessToken: string): Promise<void> {
         const response = await fetch(`${API_ENDPOINT}/admin/bans/${userId}`, {
             method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers: { 'Authorization': `Bearer ${accessToken}` },
         });
-
         if (!response.ok) {
             const errorData = await response.json();
             throw new Error(errorData.error || 'Failed to unban user');
@@ -191,14 +154,9 @@ class AdminUsersAPI {
 
     static async getUserBanHistory(userId: string, accessToken: string): Promise<BanHistoryItem[]> {
         const response = await fetch(`${API_ENDPOINT}/admin/bans/user/${userId}/history`, {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers: { 'Authorization': `Bearer ${accessToken}` },
         });
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch ban history');
-        }
+        if (!response.ok) throw new Error('Failed to fetch ban history');
 
         const data = await response.json();
         return data.history;
@@ -206,101 +164,126 @@ class AdminUsersAPI {
 
     static async checkBanStatus(userId: string, accessToken: string): Promise<{ isBanned: boolean; ban?: BanHistoryItem }> {
         const response = await fetch(`${API_ENDPOINT}/admin/bans/user/${userId}/status`, {
-            headers: {
-                'Authorization': `Bearer ${accessToken}`,
-            },
+            headers: { 'Authorization': `Bearer ${accessToken}` },
         });
-
-        if (!response.ok) {
-            throw new Error('Failed to check ban status');
-        }
-
+        if (!response.ok) throw new Error('Failed to check ban status');
         return response.json();
     }
 }
 
-// User Form Component
-const UserForm: React.FC<{
-    user?: User;
-    onSubmit: (data: UserFormData) => void;
-    onCancel: () => void;
-    isLoading: boolean;
-}> = ({ user, onSubmit, onCancel, isLoading }) => {
+const RoleBadge = ({ role }: { role: string }) => {
+    const config: Record<string, { variant: "destructive" | "default" | "secondary"; label: string; className: string }> = {
+        super_admin: {
+            variant: "destructive",
+            label: "SUPER ADMIN",
+            className: "bg-red-500/10 text-red-400 border-red-500/20",
+        },
+        admin: {
+            variant: "default",
+            label: "ADMIN",
+            className: "bg-blue-500/10 text-blue-400 border-blue-500/20",
+        },
+        user: {
+            variant: "secondary",
+            label: "USUARIO",
+            className: "bg-white/5 text-neutral-400 border-white/10",
+        },
+        system: {
+            variant: "secondary",
+            label: "SISTEMA",
+            className: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
+        },
+    };
+
+    const c = config[role] || config.user;
+
+    return (
+        <Badge variant={c.variant} className={c.className}>
+            {c.label}
+        </Badge>
+    );
+};
+
+const StatusBadge = ({ isBanned }: { isBanned: boolean }) => {
+    if (isBanned) {
+        return (
+            <Badge variant="destructive" className="bg-red-500/10 text-red-400 border-red-500/20">
+                BANEADO
+            </Badge>
+        );
+    }
+    return (
+        <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+            ACTIVO
+        </Badge>
+    );
+};
+
+const AvatarInitials = ({ username, avatarUrl, className }: { username: string; avatarUrl?: string; className?: string }) => {
+    if (avatarUrl) {
+        return <img src={avatarUrl} alt={username} className={`w-7 h-7 rounded-full object-cover ${className || ''}`} />;
+    }
+    const initials = username.slice(0, 2).toUpperCase();
+    return (
+        <div className={`w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-medium text-neutral-400 ${className || ''}`}>
+            {initials}
+        </div>
+    );
+};
+
+const UserForm = ({ user, onSubmit, onCancel, isLoading }: {
+    user?: User; onSubmit: (data: UserFormData) => void; onCancel: () => void; isLoading: boolean;
+}) => {
     const [formData, setFormData] = useState<UserFormData>({
         username: user?.username || '',
         email: user?.email || '',
         role: user?.role || 'user',
-        avatarUrl: user?.avatarUrl || ''
+        avatarUrl: user?.avatarUrl || '',
     });
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        onSubmit(formData);
-    };
+    const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onSubmit(formData); };
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-                <label htmlFor="username" className="block text-sm font-medium mb-1">
+                <label htmlFor="username" className="block text-sm font-medium mb-1.5 text-neutral-300">
                     Nombre de Usuario
                 </label>
-                <Input
-                    id="username"
-                    value={formData.username}
-                    onChange={(e) => setFormData(prev => ({ ...prev, username: e.target.value }))}
-                    placeholder="Ingresa el nombre de usuario"
-                    required
-                />
+                <Input id="username" value={formData.username} onChange={(e) => setFormData(p => ({ ...p, username: e.target.value }))}
+                    placeholder="Ingresa el nombre de usuario" required className="bg-white/5 border-white/10" />
             </div>
-
             <div>
-                <label htmlFor="email" className="block text-sm font-medium mb-1">
+                <label htmlFor="email" className="block text-sm font-medium mb-1.5 text-neutral-300">
                     Correo Electrónico
                 </label>
-                <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                    placeholder="Ingresa el correo electrónico"
-                    required
-                />
+                <Input id="email" type="email" value={formData.email}
+                    onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
+                    placeholder="Ingresa el correo electrónico" required className="bg-white/5 border-white/10" />
             </div>
-
             <div>
-                <label htmlFor="role" className="block text-sm font-medium mb-1">
+                <label htmlFor="role" className="block text-sm font-medium mb-1.5 text-neutral-300">
                     Rol
                 </label>
-                <Select
-                    value={formData.role}
-                    onValueChange={(value: 'user' | 'admin' | 'superadmin') =>
-                        setFormData(prev => ({ ...prev, role: value }))
-                    }
-                >
-                    <SelectTrigger>
+                <Select value={formData.role} onValueChange={(value: 'user' | 'admin' | 'super_admin') =>
+                    setFormData(p => ({ ...p, role: value }))}>
+                    <SelectTrigger className="bg-white/5 border-white/10">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="user">Usuario</SelectItem>
-                        <SelectItem value="support">Soporte</SelectItem>
                         <SelectItem value="admin">Administrador</SelectItem>
-                        <SelectItem value="superadmin">Super Administrador</SelectItem>
+                        <SelectItem value="super_admin">Super Administrador</SelectItem>
                     </SelectContent>
                 </Select>
             </div>
-
             <div>
-                <label htmlFor="avatarUrl" className="block text-sm font-medium mb-1">
-                    URL del Avatar (Opcional)
+                <label htmlFor="avatarUrl" className="block text-sm font-medium mb-1.5 text-neutral-300">
+                    URL del Avatar <span className="text-neutral-500">(Opcional)</span>
                 </label>
-                <Input
-                    id="avatarUrl"
-                    value={formData.avatarUrl}
-                    onChange={(e) => setFormData(prev => ({ ...prev, avatarUrl: e.target.value }))}
-                    placeholder="Ingresa la URL del avatar"
-                />
+                <Input id="avatarUrl" value={formData.avatarUrl}
+                    onChange={(e) => setFormData(p => ({ ...p, avatarUrl: e.target.value }))}
+                    placeholder="https://..." className="bg-white/5 border-white/10" />
             </div>
-
             <DialogFooter>
                 <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
                     Cancelar
@@ -314,46 +297,12 @@ const UserForm: React.FC<{
     );
 };
 
-// Role Badge Component
-const RoleBadge: React.FC<{ role: string }> = ({ role }) => {
-    const getBadgeVariant = (role: string) => {
-        switch (role) {
-            case 'superadmin': return 'destructive';
-            case 'admin': return 'default';
-            default: return 'secondary';
-        }
-    };
-
-    const getRoleLabel = (role: string) => {
-        switch (role) {
-            case 'superadmin': return 'SUPER ADMIN';
-            case 'admin': return 'ADMIN';
-            case 'user': return 'USUARIO';
-            default: return role.toUpperCase();
-        }
-    };
-
-    return (
-        <Badge variant={getBadgeVariant(role) as any}>
-            {getRoleLabel(role)}
-        </Badge>
-    );
-};
-
-// Ban Dialog Component
-const BanDialog: React.FC<{
-    user: User;
-    isOpen: boolean;
-    onClose: () => void;
-    onBan: (reason: string) => void;
-    isLoading: boolean;
-}> = ({ user, isOpen, onClose, onBan, isLoading }) => {
+const BanDialog = ({ user, isOpen, onClose, onBan, isLoading }: {
+    user: User; isOpen: boolean; onClose: () => void; onBan: (reason: string) => void; isLoading: boolean;
+}) => {
     const [reason, setReason] = useState('');
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        onBan(reason);
-    };
+    const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); onBan(reason); };
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -363,21 +312,16 @@ const BanDialog: React.FC<{
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <p className="text-sm text-muted-foreground mb-4">
-                            ¿Estás seguro de que quieres banear a <strong>{user.username}</strong>?
+                        <p className="text-sm text-neutral-400 mb-4">
+                            ¿Estás seguro de que quieres banear a <strong className="text-white">{user.username}</strong>?
                         </p>
-                        <label htmlFor="banReason" className="block text-sm font-medium mb-1">
-                            Razón del ban (opcional)
+                        <label htmlFor="banReason" className="block text-sm font-medium mb-1.5 text-neutral-300">
+                            Razón del ban <span className="text-neutral-500">(opcional)</span>
                         </label>
-                        <Textarea
-                            id="banReason"
-                            value={reason}
-                            onChange={(e) => setReason(e.target.value)}
-                            placeholder="Describe la razón del ban..."
-                            rows={4}
-                        />
+                        <Textarea id="banReason" value={reason} onChange={(e) => setReason(e.target.value)}
+                            placeholder="Describe la razón del ban..." rows={4}
+                            className="bg-white/5 border-white/10" />
                     </div>
-
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
                             Cancelar
@@ -393,20 +337,14 @@ const BanDialog: React.FC<{
     );
 };
 
-// Ban History Dialog Component
-const BanHistoryDialog: React.FC<{
-    user: User;
-    isOpen: boolean;
-    onClose: () => void;
-    accessToken: string;
-}> = ({ user, isOpen, onClose, accessToken }) => {
+const BanHistoryDialog = ({ user, isOpen, onClose, accessToken }: {
+    user: User; isOpen: boolean; onClose: () => void; accessToken: string;
+}) => {
     const [history, setHistory] = useState<BanHistoryItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
-        if (isOpen && user) {
-            loadHistory();
-        }
+        if (isOpen && user) loadHistory();
     }, [isOpen, user]);
 
     const loadHistory = async () => {
@@ -425,42 +363,43 @@ const BanHistoryDialog: React.FC<{
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                    <DialogTitle>Historial de Bans - {user.username}</DialogTitle>
+                    <DialogTitle className="flex items-center gap-2">
+                        <LucideHistory className="h-4 w-4 text-neutral-400" />
+                        Historial de Bans — {user.username}
+                    </DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 max-h-96 overflow-y-auto">
+                <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                     {isLoading ? (
-                        <div className="flex items-center justify-center py-8">
-                            <LucideLoader className="h-6 w-6 animate-spin" />
+                        <div className="flex items-center justify-center py-12">
+                            <LucideLoader className="h-5 w-5 animate-spin text-neutral-500" />
                         </div>
                     ) : history.length === 0 ? (
-                        <p className="text-center text-muted-foreground py-8">
-                            No hay historial de bans para este usuario.
-                        </p>
+                        <div className="flex flex-col items-center justify-center py-12 text-neutral-500">
+                            <LucideShieldCheck className="h-8 w-8 mb-2 opacity-50" />
+                            <p className="text-sm">No hay historial de bans para este usuario.</p>
+                        </div>
                     ) : (
                         history.map((ban) => (
-                            <div key={ban.id} className="border rounded-lg p-4 space-y-2">
+                            <div key={ban.id} className="border border-white/[0.06] rounded-lg p-4 space-y-2 bg-white/[0.02]">
                                 <div className="flex items-center justify-between">
-                                    <Badge variant={ban.isActive ? 'destructive' : 'secondary'}>
+                                    <Badge variant={ban.isActive ? 'destructive' : 'secondary'}
+                                        className={ban.isActive ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-white/5 text-neutral-400 border-white/10'}>
                                         {ban.isActive ? 'ACTIVO' : 'INACTIVO'}
                                     </Badge>
-                                    <span className="text-sm text-muted-foreground">
+                                    <span className="text-xs text-neutral-500">
                                         {new Date(ban.banDate).toLocaleString('es-ES')}
                                     </span>
                                 </div>
                                 {ban.reason && (
                                     <div>
-                                        <span className="text-sm font-medium">Razón:</span>
-                                        <p className="text-sm text-muted-foreground">{ban.reason}</p>
+                                        <span className="text-xs font-medium text-neutral-400">Razón:</span>
+                                        <p className="text-sm text-neutral-300 mt-0.5">{ban.reason}</p>
                                     </div>
                                 )}
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-muted-foreground">
-                                        Baneado por: <strong>{ban.admin.username}</strong>
-                                    </span>
+                                <div className="flex items-center justify-between text-xs text-neutral-500 pt-1 border-t border-white/[0.04]">
+                                    <span>Baneado por: <strong className="text-neutral-300">{ban.admin.username}</strong></span>
                                     {ban.unbannedBy && (
-                                        <span className="text-muted-foreground">
-                                            Desbaneado por: <strong>{ban.unbannedBy.username}</strong>
-                                        </span>
+                                        <span>Desbaneado por: <strong className="text-neutral-300">{ban.unbannedBy.username}</strong></span>
                                     )}
                                 </div>
                             </div>
@@ -472,17 +411,12 @@ const BanHistoryDialog: React.FC<{
     );
 };
 
-// Main Component
-export const ManageUsersView: React.FC = () => {
-    const [usersData, setUsersData] = useState<PaginatedUsers>({
-        users: [],
-        total: 0,
-        page: 1,
-        totalPages: 0
-    });
+export const ManageUsersView = () => {
+    const [usersData, setUsersData] = useState({ users: [] as User[], total: 0, page: 1, totalPages: 0 });
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [debouncedSearch, setDebouncedSearch] = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
     const [currentPage, setCurrentPage] = useState(1);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
@@ -495,486 +429,338 @@ export const ManageUsersView: React.FC = () => {
     const { toast } = useToast();
     const { session, sessionTokens } = useAuthentication();
 
-    const loadUsers = async () => {
-        if (!sessionTokens?.accessToken) {
-            setError('No access token available');
-            return;
-        }
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+        return () => clearTimeout(timer);
+    }, [searchTerm]);
 
+    const loadUsers = async () => {
+        if (!sessionTokens?.accessToken) { setError('No access token available'); return; }
         setIsLoading(true);
         setError(null);
-
         try {
             const data = await AdminUsersAPI.fetchUsers({
                 page: currentPage,
                 limit: 20,
-                search: searchTerm || undefined,
+                search: debouncedSearch || undefined,
                 role: roleFilter === 'all' ? undefined : roleFilter || undefined,
                 sortBy: 'createdAt',
-                sortOrder: 'DESC'
+                sortOrder: 'DESC',
             }, sessionTokens.accessToken);
-
             setUsersData(data);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Failed to load users');
-            toast({
-                title: 'Error',
-                description: 'Failed to load users',
-                variant: 'destructive'
-            });
+            toast({ title: 'Error', description: 'Failed to load users', variant: 'destructive' });
         } finally {
             setIsLoading(false);
         }
     };
 
     useEffect(() => {
-        if (sessionTokens?.accessToken) {
-            loadUsers();
-        }
-    }, [currentPage, searchTerm, roleFilter, sessionTokens?.accessToken]);
+        if (sessionTokens?.accessToken) loadUsers();
+    }, [currentPage, debouncedSearch, roleFilter, sessionTokens?.accessToken]);
 
     const handleCreateUser = async (userData: UserFormData) => {
-        if (!sessionTokens?.accessToken) {
-            toast({
-                title: 'Error',
-                description: 'No access token available',
-                variant: 'destructive'
-            });
-            return;
-        }
-
+        if (!sessionTokens?.accessToken) return;
         setIsSubmitting(true);
         try {
             await AdminUsersAPI.createUser(userData, sessionTokens.accessToken);
             setIsCreateDialogOpen(false);
             await loadUsers();
-            toast({
-                title: 'Success',
-                description: 'User created successfully'
-            });
+            toast({ title: 'Usuario creado', description: 'Usuario creado exitosamente' });
         } catch (err) {
-            toast({
-                title: 'Error',
-                description: err instanceof Error ? err.message : 'Failed to create user',
-                variant: 'destructive'
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
+            toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to create user', variant: 'destructive' });
+        } finally { setIsSubmitting(false); }
     };
 
     const handleUpdateUser = async (userData: UserFormData) => {
-        if (!editingUser) return;
-
-        if (!sessionTokens?.accessToken) {
-            toast({
-                title: 'Error',
-                description: 'No access token available',
-                variant: 'destructive'
-            });
-            return;
-        }
-
+        if (!editingUser || !sessionTokens?.accessToken) return;
         setIsSubmitting(true);
         try {
             await AdminUsersAPI.updateUser(editingUser.id, userData, sessionTokens.accessToken);
             setEditingUser(null);
             await loadUsers();
-            toast({
-                title: 'Success',
-                description: 'User updated successfully'
-            });
+            toast({ title: 'Usuario actualizado', description: 'Usuario actualizado exitosamente' });
         } catch (err) {
-            toast({
-                title: 'Error',
-                description: err instanceof Error ? err.message : 'Failed to update user',
-                variant: 'destructive'
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
+            toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to update user', variant: 'destructive' });
+        } finally { setIsSubmitting(false); }
     };
 
-    // Open confirm dialog for deletion
-    const handleDeleteUser = (user: User) => {
-        setDeletingUser(user);
-    };
-
-    // Perform deletion after confirmation
     const confirmDeleteUser = async () => {
-        if (!deletingUser) return;
-
-        if (!sessionTokens?.accessToken) {
-            toast({
-                title: 'Error',
-                description: 'No access token available',
-                variant: 'destructive'
-            });
-            return;
-        }
-
+        if (!deletingUser || !sessionTokens?.accessToken) return;
         try {
             await AdminUsersAPI.deleteUser(deletingUser.id, sessionTokens.accessToken);
             setDeletingUser(null);
             await loadUsers();
-            toast({
-                title: 'Success',
-                description: 'User deleted successfully'
-            });
+            toast({ title: 'Usuario eliminado', description: 'Usuario eliminado exitosamente' });
         } catch (err) {
-            toast({
-                title: 'Error',
-                description: err instanceof Error ? err.message : 'Failed to delete user',
-                variant: 'destructive'
-            });
+            toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to delete user', variant: 'destructive' });
         }
     };
 
-    // Ban user handler
     const handleBanUser = async (reason: string) => {
         if (!banningUser || !sessionTokens?.accessToken) return;
-
         setIsSubmitting(true);
         try {
             await AdminUsersAPI.banUser(banningUser.id, reason, sessionTokens.accessToken);
             setBanningUser(null);
-            await loadUsers(); // Reload users to get updated ban status
-            toast({
-                title: 'Success',
-                description: 'User banned successfully'
-            });
+            await loadUsers();
+            toast({ title: 'Usuario baneado', description: 'Usuario baneado exitosamente' });
         } catch (err) {
-            toast({
-                title: 'Error',
-                description: err instanceof Error ? err.message : 'Failed to ban user',
-                variant: 'destructive'
-            });
-        } finally {
-            setIsSubmitting(false);
-        }
+            toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to ban user', variant: 'destructive' });
+        } finally { setIsSubmitting(false); }
     };
 
-    // Unban user handler
     const handleUnbanUser = async (user: User) => {
         if (!sessionTokens?.accessToken) return;
-
         try {
             await AdminUsersAPI.unbanUser(user.id, sessionTokens.accessToken);
-            await loadUsers(); // Reload users to get updated ban status
-            toast({
-                title: 'Success',
-                description: 'User unbanned successfully'
-            });
+            await loadUsers();
+            toast({ title: 'Usuario desbaneado', description: 'Usuario desbaneado exitosamente' });
         } catch (err) {
-            toast({
-                title: 'Error',
-                description: err instanceof Error ? err.message : 'Failed to unban user',
-                variant: 'destructive'
-            });
+            toast({ title: 'Error', description: err instanceof Error ? err.message : 'Failed to unban user', variant: 'destructive' });
         }
     };
 
-    // Prevent non-admin users from accessing this view
-    if (!session?.isAdmin?.()) {
-        return (
-            <div className="container mx-auto p-4 text-center">
-                <Alert>
-                    <AlertDescription>
-                        You do not have permission to access this page.
-                    </AlertDescription>
-                </Alert>
-            </div>
-        );
-    }
-
     return (
-        <div className="container mx-auto p-4 space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                        <span>Gestión de Usuarios</span>
-                        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button>
-                                    <LucideUserPlus className="mr-2 h-4 w-4" />
-                                    Crear Usuario
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent>
-                                <DialogHeader>
-                                    <DialogTitle>Crear Nuevo Usuario</DialogTitle>
-                                </DialogHeader>
-                                <UserForm
-                                    onSubmit={handleCreateUser}
-                                    onCancel={() => setIsCreateDialogOpen(false)}
-                                    isLoading={isSubmitting}
-                                />
-                            </DialogContent>
-                        </Dialog>
-                    </CardTitle>
-                </CardHeader>
+        <motion.div variants={containerVariants} initial="hidden" animate="visible" className="space-y-6">
 
-                <CardContent className="space-y-4">
-                    {/* Filters */}
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        <div className="flex-1">
-                            <div className="relative">
-                                <LucideSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                    placeholder="Buscar por nombre de usuario o correo..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    className="pl-10"
-                                />
-                            </div>
+            <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-purple-500/10">
+                    <LucideUsers className="h-5 w-5 text-purple-400" />
+                </div>
+                <div>
+                    <h1 className="text-lg font-semibold text-white">Gestión de Usuarios</h1>
+                    <p className="text-sm text-neutral-500">Administrar usuarios, roles y permisos del sistema</p>
+                </div>
+            </div>
+
+            <div className="bg-[#121214] border border-white/[0.06] rounded-xl">
+                <div className="flex items-center justify-between p-6 pb-0">
+                    <div className="flex-1" />
+                    <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button className="bg-white text-black hover:bg-white/90">
+                                <LucideUserPlus className="mr-2 h-4 w-4" />
+                                Crear Usuario
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                                <DialogTitle>Crear Nuevo Usuario</DialogTitle>
+                            </DialogHeader>
+                            <UserForm onSubmit={handleCreateUser} onCancel={() => setIsCreateDialogOpen(false)} isLoading={isSubmitting} />
+                        </DialogContent>
+                    </Dialog>
+                </div>
+
+                <div className="p-6 pb-0">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="flex-1 relative">
+                            <LucideSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
+                            <Input placeholder="Buscar por nombre o correo..." value={searchTerm}
+                                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                                className="pl-10 bg-white/5 border-white/10 text-sm" />
                         </div>
-
-                        <Select value={roleFilter} onValueChange={setRoleFilter}>
-                            <SelectTrigger className="w-full sm:w-48">
+                        <Select value={roleFilter}
+                            onValueChange={(v) => { setRoleFilter(v); setCurrentPage(1); }}>
+                            <SelectTrigger className="w-full sm:w-44 bg-white/5 border-white/10 text-sm">
                                 <SelectValue placeholder="Filtrar por rol" />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">Todos los Roles</SelectItem>
                                 <SelectItem value="user">Usuario</SelectItem>
-                                <SelectItem value="support">Soporte</SelectItem>
                                 <SelectItem value="admin">Administrador</SelectItem>
-                                <SelectItem value="superadmin">Super Administrador</SelectItem>
+                                <SelectItem value="super_admin">Super Administrador</SelectItem>
                             </SelectContent>
                         </Select>
-
-                        <Button variant="outline" onClick={loadUsers} disabled={isLoading}>
+                        <Button variant="outline" onClick={loadUsers} disabled={isLoading}
+                            className="border-white/10 bg-white/5 hover:bg-white/10">
                             <LucideRefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                         </Button>
                     </div>
+                </div>
 
-                    {/* Error Display */}
+                <div className="p-6">
                     {error && (
-                        <Alert variant="destructive">
-                            <AlertDescription>{error}</AlertDescription>
-                        </Alert>
+                        <div className="flex items-center gap-3 p-4 mb-4 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+                            <LucideBan className="h-4 w-4 shrink-0" />
+                            {error}
+                        </div>
                     )}
 
-                    {/* Users Table */}
-                    <div className="border rounded-lg">
+                    <div className="border border-white/[0.06] rounded-lg overflow-hidden">
                         <Table>
                             <TableHeader>
-                                <TableRow>
-                                    <TableHead>Nombre de Usuario</TableHead>
-                                    <TableHead>Correo Electrónico</TableHead>
-                                    <TableHead>Rol</TableHead>
-                                    <TableHead>Estado</TableHead>
-                                    <TableHead>Creado</TableHead>
-                                    <TableHead className="text-right">Acciones</TableHead>
+                                <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
+                                    <TableHead className="h-10 text-xs font-medium text-neutral-500">Usuario</TableHead>
+                                    <TableHead className="h-10 text-xs font-medium text-neutral-500">Correo</TableHead>
+                                    <TableHead className="h-10 text-xs font-medium text-neutral-500">Rol</TableHead>
+                                    <TableHead className="h-10 text-xs font-medium text-neutral-500">Estado</TableHead>
+                                    <TableHead className="h-10 text-xs font-medium text-neutral-500">Creado</TableHead>
+                                    <TableHead className="h-10 text-xs font-medium text-neutral-500 text-right">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
-                            <TableBody>
-                                {isLoading ? (
+                            {isLoading ? (
+                                <TableBody>
                                     <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-8">
-                                            <LucideLoader className="h-6 w-6 animate-spin mx-auto" />
-                                            <p className="mt-2 text-muted-foreground">Cargando usuarios...</p>
+                                        <TableCell colSpan={6}>
+                                            <div className="flex items-center justify-center py-12">
+                                                <LucideLoader className="h-5 w-5 animate-spin text-neutral-500" />
+                                                <span className="ml-3 text-sm text-neutral-500">Cargando usuarios...</span>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
-                                ) : usersData.users.length === 0 ? (
+                                </TableBody>
+                            ) : usersData.users.length === 0 ? (
+                                <TableBody>
                                     <TableRow>
-                                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                                            No se encontraron usuarios
+                                        <TableCell colSpan={6}>
+                                            <div className="flex flex-col items-center justify-center py-12 text-neutral-500">
+                                                <LucideUsers className="h-8 w-8 mb-2 opacity-30" />
+                                                <p className="text-sm">No se encontraron usuarios</p>
+                                            </div>
                                         </TableCell>
                                     </TableRow>
-                                ) : (
-                                    usersData.users.map((user) => {
+                                </TableBody>
+                            ) : (
+                                <motion.tbody className="[&_tr:last-child]:border-0"
+                                    variants={tableContainerVariants} initial="hidden" animate="visible">
+                                    {usersData.users.map((user) => {
                                         const isBanned = user.isBanned;
-                                        const isAdmin = user.role === 'admin' || user.role === 'superadmin';
+                                        const isSystem = user.username === "system";
+                                        const isSelf = user.id === session?.id;
+                                        const isAdmin = user.role === 'admin' || user.role === 'super_admin';
 
                                         return (
-                                            <ContextMenu key={user.id}>
-                                                <ContextMenuTrigger asChild>
-                                                    <TableRow>
-                                                        <TableCell className="font-medium">
-                                                            <div className="flex items-center gap-2">
-                                                                {user.avatarUrl && (
-                                                                    <img
-                                                                        src={user.avatarUrl}
-                                                                        alt={user.username}
-                                                                        className="w-6 h-6 rounded-full"
-                                                                    />
-                                                                )}
-                                                                {user.username}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell>{user.email}</TableCell>
-                                                        <TableCell>
-                                                            <RoleBadge role={user.role} />
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {isBanned ? (
-                                                                <Badge variant="destructive">BANEADO</Badge>
-                                                            ) : (
-                                                                <Badge variant="secondary">ACTIVO</Badge>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {new Date(user.createdAt).toLocaleDateString()}
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            <div className="flex justify-end gap-2">
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    disabled={user.username === "system"}
-                                                                    onClick={() => setEditingUser(user)}
-                                                                    title="Editar usuario"
-                                                                >
-                                                                    <LucideEdit className="h-3 w-3" />
-                                                                </Button>
-
-                                                                <Button
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() => setViewingBanHistory(user)}
-                                                                    title="Ver historial de bans"
-                                                                >
-                                                                    <LucideHistory className="h-3 w-3" />
-                                                                </Button>
-
-                                                                {isBanned ? (
-                                                                    <Button
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        onClick={() => handleUnbanUser(user)}
-                                                                        disabled={user.username === "system"}
-                                                                        title="Desbanear usuario"
-                                                                    >
-                                                                        <LucideShieldCheck className="h-3 w-3 text-green-500" />
-                                                                    </Button>
-                                                                ) : (
-                                                                    <Button
-                                                                        variant="outline"
-                                                                        size="sm"
-                                                                        onClick={() => setBanningUser(user)}
-                                                                        disabled={isAdmin || user.username === "system"}
-                                                                        title={isAdmin ? "No se pueden banear administradores" : "Banear usuario"}
-                                                                    >
-                                                                        <LucideBan className="h-3 w-3 text-red-500" />
-                                                                    </Button>
-                                                                )}
-
-                                                                <Button
-                                                                    variant="destructive"
-                                                                    size="sm"
-                                                                    onClick={() => handleDeleteUser(user)}
-                                                                    disabled={user.id === session?.id || user.username === "system"}
-                                                                    title="Eliminar usuario"
-                                                                >
-                                                                    <LucideTrash className="h-3 w-3" />
-                                                                </Button>
-                                                            </div>
-                                                        </TableCell>
-                                                    </TableRow>
-                                                </ContextMenuTrigger>
-                                                <ContextMenuContent>
-                                                    <ContextMenuItem
-                                                        onClick={() => {
-                                                            navigator.clipboard.writeText(user.id);
-                                                            toast({
-                                                                title: 'Copiado',
-                                                                description: 'ID de usuario copiado al portapapeles'
-                                                            });
-                                                        }}
-                                                    >
-                                                        Copiar ID de usuario
-                                                    </ContextMenuItem>
-                                                </ContextMenuContent>
-                                            </ContextMenu>
+                                            <motion.tr key={user.id}
+                                                variants={tableRowVariants}
+                                                className="group border-b border-white/[0.04] last:border-0 transition-colors hover:bg-white/[0.02]">
+                                                <TableCell className="py-3">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <AvatarInitials username={user.username} avatarUrl={user.avatarUrl} />
+                                                        <span className="text-sm font-medium text-white">{user.username}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="py-3">
+                                                    <span className="text-sm text-neutral-400">{user.email}</span>
+                                                </TableCell>
+                                                <TableCell className="py-3">
+                                                    <RoleBadge role={user.role} />
+                                                </TableCell>
+                                                <TableCell className="py-3">
+                                                    <StatusBadge isBanned={isBanned} />
+                                                </TableCell>
+                                                <TableCell className="py-3">
+                                                    <span className="text-sm text-neutral-500">
+                                                        {new Date(user.createdAt).toLocaleDateString('es-ES')}
+                                                    </span>
+                                                </TableCell>
+                                                <TableCell className="py-3 text-right">
+                                                    <div className="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        <Button variant="outline" size="sm" disabled={isSystem}
+                                                            onClick={() => setEditingUser(user)}
+                                                            className="border-white/10 bg-white/5 hover:bg-white/10 h-8 w-8 p-0">
+                                                            <LucideEdit className="h-3.5 w-3.5 text-neutral-400" />
+                                                        </Button>
+                                                        <Button variant="outline" size="sm"
+                                                            onClick={() => setViewingBanHistory(user)}
+                                                            className="border-white/10 bg-white/5 hover:bg-white/10 h-8 w-8 p-0">
+                                                            <LucideHistory className="h-3.5 w-3.5 text-neutral-400" />
+                                                        </Button>
+                                                        {isBanned ? (
+                                                            <Button variant="outline" size="sm" disabled={isSystem}
+                                                                onClick={() => handleUnbanUser(user)}
+                                                                className="border-white/10 bg-white/5 hover:bg-white/10 h-8 w-8 p-0">
+                                                                <LucideShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                                                            </Button>
+                                                        ) : (
+                                                            <Button variant="outline" size="sm"
+                                                                disabled={isAdmin || isSystem}
+                                                                onClick={() => setBanningUser(user)}
+                                                                className="border-white/10 bg-white/5 hover:bg-white/10 h-8 w-8 p-0"
+                                                                title={isAdmin ? "No se pueden banear administradores" : "Banear usuario"}>
+                                                                <LucideBan className="h-3.5 w-3.5 text-red-400" />
+                                                            </Button>
+                                                        )}
+                                                        <Button variant="outline" size="sm"
+                                                            onClick={() => setDeletingUser(user)}
+                                                            disabled={isSelf || isSystem}
+                                                            className="border-white/10 bg-white/5 hover:bg-white/10 hover:border-red-500/30 h-8 w-8 p-0">
+                                                            <LucideTrash className="h-3.5 w-3.5 text-red-400" />
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </motion.tr>
                                         );
-                                    })
-                                )}
-                            </TableBody>
+                                    })}
+                                </motion.tbody>
+                            )}
                         </Table>
                     </div>
 
-                    {/* Pagination */}
                     {usersData.totalPages > 1 && (
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm text-muted-foreground">
-                                Mostrando {((currentPage - 1) * 20) + 1} a {Math.min(currentPage * 20, usersData.total)} de {usersData.total} usuarios
+                        <div className="flex items-center justify-between mt-4">
+                            <p className="text-xs text-neutral-500">
+                                Mostrando {((currentPage - 1) * 20) + 1}–{Math.min(currentPage * 20, usersData.total)} de {usersData.total} usuarios
                             </p>
                             <div className="flex gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1}
-                                >
+                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                    disabled={currentPage === 1} className="border-white/10 bg-white/5 hover:bg-white/10 text-xs h-8">
                                     Anterior
                                 </Button>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
+                                <Button variant="outline" size="sm"
                                     onClick={() => setCurrentPage(p => Math.min(usersData.totalPages, p + 1))}
                                     disabled={currentPage === usersData.totalPages}
-                                >
+                                    className="border-white/10 bg-white/5 hover:bg-white/10 text-xs h-8">
                                     Siguiente
                                 </Button>
                             </div>
                         </div>
                     )}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
-            {/* Edit User Dialog */}
             <Dialog open={!!editingUser} onOpenChange={() => setEditingUser(null)}>
                 <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>Editar Usuario</DialogTitle>
-                    </DialogHeader>
-                    {editingUser && (
-                        <UserForm
-                            user={editingUser}
-                            onSubmit={handleUpdateUser}
-                            onCancel={() => setEditingUser(null)}
-                            isLoading={isSubmitting}
-                        />
-                    )}
+                    <DialogHeader><DialogTitle>Editar Usuario</DialogTitle></DialogHeader>
+                    {editingUser && <UserForm user={editingUser} onSubmit={handleUpdateUser}
+                        onCancel={() => setEditingUser(null)} isLoading={isSubmitting} />}
                 </DialogContent>
             </Dialog>
 
-            {/* Delete confirmation AlertDialog */}
             <AlertDialog open={!!deletingUser} onOpenChange={(open) => { if (!open) setDeletingUser(null); }}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Eliminar Usuario</AlertDialogTitle>
                         <AlertDialogDescription>
-                            ¿Seguro que quieres eliminar al usuario <strong>{deletingUser?.username}</strong>? Esta acción no se puede deshacer.
+                            ¿Seguro que quieres eliminar a <strong className="text-white">{deletingUser?.username}</strong>?
+                            Esta acción no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel onClick={() => setDeletingUser(null)}>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={confirmDeleteUser} className="bg-red-600 hover:bg-red-700">Eliminar</AlertDialogAction>
+                        <AlertDialogCancel onClick={() => setDeletingUser(null)}
+                            className="border-white/10 bg-white/5 hover:bg-white/10">
+                            Cancelar
+                        </AlertDialogCancel>
+                        <AlertDialogAction onClick={confirmDeleteUser}
+                            className="bg-red-600 hover:bg-red-700 text-white">
+                            Eliminar
+                        </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
-            {/* Ban User Dialog */}
             {banningUser && sessionTokens?.accessToken && (
-                <BanDialog
-                    user={banningUser}
-                    isOpen={!!banningUser}
-                    onClose={() => setBanningUser(null)}
-                    onBan={handleBanUser}
-                    isLoading={isSubmitting}
-                />
+                <BanDialog user={banningUser} isOpen={!!banningUser} onClose={() => setBanningUser(null)}
+                    onBan={handleBanUser} isLoading={isSubmitting} />
             )}
 
-            {/* Ban History Dialog */}
             {viewingBanHistory && sessionTokens?.accessToken && (
-                <BanHistoryDialog
-                    user={viewingBanHistory}
-                    isOpen={!!viewingBanHistory}
-                    onClose={() => setViewingBanHistory(null)}
-                    accessToken={sessionTokens.accessToken}
-                />
+                <BanHistoryDialog user={viewingBanHistory} isOpen={!!viewingBanHistory}
+                    onClose={() => setViewingBanHistory(null)} accessToken={sessionTokens.accessToken} />
             )}
-        </div>
+
+        </motion.div>
     );
 };

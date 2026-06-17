@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 
 // Iconos
-import { LucideLibrary, LucideServer, LucideUsers, LucideTrash2, LucideShield, LucideLayoutGrid, LucideGamepad2 } from "lucide-react";
+import { LucideLibrary, LucideServer, LucideUsers, LucideTrash2, LucideShield, LucideLayoutGrid, LucideGamepad2, PanelLeftOpen, PanelLeftClose } from "lucide-react";
 import GridIcon from "@/icons/GridIcon";
 import { MdiHalloween } from "@/icons/MdiHalloween";
 import { isHalloween } from "@/utils/SPECIAL_DATES";
@@ -27,26 +27,42 @@ import GlassLock from "@/icons/GlassLock";
 
 // --- SUBCOMPONENTES ---
 
-const NavItem = memo(({ item, isActive }: { item: any, isActive: boolean }) => (
-    <Tooltip delayDuration={0}>
-        <TooltipTrigger>
-            <Link
-                to={item.path}
-                draggable={false}
-                className={cn(
-                    "group relative flex size-12 items-center justify-center p-2.5 rounded-md transition-all duration-200 ease-in-out cursor-pointer",
-                    isActive
-                        ? "bg-[var(--sidebar-accent)] text-[var(--sidebar-accent-foreground)] before:content-[''] before:absolute before:left-[-8px] before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-[var(--sidebar-primary)] before:rounded-full"
-                        : "text-[var(--sidebar-foreground)] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
-                )}
-            >
-                <item.icon className="size-5 transition-transform duration-200 group-hover:scale-110" />
-            </Link>
-        </TooltipTrigger>
-        <TooltipContent side="right">
-            {item.name}
-        </TooltipContent>
-    </Tooltip>
+const NavItem = memo(({ item, isActive, isExpanded }: { item: any, isActive: boolean, isExpanded: boolean }) => (
+    isExpanded ? (
+        <Link
+            to={item.path}
+            draggable={false}
+            className={cn(
+                "flex items-center gap-3 px-4 py-2.5 mx-2 rounded-md transition-all duration-200 ease-in-out",
+                isActive
+                    ? "bg-[var(--sidebar-accent)] text-[var(--sidebar-accent-foreground)]"
+                    : "text-[var(--sidebar-foreground)] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
+            )}
+        >
+            <item.icon className="size-5 shrink-0" />
+            <span className="text-sm font-medium truncate">{item.name}</span>
+        </Link>
+    ) : (
+        <Tooltip delayDuration={0}>
+            <TooltipTrigger>
+                <Link
+                    to={item.path}
+                    draggable={false}
+                    className={cn(
+                        "group relative flex size-12 items-center justify-center p-2.5 rounded-md transition-all duration-200 ease-in-out cursor-pointer",
+                        isActive
+                            ? "bg-[var(--sidebar-accent)] text-[var(--sidebar-accent-foreground)] before:content-[''] before:absolute before:left-[-8px] before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-6 before:bg-[var(--sidebar-primary)] before:rounded-full"
+                            : "text-[var(--sidebar-foreground)] hover:bg-[var(--sidebar-accent)] hover:text-[var(--sidebar-accent-foreground)]"
+                    )}
+                >
+                    <item.icon className="size-5 transition-transform duration-200 group-hover:scale-110" />
+                </Link>
+            </TooltipTrigger>
+            <TooltipContent side="right">
+                {item.name}
+            </TooltipContent>
+        </Tooltip>
+    )
 ));
 
 const HalloweenItem = memo(() => (
@@ -72,60 +88,88 @@ const HalloweenItem = memo(() => (
 const FavoriteItem = memo(({
     fav,
     isActive,
+    isExpanded,
     onClick,
     onContextMenu
 }: {
     fav: MinecraftInstance,
     isActive: boolean,
+    isExpanded: boolean,
     onClick: () => void,
     onContextMenu: (e: React.MouseEvent) => void
 }) => (
-    <div className="mb-2 w-full flex justify-center relative">
-        <Tooltip>
-            <TooltipTrigger asChild>
-                <div
-                    className="group relative flex items-center justify-center w-12 h-12 cursor-pointer"
-                    onClick={onClick}
-                    onContextMenu={onContextMenu}
-                >
-                    {/* La "Píldora" (Indicador lateral izquierdo) */}
-                    <span
-                        className={cn(
-                            "absolute left-[-12px] w-[4px] bg-white rounded-r-lg transition-all duration-300 ease-in-out",
-                            isActive
-                                ? "h-[40px] opacity-100" // Activo: Alto y visible
-                                : "h-[8px] opacity-0 scale-0 group-hover:opacity-50 group-hover:scale-100 group-hover:h-[20px]" // Hover: Pequeño y semi-transparente
-                        )}
-                    />
-
-                    {/* Contenedor del Icono (Morphing shape) */}
-                    <motion.div
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.8 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 25 }}
-                        className={cn(
-                            "relative flex size-12 items-center justify-center overflow-hidden transition-all duration-300 ease-in-out",
-                            // Fondo por defecto (si no hay imagen o carga)
-                            "bg-[var(--sidebar-accent)]/20",
-                            // Lógica de forma: Círculo (24px) -> Squircle (16px)
-                            isActive ? "rounded-[16px] bg-[var(--sidebar-primary)]" : "rounded-[24px] group-hover:rounded-[16px] group-hover:bg-[var(--sidebar-primary)]/80"
-                        )}
-                    >
-                        <img
-                            src={fav.iconUrl || "/images/modpack-fallback.webp"}
-                            alt={fav.instanceName}
-                            draggable={false}
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
-                        />
-                    </motion.div>
-                </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="font-semibold ml-4">
+    isExpanded ? (
+        <div
+            className="w-full px-3 py-1.5 flex items-center gap-3 cursor-pointer rounded-md transition-all duration-200 ease-in-out hover:bg-[var(--sidebar-accent)] relative"
+            onClick={onClick}
+            onContextMenu={onContextMenu}
+        >
+            <span className={cn(
+                "absolute left-0 w-[3px] rounded-r-lg transition-all duration-300 ease-in-out h-[24px]",
+                isActive ? "bg-white opacity-100" : "opacity-0"
+            )} />
+            <div className={cn(
+                "size-9 rounded-[12px] overflow-hidden bg-[var(--sidebar-accent)]/20 flex-shrink-0",
+                isActive && "bg-[var(--sidebar-primary)]"
+            )}>
+                <img
+                    src={fav.iconUrl || "/images/modpack-fallback.webp"}
+                    alt={fav.instanceName}
+                    draggable={false}
+                    className="h-full w-full object-cover"
+                />
+            </div>
+            <span className={cn(
+                "text-sm font-medium truncate",
+                isActive ? "text-[var(--sidebar-accent-foreground)]" : "text-[var(--sidebar-foreground)]"
+            )}>
                 {fav.instanceName}
-            </TooltipContent>
-        </Tooltip>
-    </div>
+            </span>
+        </div>
+    ) : (
+        <div className="mb-2 w-full flex justify-center relative">
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <div
+                        className="group relative flex items-center justify-center w-12 h-12 cursor-pointer"
+                        onClick={onClick}
+                        onContextMenu={onContextMenu}
+                    >
+                        <span
+                            className={cn(
+                                "absolute left-[-12px] w-[4px] bg-white rounded-r-lg transition-all duration-300 ease-in-out",
+                                isActive
+                                    ? "h-[40px] opacity-100"
+                                    : "h-[8px] opacity-0 scale-0 group-hover:opacity-50 group-hover:scale-100 group-hover:h-[20px]"
+                            )}
+                        />
+
+                        <motion.div
+                            initial={{ opacity: 0, scale: 0.8 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.8 }}
+                            transition={{ type: "spring", stiffness: 300, damping: 25 }}
+                            className={cn(
+                                "relative flex size-12 items-center justify-center overflow-hidden transition-all duration-300 ease-in-out",
+                                "bg-[var(--sidebar-accent)]/20",
+                                isActive ? "rounded-[16px] bg-[var(--sidebar-primary)]" : "rounded-[24px] group-hover:rounded-[16px] group-hover:bg-[var(--sidebar-primary)]/80"
+                            )}
+                        >
+                            <img
+                                src={fav.iconUrl || "/images/modpack-fallback.webp"}
+                                alt={fav.instanceName}
+                                draggable={false}
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                            />
+                        </motion.div>
+                    </div>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="font-semibold ml-4">
+                    {fav.instanceName}
+                </TooltipContent>
+            </Tooltip>
+        </div>
+    )
 ));
 
 // --- COMPONENTE PRINCIPAL ---
@@ -153,6 +197,9 @@ export const AppSidebar: React.FC = memo(() => {
     // Estado de datos
     const [favoriteInstances, setFavoriteInstances] = useState<MinecraftInstance[]>([]);
     const [dragItems, setDragItems] = useState<MinecraftInstance[]>([]);
+
+    const [isExpanded, setIsExpanded] = useState(() => localStorage.getItem('sidebarExpanded') === 'true');
+    const [extendedEnabled, setExtendedEnabled] = useState(false);
 
     // --- LÓGICA DE DATOS ---
 
@@ -256,6 +303,34 @@ export const AppSidebar: React.FC = memo(() => {
         }
     }, [contextMenuState.instance]);
 
+    // --- EXPANDED SIDEBAR ---
+
+    useEffect(() => {
+        const fetchExtendedEnabled = () => {
+            invoke<boolean | null>('get_config_value', { key: 'enableExtendedSidebar' })
+                .then(val => setExtendedEnabled(val === true))
+                .catch(() => {});
+        };
+
+        fetchExtendedEnabled();
+
+        const unlistenPromise = listen('config_changed', fetchExtendedEnabled);
+        return () => { unlistenPromise.then(unlisten => unlisten()); };
+    }, []);
+
+    useEffect(() => {
+        document.documentElement.style.setProperty(
+            '--sidebar-width',
+            isExpanded ? '200px' : '64px'
+        );
+    }, [isExpanded]);
+
+    const handleToggleSidebar = useCallback(async () => {
+        const newExpanded = !isExpanded;
+        setIsExpanded(newExpanded);
+        localStorage.setItem('sidebarExpanded', String(newExpanded));
+    }, [isExpanded]);
+
     // --- NAVIGATION ITEMS ---
 
     const NAV_ITEMS = useMemo(() => {
@@ -277,16 +352,17 @@ export const AppSidebar: React.FC = memo(() => {
     // --- RENDER ---
 
     return (
-        <aside className="h-full scrollbar-hide flex flex-col overflow-y-auto bg-[var(--sidebar)]" style={{ gridArea: 'sidebar' }}>
+        <aside className={cn("h-full scrollbar-hide flex flex-col bg-[var(--sidebar)]", isExpanded ? "overflow-y-auto" : "overflow-y-auto overflow-x-hidden")} style={{ gridArea: 'sidebar' }}>
             {/* Navegación principal */}
-            <div className="flex flex-col items-center py-2 space-y-1.5">
-                {isHalloween() && <HalloweenItem />}
+            <div className={cn("flex flex-col py-2 space-y-0.5", isExpanded ? "w-full px-1" : "items-center")}>
+                {isHalloween() && (isExpanded ? <div className="px-4 py-2 text-sm font-medium text-[var(--sidebar-foreground)]">🎃 Halloween</div> : <HalloweenItem />)}
 
                 {NAV_ITEMS.map((item) => (
                     <NavItem
                         key={item.path}
                         item={item}
                         isActive={location.pathname === item.path}
+                        isExpanded={isExpanded}
                     />
                 ))}
             </div>
@@ -300,7 +376,7 @@ export const AppSidebar: React.FC = memo(() => {
             {favoriteInstances.length > 0 && (
                 <div
                     ref={dragAndDropRef}
-                    className="flex flex-col items-center py-2 flex-1"
+                    className={cn("flex flex-col py-2 flex-1", isExpanded ? "w-full px-1 space-y-0.5" : "items-center")}
                 >
                     <AnimatePresence mode="popLayout">
                         {dragAndDropItems.map((fav) => (
@@ -308,6 +384,7 @@ export const AppSidebar: React.FC = memo(() => {
                                 key={fav.instanceId}
                                 fav={fav}
                                 isActive={location.pathname === (fav.instanceType === 'server' ? `/server/${fav.instanceId}` : `/prelaunch/${fav.instanceId}`)}
+                                isExpanded={isExpanded}
                                 onClick={() => navigate(fav.instanceType === 'server' ? `/server/${fav.instanceId}` : `/prelaunch/${fav.instanceId}`)}
                                 onContextMenu={(e) => handleContextMenu(e, fav)}
                             />
@@ -334,6 +411,20 @@ export const AppSidebar: React.FC = memo(() => {
                     </div>
                 )}
             </AnimatePresence>
+
+            {/* Toggle expandir/colapsar sidebar */}
+            {extendedEnabled && (
+                <button
+                    onClick={handleToggleSidebar}
+                    className={cn(
+                        "flex items-center justify-center w-full py-3 text-[var(--sidebar-foreground)]/50 hover:text-[var(--sidebar-foreground)] hover:bg-[var(--sidebar-accent)] transition-colors mt-auto",
+                        isExpanded && "gap-2"
+                    )}
+                >
+                    {isExpanded ? <PanelLeftClose className="size-5" /> : <PanelLeftOpen className="size-5" />}
+                    {isExpanded && <span className="text-xs">Colapsar</span>}
+                </button>
+            )}
         </aside>
     );
 });

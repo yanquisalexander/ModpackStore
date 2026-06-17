@@ -3,6 +3,7 @@ import { cors } from "@hono/hono/cors";
 import { SERVER_START_TIME } from "@/constants.ts";
 import { APIError } from "@/lib/APIError.ts";
 import v1Router from "@/v1/index.ts";
+import { generateSystemUser } from "@/db/seed.ts";
 import { ProcessModpackFilesQueue } from "@/worker/queues.ts";
 
 const PORT = Number(Deno.env.get("PORT")) || 3000;
@@ -78,6 +79,10 @@ if (SHOULD_INIT_WORKER) {
             },
             500,
         );
+    });
+
+    await generateSystemUser().catch((error) => {
+        console.error("Error generating system user:", error);
     });
 
     Deno.serve({ port: PORT }, app.fetch);

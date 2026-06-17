@@ -7,8 +7,8 @@ import {
     NotFoundError,
 } from "@/lib/errors/index.ts";
 import { db } from "@/db/client.ts";
-import { users, sessions, creatorUsersTable, creatorsTable } from "@/db/schema.ts";
-import { eq } from "drizzle-orm";
+import { users, sessions, bansTable, creatorUsersTable, creatorsTable } from "@/db/schema.ts";
+import { eq, and } from "drizzle-orm";
 import {
     getOAuthUrl as getDiscordOAuthUrl,
     exchangeCodeForToken,
@@ -48,6 +48,7 @@ export interface UserPublicProfile {
     email: string;
     avatarUrl: string | null;
     role: string;
+    isBanned: boolean;
     createdAt: Date;
     updatedAt: Date;
     creatorMemberships: CreatorMembership[];
@@ -162,10 +163,18 @@ export const authService = {
     },
 
     async getAuthenticatedUserProfile(userId: string): Promise<UserPublicProfile> {
-        const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+        const [user] = await db.select()
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1);
         if (!user) {
             throw new NotFoundError("User not found", "USER_NOT_FOUND");
         }
+
+        const [activeBan] = await db.select()
+            .from(bansTable)
+            .where(and(eq(bansTable.userId, userId), eq(bansTable.isActive, true)))
+            .limit(1);
 
         const memberships = await db.select({
             creatorId: creatorUsersTable.creatorId,
@@ -184,6 +193,7 @@ export const authService = {
             email: user.email,
             avatarUrl: user.avatarUrl,
             role: user.role,
+            isBanned: !!activeBan,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
             creatorMemberships: memberships,

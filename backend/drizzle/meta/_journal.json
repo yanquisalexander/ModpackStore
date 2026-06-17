@@ -64,6 +64,13 @@
       "when": 1781615615638,
       "tag": "0008_same_fixer",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1781656215752,
+      "tag": "0009_tan_nova",
+      "breakpoints": true
     }
   ]
 }

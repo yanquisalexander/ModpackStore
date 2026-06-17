@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { toast } from "sonner";
 import { useAuthentication } from '@/stores/AuthContext';
 import { invoke } from '@tauri-apps/api/core';
+import { emit } from "@tauri-apps/api/event";
 import { trackSectionView } from "@/lib/analytics";
 import { open } from "@tauri-apps/plugin-dialog";
 import { useI18n } from '@/hooks/useI18n';
@@ -149,6 +150,7 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
             const newDevMode = !(config.values.developerMode === true);
             try {
                 await invoke('set_config', { key: 'developerMode', value: newDevMode });
+                await emit('config_changed');
                 await loadConfig();
                 toast.success(newDevMode ? '🔧 Modo desarrollador activado' : 'Modo desarrollador desactivado');
             } catch {
@@ -183,6 +185,7 @@ export const ConfigurationDialog = ({ isOpen, onClose }: ConfigurationDialogProp
             await Promise.all(configToSave.map(([key, value]) => invoke('set_config', { key, value })));
 
             await invoke('reload_hotkeys');
+            await emit('config_changed');
 
             toast.success(t('config.saveSuccess'), { description: t('config.saveSuccessDescription') });
             setConfig(prev => ({ ...prev, saving: false }));

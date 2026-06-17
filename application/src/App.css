@@ -223,6 +223,8 @@ body,
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
   --sidebar-width: 64px;
+  --sidebar-collapsed-width: 64px;
+  --sidebar-expanded-width: 200px;
   --app-top-bar-height: 36px;
 }
 
@@ -356,6 +358,7 @@ body,
   grid-template-columns: var(--grid-columns, [start] var(--sidebar-width) [sidebarEnd] 1fr [end]);
   grid-template-rows: [top] var(--app-top-bar-height) [topbarEnd] 1fr [end];
   height: 100vh;
+  transition: grid-template-columns 0.2s ease;
 }
 
 .mstore-layout-base.no-sidebar {

@@ -1,8 +1,5 @@
-import { LucideLogOut, LucideMessageCircle } from "lucide-react";
+import { LucideLogOut, LucideMessageCircle, LucideShieldAlert } from "lucide-react";
 import { useAuthentication } from "@/stores/AuthContext";
-import { invoke } from "@tauri-apps/api/core";
-import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { open } from "@tauri-apps/plugin-shell";
 
@@ -16,7 +13,6 @@ export const BannedScreen: React.FC = () => {
             navigate('/login');
         } catch (error) {
             console.error('Error logging out:', error);
-            toast.error('Error al cerrar sesión');
         }
     };
 
@@ -24,96 +20,53 @@ export const BannedScreen: React.FC = () => {
         open('https://discord.gg/XSRtDgJzzK').catch(console.error);
     };
 
-    const banReason = session?.activeBan?.reason || session?.banReason || 'No se proporcionó una razón';
+    const banReason = session?.activeBan?.reason || session?.banReason;
     const banDate = session?.activeBan?.banDate
-        ? new Date(session.activeBan.banDate).toLocaleString('es-ES', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        })
-        : 'Desconocida';
+        ? new Date(session.activeBan.banDate).toLocaleDateString('es-ES', { year: 'numeric', month: 'long', day: 'numeric' })
+        : null;
 
     return (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-red-950/95 via-black/95 to-black/95 backdrop-blur-lg">
-            <div className="max-w-xl mx-auto p-4 text-center space-y-4">
-                {/* Header Section */}
-                <div className="space-y-3">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-red-500/20">
-                        <svg
-                            className="w-8 h-8 text-red-500"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                        >
-                            <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                            />
-                        </svg>
-                    </div>
-                    <h1 className="text-2xl font-bold text-white">
-                        Cuenta Suspendida
-                    </h1>
-                    <p className="text-base text-gray-300">
-                        Tu cuenta ha sido baneada y no puedes acceder a Modpack Store.
-                    </p>
+        <div className="h-full flex flex-col items-center justify-center px-4">
+            <LucideShieldAlert className="w-10 h-10 text-red-500/70 mb-5" />
+
+            <h1 className="text-base font-semibold text-white/80">
+                Cuenta suspendida
+            </h1>
+
+            <p className="text-sm text-neutral-600 mt-1 max-w-xs text-center leading-relaxed">
+                Tu cuenta ha sido suspendida y no puedes acceder a Modpack Store.
+            </p>
+
+            {(banReason || banDate) && (
+                <div className="mt-5 p-3 rounded-lg bg-white/[0.03] border border-white/[0.06] max-w-xs w-full space-y-1.5">
+                    {banReason && (
+                        <p className="text-xs text-neutral-500 leading-relaxed">
+                            <span className="text-neutral-400">Razón:</span> {banReason}
+                        </p>
+                    )}
+                    {banDate && (
+                        <p className="text-xs text-neutral-500">
+                            <span className="text-neutral-400">Fecha:</span> {banDate}
+                        </p>
+                    )}
                 </div>
+            )}
 
-                {/* Ban Details */}
-                <div className="bg-black/50 backdrop-blur-sm rounded-lg p-4 border border-red-500/30">
-                    <h2 className="text-sm font-semibold text-white mb-2">
-                        Detalles del Ban
-                    </h2>
-                    <div className="space-y-2 text-left">
-                        <div>
-                            <span className="text-gray-400 text-xs">Razón:</span>
-                            <p className="text-white text-sm mt-0.5">{banReason}</p>
-                        </div>
-                        <div>
-                            <span className="text-gray-400 text-xs">Fecha del ban:</span>
-                            <p className="text-white text-sm mt-0.5">{banDate}</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Actions */}
-                <div className="space-y-3">
-                    <p className="text-gray-300 text-xs">
-                        Si crees que esto es un error, contacta nuestro soporte en Discord.
-                    </p>
-
-                    <div className="flex flex-col sm:flex-row gap-2 justify-center">
-                        <Button
-                            onClick={handleOpenDiscord}
-                            size="sm"
-                            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-sm"
-                        >
-                            <LucideMessageCircle className="w-4 h-4" />
-                            Soporte Discord
-                        </Button>
-
-                        <Button
-                            onClick={handleLogout}
-                            size="sm"
-                            variant="outline"
-                            className="flex items-center gap-2 border-gray-700 hover:bg-gray-800 text-sm"
-                        >
-                            <LucideLogOut className="w-4 h-4" />
-                            Cerrar Sesión
-                        </Button>
-                    </div>
-                </div>
-
-                {/* Footer */}
-                <div className="pt-3 border-t border-gray-800">
-                    <p className="text-xs text-gray-500">
-                        Usuario: <span className="text-gray-400 font-medium">{session?.username}</span>
-                    </p>
-                </div>
+            <div className="flex items-center gap-3 mt-8">
+                <button
+                    onClick={handleOpenDiscord}
+                    className="flex items-center gap-1.5 bg-white text-black text-sm font-semibold px-4 py-2 rounded-lg hover:bg-white/90 transition-colors active:scale-95"
+                >
+                    <LucideMessageCircle className="w-4 h-4" />
+                    Soporte Discord
+                </button>
+                <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-1.5 text-sm font-medium text-neutral-500 px-4 py-2 rounded-lg hover:text-neutral-300 hover:bg-white/[0.04] transition-colors"
+                >
+                    <LucideLogOut className="w-4 h-4" />
+                    Cerrar sesión
+                </button>
             </div>
         </div>
     );

@@ -18,6 +18,7 @@ export enum UserRole {
     USER = "user",
     ADMIN = "admin",
     SUPER_ADMIN = "super_admin",
+    SYSTEM = "system",
 }
 
 export enum CreatorStatus {
@@ -279,6 +280,39 @@ export const modpackWhitelistsTable = pgTable("modpack_whitelists", {
     uniqueUserModpack: uniqueIndex("uq_whitelist_user_modpack").on(table.modpackId, table.userId)
 }));
 
+/* Bans */
+
+export const bansTable = pgTable("bans", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    adminId: uuid("admin_id").notNull().references(() => users.id),
+    reason: text("reason"),
+    isActive: boolean("is_active").notNull().default(true),
+    unbanDate: timestamp("unban_date", { withTimezone: true }),
+    unbanAdminId: uuid("unban_admin_id").references(() => users.id),
+    unbanReason: text("unban_reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const bansRelations = relations(bansTable, ({ one }) => ({
+    user: one(users, {
+        relationName: "user_bans",
+        fields: [bansTable.userId],
+        references: [users.id],
+    }),
+    admin: one(users, {
+        relationName: "admin_bans",
+        fields: [bansTable.adminId],
+        references: [users.id],
+    }),
+    unbanAdmin: one(users, {
+        relationName: "unban_admin_bans",
+        fields: [bansTable.unbanAdminId],
+        references: [users.id],
+    }),
+}));
+
 /* 
     Relationships
 */
@@ -295,6 +329,9 @@ export const usersRelations = relations(users, ({ many }) => ({
     permissions: many(permissionsTable),
     acquisitions: many(modpackAcquisitionsTable),
     whitelistEntries: many(modpackWhitelistsTable),
+    bans: many(bansTable, { relationName: "user_bans" }),
+    adminBans: many(bansTable, { relationName: "admin_bans" }),
+    unbanAdminBans: many(bansTable, { relationName: "unban_admin_bans" }),
 }));
 
 export const modpacksRelations = relations(modpacksTable, ({ one, many }) => ({
