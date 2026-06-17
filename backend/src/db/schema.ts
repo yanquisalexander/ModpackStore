@@ -218,6 +218,7 @@ export const creatorsTable = pgTable("creators", {
     partner: boolean("partner").notNull().default(false),
     hostingPartner: boolean("hosting_partner").notNull().default(false),
     banned: boolean("banned").notNull().default(false),
+    nameLastChangedAt: timestamp("name_last_changed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

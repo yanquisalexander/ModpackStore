@@ -49,7 +49,7 @@ export const ModpackCard = ({
         e.preventDefault();
         e.stopPropagation();
         const slug = displayCreator.slug || displayCreator.id;
-        if (slug) navigate(`/p/${slug}`);
+        if (slug) navigate(`/c/${slug}`);
     };
 
     return (

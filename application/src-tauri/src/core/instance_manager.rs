@@ -1534,13 +1534,13 @@ async fn create_modpack_instance_struct(
     println!("{}", modpack_info.to_string());
 
     // Configurar banner
-    if let Some(banner_url) = modpack_info["data"]["attributes"]["bannerUrl"].as_str() {
+    if let Some(banner_url) = modpack_info["data"]["bannerUrl"].as_str() {
         let base64_banner = download_image_as_base64(banner_url).await?;
         instance.bannerUrl = Some(base64_banner);
     }
 
     // Configurar ícono
-    if let Some(icon_url) = modpack_info["data"]["attributes"]["iconUrl"].as_str() {
+    if let Some(icon_url) = modpack_info["data"]["iconUrl"].as_str() {
         let base64_icon = download_image_as_base64(icon_url).await?;
         instance.iconUrl = Some(base64_icon);
         instance.usesDefaultIcon = false;

@@ -30,18 +30,17 @@ import {
 import { useAuthentication } from '@/stores/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import {
-    PublisherPermissionsAPI,
-    PublisherMemberWithPermissions
-} from '@/services/publisherPermissions.service';
+    CreatorPermissionsAPI,
+    CreatorMember,
+} from '@/services/creatorPermissions.service';
 import { MemberPermissionsDialog } from '@/components/publisher/MemberPermissionsDialog';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
-// Add Member Dialog Component
 const AddMemberDialog: React.FC<{
-    publisherId: string;
+    creatorId: string;
     accessToken: string;
     onMemberAdded: () => void;
-}> = ({ publisherId, accessToken, onMemberAdded }) => {
+}> = ({ creatorId, accessToken, onMemberAdded }) => {
     const [open, setOpen] = useState(false);
     const [userId, setUserId] = useState('');
     const [role, setRole] = useState('member');
@@ -54,7 +53,7 @@ const AddMemberDialog: React.FC<{
 
         try {
             setLoading(true);
-            await PublisherPermissionsAPI.addMember(publisherId, userId, role, accessToken);
+            await CreatorPermissionsAPI.addMember(creatorId, userId, role, accessToken);
 
             toast({
                 title: "Éxito",
@@ -131,31 +130,28 @@ export const PublisherTeamView: React.FC = () => {
     const { session, sessionTokens } = useAuthentication();
     const { toast } = useToast();
 
-    // State
-    const [members, setMembers] = useState<PublisherMemberWithPermissions[]>([]);
+    const [members, setMembers] = useState<CreatorMember[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedMemberForPermissions, setSelectedMemberForPermissions] = useState<PublisherMemberWithPermissions | null>(null);
+    const [selectedMemberForPermissions, setSelectedMemberForPermissions] = useState<CreatorMember | null>(null);
     const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
-    const [memberToRemove, setMemberToRemove] = useState<PublisherMemberWithPermissions | null>(null);
+    const [memberToRemove, setMemberToRemove] = useState<CreatorMember | null>(null);
     const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
 
-    // Get user role in this publisher
-    const publisherMembership = session?.creatorMemberships?.find(
+    const creatorMembership = session?.creatorMemberships?.find(
         membership => membership.creatorId === publisherId
     );
-    const userRole = publisherMembership?.role || 'member';
+    const userRole = creatorMembership?.role || 'member';
     const canManageMembers = ['owner', 'admin'].includes(userRole);
-    const canManagePermissions = ['owner', 'admin'].includes(userRole); // For now, same as manage members
+    const canManagePermissions = ['owner', 'admin'].includes(userRole);
 
-    // Load members
     const loadMembers = async () => {
         if (!publisherId || !sessionTokens?.accessToken) return;
 
         try {
             setLoading(true);
             setError(null);
-            const data = await PublisherPermissionsAPI.getMembers(publisherId, sessionTokens.accessToken);
+            const data = await CreatorPermissionsAPI.getMembers(publisherId, sessionTokens.accessToken);
             setMembers(data.members);
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
@@ -170,18 +166,16 @@ export const PublisherTeamView: React.FC = () => {
         }
     };
 
-    // Remove member
-    const handleRemoveMember = async (member: PublisherMemberWithPermissions) => {
+    const handleRemoveMember = async (member: CreatorMember) => {
         setMemberToRemove(member);
         setRemoveDialogOpen(true);
     };
 
-    // Confirm remove member
     const confirmRemoveMember = async () => {
         if (!memberToRemove || !publisherId || !sessionTokens?.accessToken) return;
 
         try {
-            await PublisherPermissionsAPI.removeMember(publisherId, memberToRemove.userId, sessionTokens.accessToken);
+            await CreatorPermissionsAPI.removeMember(publisherId, memberToRemove.userId, sessionTokens.accessToken);
             toast({
                 title: "Éxito",
                 description: "Miembro eliminado correctamente",
@@ -199,12 +193,11 @@ export const PublisherTeamView: React.FC = () => {
         }
     };
 
-    // Update member role
-    const handleUpdateRole = async (member: PublisherMemberWithPermissions, newRole: string) => {
+    const handleUpdateRole = async (member: CreatorMember, newRole: string) => {
         if (!publisherId || !sessionTokens?.accessToken) return;
 
         try {
-            await PublisherPermissionsAPI.updateMemberRole(publisherId, member.userId, newRole, sessionTokens.accessToken);
+            await CreatorPermissionsAPI.updateMemberRole(publisherId, member.userId, newRole, sessionTokens.accessToken);
             toast({
                 title: "Éxito",
                 description: "Rol actualizado correctamente",
@@ -219,8 +212,7 @@ export const PublisherTeamView: React.FC = () => {
         }
     };
 
-    // Manage permissions
-    const handleManagePermissions = (member: PublisherMemberWithPermissions) => {
+    const handleManagePermissions = (member: CreatorMember) => {
         setSelectedMemberForPermissions(member);
         setPermissionsDialogOpen(true);
     };
@@ -235,7 +227,7 @@ export const PublisherTeamView: React.FC = () => {
                 <Alert>
                     <LucideAlertTriangle className="h-4 w-4" />
                     <AlertDescription>
-                        No se encontró el ID del publisher.
+                        No se encontró el ID del creator.
                     </AlertDescription>
                 </Alert>
             </div>
@@ -251,12 +243,12 @@ export const PublisherTeamView: React.FC = () => {
                         Gestión del equipo
                     </h1>
                     <p className="text-muted-foreground">
-                        Administra los miembros y permisos de tu publisher
+                        Administra los miembros y permisos de tu creator
                     </p>
                 </div>
                 {canManageMembers && sessionTokens?.accessToken && (
                     <AddMemberDialog
-                        publisherId={publisherId}
+                        creatorId={publisherId}
                         accessToken={sessionTokens.accessToken}
                         onMemberAdded={loadMembers}
                     />
@@ -280,7 +272,7 @@ export const PublisherTeamView: React.FC = () => {
                         </Alert>
                     ) : members.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
-                            No hay miembros en este publisher
+                            No hay miembros en este creator
                         </div>
                     ) : (
                         <Table>
@@ -295,29 +287,29 @@ export const PublisherTeamView: React.FC = () => {
                             </TableHeader>
                             <TableBody>
                                 {members.map((member) => (
-                                    <TableRow key={member.id}>
+                                    <TableRow key={member.userId}>
                                         <TableCell>
                                             <div className="flex items-center gap-3">
-                                                {member.user?.avatarUrl && (
+                                                {member.avatarUrl && (
                                                     <img
-                                                        src={member.user?.avatarUrl}
-                                                        alt={member.user?.username}
+                                                        src={member.avatarUrl}
+                                                        alt={member.username}
                                                         className="h-8 w-8 rounded-full"
                                                     />
                                                 )}
                                                 <div>
-                                                    <div className="font-medium">{member.user?.username}</div>
-                                                    <div className="text-sm text-muted-foreground">{member.user?.email}</div>
+                                                    <div className="font-medium">{member.username}</div>
+                                                    <div className="text-sm text-muted-foreground">{member.email}</div>
                                                 </div>
                                             </div>
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant={PublisherPermissionsAPI.getRoleBadgeVariant(member.role)}>
-                                                {PublisherPermissionsAPI.getRoleDisplayName(member.role)}
+                                            <Badge variant={CreatorPermissionsAPI.getRoleBadgeVariant(member.role)}>
+                                                {CreatorPermissionsAPI.getRoleDisplayName(member.role)}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
-                                            {new Date(member.createdAt).toLocaleDateString('es-ES', {
+                                            {new Date(member.joinedAt).toLocaleDateString('es-ES', {
                                                 year: 'numeric',
                                                 month: 'short',
                                                 day: 'numeric'
@@ -332,7 +324,8 @@ export const PublisherTeamView: React.FC = () => {
                                                     </Badge>
                                                 ) : (
                                                     <Badge variant="outline" className="text-xs">
-                                                        {member.scopes?.length || 0} permisos configurados
+                                                        <LucideSettings className="h-3 w-3 mr-1" />
+                                                        Configurable
                                                     </Badge>
                                                 )}
 
@@ -391,11 +384,10 @@ export const PublisherTeamView: React.FC = () => {
                 </CardContent>
             </Card>
 
-            {/* Permissions management dialog */}
             {sessionTokens?.accessToken && (
                 <MemberPermissionsDialog
                     member={selectedMemberForPermissions}
-                    publisherId={publisherId}
+                    creatorId={publisherId}
                     accessToken={sessionTokens.accessToken}
                     open={permissionsDialogOpen}
                     onOpenChange={setPermissionsDialogOpen}
@@ -404,13 +396,12 @@ export const PublisherTeamView: React.FC = () => {
                 />
             )}
 
-            {/* Remove member confirmation dialog */}
             <AlertDialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>¿Eliminar miembro del equipo?</AlertDialogTitle>
                         <AlertDialogDescription>
-                            ¿Estás seguro de que quieres eliminar a {memberToRemove?.user?.username} del equipo?
+                            ¿Estás seguro de que quieres eliminar a {memberToRemove?.username} del equipo?
                             Esta acción no se puede deshacer.
                         </AlertDialogDescription>
                     </AlertDialogHeader>

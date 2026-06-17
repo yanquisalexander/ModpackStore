@@ -1,7 +1,8 @@
 import { db } from "@/db/client.ts";
-import { creatorsTable, creatorUsersTable, users, CreatorRole, CreatorStatus } from "@/db/schema.ts";
-import { eq, and, inArray, count } from "drizzle-orm";
+import { creatorsTable, creatorUsersTable, users, modpacksTable, CreatorRole, CreatorStatus, ModpackVisibility, ModpackStatus } from "@/db/schema.ts";
+import { eq, and, inArray, count, desc } from "drizzle-orm";
 import { ValidationError, NotFoundError } from "@/lib/errors/index.ts";
+import { uploadObject, getCreatorImageKey, getCreatorImageUrl } from "@/lib/r2.ts";
 
 export async function createCreator(
     userId: string,
@@ -81,8 +82,14 @@ export async function updateCreator(
     creatorId: string,
     data: { displayName?: string; description?: string; discordUrl?: string; logoUrl?: string; bannerUrl?: string },
 ) {
+    const updateData: Record<string, unknown> = { ...data, updatedAt: new Date() };
+
+    if (data.displayName) {
+        updateData.nameLastChangedAt = new Date();
+    }
+
     const [creator] = await db.update(creatorsTable)
-        .set({ ...data, updatedAt: new Date() })
+        .set(updateData)
         .where(eq(creatorsTable.id, creatorId))
         .returning();
 
@@ -156,4 +163,179 @@ export async function removeMember(creatorId: string, targetUserId: string) {
 
     await db.delete(cu)
         .where(and(eq(cu.creatorId, creatorId), eq(cu.userId, targetUserId)));
+}
+
+// ── Profile ─────────────────────────────────────────
+
+export async function getCreatorProfile(creatorId: string) {
+    const [creator] = await db.select()
+        .from(creatorsTable)
+        .where(eq(creatorsTable.id, creatorId))
+        .limit(1);
+
+    if (!creator) throw new NotFoundError("Creator not found", "CREATOR_NOT_FOUND");
+
+    const now = new Date();
+    const nextNameChangeAvailable = creator.nameLastChangedAt
+        ? new Date(creator.nameLastChangedAt.getTime() + 30 * 24 * 60 * 60 * 1000)
+        : null;
+
+    return {
+        id: creator.id,
+        displayName: creator.displayName,
+        slug: creator.slug,
+        description: creator.description,
+        logoUrl: creator.logoUrl,
+        bannerUrl: creator.bannerUrl,
+        discordUrl: creator.discordUrl,
+        verified: creator.verified,
+        partner: creator.partner,
+        nameLastChangedAt: creator.nameLastChangedAt?.toISOString() ?? null,
+        nextNameChangeAvailable: nextNameChangeAvailable && nextNameChangeAvailable > now
+            ? nextNameChangeAvailable.toISOString()
+            : null,
+    };
+}
+
+export async function updateCreatorProfile(
+    creatorId: string,
+    data: {
+        displayName?: string;
+        description?: string | null;
+        logoUrl?: string | null;
+        bannerUrl?: string | null;
+        discordUrl?: string | null;
+    },
+) {
+    const creator = await getCreatorById(creatorId);
+
+    const updateData: Record<string, unknown> = {
+        updatedAt: new Date(),
+    };
+
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.logoUrl !== undefined) updateData.logoUrl = data.logoUrl;
+    if (data.bannerUrl !== undefined) updateData.bannerUrl = data.bannerUrl;
+    if (data.discordUrl !== undefined) updateData.discordUrl = data.discordUrl;
+
+    if (data.displayName !== undefined) {
+        const trimmed = data.displayName.trim();
+        if (trimmed.length < 2) {
+            throw new ValidationError("Display name must be at least 2 characters", "SHORT_DISPLAY_NAME");
+        }
+
+        if (trimmed !== creator.displayName) {
+            const now = new Date();
+            if (creator.nameLastChangedAt) {
+                const cooldownEnd = new Date(creator.nameLastChangedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
+                if (now < cooldownEnd) {
+                    const daysLeft = Math.ceil((cooldownEnd.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+                    throw new ValidationError(
+                        `You can change your name again in ${daysLeft} days`,
+                        "NAME_COOLDOWN",
+                    );
+                }
+            }
+
+            const slug = trimmed
+                .toLowerCase()
+                .replace(/[^a-z0-9]+/g, "-")
+                .replace(/^-|-$/g, "");
+
+            updateData.displayName = trimmed;
+            updateData.slug = slug;
+            updateData.nameLastChangedAt = now;
+        }
+    }
+
+    const [updated] = await db.update(creatorsTable)
+        .set(updateData)
+        .where(eq(creatorsTable.id, creatorId))
+        .returning();
+
+    if (!updated) throw new NotFoundError("Creator not found", "CREATOR_NOT_FOUND");
+
+    return getCreatorProfile(creatorId);
+}
+
+export async function getPublicCreatorProfile(slug: string) {
+    const [creator] = await db.select()
+        .from(creatorsTable)
+        .where(and(
+            eq(creatorsTable.slug, slug),
+            eq(creatorsTable.status, CreatorStatus.APPROVED),
+        ))
+        .limit(1);
+
+    if (!creator) throw new NotFoundError("Creator not found", "CREATOR_NOT_FOUND");
+
+    const [memberResult] = await db.select({ value: count() })
+        .from(cu)
+        .where(eq(cu.creatorId, creator.id));
+
+    const [modpackResult] = await db.select({ value: count() })
+        .from(modpacksTable)
+        .where(and(
+            eq(modpacksTable.creatorId, creator.id),
+            eq(modpacksTable.visibility, ModpackVisibility.PUBLIC),
+            eq(modpacksTable.status, ModpackStatus.PUBLISHED),
+        ));
+
+    const modpacks = await db.select({
+        id: modpacksTable.id,
+        name: modpacksTable.name,
+        slug: modpacksTable.slug,
+        bannerUrl: modpacksTable.bannerUrl,
+        visibility: modpacksTable.visibility,
+        shortDescription: modpacksTable.shortDescription,
+    })
+        .from(modpacksTable)
+        .where(and(
+            eq(modpacksTable.creatorId, creator.id),
+            eq(modpacksTable.visibility, ModpackVisibility.PUBLIC),
+            eq(modpacksTable.status, ModpackStatus.PUBLISHED),
+        ))
+        .orderBy(desc(modpacksTable.createdAt));
+
+    const creatorInfo = {
+        id: creator.id,
+        name: creator.displayName,
+        slug: creator.slug,
+        verified: creator.verified,
+        partner: creator.partner,
+    };
+
+    return {
+        id: creator.id,
+        displayName: creator.displayName,
+        slug: creator.slug,
+        description: creator.description,
+        logoUrl: creator.logoUrl,
+        bannerUrl: creator.bannerUrl,
+        discordUrl: creator.discordUrl,
+        verified: creator.verified,
+        partner: creator.partner,
+        memberCount: Number(memberResult.value),
+        modpackCount: Number(modpackResult.value),
+        modpacks: modpacks.map(m => ({
+            id: m.id,
+            name: m.name,
+            slug: m.slug,
+            bannerUrl: m.bannerUrl,
+            visibility: m.visibility,
+            shortDescription: m.shortDescription,
+            creator: creatorInfo,
+        })),
+    };
+}
+
+export async function uploadCreatorImage(
+    creatorId: string,
+    type: 'logo' | 'banner',
+    file: File,
+): Promise<string> {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    await uploadObject(getCreatorImageKey(creatorId, type), bytes, file.type);
+    const url = getCreatorImageUrl(creatorId, type);
+    return url;
 }

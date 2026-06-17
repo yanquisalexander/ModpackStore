@@ -15,6 +15,7 @@ export interface ModpackBrief {
     name: string;
     slug: string;
     iconUrl: string;
+    bannerUrl: string;
     creatorId: string;
     creatorName: string;
 }

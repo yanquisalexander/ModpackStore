@@ -1,0 +1,1 @@
+ALTER TABLE "creators" ADD COLUMN "name_last_changed_at" timestamp with time zone;

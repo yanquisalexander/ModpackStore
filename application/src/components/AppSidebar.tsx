@@ -309,7 +309,7 @@ export const AppSidebar: React.FC = memo(() => {
         const fetchExtendedEnabled = () => {
             invoke<boolean | null>('get_config_value', { key: 'enableExtendedSidebar' })
                 .then(val => setExtendedEnabled(val === true))
-                .catch(() => {});
+                .catch(() => { });
         };
 
         fetchExtendedEnabled();
@@ -336,15 +336,14 @@ export const AppSidebar: React.FC = memo(() => {
     const NAV_ITEMS = useMemo(() => {
         const baseItems = [
             { name: "Explorar", icon: GlassMagnifier, path: "/explore", requiresConnection: true },
+            { name: "Whitelist", icon: GlassLock, path: "/whitelist-instances", requiresConnection: true },
             { name: "Biblioteca", icon: LucideLibrary, path: "/library", requiresConnection: true },
             { name: "Instancias", icon: GlassGamingButtons, path: (!isConnected && !isLoadingConnectionCheck) ? "/" : "/my-instances", requiresConnection: false },
             /*    { name: "Servidores", icon: LucideServer, path: "/servers", requiresConnection: true }, */
-            { name: "Cuentas", icon: GlassUsers, path: "/mc-accounts", requiresConnection: false }
+            { name: "Cuentas", icon: GlassUsers, path: "/mc-accounts", requiresConnection: false },
         ];
 
-        if (hasWhitelists && isConnected) {
-            baseItems.splice(1, 0, { name: "Whitelist", icon: GlassLock, path: "/whitelist-instances", requiresConnection: true });
-        }
+
 
         return isConnected ? baseItems : baseItems.filter(item => !item.requiresConnection);
     }, [isConnected, isLoadingConnectionCheck, hasWhitelists]);

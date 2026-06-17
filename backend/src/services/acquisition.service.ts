@@ -265,6 +265,7 @@ export async function getUserAcquisitions(userId: string) {
             name: modpacksTable.name,
             slug: modpacksTable.slug,
             iconUrl: modpacksTable.iconUrl,
+            bannerUrl: modpacksTable.bannerUrl,
             creatorId: modpacksTable.creatorId,
             creatorName: creatorsTable.displayName,
         },

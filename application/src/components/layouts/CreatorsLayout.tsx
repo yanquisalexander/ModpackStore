@@ -39,7 +39,7 @@ function SidebarNav({ items, currentPath, onClose }: SidebarNavProps) {
         <nav className="space-y-0.5">
             {items.map((item) => {
                 const Icon = item.icon;
-                const isActive = currentPath === item.path || currentPath.startsWith(item.path + "/");
+                const isActive = currentPath === item.path;
                 return (
                     <NavLink key={item.path} to={item.path} end onClick={onClose}>
                         <div className={cn(
@@ -211,22 +211,22 @@ export const CreatorsLayout = () => {
                     <span className="text-sm font-medium text-white">{isVersionDetail ? "Detalle de versión" : "Panel de Creadores"}</span>
                 </div>
                 {!isVersionDetail && (
-                <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-                    <SheetTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-500 hover:text-white">
-                            <LucideMenu size={16} />
-                        </Button>
-                    </SheetTrigger>
-                    <SheetContent side="left" className="w-[280px] p-4 bg-[#0e0e10] border-white/[0.06]" onInteractOutside={() => setMobileOpen(false)}>
-                        <SidebarContent
-                            isOrgRoute={isOrgRoute}
-                            orgId={orgId}
-                            teams={teams}
-                            currentPath={location.pathname}
-                            onClose={() => setMobileOpen(false)}
-                        />
-                    </SheetContent>
-                </Sheet>
+                    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+                        <SheetTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 text-neutral-500 hover:text-white">
+                                <LucideMenu size={16} />
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent side="left" className="w-[280px] p-4 bg-[#0e0e10] border-white/[0.06]" onInteractOutside={() => setMobileOpen(false)}>
+                            <SidebarContent
+                                isOrgRoute={isOrgRoute}
+                                orgId={orgId}
+                                teams={teams}
+                                currentPath={location.pathname}
+                                onClose={() => setMobileOpen(false)}
+                            />
+                        </SheetContent>
+                    </Sheet>
                 )}
             </div>
 
@@ -237,22 +237,22 @@ export const CreatorsLayout = () => {
                             <CreatorsRoutes teams={teams} />
                         </div>
                     ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                        <div className="hidden md:block md:col-span-1">
-                            <div className="bg-[#121214] border border-white/[0.06] rounded-lg p-5">
-                                <SidebarContent
-                                    isOrgRoute={isOrgRoute}
-                                    orgId={orgId}
-                                    teams={teams}
-                                    currentPath={location.pathname}
-                                />
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                            <div className="hidden md:block md:col-span-1">
+                                <div className="bg-[#121214] border border-white/[0.06] rounded-lg p-5">
+                                    <SidebarContent
+                                        isOrgRoute={isOrgRoute}
+                                        orgId={orgId}
+                                        teams={teams}
+                                        currentPath={location.pathname}
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-3 min-w-0">
+                                <CreatorsRoutes teams={teams} />
                             </div>
                         </div>
-
-                        <div className="md:col-span-3 min-w-0">
-                            <CreatorsRoutes teams={teams} />
-                        </div>
-                    </div>
                     )}
                 </div>
             </div>

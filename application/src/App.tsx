@@ -32,7 +32,7 @@ import { OfflineMode } from "./views/OfflineMode";
 const ModpackOverview = lazy(() => import("./views/ModpackOverview").then(m => ({ default: m.ModpackOverview })));
 const WhitelistInstancesView = lazy(() => import("./views/WhitelistInstancesView").then(m => ({ default: m.WhitelistInstancesView })));
 const TicketsSection = lazy(() => import("./components/TicketsSection").then(m => ({ default: m.TicketsSection })));
-const PublisherProfileView = lazy(() => import("./views/PublisherProfileView").then(m => ({ default: m.PublisherProfileView })));
+const CreatorProfileView = lazy(() => import("./views/CreatorProfileView").then(m => ({ default: m.CreatorProfileView })));
 
 // Layouts lazy (solo para roles específicos)
 const CreatorsLayout = lazy(() => import("./components/layouts/CreatorsLayout").then(m => ({ default: m.CreatorsLayout })));
@@ -149,7 +149,7 @@ const AppRoutes = memo(function AppRoutes({ isConnected, isAuthenticated, sessio
           <Route path="/admin/*" element={<AdminLayout />} />
         )}
 
-        <Route path="/p/:publisherSlug" element={<PublisherProfileView />} />
+        <Route path="/c/:creatorSlug" element={<CreatorProfileView />} />
 
         <Route path="*" element={<NotFound />} />
       </Routes>

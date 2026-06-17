@@ -57,6 +57,16 @@ export function getModpackImageUrl(modpackId: string, type: 'icon' | 'banner'): 
     return publicDomain ? `${publicDomain}/${key}?t=${ts}` : `${key}?t=${ts}`;
 }
 
+export function getCreatorImageKey(creatorId: string, type: 'logo' | 'banner'): string {
+    return `creator-images/${creatorId}/${type}`;
+}
+
+export function getCreatorImageUrl(creatorId: string, type: 'logo' | 'banner'): string {
+    const key = getCreatorImageKey(creatorId, type);
+    const ts = Date.now();
+    return publicDomain ? `${publicDomain}/${key}?t=${ts}` : `${key}?t=${ts}`;
+}
+
 export async function generatePresignedUploadUrl(key: string, expiresIn = 3600): Promise<string> {
     const command = new PutObjectCommand({
         Bucket: bucket,

@@ -302,7 +302,13 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                     />
                     <div className="flex-1 pb-2">
                         <div className="flex items-center gap-2 mb-2 text-neutral-400 font-medium text-sm">
-                            <span>{modpack.creator?.name || "Community"}</span>
+                            {modpack.creator?.slug ? (
+                                <Link to={`/c/${modpack.creator.slug}`} className="hover:text-white transition-colors">
+                                    {modpack.creator.name}
+                                </Link>
+                            ) : (
+                                <span>{modpack.creator?.name || "Community"}</span>
+                            )}
                             {modpack.creator?.verified && <LucideVerified className="size-4 text-blue-400" />}
                         </div>
                         <h1 className="text-4xl sm:text-5xl font-black mb-6 tracking-tight">{modpack.name}</h1>

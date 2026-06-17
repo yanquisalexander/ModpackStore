@@ -17,6 +17,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { basicSetup } from 'codemirror';
 import { CategorySelector } from '@/components/CategorySelector';
 import { ModpackStatusManager } from '@/components/creator/ModpackStatusManager';
+import { resizeImage } from '@/utils/imageResize';
 
 interface Props {
     isOpen: boolean;
@@ -218,7 +219,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             submission.append('acquisitionMethod', accessMode);
             submission.append('allowServerDownload', formData.allowServerDownload.toString());
 
-            if (iconFile) submission.append('icon', iconFile);
+            if (iconFile) submission.append('icon', await resizeImage(iconFile, 512));
             if (bannerFile) submission.append('banner', bannerFile);
 
             submission.append('categories', JSON.stringify(selectedCategories));
