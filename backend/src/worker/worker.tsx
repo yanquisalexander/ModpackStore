@@ -136,8 +136,7 @@ const worker = new Worker(
     },
     {
         connection: {
-            host: redisConnection.options.host || "localhost",
-            port: redisConnection.options.port || 6379,
+            url: Deno.env.get("REDIS_URL") || "redis://localhost:6379",
         },
     },
 );

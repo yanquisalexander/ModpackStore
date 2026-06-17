@@ -1,11 +1,9 @@
 import { Queue } from 'bullmq'
-import { redisConnection } from '@/services/redis.ts'
+
+const redisUrl = Deno.env.get("REDIS_URL") || "redis://localhost:6379";
 
 export const ProcessModpackFilesQueue = new Queue('process-modpack-files', {
-    connection: {
-        host: redisConnection.options.host || "localhost",
-        port: redisConnection.options.port || 6379,
-    },
+    connection: { url: redisUrl },
     defaultJobOptions: {
         removeOnComplete: true,
         delay: 5_000,
