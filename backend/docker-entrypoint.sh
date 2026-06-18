@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-DENO_FLAGS="--allow-net --allow-read --allow-env --allow-write --allow-ffi"
+DENO_FLAGS="--allow-net --allow-read --allow-env --allow-write --allow-ffi --v8-flags=--max-old-space-size=256"
 
 if [ "$WORKER_MODE" = "1" ]; then
     exec deno run $DENO_FLAGS --allow-sys src/index.ts --worker-mode
