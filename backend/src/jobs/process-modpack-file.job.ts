@@ -144,7 +144,7 @@ export async function processModpackFiles(job: Job) {
         const BATCH_SIZE = 10;
         const uploadBatch: Array<{ hash: string; content: Uint8Array }> = [];
 
-        async function flushUploadBatch() {
+        const flushUploadBatch = async () => {
             if (uploadBatch.length === 0) return;
             await Promise.all(uploadBatch.map(({ hash, content }) =>
                 uploadObject(getFileKey(hash), content, "application/octet-stream"),
