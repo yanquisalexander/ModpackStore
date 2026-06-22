@@ -1,6 +1,6 @@
 {
     "tasks": {
-        "start": "deno run --allow-net --allow-read --allow-env --allow-write --allow-ffi --env-file=.env src/index.ts",
+        "start": "deno run --allow-net --allow-read --allow-env --allow-write --allow-ffi --unstable-kv --env-file=.env src/index.ts",
         "dev": "deno run --allow-net --allow-read --allow-env --allow-write --allow-ffi --allow-sys --unstable-kv --env-file=.env --watch src/index.ts",
         "db:generate": "deno run -A npm:drizzle-kit generate",
         "db:migrate": "deno run -A npm:drizzle-kit migrate",
