@@ -193,17 +193,26 @@ mod events {
 mod api {
     use super::*;
 
+    use std::sync::OnceLock;
+
+    fn shared_client() -> &'static Client {
+        static CLIENT: OnceLock<Client> = OnceLock::new();
+        CLIENT.get_or_init(|| {
+            Client::builder()
+                .timeout(Duration::from_secs(60))
+                .build()
+                .unwrap_or_else(|_| Client::new())
+        })
+    }
+
     pub struct ApiClient {
-        client: Client,
+        client: &'static Client,
     }
 
     impl ApiClient {
         pub fn new() -> Self {
             Self {
-                client: Client::builder()
-                    .timeout(Duration::from_secs(60)) // Aumentado para esperar al DB si es necesario
-                    .build()
-                    .unwrap_or_else(|_| Client::new()),
+                client: shared_client(),
             }
         }
 
@@ -588,7 +597,19 @@ struct AppState {
     server_tx: Option<oneshot::Sender<()>>,
 }
 
-async fn start_oauth_server(auth_state: Arc<AuthState>) -> AuthResult<()> {
+type BoxError = Box<dyn std::error::Error + Send + Sync>;
+
+async fn start_oauth_server_generic<F, P>(
+    addr: ([u8; 4], u16),
+    auth_state: Arc<AuthState>,
+    handler: F,
+    poll_fn: P,
+    label: &'static str,
+) -> AuthResult<()>
+where
+    F: Fn(Request<Body>, Arc<Mutex<AppState>>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Response<Body>, Infallible>> + Send>> + Clone + Send + Sync + 'static,
+    P: FnOnce(Arc<AuthState>, Arc<Mutex<AppState>>) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> + Send + 'static,
+{
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
 
     let app_state_mutex = Arc::new(Mutex::new(AppState {
@@ -596,131 +617,57 @@ async fn start_oauth_server(auth_state: Arc<AuthState>) -> AuthResult<()> {
         server_tx: Some(shutdown_tx),
     }));
 
-    let addr = SocketAddr::from(SERVER_ADDR);
+    let socket_addr = SocketAddr::from(addr);
     let app_state_clone = app_state_mutex.clone();
 
     let make_svc = make_service_fn(move |_conn| {
         let app_state = app_state_clone.clone();
+        let handler = handler.clone();
         async move {
             Ok::<_, Infallible>(service_fn(move |req| {
-                handle_callback(req, app_state.clone())
+                handler(req, app_state.clone())
             }))
         }
     });
 
-    let server = Server::bind(&addr)
+    let server = Server::bind(&socket_addr)
         .serve(make_svc)
-        .with_graceful_shutdown(async {
+        .with_graceful_shutdown(async move {
             shutdown_rx.await.ok();
-            println!("Servidor de callback apagándose.");
+            log::info!("{} callback server shutting down.", label);
         });
 
     tokio::spawn(async move {
-        println!("Servidor de callback escuchando en http://{}", addr);
+        log::info!("{} callback server listening on http://{}", label, socket_addr);
         if let Err(e) = server.await {
-            eprintln!("Error del servidor: {}", e);
-            events::emit_auth_error(format!("Error del servidor: {}", e));
+            log::error!("{} server error: {}", label, e);
+            events::emit_auth_error(format!("{} server error: {}", label, e));
         }
     });
 
-    // Iniciar tarea de polling para procesar el código
     let auth_state_clone = Arc::clone(&auth_state);
     tokio::spawn(async move {
-        poll_for_auth_code(auth_state_clone, app_state_mutex).await;
+        poll_fn(auth_state_clone, app_state_mutex).await;
     });
 
     Ok(())
 }
 
-async fn start_twitch_oauth_server(auth_state: Arc<AuthState>) -> AuthResult<()> {
-    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-
-    let app_state_mutex = Arc::new(Mutex::new(AppState {
-        auth_state: Arc::clone(&auth_state),
-        server_tx: Some(shutdown_tx),
-    }));
-
-    let addr = SocketAddr::from(TWITCH_SERVER_ADDR);
-    let app_state_clone = app_state_mutex.clone();
-
-    let make_svc = make_service_fn(move |_conn| {
-        let app_state = app_state_clone.clone();
-        async move {
-            Ok::<_, Infallible>(service_fn(move |req| {
-                handle_twitch_callback(req, app_state.clone())
-            }))
-        }
-    });
-
-    let server = Server::bind(&addr)
-        .serve(make_svc)
-        .with_graceful_shutdown(async {
-            shutdown_rx.await.ok();
-            println!("Twitch callback server shutting down.");
-        });
-
-    tokio::spawn(async move {
-        println!("Twitch callback server listening on http://{}", addr);
-        if let Err(e) = server.await {
-            eprintln!("Twitch server error: {}", e);
-            events::emit_auth_error(format!("Twitch server error: {}", e));
-        }
-    });
-
-    // Start polling task to process the code
-    let auth_state_clone = Arc::clone(&auth_state);
-    tokio::spawn(async move {
-        poll_for_twitch_auth_code(auth_state_clone, app_state_mutex).await;
-    });
-
-    Ok(())
-}
-
-async fn start_patreon_oauth_server(auth_state: Arc<AuthState>) -> AuthResult<()> {
-    let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
-
-    let app_state_mutex = Arc::new(Mutex::new(AppState {
-        auth_state: Arc::clone(&auth_state),
-        server_tx: Some(shutdown_tx),
-    }));
-
-    let addr = SocketAddr::from(PATREON_SERVER_ADDR);
-    let app_state_clone = app_state_mutex.clone();
-
-    let make_svc = make_service_fn(move |_conn| {
-        let app_state = app_state_clone.clone();
-        async move {
-            Ok::<_, Infallible>(service_fn(move |req| {
-                handle_patreon_callback(req, app_state.clone())
-            }))
-        }
-    });
-
-    let server = Server::bind(&addr)
-        .serve(make_svc)
-        .with_graceful_shutdown(async {
-            shutdown_rx.await.ok();
-            println!("Patreon callback server shutting down.");
-        });
-
-    tokio::spawn(async move {
-        println!("Patreon callback server listening on http://{}", addr);
-        if let Err(e) = server.await {
-            eprintln!("Patreon server error: {}", e);
-            events::emit_auth_error(format!("Patreon server error: {}", e));
-        }
-    });
-
-    // Start polling task to process the code
-    let auth_state_clone = Arc::clone(&auth_state);
-    tokio::spawn(async move {
-        poll_for_patreon_auth_code(auth_state_clone, app_state_mutex).await;
-    });
-
-    Ok(())
-}
-
-async fn poll_for_auth_code(auth_state: Arc<AuthState>, app_state_mutex: Arc<Mutex<AppState>>) {
+/// Generic polling function that waits for an auth code and processes it.
+/// `process_fn` receives (code, auth_state, redirect_uri) when a code is received.
+/// `success_event` is emitted on success (e.g., "twitch-auth-success"). Pass None for Discord.
+/// `app_state_mutex` is used to shut down the server on timeout (None for deep-link/no-server mode).
+async fn poll_for_auth_code_generic<F, Fut>(
+    auth_state: Arc<AuthState>,
+    app_state_mutex: Option<Arc<Mutex<AppState>>>,
+    redirect_uri: Option<String>,
+    mut process_fn: F,
+    success_event: Option<&str>,
+    label: &str,
+) where
+    F: FnMut(String, Arc<AuthState>, Option<String>) -> Fut + Send,
+    Fut: std::future::Future<Output = AuthResult<()>> + Send,
+{
     for i in 0..CALLBACK_TIMEOUT_SECS {
         let code_option = {
             let auth_code_guard = auth_state.auth_code.lock().await;
@@ -728,64 +675,52 @@ async fn poll_for_auth_code(auth_state: Arc<AuthState>, app_state_mutex: Arc<Mut
         };
 
         if let Some(code) = code_option {
-            println!("Código de autenticación recibido");
+            log::info!("{} authorization code received", label);
             events::emit_auth_step_changed(AuthStep::ProcessingCallback);
 
-            // Procesar el código
-            if let Err(e) = process_auth_code(&code, &auth_state, None).await {
-                events::emit_auth_error(e);
+            match process_fn(code, Arc::clone(&auth_state), redirect_uri).await {
+                Ok(()) => {
+                    if let Some(event) = success_event {
+                        log::info!("{} account linked successfully", label);
+                        let _ = events::emit_event(event, Some(json!({"success": true})));
+                    }
+                    if let Ok(binding) = GLOBAL_APP_HANDLE.lock() {
+                        if let Some(app_handle) = binding.as_ref() {
+                            if let Some(main_window) = app_handle.get_webview_window("main") {
+                                let _ = main_window.set_focus();
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("Error processing {} auth code: {}", label, e);
+                    events::emit_auth_error(format!("Error linking {} account: {}", label, e));
+                }
             }
             return;
         }
 
         if i % 10 == 0 && i > 0 {
-            println!("Esperando código... ({}s / {}s)", i, CALLBACK_TIMEOUT_SECS);
+            log::debug!("Waiting for {} code... ({}s / {}s)", label, i, CALLBACK_TIMEOUT_SECS);
         }
 
         tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
     }
 
-    // Timeout
-    eprintln!("Timeout de autenticación");
-    events::emit_auth_error("Timeout de autenticación".to_string());
+    log::error!("Timeout waiting for {} authorization code", label);
+    events::emit_auth_error(format!("Timeout waiting for {} authorization", label));
 
-    let mut state = app_state_mutex.lock().await;
-    if let Some(tx) = state.server_tx.take() {
-        let _ = tx.send(());
+    if let Some(mutex) = app_state_mutex {
+        let mut state = mutex.lock().await;
+        if let Some(tx) = state.server_tx.take() {
+            let _ = tx.send(());
+        }
     }
 }
 
-async fn poll_for_auth_code_no_server(auth_state: Arc<AuthState>) {
-    for i in 0..CALLBACK_TIMEOUT_SECS {
-        let code_option = {
-            let auth_code_guard = auth_state.auth_code.lock().await;
-            auth_code_guard.clone()
-        };
-
-        if let Some(code) = code_option {
-            println!("Código de autenticación recibido");
-            events::emit_auth_step_changed(AuthStep::ProcessingCallback);
-            if let Err(e) = process_auth_code(&code, &auth_state, Some(SCHEMA_REDIRECT_URI)).await {
-                events::emit_auth_error(e);
-            }
-            return;
-        }
-
-        if i % 10 == 0 && i > 0 {
-            println!("Esperando código... ({}s / {}s)", i, CALLBACK_TIMEOUT_SECS);
-        }
-
-        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
-    }
-
-    eprintln!("Timeout de autenticación");
-    events::emit_auth_error("Timeout de autenticación".to_string());
-}
-
-async fn process_auth_code(code: &str, auth_state: &Arc<AuthState>, redirect_uri: Option<&str>) -> AuthResult<()> {
+async fn process_auth_code(code: String, auth_state: Arc<AuthState>, redirect_uri: Option<String>) -> AuthResult<()> {
     let api_client = api::ApiClient::new();
 
-    // Obtener handle de la app
     let app_handle = {
         let binding = GLOBAL_APP_HANDLE
             .lock()
@@ -793,28 +728,23 @@ async fn process_auth_code(code: &str, auth_state: &Arc<AuthState>, redirect_uri
         binding.as_ref().ok_or("AppHandle no inicializado")?.clone()
     };
 
-    // Enfocar ventana principal
     if let Some(main_window) = app_handle.get_webview_window("main") {
         let _ = main_window.set_focus();
     }
 
-    // Intercambiar código por tokens
-    let tokens = api_client.exchange_code_for_tokens(code, redirect_uri).await?;
+    let tokens = api_client.exchange_code_for_tokens(&code, redirect_uri.as_deref()).await?;
 
-    // Guardar tokens
     storage::save_tokens(&app_handle, &tokens).await?;
 
-    // Obtener sesión de usuario
     events::emit_auth_step_changed(AuthStep::RequestingSession);
     let user = api_client.get_session(&tokens.access_token).await?;
 
-    // Guardar sesión y notificar
     let mut session_guard = auth_state.session.lock().await;
     *session_guard = Some(user.clone());
     drop(session_guard);
 
     events::emit_auth_status_changed(Some(user));
-    println!("Autenticación completada exitosamente");
+    log::info!("Authentication completed successfully");
 
     Ok(())
 }
@@ -844,8 +774,6 @@ pub async fn start_discord_auth(
     auth_state: State<'_, Arc<AuthState>>,
 ) -> AuthResult<()> {
     events::emit_auth_step_changed(AuthStep::StartingAuth);
-
-    // Limpiar estado previo
     auth_state.clear_all().await;
 
     if USE_SCHEMA_FOR_CALLBACK {
@@ -864,35 +792,60 @@ pub async fn start_discord_auth(
 
         let auth_state_clone2 = Arc::clone(auth_state.inner());
         tokio::spawn(async move {
-            poll_for_auth_code_no_server(auth_state_clone2).await;
+            poll_for_auth_code_generic(
+                auth_state_clone2,
+                None,
+                Some(SCHEMA_REDIRECT_URI.to_string()),
+                process_auth_code,
+                None,
+                "Discord",
+            ).await;
         });
 
         let discord_url = format!(
             "https://discord.com/api/oauth2/authorize?client_id={}&response_type=code&scope=identify%20email%20guilds&redirect_uri={}",
             CLIENT_ID, SCHEMA_REDIRECT_URI
         );
-        println!("Abriendo URL de autenticación: {}", discord_url);
+        log::info!("Opening auth URL: {}", discord_url);
         std::thread::spawn(move || {
             if let Err(e) = tauri_plugin_opener::open_url(discord_url, None::<String>) {
-                eprintln!("Error al abrir URL: {}", e);
-                events::emit_auth_error("Error al abrir URL de autenticación".to_string());
+                log::error!("Error opening URL: {}", e);
+                events::emit_auth_error("Error opening auth URL".to_string());
             }
         });
     } else {
-        // Iniciar servidor OAuth
-        start_oauth_server(Arc::clone(auth_state.inner())).await?;
+        let auth_state_for_server = Arc::clone(auth_state.inner());
 
-        // Abrir URL de autenticación
+        start_oauth_server_generic(
+            SERVER_ADDR,
+            auth_state_for_server,
+            |req, app_state_mutex| {
+                Box::pin(handle_oauth_callback(req, app_state_mutex, SUCCESS_HTML, "Discord"))
+            },
+            |auth_state, app_state_mutex| {
+                Box::pin(async move {
+                    poll_for_auth_code_generic(
+                        auth_state,
+                        Some(app_state_mutex),
+                        None,
+                        process_auth_code,
+                        None,
+                        "Discord",
+                    ).await;
+                })
+            },
+            "Discord",
+        ).await?;
+
         let discord_url = format!(
             "https://discord.com/api/oauth2/authorize?client_id={}&response_type=code&scope=identify%20email%20guilds&redirect_uri={}",
             CLIENT_ID, REDIRECT_URI
         );
-
-        println!("Abriendo URL de autenticación: {}", discord_url);
+        log::info!("Opening auth URL: {}", discord_url);
         std::thread::spawn(move || {
             if let Err(e) = tauri_plugin_opener::open_url(discord_url, None::<String>) {
-                eprintln!("Error al abrir URL: {}", e);
-                events::emit_auth_error("Error al abrir URL de autenticación".to_string());
+                log::error!("Error opening URL: {}", e);
+                events::emit_auth_error("Error opening auth URL".to_string());
             }
         });
     }
@@ -907,8 +860,6 @@ pub async fn start_twitch_auth(
     auth_state: State<'_, Arc<AuthState>>,
 ) -> AuthResult<()> {
     events::emit_auth_step_changed(AuthStep::StartingAuth);
-
-    // Clear previous state
     auth_state.clear_all().await;
 
     if USE_SCHEMA_FOR_CALLBACK {
@@ -927,35 +878,77 @@ pub async fn start_twitch_auth(
 
         let auth_state_clone2 = Arc::clone(auth_state.inner());
         tokio::spawn(async move {
-            poll_for_twitch_auth_code_no_server(auth_state_clone2).await;
+            poll_for_auth_code_generic(
+                auth_state_clone2,
+                None,
+                Some(SCHEMA_REDIRECT_URI.to_string()),
+                |code, _auth_state, redirect_uri| async move {
+                    let api_client = api::ApiClient::new();
+                    let redirect_uri_clone = redirect_uri.clone();
+                    process_link_account_code(
+                        &code,
+                        redirect_uri_clone,
+                        api_client.link_twitch_account(&code, redirect_uri.as_deref()),
+                        "Twitch",
+                    ).await
+                },
+                Some("twitch-auth-success"),
+                "Twitch",
+            ).await;
         });
 
         let twitch_url = format!(
             "https://id.twitch.tv/oauth2/authorize?client_id={}&response_type=code&scope=user:read:subscriptions&redirect_uri={}",
             TWITCH_CLIENT_ID, SCHEMA_REDIRECT_URI
         );
-
-        println!("Opening Twitch authorization URL: {}", twitch_url);
+        log::info!("Opening Twitch authorization URL: {}", twitch_url);
         std::thread::spawn(move || {
             if let Err(e) = tauri_plugin_opener::open_url(twitch_url, None::<String>) {
-                eprintln!("Error opening Twitch URL: {}", e);
+                log::error!("Error opening Twitch URL: {}", e);
                 events::emit_auth_error("Error opening Twitch authorization URL".to_string());
             }
         });
     } else {
-        // Start OAuth server on different port for Twitch
-        start_twitch_oauth_server(Arc::clone(auth_state.inner())).await?;
+        let auth_state_for_server = Arc::clone(auth_state.inner());
 
-        // Open Twitch authorization URL
+        start_oauth_server_generic(
+            TWITCH_SERVER_ADDR,
+            auth_state_for_server,
+            |req, app_state_mutex| {
+                Box::pin(handle_oauth_callback(req, app_state_mutex, TWITCH_SUCCESS_HTML, "Twitch"))
+            },
+            |auth_state, app_state_mutex| {
+                Box::pin(async move {
+                    poll_for_auth_code_generic(
+                        auth_state,
+                        Some(app_state_mutex),
+                        None,
+                        |code, _auth_state, redirect_uri| async move {
+                            let api_client = api::ApiClient::new();
+                            let redirect_uri_clone = redirect_uri.clone();
+                            process_link_account_code(
+                                &code,
+                                redirect_uri_clone,
+                                api_client.link_twitch_account(&code, redirect_uri.as_deref()),
+                                "Twitch",
+                            ).await
+                        },
+                        Some("twitch-auth-success"),
+                        "Twitch",
+                    ).await;
+                })
+            },
+            "Twitch",
+        ).await?;
+
         let twitch_url = format!(
             "https://id.twitch.tv/oauth2/authorize?client_id={}&response_type=code&scope=user:read:subscriptions&redirect_uri={}",
             TWITCH_CLIENT_ID, TWITCH_REDIRECT_URI
         );
-
-        println!("Opening Twitch authorization URL: {}", twitch_url);
+        log::info!("Opening Twitch authorization URL: {}", twitch_url);
         std::thread::spawn(move || {
             if let Err(e) = tauri_plugin_opener::open_url(twitch_url, None::<String>) {
-                eprintln!("Error opening Twitch URL: {}", e);
+                log::error!("Error opening Twitch URL: {}", e);
                 events::emit_auth_error("Error opening Twitch authorization URL".to_string());
             }
         });
@@ -971,8 +964,6 @@ pub async fn start_patreon_auth(
     auth_state: State<'_, Arc<AuthState>>,
 ) -> AuthResult<()> {
     events::emit_auth_step_changed(AuthStep::StartingAuth);
-
-    // Clear previous state
     auth_state.clear_all().await;
 
     if USE_SCHEMA_FOR_CALLBACK {
@@ -991,35 +982,77 @@ pub async fn start_patreon_auth(
 
         let auth_state_clone2 = Arc::clone(auth_state.inner());
         tokio::spawn(async move {
-            poll_for_patreon_auth_code_no_server(auth_state_clone2).await;
+            poll_for_auth_code_generic(
+                auth_state_clone2,
+                None,
+                Some(SCHEMA_REDIRECT_URI.to_string()),
+                |code, _auth_state, redirect_uri| async move {
+                    let api_client = api::ApiClient::new();
+                    let redirect_uri_clone = redirect_uri.clone();
+                    process_link_account_code(
+                        &code,
+                        redirect_uri_clone,
+                        api_client.link_patreon_account(&code, redirect_uri.as_deref()),
+                        "Patreon",
+                    ).await
+                },
+                Some("patreon-auth-success"),
+                "Patreon",
+            ).await;
         });
 
         let patreon_url = format!(
             "https://www.patreon.com/oauth2/authorize?response_type=code&client_id={}&redirect_uri={}&scope=identity%20identity.memberships",
             PATREON_CLIENT_ID, SCHEMA_REDIRECT_URI
         );
-
-        println!("Opening Patreon authorization URL: {}", patreon_url);
+        log::info!("Opening Patreon authorization URL: {}", patreon_url);
         std::thread::spawn(move || {
             if let Err(e) = tauri_plugin_opener::open_url(patreon_url, None::<String>) {
-                eprintln!("Error opening Patreon URL: {}", e);
+                log::error!("Error opening Patreon URL: {}", e);
                 events::emit_auth_error("Error opening Patreon authorization URL".to_string());
             }
         });
     } else {
-        // Start OAuth server on different port for Patreon
-        start_patreon_oauth_server(Arc::clone(auth_state.inner())).await?;
+        let auth_state_for_server = Arc::clone(auth_state.inner());
 
-        // Open Patreon authorization URL
+        start_oauth_server_generic(
+            PATREON_SERVER_ADDR,
+            auth_state_for_server,
+            |req, app_state_mutex| {
+                Box::pin(handle_oauth_callback(req, app_state_mutex, PATREON_SUCCESS_HTML, "Patreon"))
+            },
+            |auth_state, app_state_mutex| {
+                Box::pin(async move {
+                    poll_for_auth_code_generic(
+                        auth_state,
+                        Some(app_state_mutex),
+                        None,
+                        |code, _auth_state, redirect_uri| async move {
+                            let api_client = api::ApiClient::new();
+                            let redirect_uri_clone = redirect_uri.clone();
+                            process_link_account_code(
+                                &code,
+                                redirect_uri_clone,
+                                api_client.link_patreon_account(&code, redirect_uri.as_deref()),
+                                "Patreon",
+                            ).await
+                        },
+                        Some("patreon-auth-success"),
+                        "Patreon",
+                    ).await;
+                })
+            },
+            "Patreon",
+        ).await?;
+
         let patreon_url = format!(
             "https://www.patreon.com/oauth2/authorize?response_type=code&client_id={}&redirect_uri={}&scope=identity%20identity.memberships",
             PATREON_CLIENT_ID, PATREON_REDIRECT_URI
         );
-
-        println!("Opening Patreon authorization URL: {}", patreon_url);
+        log::info!("Opening Patreon authorization URL: {}", patreon_url);
         std::thread::spawn(move || {
             if let Err(e) = tauri_plugin_opener::open_url(patreon_url, None::<String>) {
-                eprintln!("Error opening Patreon URL: {}", e);
+                log::error!("Error opening Patreon URL: {}", e);
                 events::emit_auth_error("Error opening Patreon authorization URL".to_string());
             }
         });
@@ -1144,9 +1177,11 @@ pub fn setup_auth(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>
 }
 
 // --- HTTP callback handler ---
-async fn handle_callback(
+async fn handle_oauth_callback(
     req: Request<Body>,
     app_state_mutex: Arc<Mutex<AppState>>,
+    success_html: &'static str,
+    label: &str,
 ) -> Result<Response<Body>, Infallible> {
     let uri = req.uri();
 
@@ -1156,7 +1191,7 @@ async fn handle_callback(
         return Ok(response);
     }
 
-    // Extraer código de autorización
+    // Extract authorization code from query string
     let code = uri.query().unwrap_or("").split('&').find_map(|pair| {
         let mut parts = pair.splitn(2, '=');
         if parts.next() == Some("code") {
@@ -1168,7 +1203,7 @@ async fn handle_callback(
 
     match code {
         Some(code_str) => {
-            // Guardar código y apagar servidor
+            // Store code and shut down server
             let mut state = app_state_mutex.lock().await;
             let mut auth_code_guard = state.auth_state.auth_code.lock().await;
             *auth_code_guard = Some(code_str);
@@ -1178,8 +1213,7 @@ async fn handle_callback(
                 let _ = tx.send(());
             }
 
-            // Respuesta de éxito
-            let mut response = Response::new(Body::from(SUCCESS_HTML));
+            let mut response = Response::new(Body::from(success_html));
             response.headers_mut().insert(
                 CONTENT_TYPE,
                 HeaderValue::from_static("text/html; charset=utf-8"),
@@ -1187,330 +1221,28 @@ async fn handle_callback(
             Ok(response)
         }
         None => {
-            eprintln!("OAuth Callback Error: No se recibió código");
+            log::error!("{} OAuth Callback Error: No code received", label);
             let mut response =
-                Response::new(Body::from("Error: No se recibió código de autorización"));
+                Response::new(Body::from("Error: No authorization code received"));
             *response.status_mut() = HyperStatusCode::BAD_REQUEST;
             Ok(response)
         }
     }
 }
 
-async fn handle_twitch_callback(
-    req: Request<Body>,
-    app_state_mutex: Arc<Mutex<AppState>>,
-) -> Result<Response<Body>, Infallible> {
-    let uri = req.uri();
+async fn process_link_account_code(
+    code: &str,
+    redirect_uri: Option<String>,
+    link_fn: impl std::future::Future<Output = AuthResult<()>>,
+    label: &str,
+) -> AuthResult<()> {
+    link_fn.await.map_err(|e| {
+        log::error!("Error linking {} account: {}", label, e);
+        format!("Failed to link {} account: {}", label, e)
+    })?;
 
-    if uri.path() != "/callback" {
-        let mut response = Response::new(Body::from("Not Found"));
-        *response.status_mut() = HyperStatusCode::NOT_FOUND;
-        return Ok(response);
-    }
-
-    // Extract authorization code
-    let code = uri.query().unwrap_or("").split('&').find_map(|pair| {
-        let mut parts = pair.splitn(2, '=');
-        if parts.next() == Some("code") {
-            parts.next().map(|v| v.to_string())
-        } else {
-            None
-        }
-    });
-
-    match code {
-        Some(code_str) => {
-            // Save code and shutdown server
-            let mut state = app_state_mutex.lock().await;
-            let mut auth_code_guard = state.auth_state.auth_code.lock().await;
-            *auth_code_guard = Some(code_str);
-            drop(auth_code_guard);
-
-            if let Some(tx) = state.server_tx.take() {
-                let _ = tx.send(());
-            }
-
-            // Success response
-            let mut response = Response::new(Body::from(TWITCH_SUCCESS_HTML));
-            response.headers_mut().insert(
-                CONTENT_TYPE,
-                HeaderValue::from_static("text/html; charset=utf-8"),
-            );
-            Ok(response)
-        }
-        None => {
-            eprintln!("Twitch OAuth Callback Error: No code received");
-            let mut response = Response::new(Body::from("Error: No authorization code received"));
-            *response.status_mut() = HyperStatusCode::BAD_REQUEST;
-            Ok(response)
-        }
-    }
-}
-
-async fn handle_patreon_callback(
-    req: Request<Body>,
-    app_state_mutex: Arc<Mutex<AppState>>,
-) -> Result<Response<Body>, Infallible> {
-    let uri = req.uri();
-
-    if uri.path() != "/callback" {
-        let mut response = Response::new(Body::from("Not Found"));
-        *response.status_mut() = HyperStatusCode::NOT_FOUND;
-        return Ok(response);
-    }
-
-    // Extract authorization code and state
-    let query_params: std::collections::HashMap<String, String> = uri
-        .query()
-        .unwrap_or("")
-        .split('&')
-        .filter_map(|pair| {
-            let mut parts = pair.splitn(2, '=');
-            if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
-                Some((key.to_string(), value.to_string()))
-            } else {
-                None
-            }
-        })
-        .collect();
-
-    match query_params.get("code") {
-        Some(code_str) => {
-            // Save code and shutdown server
-            let mut state = app_state_mutex.lock().await;
-            let mut auth_code_guard = state.auth_state.auth_code.lock().await;
-            *auth_code_guard = Some(code_str.clone());
-            drop(auth_code_guard);
-
-            if let Some(tx) = state.server_tx.take() {
-                let _ = tx.send(());
-            }
-
-            // Success response
-            let mut response = Response::new(Body::from(PATREON_SUCCESS_HTML));
-            response.headers_mut().insert(
-                CONTENT_TYPE,
-                HeaderValue::from_static("text/html; charset=utf-8"),
-            );
-            Ok(response)
-        }
-        None => {
-            eprintln!("Patreon OAuth Callback Error: No code received");
-            let mut response = Response::new(Body::from("Error: No authorization code received"));
-            *response.status_mut() = HyperStatusCode::BAD_REQUEST;
-            Ok(response)
-        }
-    }
-}
-
-async fn poll_for_twitch_auth_code(
-    auth_state: Arc<AuthState>,
-    app_state_mutex: Arc<Mutex<AppState>>,
-) {
-    for i in 0..CALLBACK_TIMEOUT_SECS {
-        let auth_code_guard = auth_state.auth_code.lock().await;
-        if let Some(code) = auth_code_guard.clone() {
-            drop(auth_code_guard);
-            println!(
-                "Twitch authorization code received: {}",
-                &code[..std::cmp::min(code.len(), 10)]
-            );
-
-            events::emit_auth_step_changed(AuthStep::ProcessingCallback);
-
-            match process_twitch_auth_code(&code, &auth_state, None).await {
-                Ok(()) => {
-                    events::emit_auth_step_changed(AuthStep::RequestingSession);
-                    println!("Twitch account linked successfully");
-                    // Emit success event for frontend
-                    events::emit_event("twitch-auth-success", Some(json!({"success": true})));
-
-                    // focus the Modpack Store window
-                    if let Ok(binding) = GLOBAL_APP_HANDLE.lock() {
-                        if let Some(app_handle) = binding.as_ref() {
-                            if let Some(main_window) = app_handle.get_webview_window("main") {
-                                let _ = main_window.set_focus();
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Error processing Twitch auth code: {}", e);
-                    events::emit_auth_error(format!("Error linking Twitch account: {}", e));
-                }
-            }
-            return;
-        }
-        drop(auth_code_guard);
-
-        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
-    }
-
-    eprintln!("Timeout waiting for Twitch authorization code");
-    events::emit_auth_error("Timeout waiting for Twitch authorization".to_string());
-}
-
-async fn poll_for_patreon_auth_code(
-    auth_state: Arc<AuthState>,
-    app_state_mutex: Arc<Mutex<AppState>>,
-) {
-    for i in 0..CALLBACK_TIMEOUT_SECS {
-        let auth_code_guard = auth_state.auth_code.lock().await;
-        if let Some(code) = auth_code_guard.clone() {
-            drop(auth_code_guard);
-            println!(
-                "Patreon authorization code received: {}",
-                &code[..std::cmp::min(code.len(), 10)]
-            );
-
-            events::emit_auth_step_changed(AuthStep::ProcessingCallback);
-
-            match process_patreon_auth_code(&code, &auth_state, None).await {
-                Ok(()) => {
-                    events::emit_auth_step_changed(AuthStep::RequestingSession);
-                    println!("Patreon account linked successfully");
-                    // Emit success event for frontend
-                    events::emit_event("patreon-auth-success", Some(json!({"success": true})));
-
-                    // focus the Modpack Store window
-                    if let Ok(binding) = GLOBAL_APP_HANDLE.lock() {
-                        if let Some(app_handle) = binding.as_ref() {
-                            if let Some(main_window) = app_handle.get_webview_window("main") {
-                                let _ = main_window.set_focus();
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Error processing Patreon auth code: {}", e);
-                    events::emit_auth_error(format!("Error linking Patreon account: {}", e));
-                }
-            }
-            return;
-        }
-        drop(auth_code_guard);
-
-        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
-    }
-
-    eprintln!("Timeout waiting for Patreon authorization code");
-    events::emit_auth_error("Timeout waiting for Patreon authorization".to_string());
-}
-
-async fn poll_for_twitch_auth_code_no_server(auth_state: Arc<AuthState>) {
-    for i in 0..CALLBACK_TIMEOUT_SECS {
-        let auth_code_guard = auth_state.auth_code.lock().await;
-        if let Some(code) = auth_code_guard.clone() {
-            drop(auth_code_guard);
-            println!(
-                "Twitch authorization code received: {}",
-                &code[..std::cmp::min(code.len(), 10)]
-            );
-
-            events::emit_auth_step_changed(AuthStep::ProcessingCallback);
-
-            match process_twitch_auth_code(&code, &auth_state, Some(SCHEMA_REDIRECT_URI)).await {
-                Ok(()) => {
-                    events::emit_auth_step_changed(AuthStep::RequestingSession);
-                    println!("Twitch account linked successfully");
-                    events::emit_event("twitch-auth-success", Some(json!({"success": true})));
-
-                    if let Ok(binding) = GLOBAL_APP_HANDLE.lock() {
-                        if let Some(app_handle) = binding.as_ref() {
-                            if let Some(main_window) = app_handle.get_webview_window("main") {
-                                let _ = main_window.set_focus();
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Error processing Twitch auth code: {}", e);
-                    events::emit_auth_error(format!("Error linking Twitch account: {}", e));
-                }
-            }
-            return;
-        }
-        drop(auth_code_guard);
-
-        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
-    }
-
-    eprintln!("Timeout waiting for Twitch authorization code");
-    events::emit_auth_error("Timeout waiting for Twitch authorization".to_string());
-}
-
-async fn poll_for_patreon_auth_code_no_server(auth_state: Arc<AuthState>) {
-    for i in 0..CALLBACK_TIMEOUT_SECS {
-        let auth_code_guard = auth_state.auth_code.lock().await;
-        if let Some(code) = auth_code_guard.clone() {
-            drop(auth_code_guard);
-            println!(
-                "Patreon authorization code received: {}",
-                &code[..std::cmp::min(code.len(), 10)]
-            );
-
-            events::emit_auth_step_changed(AuthStep::ProcessingCallback);
-
-            match process_patreon_auth_code(&code, &auth_state, Some(SCHEMA_REDIRECT_URI)).await {
-                Ok(()) => {
-                    events::emit_auth_step_changed(AuthStep::RequestingSession);
-                    println!("Patreon account linked successfully");
-                    events::emit_event("patreon-auth-success", Some(json!({"success": true})));
-
-                    if let Ok(binding) = GLOBAL_APP_HANDLE.lock() {
-                        if let Some(app_handle) = binding.as_ref() {
-                            if let Some(main_window) = app_handle.get_webview_window("main") {
-                                let _ = main_window.set_focus();
-                            }
-                        }
-                    }
-                }
-                Err(e) => {
-                    eprintln!("Error processing Patreon auth code: {}", e);
-                    events::emit_auth_error(format!("Error linking Patreon account: {}", e));
-                }
-            }
-            return;
-        }
-        drop(auth_code_guard);
-
-        tokio::time::sleep(Duration::from_secs(POLL_INTERVAL_SECS)).await;
-    }
-
-    eprintln!("Timeout waiting for Patreon authorization code");
-    events::emit_auth_error("Timeout waiting for Patreon authorization".to_string());
-}
-
-async fn process_twitch_auth_code(code: &str, auth_state: &Arc<AuthState>, redirect_uri: Option<&str>) -> AuthResult<()> {
-    let api_client = api::ApiClient::new();
-
-    // Send the Twitch code to backend to complete the linking
-    match api_client.link_twitch_account(code, redirect_uri).await {
-        Ok(_) => {
-            println!("Twitch account linked successfully via backend");
-            Ok(())
-        }
-        Err(e) => {
-            eprintln!("Error linking Twitch account: {}", e);
-            Err(format!("Failed to link Twitch account: {}", e))
-        }
-    }
-}
-
-async fn process_patreon_auth_code(code: &str, auth_state: &Arc<AuthState>, redirect_uri: Option<&str>) -> AuthResult<()> {
-    let api_client = api::ApiClient::new();
-
-    // Send the Patreon code to backend to complete the linking
-    match api_client.link_patreon_account(code, redirect_uri).await {
-        Ok(_) => {
-            println!("Patreon account linked successfully via backend");
-            Ok(())
-        }
-        Err(e) => {
-            eprintln!("Error linking Patreon account: {}", e);
-            Err(format!("Failed to link Patreon account: {}", e))
-        }
-    }
+    log::info!("{} account linked successfully via backend", label);
+    Ok(())
 }
 
 // Twitch success HTML page

@@ -9,6 +9,7 @@ import { db } from "@/db/client.ts";
 import { users, sessions } from "@/db/schema.ts";
 import { eq } from "drizzle-orm";
 import type { JwtPayload } from "@/auth/service.ts";
+import { sessionKV } from "@/auth/kv-session.ts";
 
 const JWT_SECRET = Deno.env.get("JWT_SECRET")!;
 const AUTH_HEADER = "Authorization";
@@ -42,6 +43,33 @@ async function authenticate(c: Context, failIfMissing: boolean): Promise<void> {
         return;
     }
 
+    // KV-first session lookup (fast path)
+    const sessionCache = await sessionKV.get(jwtPayload.sessionId);
+
+    if (sessionCache) {
+        // KV hit: verify userId matches, then just fetch user
+        if (sessionCache.userId !== jwtPayload.sub) {
+            if (failIfMissing) {
+                throw new UnauthorizedError("Unauthorized", "INVALID_SESSION");
+            }
+            return;
+        }
+
+        const [user] = await db.select().from(users).where(eq(users.id, jwtPayload.sub)).limit(1);
+        if (!user) {
+            if (failIfMissing) {
+                throw new UnauthorizedError("Unauthorized", "INVALID_SESSION");
+            }
+            return;
+        }
+
+        c.set("user", user);
+        c.set("jwtPayload", jwtPayload);
+        c.set("userId", user.id);
+        return;
+    }
+
+    // KV miss: fallback to PostgreSQL + repopulate KV
     const [user] = await db.select().from(users).where(eq(users.id, jwtPayload.sub)).limit(1);
     const [session] = await db.select().from(sessions).where(eq(sessions.id, jwtPayload.sessionId)).limit(1);
 
@@ -51,6 +79,9 @@ async function authenticate(c: Context, failIfMissing: boolean): Promise<void> {
         }
         return;
     }
+
+    // Repopulate KV for next request
+    await sessionKV.set(session.id, user.id);
 
     c.set("user", user);
     c.set("jwtPayload", jwtPayload);

@@ -15,6 +15,7 @@ import {
     getDiscordUser,
 } from "@/services/discord.ts";
 import { userService } from "@/services/user.service.ts";
+import { sessionKV } from "@/auth/kv-session.ts";
 
 const JWT_SECRET = Deno.env.get("JWT_SECRET")!;
 const ACCESS_TOKEN_EXPIRES_IN = 4 * 60 * 60; // 4 hours
@@ -113,6 +114,9 @@ export const authService = {
             .values({ userId: user.id })
             .returning();
 
+        // Dual-write: save session to KV for fast reads
+        await sessionKV.set(session.id, user.id);
+
         const accessToken = await signToken(
             { sub: user.id, sessionId: session.id },
             ACCESS_TOKEN_EXPIRES_IN,
@@ -138,10 +142,21 @@ export const authService = {
         const decoded = await verifyToken(refreshTokenString);
         const { sub: userId, sessionId } = decoded;
 
-        const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-        const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+        // KV-first session check
+        const sessionCache = await sessionKV.get(sessionId);
+        if (!sessionCache || sessionCache.userId !== userId) {
+            // KV miss or mismatch: fallback to PostgreSQL
+            const [session] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+            if (!session || session.userId !== userId) {
+                throw new UnauthorizedError("Invalid session or user", "INVALID_SESSION");
+            }
+            // Repopulate KV
+            await sessionKV.set(sessionId, userId);
+        }
 
-        if (!user || !session || session.userId !== user.id) {
+        // Single query: just fetch user (session already validated via KV or PG fallback)
+        const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+        if (!user) {
             throw new UnauthorizedError("Invalid session or user", "INVALID_SESSION");
         }
 
@@ -202,5 +217,6 @@ export const authService = {
 
     async logout(sessionId: string): Promise<void> {
         await db.delete(sessions).where(eq(sessions.id, sessionId));
+        await sessionKV.delete(sessionId);
     },
 };

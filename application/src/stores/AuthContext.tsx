@@ -120,6 +120,53 @@ const enhanceSession = (session: UserSession | null): UserSession | null => {
   };
 };
 
+// --- Session Cache (SWR stale-while-revalidate) ---
+
+const SESSION_CACHE_KEY = 'session_cache';
+
+interface SessionCache {
+  session: UserSession;
+  tokens: {
+    access_token: string;
+    refresh_token: string;
+    expires_in: number;
+    token_type: string;
+  };
+  cachedAt: number;
+}
+
+const getStoreName = () => import.meta.env.PROD ? 'auth_store.json' : 'auth_store.dev.json';
+
+async function readSessionCache(): Promise<SessionCache | null> {
+  try {
+    const store = await load(getStoreName());
+    const cached = await store.get<SessionCache>(SESSION_CACHE_KEY);
+    return cached ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function writeSessionCache(data: SessionCache): Promise<void> {
+  try {
+    const store = await load(getStoreName());
+    await store.set(SESSION_CACHE_KEY, data);
+    await store.save();
+  } catch (err) {
+    console.warn('[AuthContext] Failed to write session cache:', err);
+  }
+}
+
+async function clearSessionCache(): Promise<void> {
+  try {
+    const store = await load(getStoreName());
+    await store.delete(SESSION_CACHE_KEY);
+    await store.save();
+  } catch {
+    // Ignore errors on cleanup
+  }
+}
+
 // --- Provider Component ---
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -136,6 +183,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Refs for managing token refresh
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isRefreshingRef = useRef<boolean>(false);
+  // Track whether the initial cache has been loaded
+  const cacheLoadedRef = useRef<boolean>(false);
 
   const isAuthenticated = useMemo(() => !!session && !!sessionTokens, [session, sessionTokens]);
 
@@ -197,6 +246,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setShowSessionExpired(true);
         setSession(null);
         setSessionTokens(null);
+        clearSessionCache();
       }
     } catch (err) {
       console.error('[AuthContext] Error refreshing tokens:', err);
@@ -214,6 +264,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setShowSessionExpired(true);
         setSession(null);
         setSessionTokens(null);
+        clearSessionCache();
       } else {
         console.warn('[AuthContext] Transient error during refresh, keeping tokens to retry later');
       }
@@ -264,7 +315,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const authStatusUnlisten = await listen<UserSession | null>('auth-status-changed', async (event) => {
         if (!isMounted) return;
         try {
-          const store = await load(import.meta.env.PROD ? 'auth_store.json' : 'auth_store.dev.json');
+          const store = await load(getStoreName());
           const tokens = await store.get<any>('auth_tokens');
           if (tokens) {
             const expiresAt = calculateTokenExpiration(tokens.access_token, tokens.expires_in);
@@ -277,11 +328,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             };
             setSessionTokens(tokensWithExpiry);
 
+            // Update session cache with fresh data
+            writeSessionCache({
+              session: event.payload as UserSession,
+              tokens,
+              cachedAt: Date.now(),
+            });
+
             // Schedule automatic token refresh
             scheduleTokenRefresh(tokensWithExpiry);
           } else {
             setSessionTokens(null);
             clearRefreshTimer();
+            clearSessionCache();
           }
           setSession(enhanceSession(event.payload));
           resetAuthState();
@@ -314,10 +373,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // --- Initialization Logic ---
       try {
-        setLoading(true);
-        // Invoke the init command. This will likely trigger the 'auth-status-changed' event.
-        await invoke('init_session');
-        // Wait for the auth status event to be received before proceeding.
+        // SWR: Load cached session immediately so UI renders without blocking
+        if (!cacheLoadedRef.current) {
+          const cached = await readSessionCache();
+          if (cached && isMounted) {
+            setSession(enhanceSession(cached.session));
+            const expiresAt = calculateTokenExpiration(cached.tokens.access_token, cached.tokens.expires_in);
+            const tokensWithExpiry: SessionTokens = {
+              accessToken: cached.tokens.access_token,
+              expiresIn: cached.tokens.expires_in,
+              refreshToken: cached.tokens.refresh_token,
+              tokenType: cached.tokens.token_type,
+              expiresAt,
+            };
+            setSessionTokens(tokensWithExpiry);
+            scheduleTokenRefresh(tokensWithExpiry);
+            setLoading(false); // Show cached data immediately
+          }
+          cacheLoadedRef.current = true;
+        }
+
+        // Revalidate in background (init_session calls /auth/me)
+        invoke('init_session');
+        // Wait for the auth-status-changed event to be received before proceeding.
         await authStatusPromise;
       } catch (err) {
         if (!isMounted) return;
@@ -337,6 +415,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.log("[AuthContext] Non-transient error, clearing session state");
           setSession(null);
           setSessionTokens(null);
+          clearSessionCache();
         } else {
           console.warn("[AuthContext] Transient server/DB error, preserving session state for later retry");
         }
@@ -408,6 +487,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setSession(null);
       setSessionTokens(null);
       clearRefreshTimer();
+      clearSessionCache();
       resetAuthState();
     } catch (err) {
       setError(parseError(err));
