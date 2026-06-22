@@ -31,6 +31,19 @@ export async function addToWhitelist(
     addedByUserId?: string,
     notes?: string,
 ) {
+    const [modpack] = await db.select({ visibility: modpacksTable.visibility })
+        .from(modpacksTable)
+        .where(eq(modpacksTable.id, modpackId))
+        .limit(1);
+
+    if (!modpack) {
+        throw new NotFoundError("Modpack not found", "MODPACK_NOT_FOUND");
+    }
+
+    if (modpack.visibility !== ModpackVisibility.WHITELIST) {
+        throw new ValidationError("Whitelist can only be managed for whitelist-visibility modpacks", "NOT_WHITELIST_VISIBILITY");
+    }
+
     const [existing] = await db.select()
         .from(modpackWhitelistsTable)
         .where(and(
@@ -104,6 +117,19 @@ export async function bulkAddToWhitelist(
     addedByUserId: string,
     notes?: string,
 ) {
+    const [modpack] = await db.select({ visibility: modpacksTable.visibility })
+        .from(modpacksTable)
+        .where(eq(modpacksTable.id, modpackId))
+        .limit(1);
+
+    if (!modpack) {
+        throw new NotFoundError("Modpack not found", "MODPACK_NOT_FOUND");
+    }
+
+    if (modpack.visibility !== ModpackVisibility.WHITELIST) {
+        throw new ValidationError("Whitelist can only be managed for whitelist-visibility modpacks", "NOT_WHITELIST_VISIBILITY");
+    }
+
     let added = 0;
     const errors: string[] = [];
 

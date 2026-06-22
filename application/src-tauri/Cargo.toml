@@ -23,7 +23,7 @@ fix-path-env = {git = "https://github.com/tauri-apps/fix-path-env-rs"}
 flate2 = "1.1.1"
 futures = "0.3.31"
 futures-util = "0.3.31"
-hyper = {version = "0.14", features = ["server", "http1", "tcp"] }
+hyper = {version = "0.14.32", features = ["server", "http1", "tcp"] }
 itertools = "0.14.0"
 lazy_static = "1.4"
 locale_config = "0.3.0"
@@ -48,7 +48,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-drpc = "0.1.6"
 tauri-plugin-fs = "2"
 tauri-plugin-global-shortcut = "2.3.1"
-tauri-plugin-http = {version = "2", features = ["json", "blocking"] }
+tauri-plugin-http = {version = "2", features = ["json", "blocking", "stream"] }
 tauri-plugin-log = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-opener = "2"

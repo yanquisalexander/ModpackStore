@@ -3,8 +3,8 @@ import type { Context } from "@hono/hono";
 import { requireAuth, optionalAuth, type AuthVariables } from "@/auth/middleware.ts";
 import { hasAccess, getUserWhitelistedModpacks } from "@/services/whitelist.service.ts";
 import { db } from "@/db/client.ts";
-import { modpackWhitelistsTable } from "@/db/schema.ts";
-import { eq, count } from "drizzle-orm";
+import { modpackWhitelistsTable, modpacksTable, ModpackVisibility, ModpackStatus } from "@/db/schema.ts";
+import { eq, and, count } from "drizzle-orm";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 
@@ -23,12 +23,17 @@ app.get("/my-whitelists", requireAuth, async (c) => {
     return c.json({ data: modpacks });
 });
 
-// Check if user has any whitelist entries
+// Check if user has any whitelist entries (only counting modpacks with whitelist visibility)
 app.get("/has-any", requireAuth, async (c) => {
     const userId = c.get("userId");
     const [result] = await db.select({ value: count() })
         .from(modpackWhitelistsTable)
-        .where(eq(modpackWhitelistsTable.userId, userId));
+        .innerJoin(modpacksTable, eq(modpackWhitelistsTable.modpackId, modpacksTable.id))
+        .where(and(
+            eq(modpackWhitelistsTable.userId, userId),
+            eq(modpacksTable.visibility, ModpackVisibility.WHITELIST),
+            eq(modpacksTable.status, ModpackStatus.PUBLISHED),
+        ));
 
     const total = Number(result?.value ?? 0);
     return c.json({ data: { hasWhitelists: total > 0, count: total } });

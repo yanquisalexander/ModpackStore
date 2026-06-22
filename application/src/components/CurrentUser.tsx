@@ -30,7 +30,6 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
     const containerRef = useRef<HTMLDivElement>(null);
 
-    console.log("CurrentUser session:", session);
 
     const isCreator = session?.creatorMemberships && session.creatorMemberships.length > 0;
     const isAdmin = session?.hasRole?.("admin") || session?.hasRole?.("super_admin");
