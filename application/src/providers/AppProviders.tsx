@@ -7,7 +7,6 @@ import { ReloadProvider } from "../stores/ReloadContext";
 import { ConfigDialogProvider } from "../stores/ConfigDialogContext";
 import { SearchBarProvider } from "../stores/SearchBarContext";
 import { ConnectionProvider } from "../utils/ConnectionContext";
-import { RealtimeProvider } from "./RealtimeProvider";
 import { LayoutProvider } from "./LayoutProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { I18nProvider } from "./I18nProvider";
@@ -39,11 +38,9 @@ export const AppProviders = ({ children }: { children: React.ReactNode }) => {
                 <ConnectionProvider>
                     <AuthProvider>
                         <ThemeProvider>
-                            <RealtimeProvider>
-                                <IndependentProviders>
-                                    {children}
-                                </IndependentProviders>
-                            </RealtimeProvider>
+                            <IndependentProviders>
+                                {children}
+                            </IndependentProviders>
                         </ThemeProvider>
                     </AuthProvider>
                 </ConnectionProvider>
