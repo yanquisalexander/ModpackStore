@@ -37,15 +37,17 @@ static CDN_URL: once_cell::sync::Lazy<&'static str> = once_cell::sync::Lazy::new
 });
 
 static API_ENDPOINT: once_cell::sync::Lazy<&'static str> = once_cell::sync::Lazy::new(|| {
+    // Primero intentar usar VITE_API_ENDPOINT (seteada por system_overrides o env var)
+    if let Ok(s) = std::env::var("VITE_API_ENDPOINT") {
+        if !s.is_empty() {
+            return Box::leak(s.into_boxed_str());
+        }
+    }
+    // Fallback: usar endpoint por defecto según modo de compilación
     if cfg!(debug_assertions) {
-        // En modo dev, usar el endpoint de desarrollo fijo
         "http://localhost:3000/v1"
     } else {
-        // En producción, preferir la variable de entorno VITE_API_ENDPOINT, si no existe, usar fallback
-        match std::env::var("VITE_API_ENDPOINT") {
-            Ok(s) if !s.is_empty() => Box::leak(s.into_boxed_str()),
-            _ => "https://api-modpackstore.saltouruguayserver.com/v1",
-        }
+        "https://api-modpackstore.saltouruguayserver.com/v1"
     }
 });
 
@@ -109,6 +111,15 @@ async fn kill_mc_instance(instance_id: String) -> Result<(), String> {
 
 pub fn main() {
     let _ = fix_path_env::fix();
+
+    // Cargar system overrides al inicio para permitir overrides de configuración
+    config::system_overrides::init_system_overrides();
+
+    // Si hay un api_endpoint en system_overrides, setear la variable de entorno
+    // para que tanto el Rust API_ENDPOINT como el frontend la usen
+    if let Some(endpoint) = config::system_overrides::get_system_overrides().api_endpoint.as_ref() {
+        std::env::set_var("VITE_API_ENDPOINT", endpoint);
+    }
 
     let logs_dir = dirs::config_dir()
         .expect("No se pudo obtener el directorio de configuración")
@@ -445,6 +456,7 @@ pub fn main() {
             core::auth::refresh_tokens,
             core::auth::init_session,
             core::microsoft_auth::start_microsoft_auth,
+            core::microsoft_auth::refresh_microsoft_account_tokens,
             core::prelaunch_appearance::get_prelaunch_appearance,
             core::prelaunch_appearance::fetch_and_save_prelaunch_appearance,
             core::prelaunch_appearance::update_prelaunch_appearance,
@@ -492,6 +504,7 @@ pub fn main() {
             tunnel::commands::start_tunnel,
             tunnel::commands::stop_tunnel,
             tunnel::commands::get_tunnel_status,
+            config::system_overrides::get_api_endpoint,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

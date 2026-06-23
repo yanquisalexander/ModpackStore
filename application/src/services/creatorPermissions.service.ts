@@ -42,7 +42,7 @@ export const CREATOR_PERMISSIONS = [
 export const ALL_PERMISSIONS = [...MODPACK_PERMISSIONS, ...CREATOR_PERMISSIONS] as const;
 
 export class CreatorPermissionsAPI {
-    private static baseUrl = `${API_ENDPOINT}/creators`;
+    private static get baseUrl() { return `${API_ENDPOINT}/creators`; }
 
     static async getMembers(creatorId: string, accessToken: string): Promise<{ members: CreatorMember[]; total: number }> {
         const response = await fetch(`${this.baseUrl}/${creatorId}/members`, {

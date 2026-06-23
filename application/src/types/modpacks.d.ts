@@ -21,6 +21,7 @@ export interface Modpack {
   twitchChannels?: TwitchChannel[];
   twitchCreatorIds?: string[];
   allowServerDownload?: boolean;
+  trailerUrl?: string;
 }
 
 export interface ModpackCategory {

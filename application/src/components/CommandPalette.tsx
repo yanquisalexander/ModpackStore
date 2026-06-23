@@ -19,7 +19,9 @@ import {
     LucideHardDrive,
     LucideBox,
     LucideLoader,
-    LucideAppWindowMac
+    LucideAppWindowMac,
+    LucideAlertCircle,
+    LucideFlaskConical
 } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -29,6 +31,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { TauriCommandReturns } from "@/types/TauriCommandReturns";
 import { useNavigate } from "react-router-dom";
 import { useReloadApp } from "@/stores/ReloadContext";
+import { useGlobalContext } from "@/stores/GlobalContext";
 
 export default function ModpackCommandPalette() {
     const [isOpen, setIsOpen] = useState(false);
@@ -37,8 +40,10 @@ export default function ModpackCommandPalette() {
     const [isLoading, setIsLoading] = useState(false);
     const [instanceResults, setInstanceResults] = useState<TauriCommandReturns['search_instances']>([]);
     const [searchTimeout, setSearchTimeout] = useState(null);
+    const [developerMode, setDeveloperMode] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
     const { showReloadDialog } = useReloadApp(); // Usar el hook para acceder a la funcionalidad de recarga
+    const { simulateUpdate, resetUpdate } = useGlobalContext();
     const navigate = useNavigate();
 
 
@@ -64,7 +69,17 @@ export default function ModpackCommandPalette() {
             commands: [
                 { id: 'restart-app', label: 'Recargar aplicación', icon: <LucideAppWindowMac size={16} /> },
             ]
-        }
+        },
+        ...(developerMode ? [{
+            name: 'DEV — Simular Actualización',
+            commands: [
+                { id: 'simulate-checking', label: 'Checking', icon: <LucideRefreshCw size={16} />, badge: 'Preview' },
+                { id: 'simulate-downloading', label: 'Downloading (con progreso)', icon: <LucideDownload size={16} />, badge: 'Preview' },
+                { id: 'simulate-ready', label: 'Ready to Install', icon: <LucidePackage size={16} />, badge: 'Preview' },
+                { id: 'simulate-error', label: 'Error', icon: <LucideAlertCircle size={16} />, badge: 'Preview' },
+                { id: 'simulate-reset', label: 'Resetear estado', icon: <LucideRefreshCw size={16} /> },
+            ]
+        }] : [])
     ];
 
     // Create a dynamic command group from search results
@@ -138,6 +153,9 @@ export default function ModpackCommandPalette() {
             setSearchQuery('');
             setActiveIndex(0);
             searchInstances('');
+            invoke<boolean | null>('get_config_value', { key: 'developerMode' })
+                .then(v => setDeveloperMode(v === true))
+                .catch(() => setDeveloperMode(false));
         }
     }, [isOpen]);
 
@@ -235,6 +253,21 @@ export default function ModpackCommandPalette() {
             case 'restart-app':
                 showReloadDialog({ fromOffline: false }); // Show the reload dialog
                 break;
+            case 'simulate-checking':
+                simulateUpdate('checking');
+                break;
+            case 'simulate-downloading':
+                simulateUpdate('downloading');
+                break;
+            case 'simulate-ready':
+                simulateUpdate('ready-to-install');
+                break;
+            case 'simulate-error':
+                simulateUpdate('error');
+                break;
+            case 'simulate-reset':
+                resetUpdate();
+                break;
         }
         setIsOpen(false);
     };
@@ -309,6 +342,11 @@ export default function ModpackCommandPalette() {
                                                         </span>
                                                     )}
                                                     <span>{command.label}</span>
+                                                    {'badge' in command && command.badge && (
+                                                        <Badge variant="outline" className="ml-1 text-[10px] uppercase tracking-wider bg-amber-500/10 text-amber-400 border-amber-500/20">
+                                                            {command.badge}
+                                                        </Badge>
+                                                    )}
                                                     {'meta' in command && command.meta && (
                                                         <Badge variant="outline" className="ml-1 text-xs">
                                                             {command.meta}

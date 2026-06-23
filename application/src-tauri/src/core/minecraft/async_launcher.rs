@@ -141,11 +141,66 @@ impl AsyncMinecraftLauncher {
     async fn get_or_create_account(&self) -> Result<MinecraftAccount, String> {
         match &self.instance.accountUuid {
             Some(uuid) => {
-                // Use existing account (Microsoft or Offline)
                 let accounts_manager = AccountsManager::new();
-                accounts_manager
+                let mut account = accounts_manager
                     .get_minecraft_account_by_uuid(uuid)
-                    .ok_or_else(|| format!("Account with UUID {} not found", uuid))
+                    .ok_or_else(|| format!("Account with UUID {} not found", uuid))?;
+
+                // Auto-refresh Microsoft tokens if expired
+                if account.user_type() == "Microsoft" && account.is_expired() {
+                    log::info!(
+                        "[AsyncMinecraftLauncher] Microsoft token expired for {}, refreshing...",
+                        account.username()
+                    );
+
+                    let refresh_token = account
+                        .refresh_token()
+                        .ok_or("No refresh token stored. Please re-authenticate.")?;
+
+                    let authenticator =
+                        crate::core::microsoft_auth::MicrosoftAuthenticator::new();
+                    let (mc_token, ms_token, new_refresh, expiration) = authenticator
+                        .refresh_minecraft_tokens(refresh_token)
+                        .await
+                        .map_err(|e| {
+                            format!(
+                                "Failed to refresh Microsoft tokens for {}: {}",
+                                account.username(),
+                                e
+                            )
+                        })?;
+
+                    // Persist updated tokens
+                    let accounts_manager_arc = crate::core::accounts_manager::get_accounts_manager();
+                    let mut manager = accounts_manager_arc
+                        .lock()
+                        .map_err(|e| format!("Failed to lock accounts manager: {}", e))?;
+                    manager
+                        .update_account_tokens(uuid, &mc_token, expiration, &ms_token)
+                        .map_err(|e| e.to_string())?;
+                    if new_refresh != refresh_token {
+                        if let Some(acc) = manager
+                            .accounts
+                            .iter_mut()
+                            .find(|a| a.uuid() == uuid)
+                        {
+                            acc.set_refresh_token(Some(new_refresh));
+                        }
+                        manager.save();
+                    }
+
+                    // Update in-memory account
+                    account.set_access_token(Some(mc_token));
+                    account.set_token_expiration(Some(expiration));
+                    account.set_microsoft_access_token(Some(ms_token));
+
+                    log::info!(
+                        "[AsyncMinecraftLauncher] Tokens refreshed for {}",
+                        account.username()
+                    );
+                }
+
+                Ok(account)
             }
             None => {
                 // No account UUID - use ModpackStore auth

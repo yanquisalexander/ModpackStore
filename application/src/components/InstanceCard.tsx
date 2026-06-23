@@ -123,22 +123,22 @@ export const InstanceCard = ({
         } else if (action === "export_mrpack") {
             handleExportToMrpack();
         } else if (action === "manage_mods") {
-            if (!flags.allow_mod_manager) {
+            /* if (!flags.allow_mod_manager) {
                 requestPremiumFeature(
                     'Gestor de Mods Avanzado',
                     'Administra, habilita y deshabilita tus mods fácilmente. Organiza tus mods por categorías y mantén tu instalación limpia y optimizada.'
                 );
                 return;
-            }
+            } */
             setShowModManager(true);
         } else if (action === "download_mods") {
-            if (!flags.enable_instance_mod_downloader) {
+            /* if (!flags.enable_instance_mod_downloader) {
                 requestPremiumFeature(
                     'Descargador de Mods',
                     'Busca y descarga mods desde Modrinth y CurseForge directamente en tu instancia. Encuentra los mejores mods sin salir de la aplicación.'
                 );
                 return;
-            }
+            } */
             setShowModDownloader(true);
         } else {
             toast.info("Acción no disponible");

@@ -71,7 +71,7 @@ const tableContainerVariants = {
 } as const;
 
 class AdminUsersAPI {
-    private static baseUrl = `${API_ENDPOINT}/admin/users`;
+    private static get baseUrl() { return `${API_ENDPOINT}/admin/users`; }
 
     static async fetchUsers(params: {
         page?: number; limit?: number; search?: string; role?: string; sortBy?: string; sortOrder?: string;

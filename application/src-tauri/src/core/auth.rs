@@ -173,9 +173,8 @@ mod events {
     }
 
     pub fn emit_auth_error<T: Serialize + Clone>(payload: T) {
-        match serde_json::to_string(&payload) {
-            Ok(payload_str) => println!("Emitiendo auth-error con payload: {}", payload_str),
-            Err(_) => println!("Emitiendo auth-error con payload (no serializable)"),
+        if let Ok(payload_str) = serde_json::to_string(&payload) {
+            log::debug!("Emitting auth-error with payload: {}", payload_str);
         }
         let _ = emit_event("auth-error", Some(payload));
     }
@@ -252,8 +251,8 @@ mod api {
                         {
                             retries += 1;
                             let delay = 2 * retries;
-                            println!(
-                                "Error de servidor {}. Reintentando en {}s...",
+                            log::warn!(
+                                "Server error {}. Retrying in {}s...",
                                 status, delay
                             );
                             tokio::time::sleep(Duration::from_secs(delay)).await;
@@ -266,7 +265,7 @@ mod api {
                         if retries < max_retries {
                             retries += 1;
                             let delay = 2 * retries;
-                            println!("Error de red {}. Reintentando en {}s...", e, delay);
+                            log::warn!("Network error {}. Retrying in {}s...", e, delay);
                             tokio::time::sleep(Duration::from_secs(delay)).await;
                             continue;
                         }
@@ -348,8 +347,8 @@ mod api {
                 let raw_body = response
                     .text()
                     .await
-                    .unwrap_or_else(|_| "No se pudo obtener el cuerpo de la respuesta".into());
-                eprintln!("Cuerpo de la respuesta: {}", raw_body);
+                    .unwrap_or_else(|_| "Could not get response body".into());
+                log::error!("Response body: {}", raw_body);
 
                 let error_body = serde_json::from_str::<serde_json::Value>(&raw_body)
                     .unwrap_or_else(
@@ -377,9 +376,9 @@ mod api {
                 .map_err(|e| format!("Error al contactar API: {}", e))?;
 
             if response.status().is_success() {
-                println!("Logout en backend exitoso");
+                log::info!("Backend logout successful");
             } else {
-                eprintln!("Logout en backend falló: Estado {}", response.status());
+                log::warn!("Backend logout failed: status {}", response.status());
             }
 
             Ok(())
@@ -420,7 +419,7 @@ mod api {
                     .text()
                     .await
                     .unwrap_or_else(|_| "Could not get response body".into());
-                eprintln!("Twitch linking error response: {}", raw_body);
+                log::error!("Twitch linking error response: {}", raw_body);
 
                 return Err(format!("Failed to link Twitch account: {}", raw_body));
             }
@@ -491,7 +490,7 @@ mod api {
                     .text()
                     .await
                     .unwrap_or_else(|_| "Could not get response body".into());
-                eprintln!("Patreon linking error response: {}", raw_body);
+                log::error!("Patreon linking error response: {}", raw_body);
 
                 return Err(format!("Failed to link Patreon account: {}", raw_body));
             }
@@ -513,27 +512,27 @@ mod session {
         let tokens = match storage::load_tokens(app_handle).await? {
             Some(tokens) => tokens,
             None => {
-                println!("No hay tokens guardados");
+                log::info!("No saved tokens found");
                 events::emit_auth_status_changed(None);
                 return Ok(None);
             }
         };
 
-        println!("Tokens encontrados, verificando sesión...");
+        log::info!("Tokens found, verifying session...");
 
         // Intentar obtener sesión con tokens actuales
         match api_client.get_session(&tokens.access_token).await {
             Ok(user) => {
-                println!("Sesión recuperada con éxito");
+                log::info!("Session restored successfully");
                 save_session_and_notify(auth_state, user.clone()).await;
                 return Ok(Some(user));
             }
             Err(e) if e == "AUTH_EXPIRED" => {
-                println!("Tokens expirados, intentando renovar...");
+                log::info!("Tokens expired, attempting refresh...");
             }
             Err(e) => {
-                eprintln!(
-                    "Error de servidor o red al recuperar sesión: {}. Manteniendo sesión local.",
+                log::warn!(
+                    "Server or network error restoring session: {}. Keeping local session.",
                     e
                 );
                 // Si es un error de servidor/red, propagamos el error pero NO borramos tokens
@@ -545,36 +544,36 @@ mod session {
         match api_client.refresh_tokens(&tokens.refresh_token).await {
             Ok(new_tokens) => {
                 storage::save_tokens(app_handle, &new_tokens).await?;
-                println!("Tokens renovados con éxito");
+                log::info!("Tokens refreshed successfully");
 
                 // Obtener sesión con nuevos tokens
                 match api_client.get_session(&new_tokens.access_token).await {
                     Ok(user) => {
-                        println!("Sesión recuperada tras renovar tokens");
+                        log::info!("Session restored after token refresh");
                         save_session_and_notify(auth_state, user.clone()).await;
                         Ok(Some(user))
                     }
                     Err(e) if e == "AUTH_EXPIRED" => {
-                        eprintln!("Error de autenticación tras renovar tokens: {}", e);
+                        log::error!("Auth error after token refresh: {}", e);
                         storage::remove_tokens(app_handle).await?;
                         events::emit_auth_status_changed(None);
                         Ok(None)
                     }
                     Err(e) => {
-                        eprintln!("Error de servidor tras renovar tokens: {}", e);
+                        log::error!("Server error after token refresh: {}", e);
                         Err(e)
                     }
                 }
             }
             Err(e) if e == "REFRESH_TOKEN_EXPIRED" => {
-                eprintln!("Refresh token expirado: {}", e);
+                log::error!("Refresh token expired: {}", e);
                 storage::remove_tokens(app_handle).await?;
                 events::emit_auth_status_changed(None);
                 Ok(None)
             }
             Err(e) => {
-                eprintln!(
-                    "Error de servidor o red al renovar tokens: {}. No se borran tokens.",
+                log::warn!(
+                    "Server or network error refreshing tokens: {}. Keeping credentials.",
                     e
                 );
                 Err(e)
@@ -1074,7 +1073,7 @@ pub async fn logout(
     app_handle: tauri::AppHandle,
     auth_state: State<'_, Arc<AuthState>>,
 ) -> AuthResult<()> {
-    println!("Logout solicitado");
+    log::info!("Logout requested");
 
     // Obtener tokens para revocarlos
     let tokens_to_revoke = storage::load_tokens(&app_handle).await.ok().flatten();
@@ -1087,12 +1086,12 @@ pub async fn logout(
     if let Some(tokens) = tokens_to_revoke {
         let api_client = api::ApiClient::new();
         if let Err(e) = api_client.logout(&tokens.access_token).await {
-            eprintln!("Error en logout de backend: {}", e);
+            log::error!("Backend logout error: {}", e);
         }
     }
 
     events::emit_auth_status_changed(None);
-    println!("Logout completo");
+    log::info!("Logout complete");
     Ok(())
 }
 
@@ -1114,7 +1113,7 @@ pub async fn refresh_tokens(
     {
         Ok(new_tokens) => {
             storage::save_tokens(&app_handle, &new_tokens).await?;
-            println!("Tokens renovados exitosamente");
+            log::info!("Tokens refreshed successfully");
             // Actualizar sesión de usuario
             match api_client.get_session(&new_tokens.access_token).await {
                 Ok(user) => {
@@ -1124,8 +1123,8 @@ pub async fn refresh_tokens(
                     events::emit_auth_status_changed(Some(user));
                 }
                 Err(e) if e == "AUTH_EXPIRED" => {
-                    eprintln!(
-                        "Error al obtener sesión tras renovar tokens (expirado): {}",
+                    log::error!(
+                        "Auth error after token refresh (expired): {}",
                         e
                     );
                     storage::remove_tokens(&app_handle).await?;
@@ -1134,7 +1133,7 @@ pub async fn refresh_tokens(
                     return Ok(false);
                 }
                 Err(e) => {
-                    eprintln!("Error de servidor tras renovar tokens: {}", e);
+                    log::error!("Server error after token refresh: {}", e);
                     // No borramos tokens si es error de servidor/red
                     return Err(e);
                 }
@@ -1143,7 +1142,7 @@ pub async fn refresh_tokens(
         }
         Err(e) => {
             if e == "REFRESH_TOKEN_EXPIRED" {
-                eprintln!("Refresh token expirado");
+                log::error!("Refresh token expired");
                 storage::remove_tokens(&app_handle).await?;
                 auth_state.clear_all().await;
                 events::emit_auth_status_changed(None);
@@ -1151,8 +1150,8 @@ pub async fn refresh_tokens(
             }
 
             // Propagar error de servidor/red sin limpiar tokens
-            eprintln!(
-                "Error de servidor o red al renovar tokens: {}. Manteniendo credenciales.",
+            log::warn!(
+                "Server or network error refreshing tokens: {}. Keeping credentials.",
                 e
             );
             Err(e)
@@ -1172,7 +1171,7 @@ pub async fn get_access_token(app_handle: tauri::AppHandle) -> Result<Option<Str
 // --- Setup function ---
 pub fn setup_auth(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     app.manage(Arc::new(AuthState::new()));
-    println!("Estado de autenticación inicializado");
+    log::info!("Auth state initialized");
     Ok(())
 }
 
@@ -1203,14 +1202,11 @@ async fn handle_oauth_callback(
 
     match code {
         Some(code_str) => {
-            // Store code and shut down server
-            let mut state = app_state_mutex.lock().await;
-            let mut auth_code_guard = state.auth_state.auth_code.lock().await;
-            *auth_code_guard = Some(code_str);
-            drop(auth_code_guard);
-
-            if let Some(tx) = state.server_tx.take() {
-                let _ = tx.send(());
+            // Store code - the polling function will process it and shut down the server
+            {
+                let state = app_state_mutex.lock().await;
+                let mut auth_code_guard = state.auth_state.auth_code.lock().await;
+                *auth_code_guard = Some(code_str);
             }
 
             let mut response = Response::new(Body::from(success_html));

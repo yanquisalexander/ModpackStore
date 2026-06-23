@@ -7,6 +7,12 @@ pub struct MinecraftAccount {
     uuid: String,
     access_token: Option<String>,
     user_type: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    refresh_token: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    token_expiration: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    microsoft_access_token: Option<String>,
 }
 
 impl MinecraftAccount {
@@ -21,10 +27,24 @@ impl MinecraftAccount {
             uuid,
             access_token,
             user_type,
+            refresh_token: None,
+            token_expiration: None,
+            microsoft_access_token: None,
         }
     }
 
-    // Getters
+    pub fn with_microsoft_tokens(
+        mut self,
+        refresh_token: String,
+        token_expiration: u64,
+        microsoft_access_token: String,
+    ) -> Self {
+        self.refresh_token = Some(refresh_token);
+        self.token_expiration = Some(token_expiration);
+        self.microsoft_access_token = Some(microsoft_access_token);
+        self
+    }
+
     pub fn username(&self) -> &str {
         &self.username
     }
@@ -41,34 +61,54 @@ impl MinecraftAccount {
         &self.user_type
     }
 
-    // Setters
-    pub fn set_username(&mut self, username: String) {
-        self.username = username;
+    pub fn refresh_token(&self) -> Option<&str> {
+        self.refresh_token.as_deref()
     }
 
-    pub fn set_uuid(&mut self, uuid: String) {
-        self.uuid = uuid;
+    pub fn token_expiration(&self) -> Option<u64> {
+        self.token_expiration
+    }
+
+    pub fn microsoft_access_token(&self) -> Option<&str> {
+        self.microsoft_access_token.as_deref()
+    }
+
+    pub fn is_expired(&self) -> bool {
+        match self.token_expiration {
+            Some(exp) => {
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0);
+                now >= exp
+            }
+            None => true,
+        }
     }
 
     pub fn set_access_token(&mut self, access_token: Option<String>) {
         self.access_token = access_token;
     }
 
-    pub fn set_user_type(&mut self, user_type: String) {
-        self.user_type = user_type;
+    pub fn set_token_expiration(&mut self, expiration: Option<u64>) {
+        self.token_expiration = expiration;
+    }
+
+    pub fn set_microsoft_access_token(&mut self, token: Option<String>) {
+        self.microsoft_access_token = token;
+    }
+
+    pub fn set_refresh_token(&mut self, token: Option<String>) {
+        self.refresh_token = token;
     }
 }
 
-// Implement Display for better debugging
 impl fmt::Display for MinecraftAccount {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "MinecraftAccount {{ username: '{}', uuid: '{}', access_token: '{}', user_type: '{}' }}",
-            self.username,
-            self.uuid,
-            self.access_token.as_deref().unwrap_or("null"),
-            self.user_type
+            "MinecraftAccount {{ username: '{}', uuid: '{}', user_type: '{}' }}",
+            self.username, self.uuid, self.user_type
         )
     }
 }

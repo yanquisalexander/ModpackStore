@@ -5,7 +5,7 @@ export interface ModpackVersionPublic {
     id: string
     version: string
     mcVersion: string
-    forgeVersion?: string | null
+    modLoader?: string | null
     loaderType?: string | null
     loaderVersion?: string | null
     changelog: string

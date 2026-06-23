@@ -147,8 +147,9 @@ export const ModDownloaderDialog: React.FC<ModDownloaderDialogProps> = ({
                 fileName: file.filename
             });
             toast.success(`Descargado ${file.filename}`);
-        } catch {
-            toast.error('Error al descargar');
+        } catch (error) {
+            toast.error((error as string) || 'Error al descargar el mod');
+            console.error('Error downloading mod:', error);
         } finally {
             setDownloadingVersionId(null);
         }

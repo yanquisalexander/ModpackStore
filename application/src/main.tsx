@@ -11,6 +11,7 @@ import { AppProviders } from "./providers/AppProviders"; // Importas el nuevo co
 import { info, debug, error, warn } from "@tauri-apps/plugin-log";
 import { preloadSounds } from '@/utils/sounds';
 import { useLayout } from './providers/LayoutProvider';
+import { initApiEndpoint } from './consts';
 
 
 // La llamada a Discord RPC se mantiene igual
@@ -79,17 +80,24 @@ const initialOptions = {
   intent: "capture",
 };
 
-createRoot($root).render(
-  <AppProviders>
-    <PayPalScriptProvider options={initialOptions}>
-      <BrowserRouter>
-        <LayoutWrapper>
-          <AppTitleBar />
-          <App />
-          <Toaster theme="dark" />
-          <UpdateStatus />
-        </LayoutWrapper>
-      </BrowserRouter>
-    </PayPalScriptProvider>
-  </AppProviders>
-);
+// Initialize API endpoint from system_overrides before rendering
+async function bootstrap() {
+  await initApiEndpoint();
+
+  createRoot($root).render(
+    <AppProviders>
+      <PayPalScriptProvider options={initialOptions}>
+        <BrowserRouter>
+          <LayoutWrapper>
+            <AppTitleBar />
+            <App />
+            <Toaster theme="dark" />
+            <UpdateStatus />
+          </LayoutWrapper>
+        </BrowserRouter>
+      </PayPalScriptProvider>
+    </AppProviders>
+  );
+}
+
+bootstrap();

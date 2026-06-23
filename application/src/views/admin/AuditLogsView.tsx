@@ -42,7 +42,7 @@ interface PaginatedAuditLogs {
 
 // API Service
 class AuditAPI {
-    private static baseUrl = `${API_ENDPOINT}/admin/audit`;
+    private static get baseUrl() { return `${API_ENDPOINT}/admin/audit`; }
 
     static async fetchLogs(params: {
         page?: number;

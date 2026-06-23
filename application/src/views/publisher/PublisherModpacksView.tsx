@@ -52,7 +52,7 @@ interface Modpack {
 
 // API Service for publisher modpacks
 class PublisherModpacksAPI {
-    private static baseUrl = `${API_ENDPOINT}/creators`;
+    private static get baseUrl() { return `${API_ENDPOINT}/creators`; }
 
     static async getModpacks(publisherId: string, accessToken: string): Promise<Modpack[]> {
         const url = `${this.baseUrl}/${publisherId}/modpacks`;

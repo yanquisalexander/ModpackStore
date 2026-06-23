@@ -157,7 +157,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     }, [modpackId]);
 
     useEffect(() => {
-        setTitleBarState((prev: any) => ({ ...prev, opaque: false, title: modpack?.name || "" }));
+        setTitleBarState((prev: any) => ({ ...prev, opaque: false, title: modpack?.name || "", icon: modpack?.iconUrl || "/images/modpack-fallback.webp", canGoBack: true }));
     }, [modpack]);
 
     const selectedVersion = useMemo(() =>
@@ -344,7 +344,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                     ))}
                 </motion.div>
 
-                    <Tabs defaultValue="overview" className="w-full">
+                <Tabs defaultValue="overview" className="w-full">
                     <TabsList className="bg-[#121214] border border-white/[0.06] rounded-xl p-1 w-full justify-start mb-8 gap-1">
                         <TabsTrigger value="overview" className="data-[state=active]:bg-[#252525] data-[state=active]:text-white text-neutral-400 text-sm font-bold rounded-lg px-4 py-2 transition-all">
                             DESCRIPCIÓN
@@ -429,45 +429,45 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 <p className="text-neutral-600 text-xs mt-1">Las versiones aparecerán aquí cuando se publiquen.</p>
                             </div>
                         ) : (
-                        <div className="grid gap-3">
-                            {versions.map((v) => (
-                                <motion.div
-                                    key={v.id}
-                                    initial={{ y: 12, opacity: 0 }}
-                                    animate={{ y: 0, opacity: 1 }}
-                                    transition={{ type: "spring" as const, stiffness: 100, damping: 20, delay: versions.indexOf(v) * 0.05 }}
-                                    onClick={() => setSelectedVersionId(v.id)}
-                                    className={cn(
-                                        "group flex items-center justify-between p-4 bg-[#121214] border border-white/[0.06] rounded-xl transition-all hover:border-purple-500/50 cursor-pointer",
-                                        selectedVersionId === v.id && "border-purple-500 bg-purple-500/5"
-                                    )}
-                                >
-                                    <div className="flex items-center gap-6">
-                                        <div className="flex flex-col">
-                                            <span className="text-lg font-bold">{v.version}</span>
-                                            <span className="text-[10px] text-neutral-500 font-bold uppercase">{v.mcVersion}</span>
-                                        </div>
-                                        <div className="hidden md:flex items-center gap-4 text-sm text-neutral-400">
-                                            <div className="flex items-center gap-1.5 bg-white/5 px-3 py-1 rounded-full">
-                                                <LucideCpu size={14} />
-                                                <span>{formatLoaderInfo(v)}</span>
+                            <div className="grid gap-3">
+                                {versions.map((v) => (
+                                    <motion.div
+                                        key={v.id}
+                                        initial={{ y: 12, opacity: 0 }}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        transition={{ type: "spring" as const, stiffness: 100, damping: 20, delay: versions.indexOf(v) * 0.05 }}
+                                        onClick={() => setSelectedVersionId(v.id)}
+                                        className={cn(
+                                            "group flex items-center justify-between p-4 bg-[#121214] border border-white/[0.06] rounded-xl transition-all hover:border-purple-500/50 cursor-pointer",
+                                            selectedVersionId === v.id && "border-purple-500 bg-purple-500/5"
+                                        )}
+                                    >
+                                        <div className="flex items-center gap-6">
+                                            <div className="flex flex-col">
+                                                <span className="text-lg font-bold">{v.version}</span>
+                                                <span className="text-[10px] text-neutral-500 font-bold uppercase">{v.mcVersion}</span>
                                             </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <LucideClock size={14} />
-                                                <span>{new Date(v.releaseDate).toLocaleDateString()}</span>
+                                            <div className="hidden md:flex items-center gap-4 text-sm text-neutral-400">
+                                                <div className="flex items-center gap-1.5 bg-white/5 px-3 py-1 rounded-full">
+                                                    <LucideCpu size={14} />
+                                                    <span>{formatLoaderInfo(v)}</span>
+                                                </div>
+                                                <div className="flex items-center gap-1.5">
+                                                    <LucideClock size={14} />
+                                                    <span>{new Date(v.releaseDate!).toLocaleDateString()}</span>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
 
-                                    {selectedVersionId === v.id && (
-                                        <div className="flex items-center gap-2 text-purple-500 text-sm font-bold">
-                                            <span>SELECCIONADA</span>
-                                        </div>
-                                    )}
-                                </motion.div>
-                            ))}
-                        </div>
-                    )}
+                                        {selectedVersionId === v.id && (
+                                            <div className="flex items-center gap-2 text-purple-500 text-sm font-bold">
+                                                <span>SELECCIONADA</span>
+                                            </div>
+                                        )}
+                                    </motion.div>
+                                ))}
+                            </div>
+                        )}
                     </TabsContent>
                 </Tabs>
 

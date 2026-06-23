@@ -1,8 +1,20 @@
-export const API_ENDPOINT =
+export let API_ENDPOINT =
     import.meta.env.DEV || import.meta.env.MODE === "development"
         ? "http://localhost:3000/v1"
         : import.meta.env.VITE_API_ENDPOINT ||
         "https://api-modpackstore.saltouruguayserver.com/v1";
+
+export async function initApiEndpoint(): Promise<void> {
+    try {
+        const { invoke } = await import("@tauri-apps/api/core");
+        const endpoint = await invoke<string | null>("get_api_endpoint");
+        if (endpoint) {
+            API_ENDPOINT = endpoint;
+        }
+    } catch (e) {
+        console.warn("[api-endpoint] Failed to load system override:", e);
+    }
+}
 
 /**
  * Alternative Minecraft launcher meta servers

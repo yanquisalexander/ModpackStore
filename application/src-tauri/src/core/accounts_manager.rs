@@ -37,6 +37,9 @@ impl AccountsManager {
         username: &str,
         access_token: &str,
         uuid: &str,
+        refresh_token: &str,
+        token_expiration: u64,
+        microsoft_access_token: &str,
     ) -> Result<MinecraftAccount, String> {
         let accounts_manager = get_accounts_manager();
         let mut manager = accounts_manager
@@ -47,6 +50,11 @@ impl AccountsManager {
             uuid.to_string(),
             Some(access_token.to_string()),
             "Microsoft".to_string(),
+        )
+        .with_microsoft_tokens(
+            refresh_token.to_string(),
+            token_expiration,
+            microsoft_access_token.to_string(),
         );
         if manager.accounts.iter().any(|a| a.uuid() == uuid) {
             return Err(format!("Account with UUID {} already exists", uuid));
@@ -54,6 +62,25 @@ impl AccountsManager {
         manager.accounts.push(account.clone());
         manager.save();
         Ok(account)
+    }
+
+    pub fn update_account_tokens(
+        &mut self,
+        uuid: &str,
+        access_token: &str,
+        token_expiration: u64,
+        microsoft_access_token: &str,
+    ) -> Result<(), String> {
+        let account = self
+            .accounts
+            .iter_mut()
+            .find(|a| a.uuid() == uuid)
+            .ok_or_else(|| format!("Account with UUID {} not found", uuid))?;
+        account.set_access_token(Some(access_token.to_string()));
+        account.set_token_expiration(Some(token_expiration));
+        account.set_microsoft_access_token(Some(microsoft_access_token.to_string()));
+        self.save();
+        Ok(())
     }
 
     pub fn add_offline_account(&mut self, username: &str) -> Result<MinecraftAccount, String> {
@@ -77,12 +104,12 @@ impl AccountsManager {
             self.accounts.remove(pos);
             self.save();
         } else {
-            println!("Account with UUID {} not found", uuid);
+            log::warn!("Account with UUID {} not found", uuid);
         }
     }
 
     pub fn get_all_accounts(&self) -> Vec<MinecraftAccount> {
-        println!("Loading Minecraft accounts...");
+        log::debug!("Loading Minecraft accounts...");
         self.accounts.clone()
     }
 
@@ -96,7 +123,7 @@ impl AccountsManager {
 
     fn load(&mut self) {
         if !self.accounts_file.exists() {
-            println!("accounts.json file doesn't exist. Creating a new one...");
+            log::info!("accounts.json file doesn't exist. Creating a new one...");
             self.save();
             return;
         }
@@ -105,14 +132,14 @@ impl AccountsManager {
             Ok(contents) => match serde_json::from_str::<Vec<MinecraftAccount>>(&contents) {
                 Ok(loaded_accounts) => {
                     self.accounts = loaded_accounts;
-                    println!("Accounts loaded successfully: {}", self.accounts.len());
+                    log::info!("Accounts loaded successfully: {}", self.accounts.len());
                 }
                 Err(e) => {
-                    eprintln!("Error parsing accounts.json: {}", e);
+                    log::error!("Error parsing accounts.json: {}", e);
                 }
             },
             Err(e) => {
-                eprintln!("Error reading accounts.json: {}", e);
+                log::error!("Error reading accounts.json: {}", e);
             }
         }
     }
@@ -121,7 +148,7 @@ impl AccountsManager {
         if let Some(parent) = self.accounts_file.parent() {
             if !parent.exists() {
                 if let Err(e) = fs::create_dir_all(parent) {
-                    eprintln!("Error creating directory: {}", e);
+                    log::error!("Error creating directory: {}", e);
                     return;
                 }
             }
@@ -130,11 +157,11 @@ impl AccountsManager {
         match serde_json::to_string_pretty(&self.accounts) {
             Ok(json) => {
                 if let Err(e) = fs::write(&self.accounts_file, json) {
-                    eprintln!("Error writing to accounts.json: {}", e);
+                    log::error!("Error writing to accounts.json: {}", e);
                 }
             }
             Err(e) => {
-                eprintln!("Error serializing accounts: {}", e);
+                log::error!("Error serializing accounts: {}", e);
             }
         }
     }

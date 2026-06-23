@@ -7,8 +7,8 @@ import {
 } from '@/types/subscription';
 
 class SubscriptionService {
-    private baseUrl = `${API_ENDPOINT}/admin/subscriptions`;
-    private publisherBaseUrl = `${API_ENDPOINT}/publishers`;
+    private get baseUrl() { return `${API_ENDPOINT}/admin/subscriptions`; }
+    private get publisherBaseUrl() { return `${API_ENDPOINT}/publishers`; }
 
     /**
      * Get subscription for a specific publisher

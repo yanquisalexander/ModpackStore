@@ -245,11 +245,21 @@ impl MicrosoftAuthenticator {
         // Emitir evento de éxito
         let _ = app_handle.emit("microsoft-auth-success", None::<String>);
 
+        // Calcular expiración del token de Minecraft (access_token)
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let token_expiration = now + minecraft_token.expires_in;
+
         // Usar el método add_microsoft_account para crear y guardar la cuenta
         let account = match AccountsManager::add_microsoft_account(
             &profile.name,
             &minecraft_token.access_token,
             &profile.id,
+            &token_response.refresh_token,
+            token_expiration,
+            &token_response.access_token,
         ) {
             Ok(account) => account,
             Err(e) => return Err(e.into()),
@@ -558,10 +568,112 @@ impl MicrosoftAuthenticator {
         let token_response: TokenResponse = response.json().await?;
         Ok(token_response)
     }
+
+    /// Full refresh pipeline: Microsoft token → Xbox → XSTS → Minecraft.
+    /// Returns (minecraft_access_token, new_ms_access_token, new_refresh_token, expiration_secs).
+    pub async fn refresh_minecraft_tokens(
+        &self,
+        current_refresh_token: &str,
+    ) -> Result<(String, String, String, u64), Box<dyn std::error::Error>> {
+        // Step 1: Refresh Microsoft token
+        log::info!("Refreshing Microsoft token...");
+        let token_response = self.refresh_token(current_refresh_token).await?;
+
+        // Step 2: Xbox Live auth with new Microsoft token
+        log::info!("Authenticating with Xbox Live...");
+        let xbox_response = Self::authenticate_with_xbox_live(&self.client, &token_response.access_token).await?;
+
+        // Step 3: XSTS token
+        log::info!("Getting XSTS token...");
+        let xsts_response = Self::get_xsts_token(&self.client, &xbox_response.Token).await?;
+
+        // Step 4: Minecraft auth
+        log::info!("Authenticating with Minecraft...");
+        let mc_response = Self::authenticate_with_minecraft(
+            &self.client,
+            &xsts_response.Token,
+            &xsts_response.display_claims.xui[0].uhs,
+        )
+        .await?;
+
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let expiration = now + mc_response.expires_in;
+
+        Ok((
+            mc_response.access_token,
+            token_response.access_token,
+            token_response.refresh_token,
+            expiration,
+        ))
+    }
 }
 
 #[tauri::command]
 pub fn start_microsoft_auth(app_handle: AppHandle) {
     let authenticator = MicrosoftAuthenticator::new();
     authenticator.start_authentication(app_handle);
+}
+
+#[tauri::command]
+pub async fn refresh_microsoft_account_tokens(
+    uuid: String,
+) -> Result<MinecraftAccount, String> {
+    use crate::core::accounts_manager::get_accounts_manager;
+
+    let account = {
+        let accounts_manager = get_accounts_manager();
+        let manager = accounts_manager
+            .lock()
+            .map_err(|e| format!("Failed to lock accounts manager: {}", e))?;
+        manager
+            .get_minecraft_account_by_uuid(&uuid)
+            .ok_or_else(|| format!("Account with UUID {} not found", uuid))?
+    };
+
+    if account.user_type() != "Microsoft" {
+        return Err("Only Microsoft accounts can be refreshed".into());
+    }
+
+    let refresh_token = account
+        .refresh_token()
+        .ok_or("No refresh token stored for this account")?;
+
+    let authenticator = MicrosoftAuthenticator::new();
+    let (mc_token, ms_token, new_refresh, expiration) = authenticator
+        .refresh_minecraft_tokens(refresh_token)
+        .await
+        .map_err(|e| format!("Failed to refresh Microsoft tokens: {}", e))?;
+
+    // Update account in storage
+    {
+        let accounts_manager = get_accounts_manager();
+        let mut manager = accounts_manager
+            .lock()
+            .map_err(|e| format!("Failed to lock accounts manager: {}", e))?;
+        manager
+            .update_account_tokens(&uuid, &mc_token, expiration, &ms_token)
+            .map_err(|e| e.to_string())?;
+        // Update refresh token if it changed
+        if new_refresh != refresh_token {
+            if let Some(account) = manager
+                .accounts
+                .iter_mut()
+                .find(|a| a.uuid() == uuid)
+            {
+                account.set_refresh_token(Some(new_refresh));
+            }
+            manager.save();
+        }
+    }
+
+    let accounts_manager = get_accounts_manager();
+    let manager = accounts_manager
+        .lock()
+        .map_err(|e| format!("Failed to lock accounts manager: {}", e))?;
+    manager
+        .get_minecraft_account_by_uuid(&uuid)
+        .ok_or_else(|| format!("Account with UUID {} not found after refresh", uuid))
 }

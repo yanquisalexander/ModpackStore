@@ -11,8 +11,8 @@ import {
 } from '@/types/whitelist';
 
 class WhitelistService {
-    private baseUrl = `${API_ENDPOINT}/creators/whitelist`;
-    private accessUrl = `${API_ENDPOINT}/whitelist-access`;
+    private get baseUrl() { return `${API_ENDPOINT}/creators/whitelist`; }
+    private get accessUrl() { return `${API_ENDPOINT}/whitelist-access`; }
 
     /**
      * Get all whitelisted users for a modpack

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react"
+import { useEffect, useState, useRef, useCallback } from "react"
 import { useGlobalContext } from "../stores/GlobalContext"
 import { useSearchBar } from "../stores/SearchBarContext"
 import { TitleBarSearch } from "@/components/appbar/TitleBarSearch"
@@ -46,9 +46,27 @@ export const ExploreSection = () => {
     const { query: search, setQuery: setSearch } = useSearchBar()
     const [debouncedSearch] = useDebounce(search, 300)
 
+    const [barrelRolling, setBarrelRolling] = useState(false)
+
     const { onboardingStatus } = useOnboarding()
     const { session } = useAuthentication()
     const hasCompletedOnboarding = onboardingStatus?.first_run_at !== null
+
+    // Easter egg: "do a barrel roll"
+    const lastCheckedRef = useRef("")
+    useEffect(() => {
+        const q = search.trim().toLowerCase()
+        if (q === "do a barrel roll" && lastCheckedRef.current !== q) {
+            lastCheckedRef.current = q
+            setBarrelRolling(true)
+            setTimeout(() => {
+                setBarrelRolling(false)
+                setSearch("")
+            }, 1000)
+        } else if (q !== "do a barrel roll") {
+            lastCheckedRef.current = q
+        }
+    }, [search])
 
     // Scroll to top on search clear
     useEffect(() => {
@@ -124,7 +142,10 @@ export const ExploreSection = () => {
     return (
         <div className="flex flex-col h-full w-full overflow-hidden bg-[#0e0e10]">
 
-            <div ref={scrollRef} className="flex-1 overflow-y-auto custom-scrollbar scroll-smooth relative">
+            <div
+                ref={scrollRef}
+                className={`flex-1 overflow-y-auto custom-scrollbar scroll-smooth relative ${barrelRolling ? "barrel-roll" : ""}`}
+            >
 
                 {initialLoading ? (
                     /* ── Loading ── */
@@ -160,7 +181,7 @@ export const ExploreSection = () => {
                                                     variants={stagger}
                                                     initial="hidden"
                                                     animate="visible"
-                                                    className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+                                                    className="grid grid-cols-3 xl:grid-cols-4 gap-5"
                                                 >
                                                     {searchResults.map((modpack, i) => (
                                                         <motion.div key={modpack.id} variants={fadeUp} custom={i}>
@@ -215,22 +236,22 @@ export const ExploreSection = () => {
                                         {modpackCategories
                                             .filter(c => c.modpacks?.length > 0)
                                             .map((category, i) => (
-                                            <motion.div
-                                                key={category.id}
-                                                variants={fadeUp}
-                                                custom={i}
-                                                initial="hidden"
-                                                whileInView="visible"
-                                                viewport={{ once: true, margin: "-80px" }}
-                                            >
-                                                <CategoryHorizontalSection
-                                                    id={category.id}
-                                                    title={category.name}
-                                                    shortDescription={category.shortDescription}
-                                                    modpacks={category.modpacks}
-                                                />
-                                            </motion.div>
-                                        ))}
+                                                <motion.div
+                                                    key={category.id}
+                                                    variants={fadeUp}
+                                                    custom={i}
+                                                    initial="hidden"
+                                                    whileInView="visible"
+                                                    viewport={{ once: true, margin: "-80px" }}
+                                                >
+                                                    <CategoryHorizontalSection
+                                                        id={category.id}
+                                                        title={category.name}
+                                                        shortDescription={category.shortDescription}
+                                                        modpacks={category.modpacks}
+                                                    />
+                                                </motion.div>
+                                            ))}
                                     </div>
                                 </motion.div>
                             )}

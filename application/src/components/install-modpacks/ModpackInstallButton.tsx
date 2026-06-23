@@ -24,6 +24,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import clsx from "clsx"
 
 interface InstallButtonProps {
     modpackId: string;
@@ -37,6 +38,7 @@ interface InstallButtonProps {
     selectedVersionId?: string;
     disabled?: boolean;
     allowServerDownload?: boolean;
+    className?: string;
 }
 
 interface ModpackAccess {
@@ -57,7 +59,8 @@ export const InstallButton = ({
     requiredTwitchChannels = [],
     selectedVersionId,
     disabled = false,
-    allowServerDownload = false
+    allowServerDownload = false,
+    className,
 }: InstallButtonProps) => {
     const [isInstallOptionsOpen, setIsInstallOptionsOpen] = useState<boolean>(false)
     const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState<boolean>(false)
@@ -328,7 +331,7 @@ export const InstallButton = ({
         <>
             <Button
                 variant="default"
-                className="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
+                className={clsx(["w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"])}
                 disabled={disabled || isCurrentlyInstalling || isCheckingAccess}
                 onClick={handleInstallClick}
             >

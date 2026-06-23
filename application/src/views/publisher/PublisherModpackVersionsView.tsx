@@ -65,7 +65,7 @@ interface Modpack {
 
 // API Service
 class PublisherVersionsAPI {
-    private static baseUrl = `${API_ENDPOINT}/creators`;
+    private static get baseUrl() { return `${API_ENDPOINT}/creators`; }
 
     static async getVersions(publisherId: string, modpackId: string, accessToken: string): Promise<ModpackVersion[]> {
         const response = await fetch(`${this.baseUrl}/${publisherId}/modpacks/${modpackId}/versions`, {

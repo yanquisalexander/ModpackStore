@@ -47,7 +47,10 @@ interface GlobalContextType {
     updateProgress: number;
     updateVersion: string | null;
     updateState: UpdateState;
+    isSimulated: boolean;
     applyUpdate: () => Promise<void>;
+    simulateUpdate: (state: UpdateState) => void;
+    resetUpdate: () => void;
 }
 
 // Crear el contexto
@@ -68,7 +71,40 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
     const [updateProgress, setUpdateProgress] = useState(0);
     const [updateVersion, setUpdateVersion] = useState<string | null>(null);
     const [updateState, setUpdateState] = useState<UpdateState>("idle");
+    const [isSimulated, setIsSimulated] = useState(false);
     const { notifyCustom } = useNotifications();
+
+    const simulateUpdate = useCallback((state: UpdateState) => {
+        setIsSimulated(true);
+        setIsUpdating(true);
+        setUpdateState(state);
+        setUpdateVersion("1.0.0-simulated");
+        setUpdateProgress(state === "downloading" ? 0 : state === "ready-to-install" ? 100 : 0);
+
+        if (state === "downloading") {
+            let progress = 0;
+            const interval = setInterval(() => {
+                progress += Math.random() * 15 + 5;
+                if (progress >= 100) {
+                    progress = 100;
+                    clearInterval(interval);
+                    setUpdateProgress(100);
+                    setUpdateState("ready-to-install");
+                } else {
+                    setUpdateProgress(Math.round(progress));
+                }
+            }, 300);
+        }
+    }, []);
+
+    const resetUpdate = useCallback(() => {
+        setIsSimulated(false);
+        setIsUpdating(false);
+        setUpdateProgress(0);
+        setUpdateVersion(null);
+        setUpdateState("idle");
+        setUpdate(null);
+    }, []);
 
     const applyUpdate = useCallback(async () => {
         if (updateState !== "ready-to-install") {
@@ -144,8 +180,11 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
         updateProgress,
         updateVersion,
         updateState,
+        isSimulated,
         applyUpdate,
-    }), [titleBarState, isUpdating, updateProgress, updateVersion, updateState, applyUpdate]);
+        simulateUpdate,
+        resetUpdate,
+    }), [titleBarState, isUpdating, updateProgress, updateVersion, updateState, isSimulated, applyUpdate, simulateUpdate, resetUpdate]);
 
     return (
         <GlobalContext.Provider value={value}>

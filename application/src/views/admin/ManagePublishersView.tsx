@@ -71,7 +71,7 @@ interface PublisherFormData {
 
 // API Service
 class AdminPublishersAPI {
-    private static baseUrl = `${API_ENDPOINT}/admin/creators`;
+    private static get baseUrl() { return `${API_ENDPOINT}/admin/creators`; }
 
     static async getPublishers(options: {
         page?: number;
