@@ -47,7 +47,7 @@ static API_ENDPOINT: once_cell::sync::Lazy<&'static str> = once_cell::sync::Lazy
     if cfg!(debug_assertions) {
         "http://localhost:3000/v1"
     } else {
-        "https://api-modpackstore.saltouruguayserver.com/v1"
+        "https://modpackstore-api.alexitoo.deno.net/v1"
     }
 });
 

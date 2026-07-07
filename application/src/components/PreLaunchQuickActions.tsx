@@ -27,11 +27,10 @@ const ActionItem = ({
     <button
         onClick={onClick}
         disabled={variant === "disabled"}
-        className={`flex items-center gap-3 w-full px-3 py-2 text-sm transition-colors ${
-            variant === "disabled"
-                ? "opacity-50 cursor-not-allowed text-neutral-600"
-                : "text-neutral-400 hover:text-white hover:bg-white/[0.04] cursor-pointer"
-        }`}
+        className={`flex items-center gap-3 w-full px-3 py-2 text-sm transition-colors ${variant === "disabled"
+            ? "opacity-50 cursor-not-allowed text-neutral-600"
+            : "text-neutral-400 hover:text-white hover:bg-white/[0.04] cursor-pointer"
+            }`}
     >
         <Icon className="size-4 shrink-0" />
         {label}
@@ -139,21 +138,19 @@ const PreLaunchQuickActions = ({
 
                 <button
                     onClick={() => setQuickActionsOpen(!quickActionsOpen)}
-                    className={`size-12 flex items-center justify-center rounded-l-xl border-y border-l transition-colors ${
-                        quickActionsOpen
-                            ? "bg-[#252528] border-white/[0.08] text-white"
-                            : "bg-[#1E1E20] border-white/5 text-neutral-500 hover:bg-white/[0.04] hover:border-white/[0.06]"
-                    }`}
+                    className={`size-12 flex items-center justify-center rounded-l-xl border-y border-l transition-colors ${quickActionsOpen
+                        ? "bg-[#252528] border-white/[0.08] text-white"
+                        : "bg-[#1E1E20] border-white/5 text-neutral-500 hover:bg-white/[0.04] hover:border-white/[0.06]"
+                        }`}
                 >
                     <LucideSettings className={`size-5 transition-transform duration-200 ${quickActionsOpen ? "rotate-90" : ""}`} />
                 </button>
 
                 <div
-                    className={`absolute right-full bottom-0 mr-3 w-64 origin-bottom-right transition-all duration-200 ease-out ${
-                        quickActionsOpen
-                            ? "opacity-100 scale-100 translate-x-0 pointer-events-auto"
-                            : "opacity-0 scale-95 translate-x-4 pointer-events-none"
-                    }`}
+                    className={`absolute right-full bottom-0 mr-3 w-64 origin-bottom-right transition-all duration-200 ease-out ${quickActionsOpen
+                        ? "opacity-100 scale-100 translate-x-0 pointer-events-auto"
+                        : "opacity-0 scale-95 translate-x-4 pointer-events-none"
+                        }`}
                 >
                     <div className="bg-[#121214] border border-white/[0.06] rounded-lg py-1">
 

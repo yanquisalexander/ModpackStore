@@ -2,7 +2,7 @@ export let API_ENDPOINT =
     import.meta.env.DEV || import.meta.env.MODE === "development"
         ? "http://localhost:3000/v1"
         : import.meta.env.VITE_API_ENDPOINT ||
-        "https://api-modpackstore.saltouruguayserver.com/v1";
+        "https://modpackstore-api.alexitoo.deno.net/v1";
 
 export async function initApiEndpoint(): Promise<void> {
     try {
