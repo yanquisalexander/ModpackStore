@@ -51,6 +51,13 @@ interface SessionTokens {
   expiresAt?: number; // Timestamp when the token expires
 }
 
+interface TokenResponse {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type: string;
+}
+
 type AuthStep =
   | null
   | 'starting-auth'
@@ -312,11 +319,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       // Listen for auth status updates
-      const authStatusUnlisten = await listen<UserSession | null>('auth-status-changed', async (event) => {
+      const authStatusUnlisten = await listen<{
+        session: UserSession | null;
+        tokens?: TokenResponse | null;
+      }>('auth-status-changed', async (event) => {
         if (!isMounted) return;
+        const { session: payloadSession, tokens: payloadTokens } = event.payload;
         try {
-          const store = await load(getStoreName());
-          const tokens = await store.get<any>('auth_tokens');
+          // Prefer tokens carried in the event payload (reliable in dev & prod).
+          // Fall back to reading from the store if not present (backwards compat).
+          let tokens = payloadTokens ?? null;
+          if (!tokens) {
+            try {
+              const store = await load(getStoreName());
+              tokens = await store.get<TokenResponse>('auth_tokens');
+            } catch {
+              tokens = null;
+            }
+          }
+
           if (tokens) {
             const expiresAt = calculateTokenExpiration(tokens.access_token, tokens.expires_in);
             const tokensWithExpiry: SessionTokens = {
@@ -330,7 +351,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
             // Update session cache with fresh data
             writeSessionCache({
-              session: event.payload as UserSession,
+              session: payloadSession as UserSession,
               tokens,
               cachedAt: Date.now(),
             });
@@ -342,7 +363,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             clearRefreshTimer();
             clearSessionCache();
           }
-          setSession(enhanceSession(event.payload));
+          setSession(enhanceSession(payloadSession));
           resetAuthState();
         } catch (err) {
           setError(parseError(err));

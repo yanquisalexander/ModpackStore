@@ -37,7 +37,10 @@ export function useI18n(): UseI18nReturn {
 
     // Load initial translations and available languages
     useEffect(() => {
-        const loadInitialData = async () => {
+        const MAX_RETRIES = 5;
+        const BASE_DELAY = 300;
+
+        const loadInitialData = async (attempt = 0) => {
             try {
                 setIsLoading(true);
 
@@ -59,7 +62,13 @@ export function useI18n(): UseI18nReturn {
 
                 setCurrentData(translations);
             } catch (error) {
-                console.error('Failed to load i18n data:', error);
+                if (attempt < MAX_RETRIES) {
+                    const delay = BASE_DELAY * Math.pow(2, attempt);
+                    console.warn(`i18n not ready yet, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return loadInitialData(attempt + 1);
+                }
+                console.error('Failed to load i18n data after retries:', error);
                 // Fallback to English
                 setCurrentData({
                     language: 'en',

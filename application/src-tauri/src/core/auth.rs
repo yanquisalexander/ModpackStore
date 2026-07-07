@@ -179,8 +179,14 @@ mod events {
         let _ = emit_event("auth-error", Some(payload));
     }
 
-    pub fn emit_auth_status_changed(session: Option<UserSession>) {
-        let _ = emit_event("auth-status-changed", session);
+    pub fn emit_auth_status_changed(session: Option<UserSession>, tokens: Option<TokenResponse>) {
+        #[derive(Serialize, Clone)]
+        struct AuthStatusPayload {
+            session: Option<UserSession>,
+            tokens: Option<TokenResponse>,
+        }
+        let payload = AuthStatusPayload { session, tokens };
+        let _ = emit_event("auth-status-changed", Some(payload));
     }
 
     pub fn emit_auth_step_changed(step: AuthStep) {
@@ -513,7 +519,7 @@ mod session {
             Some(tokens) => tokens,
             None => {
                 log::info!("No saved tokens found");
-                events::emit_auth_status_changed(None);
+                events::emit_auth_status_changed(None, None);
                 return Ok(None);
             }
         };
@@ -524,7 +530,7 @@ mod session {
         match api_client.get_session(&tokens.access_token).await {
             Ok(user) => {
                 log::info!("Session restored successfully");
-                save_session_and_notify(auth_state, user.clone()).await;
+                save_session_and_notify(auth_state, user.clone(), tokens.clone()).await;
                 return Ok(Some(user));
             }
             Err(e) if e == "AUTH_EXPIRED" => {
@@ -550,13 +556,13 @@ mod session {
                 match api_client.get_session(&new_tokens.access_token).await {
                     Ok(user) => {
                         log::info!("Session restored after token refresh");
-                        save_session_and_notify(auth_state, user.clone()).await;
+                        save_session_and_notify(auth_state, user.clone(), new_tokens.clone()).await;
                         Ok(Some(user))
                     }
                     Err(e) if e == "AUTH_EXPIRED" => {
                         log::error!("Auth error after token refresh: {}", e);
                         storage::remove_tokens(app_handle).await?;
-                        events::emit_auth_status_changed(None);
+                        events::emit_auth_status_changed(None, None);
                         Ok(None)
                     }
                     Err(e) => {
@@ -568,7 +574,7 @@ mod session {
             Err(e) if e == "REFRESH_TOKEN_EXPIRED" => {
                 log::error!("Refresh token expired: {}", e);
                 storage::remove_tokens(app_handle).await?;
-                events::emit_auth_status_changed(None);
+                events::emit_auth_status_changed(None, None);
                 Ok(None)
             }
             Err(e) => {
@@ -581,12 +587,16 @@ mod session {
         }
     }
 
-    async fn save_session_and_notify(auth_state: &Arc<AuthState>, user: UserSession) {
+    async fn save_session_and_notify(
+        auth_state: &Arc<AuthState>,
+        user: UserSession,
+        tokens: TokenResponse,
+    ) {
         let mut session_guard = auth_state.session.lock().await;
         *session_guard = Some(user.clone());
         drop(session_guard);
 
-        events::emit_auth_status_changed(Some(user));
+        events::emit_auth_status_changed(Some(user), Some(tokens));
     }
 }
 
@@ -742,7 +752,7 @@ async fn process_auth_code(code: String, auth_state: Arc<AuthState>, redirect_ur
     *session_guard = Some(user.clone());
     drop(session_guard);
 
-    events::emit_auth_status_changed(Some(user));
+    events::emit_auth_status_changed(Some(user), Some(tokens));
     log::info!("Authentication completed successfully");
 
     Ok(())
@@ -1090,7 +1100,7 @@ pub async fn logout(
         }
     }
 
-    events::emit_auth_status_changed(None);
+    events::emit_auth_status_changed(None, None);
     log::info!("Logout complete");
     Ok(())
 }
@@ -1120,7 +1130,7 @@ pub async fn refresh_tokens(
                     let mut session_guard = auth_state.session.lock().await;
                     *session_guard = Some(user.clone());
                     drop(session_guard);
-                    events::emit_auth_status_changed(Some(user));
+                    events::emit_auth_status_changed(Some(user), Some(new_tokens.clone()));
                 }
                 Err(e) if e == "AUTH_EXPIRED" => {
                     log::error!(
@@ -1129,7 +1139,7 @@ pub async fn refresh_tokens(
                     );
                     storage::remove_tokens(&app_handle).await?;
                     auth_state.clear_all().await;
-                    events::emit_auth_status_changed(None);
+                    events::emit_auth_status_changed(None, None);
                     return Ok(false);
                 }
                 Err(e) => {
@@ -1145,7 +1155,7 @@ pub async fn refresh_tokens(
                 log::error!("Refresh token expired");
                 storage::remove_tokens(&app_handle).await?;
                 auth_state.clear_all().await;
-                events::emit_auth_status_changed(None);
+                events::emit_auth_status_changed(None, None);
                 return Ok(false);
             }
 
