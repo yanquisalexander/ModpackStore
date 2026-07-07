@@ -41,7 +41,7 @@
   },
   "productName": "Modpack Store",
   "mainBinaryName": "ModpackStore",
-  "version": "1.0.125",
+  "version": "1.0.126",
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {
     "updater": {
@@ -63,7 +63,7 @@
   },
   "app": {
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' https://api-modpackstore.saltouruguayserver.com https://discord.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:",
+      "csp": "default-src 'self'; connect-src 'self' https://api-modpackstore.saltouruguayserver.com https://modpackstore-api.alexitoo.deno.net https://discord.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self' data:",
       "capabilities": [
         "migrated",
         "splash-capability",
