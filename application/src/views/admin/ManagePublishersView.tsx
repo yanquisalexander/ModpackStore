@@ -133,7 +133,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error creating creator: ${response.statusText}`);
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || `Error creating creator: ${response.statusText}`);
         }
 
         return response.json();
@@ -174,7 +174,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error updating creator: ${response.statusText}`);
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || `Error updating creator: ${response.statusText}`);
         }
 
         return response.json();
@@ -190,7 +190,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error deleting creator: ${response.statusText}`);
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || `Error deleting creator: ${response.statusText}`);
         }
     }
 
@@ -221,7 +221,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error adding member: ${response.statusText}`);
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || `Error adding member: ${response.statusText}`);
         }
 
         return response.json();
@@ -237,7 +237,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error removing member: ${response.statusText}`);
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || `Error removing member: ${response.statusText}`);
         }
     }
 
@@ -253,7 +253,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error updating member role: ${response.statusText}`);
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || `Error updating member role: ${response.statusText}`);
         }
 
         return response.json();
@@ -284,7 +284,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error creating subscription: ${response.statusText}`);
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || `Error creating subscription: ${response.statusText}`);
         }
         return response.json();
     }
@@ -300,7 +300,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error cancelling subscription: ${response.statusText}`);
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || `Error cancelling subscription: ${response.statusText}`);
         }
         return response.json();
     }
@@ -317,7 +317,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error overriding feature: ${response.statusText}`);
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || `Error overriding feature: ${response.statusText}`);
         }
         return response.json();
     }
@@ -332,7 +332,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error removing override: ${response.statusText}`);
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || `Error removing override: ${response.statusText}`);
         }
         return response.json();
     }
@@ -349,7 +349,7 @@ class AdminPublishersAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Error setting admin override: ${response.statusText}`);
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || `Error setting admin override: ${response.statusText}`);
         }
         return response.json();
     }

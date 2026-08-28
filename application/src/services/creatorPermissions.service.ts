@@ -1,5 +1,11 @@
 import { API_ENDPOINT } from '@/consts';
 
+function extractErrorDetail(errorData: any): string | undefined {
+    if (errorData?.errors?.[0]?.detail) return errorData.errors[0].detail;
+    if (errorData?.detail) return errorData.detail;
+    return undefined;
+}
+
 export interface PermissionScope {
     id: string;
     creatorId?: string;
@@ -54,7 +60,7 @@ export class CreatorPermissionsAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error fetching members: ${response.statusText}`);
+            throw new Error(extractErrorDetail(errorData) || `Error fetching members: ${response.statusText}`);
         }
 
         const data = await response.json();
@@ -85,7 +91,7 @@ export class CreatorPermissionsAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error adding member: ${response.statusText}`);
+            throw new Error(extractErrorDetail(errorData) || `Error adding member: ${response.statusText}`);
         }
     }
 
@@ -101,7 +107,7 @@ export class CreatorPermissionsAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error updating member role: ${response.statusText}`);
+            throw new Error(extractErrorDetail(errorData) || `Error updating member role: ${response.statusText}`);
         }
     }
 
@@ -116,7 +122,7 @@ export class CreatorPermissionsAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error removing member: ${response.statusText}`);
+            throw new Error(extractErrorDetail(errorData) || `Error removing member: ${response.statusText}`);
         }
     }
 
@@ -130,7 +136,7 @@ export class CreatorPermissionsAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error fetching member permissions: ${response.statusText}`);
+            throw new Error(extractErrorDetail(errorData) || `Error fetching member permissions: ${response.statusText}`);
         }
 
         const json = await response.json();
@@ -156,7 +162,7 @@ export class CreatorPermissionsAPI {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `Error assigning permission: ${response.statusText}`);
+            throw new Error(extractErrorDetail(errorData) || `Error assigning permission: ${response.statusText}`);
         }
     }
 

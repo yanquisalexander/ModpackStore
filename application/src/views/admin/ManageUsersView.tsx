@@ -98,7 +98,7 @@ class AdminUsersAPI {
         });
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to create user');
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || 'Failed to create user');
         }
         const json = await response.json();
         return json.data;
@@ -112,7 +112,7 @@ class AdminUsersAPI {
         });
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to update user');
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || 'Failed to update user');
         }
         const json = await response.json();
         return json.data;
@@ -125,7 +125,7 @@ class AdminUsersAPI {
         });
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to delete user');
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || 'Failed to delete user');
         }
     }
 
@@ -137,7 +137,7 @@ class AdminUsersAPI {
         });
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to ban user');
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || 'Failed to ban user');
         }
     }
 
@@ -148,7 +148,7 @@ class AdminUsersAPI {
         });
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to unban user');
+            throw new Error(errorData.errors?.[0]?.detail || errorData.error || 'Failed to unban user');
         }
     }
 
