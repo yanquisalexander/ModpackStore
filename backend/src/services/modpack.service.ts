@@ -138,8 +138,9 @@ export async function updateModpack(
         twitchCreatorIds: string[];
         twitchChannels: Array<{ id: string; username: string; displayName: string }>;
     }>,
+    currentModpack?: typeof modpacksTable.$inferSelect,
 ) {
-    const current = await getModpackById(modpackId);
+    const current = currentModpack ?? await getModpackById(modpackId);
 
     const newVisibility = data.visibility ?? current.visibility;
     const newAcquisitionMethod = data.acquisitionMethod ?? current.acquisitionMethod;

@@ -11,7 +11,6 @@ import { uploadObject, getModpackImageKey, getModpackImageUrl } from "@/lib/r2.t
 import {
     createModpack,
     getModpacksByCreator,
-    getModpackById,
     updateModpack,
     deleteModpack,
 } from "@/services/modpack.service.ts";
@@ -49,6 +48,9 @@ async function requireModpackAccess(c: Context, next: () => Promise<void>) {
         throw new NotFoundError("Modpack not found", "MODPACK_NOT_FOUND");
     }
 
+    // Store modpack in context so handlers can reuse it without re-querying
+    c.set("modpack", modpack);
+
     await next();
 }
 
@@ -82,13 +84,14 @@ app.post("/", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADM
 });
 
 app.get("/:modpackId", requireAuth, requireCreatorAccess, requireModpackAccess, async (c) => {
-    const modpackId = c.req.param("modpackId")!;
-    const modpack = await getModpackById(modpackId);
+    // Reuse modpack from middleware context (already fetched and validated)
+    const modpack = c.get("modpack");
     return c.json(modpack);
 });
 
 app.patch("/:modpackId", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN), requireModpackAccess, async (c) => {
     const modpackId = c.req.param("modpackId")!;
+    const currentModpack = c.get("modpack");
     const body = await c.req.parseBody();
     const data: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(body)) {
@@ -106,7 +109,8 @@ app.patch("/:modpackId", requireAuth, requireCreatorRole(CreatorRole.OWNER, Crea
         data.bannerUrl = getModpackImageUrl(modpackId, 'banner');
     }
 
-    const modpack = await updateModpack(modpackId, data as any);
+    // Pass current modpack to avoid re-querying
+    const modpack = await updateModpack(modpackId, data as any, currentModpack);
     return c.json(modpack);
 });
 

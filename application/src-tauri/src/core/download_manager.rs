@@ -722,16 +722,32 @@ impl DownloadManager {
     }
 }
 
+/// Compute SHA1 hash of data already in memory (used for tests only).
+#[cfg(test)]
 fn compute_file_hash(contents: &[u8]) -> String {
     let mut hasher = Sha1::new();
     hasher.update(contents);
     format!("{:x}", hasher.finalize())
 }
 
+/// Compute SHA1 hash of a file using streaming I/O (8 KB buffer).
+/// Avoids loading the entire file into memory.
 pub(crate) fn calculate_file_hash(file_path: &Path) -> Result<String, String> {
-    let contents = fs::read(file_path)
-        .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
-    Ok(compute_file_hash(&contents))
+    use std::io::Read;
+    let mut file = fs::File::open(file_path)
+        .map_err(|e| format!("Failed to open file {}: {}", file_path.display(), e))?;
+    let mut hasher = Sha1::new();
+    let mut buffer = [0u8; 8192];
+    loop {
+        let bytes_read = file
+            .read(&mut buffer)
+            .map_err(|e| format!("Failed to read file {}: {}", file_path.display(), e))?;
+        if bytes_read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..bytes_read]);
+    }
+    Ok(format!("{:x}", hasher.finalize()))
 }
 
 /// Builds a map of file hash -> path for all files in the instance directory
@@ -766,8 +782,7 @@ pub(crate) fn build_hash_to_path_map(
     for file_name in standalone_files {
         let file_path = minecraft_dir.join(file_name);
         if file_path.exists() && file_path.is_file() {
-            if let Ok(contents) = fs::read(&file_path) {
-                let hash = compute_file_hash(&contents);
+            if let Ok(hash) = calculate_file_hash(&file_path) {
                 let relative_path = file_path
                     .strip_prefix(minecraft_dir)
                     .map_err(|_| "Failed to get relative path")?;
@@ -794,8 +809,7 @@ fn scan_directory_for_hashes(
         let path = entry.path();
 
         if path.is_file() {
-            if let Ok(contents) = fs::read(&path) {
-                let hash = compute_file_hash(&contents);
+            if let Ok(hash) = calculate_file_hash(&path) {
                 let relative_path = path
                     .strip_prefix(minecraft_dir)
                     .map_err(|_| "Failed to get relative path")?;
@@ -901,12 +915,9 @@ async fn file_exists_with_correct_hash(file_path: &Path, expected_hash: &str) ->
         return false;
     }
 
-    // Read file and compute hash
-    match fs::read(file_path) {
-        Ok(contents) => {
-            let computed_hash = compute_file_hash(&contents);
-            computed_hash == expected_hash
-        }
+    // Compute hash via streaming I/O to avoid loading the entire file into memory
+    match calculate_file_hash(file_path) {
+        Ok(computed_hash) => computed_hash == expected_hash,
         Err(_) => false,
     }
 }

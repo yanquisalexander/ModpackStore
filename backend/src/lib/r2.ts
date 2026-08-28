@@ -17,7 +17,7 @@ if (!accountId || !bucket) {
 
 let client: S3Client | null = null;
 
-function getS3Client(): S3Client {
+export function getS3Client(): S3Client {
     if (!client) {
         client = new S3Client({
             region: "auto",
@@ -93,7 +93,5 @@ export async function uploadObject(key: string, body: Uint8Array, contentType?: 
 
 export async function deleteObject(key: string) {
     const command = new DeleteObjectCommand({ Bucket: bucket, Key: key });
-    const url = await getSignedUrl(getS3Client(), command, { expiresIn: 60 });
-    const res = await fetch(url, { method: 'DELETE' });
-    if (!res.ok) throw new Error(`R2 delete failed: ${res.status}`);
+    await getS3Client().send(command);
 }

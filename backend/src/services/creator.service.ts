@@ -111,44 +111,57 @@ export async function getCreatorMembers(creatorId: string) {
         .where(eq(cu.creatorId, creatorId));
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveUserId(identifier: string): Promise<string> {
+    if (UUID_RE.test(identifier)) return identifier;
+    const [user] = await db.select({ id: users.id }).from(users)
+        .where(eq(users.username, identifier)).limit(1);
+    if (!user) throw new NotFoundError("User not found", "USER_NOT_FOUND");
+    return user.id;
+}
+
 export async function addMember(creatorId: string, targetUserId: string, role: CreatorRole) {
+    const resolvedId = await resolveUserId(targetUserId);
+
     const [existing] = await db.select()
         .from(cu)
-        .where(and(eq(cu.creatorId, creatorId), eq(cu.userId, targetUserId)))
+        .where(and(eq(cu.creatorId, creatorId), eq(cu.userId, resolvedId)))
         .limit(1);
 
     if (existing) throw new ValidationError("User is already a member", "ALREADY_MEMBER");
 
-    const [user] = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
-    if (!user) throw new NotFoundError("User not found", "USER_NOT_FOUND");
-
     const [membership] = await db.insert(cu)
-        .values({ creatorId, userId: targetUserId, role })
+        .values({ creatorId, userId: resolvedId, role })
         .returning();
 
     return membership;
 }
 
 export async function updateMemberRole(creatorId: string, targetUserId: string, role: CreatorRole) {
+    const resolvedId = await resolveUserId(targetUserId);
+
     const [existing] = await db.select()
         .from(cu)
-        .where(and(eq(cu.creatorId, creatorId), eq(cu.userId, targetUserId)))
+        .where(and(eq(cu.creatorId, creatorId), eq(cu.userId, resolvedId)))
         .limit(1);
 
     if (!existing) throw new NotFoundError("Member not found", "MEMBER_NOT_FOUND");
 
     const [membership] = await db.update(cu)
         .set({ role, updatedAt: new Date() })
-        .where(and(eq(cu.creatorId, creatorId), eq(cu.userId, targetUserId)))
+        .where(and(eq(cu.creatorId, creatorId), eq(cu.userId, resolvedId)))
         .returning();
 
     return membership;
 }
 
 export async function removeMember(creatorId: string, targetUserId: string) {
+    const resolvedId = await resolveUserId(targetUserId);
+
     const [existing] = await db.select()
         .from(cu)
-        .where(and(eq(cu.creatorId, creatorId), eq(cu.userId, targetUserId)))
+        .where(and(eq(cu.creatorId, creatorId), eq(cu.userId, resolvedId)))
         .limit(1);
 
     if (!existing) throw new NotFoundError("Member not found", "MEMBER_NOT_FOUND");
@@ -162,7 +175,7 @@ export async function removeMember(creatorId: string, targetUserId: string) {
     }
 
     await db.delete(cu)
-        .where(and(eq(cu.creatorId, creatorId), eq(cu.userId, targetUserId)));
+        .where(and(eq(cu.creatorId, creatorId), eq(cu.userId, resolvedId)));
 }
 
 // ── Profile ─────────────────────────────────────────

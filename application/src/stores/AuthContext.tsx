@@ -416,8 +416,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         // Revalidate in background (init_session calls /auth/me)
         invoke('init_session');
-        // Wait for the auth-status-changed event to be received before proceeding.
-        await authStatusPromise;
+
+        // Wait for auth-status-changed event, but with a safety timeout
+        // to prevent infinite loading if the backend fails to emit the event
+        const AUTH_INIT_TIMEOUT_MS = 15_000;
+        await Promise.race([
+          authStatusPromise,
+          new Promise((resolve) => setTimeout(resolve, AUTH_INIT_TIMEOUT_MS))
+        ]);
       } catch (err) {
         if (!isMounted) return;
         console.error("[AuthContext] Error during init_session:", err);

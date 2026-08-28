@@ -180,14 +180,29 @@ app.get("/modpacks/:modpackId/versions/:versionId", requireAuth, async (c) => {
             versionId = latest.id;
         }
 
-        const version = await getVersion(versionId, modpackId);
-        const files = await getVersionFiles(versionId, target);
-
-        // Validate access — all modpacks require acquisition
+        // Validate access first — must verify permission before checking ETag
         const { hasAccess } = await checkAccess(c.get("userId"), modpackId);
         if (!hasAccess) {
             throw new ForbiddenError("You need to acquire this modpack first.", "ACCESS_DENIED");
         }
+
+        // ETag check after access validation, before fetching full data
+        // ETag is deterministic: versionId + target (immutable since published versions don't change)
+        const etag = `"${versionId}/${target}"`;
+        const ifNoneMatch = c.req.header("If-None-Match");
+        if (ifNoneMatch && ifNoneMatch === etag) {
+            return new Response(null, {
+                status: 304,
+                headers: {
+                    "ETag": etag,
+                    "Cache-Control": "public, max-age=31536000, immutable",
+                },
+            });
+        }
+
+        // Only fetch full data if client doesn't have cached version
+        const version = await getVersion(versionId, modpackId);
+        const files = await getVersionFiles(versionId, target);
 
         // Build manifest
         const manifest = {
@@ -211,21 +226,6 @@ app.get("/modpacks/:modpackId/versions/:versionId", requireAuth, async (c) => {
                 },
             })),
         };
-
-        // Deterministic ETag based on versionId + target (immutable since published versions don't change)
-        const etag = `"${versionId}/${target}"`;
-
-        // Check If-None-Match
-        const ifNoneMatch = c.req.header("If-None-Match");
-        if (ifNoneMatch && ifNoneMatch === etag) {
-            return new Response(null, {
-                status: 304,
-                headers: {
-                    "ETag": etag,
-                    "Cache-Control": "public, max-age=31536000, immutable",
-                },
-            });
-        }
 
         return c.json({ manifest }, 200, {
             "ETag": etag,

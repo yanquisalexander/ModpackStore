@@ -6,7 +6,7 @@ import {
     ForbiddenError,
 } from "@/lib/errors/index.ts";
 import { db } from "@/db/client.ts";
-import { users, sessions } from "@/db/schema.ts";
+import { users, sessions, modpacksTable } from "@/db/schema.ts";
 import { eq } from "drizzle-orm";
 import type { JwtPayload } from "@/auth/service.ts";
 import { sessionKV } from "@/auth/kv-session.ts";
@@ -19,6 +19,7 @@ export interface AuthVariables {
     user: typeof users.$inferSelect;
     jwtPayload: JwtPayload;
     userId: string;
+    modpack?: typeof modpacksTable.$inferSelect;
 }
 
 async function authenticate(c: Context, failIfMissing: boolean): Promise<void> {

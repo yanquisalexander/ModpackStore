@@ -2,6 +2,7 @@
     "tasks": {
         "start": "deno run --allow-net --allow-read --allow-env --allow-write --allow-ffi --env-file=.env src/index.ts",
         "dev": "deno run --allow-net --allow-read --allow-env --allow-write --allow-ffi --allow-sys --env-file=.env --watch src/index.ts",
+        "cli": "deno run -A --env-file=.env src/cli/index.ts",
         "db:generate": "deno run -A npm:drizzle-kit generate",
         "db:migrate": "deno run -A npm:drizzle-kit migrate",
         "db:rollback": "deno run -A npm:drizzle-kit rollback"
@@ -15,7 +16,7 @@
         "drizzle-kit": "npm:drizzle-kit@^0.31.10",
         "drizzle-orm": "npm:drizzle-orm@^0.45.2",
         "ioredis": "npm:ioredis@^5.11.1",
-        "jszip": "npm:jszip@^3.10.1",
+        "@zip.js/zip.js": "jsr:@zip-js/zip-js@^2.8.31",
         "pg": "npm:pg@^8.21.0",
         "@aws-sdk/client-s3": "npm:@aws-sdk/client-s3@^3.758.0",
         "@aws-sdk/s3-request-presigner": "npm:@aws-sdk/s3-request-presigner@^3.758.0",

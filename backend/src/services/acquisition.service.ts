@@ -18,10 +18,28 @@ export async function checkAccess(
     userId: string,
     modpackId: string,
 ): Promise<{ hasAccess: boolean; acquisition?: typeof modpackAcquisitionsTable.$inferSelect; reason?: string }> {
-    const [modpack] = await db.select({ visibility: modpacksTable.visibility })
-        .from(modpacksTable)
-        .where(eq(modpacksTable.id, modpackId))
-        .limit(1);
+    // Parallel queries: modpack visibility + acquisition status (independent of each other)
+    const [modpackResult, acquisitionResult] = await Promise.all([
+        db.select({
+            visibility: modpacksTable.visibility,
+            acquisitionMethod: modpacksTable.acquisitionMethod,
+            twitchCreatorIds: modpacksTable.twitchCreatorIds,
+        })
+            .from(modpacksTable)
+            .where(eq(modpacksTable.id, modpackId))
+            .limit(1),
+        db.select()
+            .from(modpackAcquisitionsTable)
+            .where(and(
+                eq(modpackAcquisitionsTable.userId, userId),
+                eq(modpackAcquisitionsTable.modpackId, modpackId),
+                eq(modpackAcquisitionsTable.status, AcquisitionStatus.ACTIVE),
+            ))
+            .limit(1),
+    ]);
+
+    const modpack = modpackResult[0];
+    const acquisition = acquisitionResult[0];
 
     if (!modpack) return { hasAccess: false, reason: "Modpack not found" };
 
@@ -31,28 +49,27 @@ export async function checkAccess(
         return { hasAccess: true };
     }
 
-    const [acquisition] = await db.select()
-        .from(modpackAcquisitionsTable)
-        .where(and(
-            eq(modpackAcquisitionsTable.userId, userId),
-            eq(modpackAcquisitionsTable.modpackId, modpackId),
-            eq(modpackAcquisitionsTable.status, AcquisitionStatus.ACTIVE),
-        ))
-        .limit(1);
-
     if (!acquisition) {
         return { hasAccess: false, reason: "No acquisition found" };
     }
 
     if (acquisition.method === AcquisitionMethod.TWITCH_SUB) {
-        const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-        const [modpack] = await db.select().from(modpacksTable).where(eq(modpacksTable.id, modpackId)).limit(1);
+        // Parallel queries for Twitch sub check (independent of each other)
+        const [userResult] = await db.select({
+            twitchId: users.twitchId,
+            twitchAccessToken: users.twitchAccessToken,
+            twitchRefreshToken: users.twitchRefreshToken,
+            id: users.id,
+        })
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1);
 
-        if (!user || !modpack) {
-            return { hasAccess: false, reason: "User or modpack not found" };
+        if (!userResult) {
+            return { hasAccess: false, reason: "User not found" };
         }
 
-        const hasActiveSub = await checkTwitchSubscription(user, modpack);
+        const hasActiveSub = await checkTwitchSubscription(userResult, modpack.twitchCreatorIds as string[]);
         if (!hasActiveSub) {
             await db.update(modpackAcquisitionsTable)
                 .set({ status: AcquisitionStatus.SUSPENDED, updatedAt: new Date() })
@@ -66,13 +83,12 @@ export async function checkAccess(
 }
 
 async function checkTwitchSubscription(
-    user: typeof users.$inferSelect,
-    modpack: typeof modpacksTable.$inferSelect,
+    user: { twitchId: string | null; twitchAccessToken: string | null; twitchRefreshToken: string | null; id: string },
+    channelIds: string[],
 ): Promise<boolean> {
     if (!user.twitchId || !user.twitchAccessToken) return false;
-    if (!modpack.twitchCreatorIds || !Array.isArray(modpack.twitchCreatorIds)) return false;
+    if (!channelIds || !Array.isArray(channelIds) || channelIds.length === 0) return false;
 
-    const channelIds = modpack.twitchCreatorIds as string[];
     const clientId = Deno.env.get("TWITCH_CLIENT_ID")!;
 
     for (const channelId of channelIds) {
@@ -97,7 +113,7 @@ async function checkTwitchSubscription(
                 if (refreshed) {
                     return checkTwitchSubscription(
                         { ...user, twitchAccessToken: refreshed.accessToken, twitchRefreshToken: refreshed.refreshToken },
-                        modpack,
+                        channelIds,
                     );
                 }
                 return false;
@@ -111,7 +127,7 @@ async function checkTwitchSubscription(
     return false;
 }
 
-async function refreshTwitchToken(user: typeof users.$inferSelect): Promise<{ accessToken: string; refreshToken: string } | null> {
+async function refreshTwitchToken(user: { twitchRefreshToken: string | null; id: string }): Promise<{ accessToken: string; refreshToken: string } | null> {
     if (!user.twitchRefreshToken) return null;
 
     const clientId = Deno.env.get("TWITCH_CLIENT_ID")!;
@@ -191,7 +207,7 @@ export async function acquireTwitch(userId: string, modpackId: string) {
         throw new ValidationError("Twitch account must be linked first", "TWITCH_NOT_LINKED");
     }
 
-    const hasSub = await checkTwitchSubscription(user, modpack);
+    const hasSub = await checkTwitchSubscription(user, modpack.twitchCreatorIds as string[]);
     if (!hasSub) {
         throw new ForbiddenError("Active Twitch subscription required", "NO_TWITCH_SUB");
     }

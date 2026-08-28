@@ -1,5 +1,5 @@
 import type { Job } from "bullmq";
-import JSZip from "jszip";
+import { BlobReader, ZipReader } from "@zip.js/zip.js";
 import { db } from "@/db/client.ts";
 import {
     modpackVersionsTable,
@@ -11,6 +11,8 @@ import {
 import { eq } from "drizzle-orm";
 import { log } from "@/lib/logger.ts";
 import { downloadObject, uploadObject, deleteObject, getTempZipKey, getFileKey } from "@/lib/r2.ts";
+
+const INSERT_CHUNK_SIZE = 500;
 
 async function updateProcessingJob(jobId: string, updates: Partial<{
     status: ProcessingJobStatus;
@@ -44,12 +46,15 @@ interface FileMeta {
 }
 
 async function sha1(data: Uint8Array): Promise<string> {
-    // Ensure we pass a plain ArrayBuffer to subtle.digest to avoid
-    // incompatible ArrayBufferLike (e.g. SharedArrayBuffer) types.
+    // Ensure plain ArrayBuffer for crypto.subtle.digest (avoids SharedArrayBuffer type issues)
     const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
     const hashBuffer = await crypto.subtle.digest("SHA-1", arrayBuffer);
     const hashArray = new Uint8Array(hashBuffer);
-    return Array.from(hashArray).map((b) => b.toString(16).padStart(2, "0")).join("");
+    let hex = "";
+    for (let i = 0; i < hashArray.length; i++) {
+        hex += hashArray[i].toString(16).padStart(2, "0");
+    }
+    return hex;
 }
 
 function determineSideByPath(filePath: string): FileSide {
@@ -70,20 +75,11 @@ function determineSideByPath(filePath: string): FileSide {
     }
 }
 
-function manifestSideToSide(env: { client?: string; server?: string } | undefined): FileSide | null {
-    if (!env) return null;
-    const clientOk = env.client && env.client !== "unsupported";
-    const serverOk = env.server && env.server !== "unsupported";
-    if (clientOk && serverOk) return "both";
-    if (clientOk) return "client";
-    if (serverOk) return "server";
-    return null;
-}
-
 export async function processModpackFiles(job: Job) {
     const { versionId, fileType } = job.data as { versionId: string; fileType: string };
     const start = Date.now();
     const jobId = job.id!;
+    let zipKey = "";
 
     try {
         await updateProcessingJob(jobId, { status: ProcessingJobStatus.PROCESSING, progress: 0 });
@@ -104,11 +100,12 @@ export async function processModpackFiles(job: Job) {
         }
 
         const modpackId = version.modpackId;
-        const zipKey = getTempZipKey(modpackId, versionId, fileType);
+        zipKey = getTempZipKey(modpackId, versionId, fileType);
         log(`  ZIP key: ${zipKey}`);
-        log(`  Downloading ZIP from R2...`);
 
-        let zipBuffer: Uint8Array | null;
+        // Download ZIP
+        log(`  Downloading ZIP from R2...`);
+        let zipBuffer: Uint8Array;
         try {
             zipBuffer = await downloadObject(zipKey);
         } catch (err) {
@@ -118,12 +115,27 @@ export async function processModpackFiles(job: Job) {
         }
 
         await updateProcessingJob(jobId, { progress: 20 });
+        log(`  Downloaded ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB`);
 
-        log(`  Downloaded ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB (${zipBuffer.length} bytes)`);
-        log(`  Extracting ZIP contents...`);
+        // Read ZIP entries using @zip.js/zip.js (streaming-friendly)
+        log(`  Reading ZIP entries...`);
+        const zipReader = new ZipReader(new BlobReader(new Blob([zipBuffer as BlobPart])));
+        const entries = await zipReader.getEntries();
 
-        const zip = await JSZip.loadAsync(zipBuffer);
-        zipBuffer = null; // Allow GC
+        // Release the download buffer — we no longer need it
+        zipBuffer = null as any;
+
+        // Detect if the ZIP has a single root folder matching the fileType
+        const rootDirs = new Set<string>();
+        for (const entry of entries) {
+            if (entry.directory) {
+                const dir = entry.filename.split("/")[0];
+                if (dir) rootDirs.add(dir);
+            }
+        }
+        const stripPrefix = rootDirs.size === 1 && rootDirs.has(fileType) ? `${fileType}/` : "";
+
+        log(`  ${entries.length} entries found, processing...`);
 
         const fileMetas: FileMeta[] = [];
         const uniqueMetas = new Map<string, FileMeta>();
@@ -131,15 +143,6 @@ export async function processModpackFiles(job: Job) {
         let skipped = 0;
         let uploaded = 0;
         let dedupSavingsLocal = 0;
-
-        // Detect if the ZIP has a single root folder matching the fileType
-        const rootDirs = new Set<string>();
-        for (const [relativePath, entry] of Object.entries(zip.files)) {
-            if (!entry.dir) continue;
-            const dir = relativePath.split("/")[0];
-            if (dir) rootDirs.add(dir);
-        }
-        const stripPrefix = rootDirs.size === 1 && rootDirs.has(fileType) ? `${fileType}/` : "";
 
         const BATCH_SIZE = 10;
         const uploadBatch: Array<{ hash: string; content: Uint8Array }> = [];
@@ -151,18 +154,36 @@ export async function processModpackFiles(job: Job) {
             ));
             uploaded += uploadBatch.length;
             uploadBatch.length = 0;
-        }
+        };
 
-        for (const [relativePath, entry] of Object.entries(zip.files)) {
-            if (entry.dir) continue;
-            if (relativePath.startsWith("__MACOSX/")) { skipped++; continue; }
-            if (relativePath.startsWith(".")) { skipped++; continue; }
+        // Process entries one at a time — each entry's content is released after processing
+        for (const entry of entries) {
+            if (entry.directory) continue;
+            if (entry.filename.startsWith("__MACOSX/")) { skipped++; continue; }
+            if (entry.filename.startsWith(".")) { skipped++; continue; }
 
-            const content = await entry.async("uint8array");
-            if (content.length === 0) { skipped++; continue; }
+            // Get decompressed content for THIS entry only
+            const chunks: Uint8Array[] = [];
+            let totalLen = 0;
+            await entry.getData(
+                new WritableStream({
+                    write(chunk) {
+                        chunks.push(chunk);
+                        totalLen += chunk.length;
+                    },
+                }),
+            );
+            if (totalLen === 0) { skipped++; continue; }
+            const content = new Uint8Array(totalLen);
+            let offset = 0;
+            for (const chunk of chunks) {
+                content.set(chunk, offset);
+                offset += chunk.length;
+            }
+            chunks.length = 0; // Release references
 
             const hash = await sha1(content);
-            const filePath = stripPrefix ? relativePath.slice(stripPrefix.length) : relativePath;
+            const filePath = stripPrefix ? entry.filename.slice(stripPrefix.length) : entry.filename;
             const side = determineSideByPath(filePath);
 
             fileMetas.push({ hash, path: filePath, fileType: fileType as FileType, side, size: content.length });
@@ -175,6 +196,7 @@ export async function processModpackFiles(job: Job) {
                 }
             } else {
                 dedupSavingsLocal += content.length;
+                // content is eligible for GC after this iteration
             }
 
             const ext = filePath.includes(".") ? filePath.split(".").pop()!.toLowerCase() : "(none)";
@@ -187,6 +209,9 @@ export async function processModpackFiles(job: Job) {
 
         // Flush remaining uploads
         await flushUploadBatch();
+
+        // Close the reader
+        await zipReader.close();
 
         if (stripPrefix) {
             log(`  Detected root folder "${fileType}/" — stripped prefix from all paths`);
@@ -206,10 +231,8 @@ export async function processModpackFiles(job: Job) {
         }
         log(`  Sides: both=${sideCounts.both}, client=${sideCounts.client}, server=${sideCounts.server}`);
 
-        // Total size
         const totalSize = fileMetas.reduce((sum, pf) => sum + pf.size, 0);
         log(`  Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
-
         log(`  Unique files: ${uniqueMetas.size} (dedup saved ${(dedupSavingsLocal / 1024 / 1024).toFixed(2)} MB)`);
         log(`  Uploaded ${uploaded} unique files to R2 (batched, max ${BATCH_SIZE} concurrent)`);
 
@@ -219,20 +242,13 @@ export async function processModpackFiles(job: Job) {
 
         const insertStart = Date.now();
 
-        // Batch insert modpack_files (deduplicated by hash)
+        // Batch insert with chunking inside a transaction
         const fileRows = Array.from(uniqueMetas.values()).map((pf) => ({
             hash: pf.hash,
             size: String(pf.size),
             mimeType: "application/octet-stream" as string | null,
         }));
 
-        if (fileRows.length > 0) {
-            await db.insert(modpackFilesTable)
-                .values(fileRows)
-                .onConflictDoNothing();
-        }
-
-        // Batch insert modpack_version_files
         const versionFileRows = fileMetas.map((pf) => ({
             fileHash: pf.hash,
             modpackVersionId: versionId,
@@ -241,23 +257,23 @@ export async function processModpackFiles(job: Job) {
             side: pf.side,
         }));
 
-        if (versionFileRows.length > 0) {
-            await db.insert(modpackVersionFilesTable)
-                .values(versionFileRows)
-                .onConflictDoNothing();
-        }
+        await db.transaction(async (tx) => {
+            // Chunked insert modpack_files
+            for (let i = 0; i < fileRows.length; i += INSERT_CHUNK_SIZE) {
+                const chunk = fileRows.slice(i, i + INSERT_CHUNK_SIZE);
+                await tx.insert(modpackFilesTable).values(chunk).onConflictDoNothing();
+            }
+
+            // Chunked insert modpack_version_files
+            for (let i = 0; i < versionFileRows.length; i += INSERT_CHUNK_SIZE) {
+                const chunk = versionFileRows.slice(i, i + INSERT_CHUNK_SIZE);
+                await tx.insert(modpackVersionFilesTable).values(chunk).onConflictDoNothing();
+            }
+        });
 
         await updateProcessingJob(jobId, { progress: 80 });
 
         log(`  DB inserts done in ${((Date.now() - insertStart) / 1000).toFixed(2)}s (${fileRows.length} file records, ${versionFileRows.length} version-file records)`);
-
-        // Delete the temp ZIP from R2
-        try {
-            await deleteObject(zipKey);
-            log(`  Deleted temp ZIP: ${zipKey}`);
-        } catch (err) {
-            log(`  [WARN] Failed to delete temp ZIP: ${err}`);
-        }
 
         const elapsed = ((Date.now() - start) / 1000).toFixed(1);
         log(`  ✅ Completed in ${elapsed}s — ${fileMetas.length} files processed, ${uniqueMetas.size} unique`);
@@ -269,5 +285,16 @@ export async function processModpackFiles(job: Job) {
         log(`  [ERROR] Job failed: ${message}`);
         await updateProcessingJob(jobId, { status: ProcessingJobStatus.FAILED, error: message });
         throw err;
+    } finally {
+        // Clean up temp ZIP on permanent failure (last attempt)
+        if (zipKey && job.attemptsMade >= (job.opts.attempts ?? 3) - 1) {
+            try {
+                await deleteObject(zipKey);
+                log(`  Cleaned up temp ZIP: ${zipKey}`);
+            } catch {
+                // Best effort — ZIP may already be deleted
+            }
+        }
     }
 }
+

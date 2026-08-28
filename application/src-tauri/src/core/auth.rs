@@ -15,6 +15,12 @@ use tauri_plugin_opener;
 use tauri_plugin_store::StoreExt;
 use tokio::sync::{oneshot, Mutex};
 
+// --- OAuth server registry: ensures only one server per port at a time ---
+lazy_static::lazy_static! {
+    static ref OAUTH_SERVERS: Mutex<std::collections::HashMap<u16, oneshot::Sender<()>>> =
+        Mutex::new(std::collections::HashMap::new());
+}
+
 // Constantes centralizadas
 // Current changelog version ID - increment this when updating changelog content
 const CHANGELOG_ID: u32 = 1;
@@ -541,7 +547,8 @@ mod session {
                     "Server or network error restoring session: {}. Keeping local session.",
                     e
                 );
-                // Si es un error de servidor/red, propagamos el error pero NO borramos tokens
+                // Emit event so the frontend doesn't hang on authStatusPromise
+                events::emit_auth_status_changed(None, None);
                 return Err(e);
             }
         }
@@ -549,7 +556,11 @@ mod session {
         // Intentar renovar tokens
         match api_client.refresh_tokens(&tokens.refresh_token).await {
             Ok(new_tokens) => {
-                storage::save_tokens(app_handle, &new_tokens).await?;
+                if let Err(e) = storage::save_tokens(app_handle, &new_tokens).await {
+                    log::error!("Failed to save refreshed tokens: {}", e);
+                    events::emit_auth_status_changed(None, None);
+                    return Err(e);
+                }
                 log::info!("Tokens refreshed successfully");
 
                 // Obtener sesión con nuevos tokens
@@ -561,19 +572,20 @@ mod session {
                     }
                     Err(e) if e == "AUTH_EXPIRED" => {
                         log::error!("Auth error after token refresh: {}", e);
-                        storage::remove_tokens(app_handle).await?;
+                        let _ = storage::remove_tokens(app_handle).await;
                         events::emit_auth_status_changed(None, None);
                         Ok(None)
                     }
                     Err(e) => {
                         log::error!("Server error after token refresh: {}", e);
+                        events::emit_auth_status_changed(None, None);
                         Err(e)
                     }
                 }
             }
             Err(e) if e == "REFRESH_TOKEN_EXPIRED" => {
                 log::error!("Refresh token expired: {}", e);
-                storage::remove_tokens(app_handle).await?;
+                let _ = storage::remove_tokens(app_handle).await;
                 events::emit_auth_status_changed(None, None);
                 Ok(None)
             }
@@ -582,6 +594,7 @@ mod session {
                     "Server or network error refreshing tokens: {}. Keeping credentials.",
                     e
                 );
+                events::emit_auth_status_changed(None, None);
                 Err(e)
             }
         }
@@ -619,11 +632,30 @@ where
     F: Fn(Request<Body>, Arc<Mutex<AppState>>) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Response<Body>, Infallible>> + Send>> + Clone + Send + Sync + 'static,
     P: FnOnce(Arc<AuthState>, Arc<Mutex<AppState>>) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>> + Send + 'static,
 {
+    let port = addr.1;
+
+    // Ensure any previous server on this port is fully stopped
+    {
+        let mut servers = OAUTH_SERVERS.lock().await;
+        if let Some(old_tx) = servers.remove(&port) {
+            log::info!("{} shutting down previous server on port {}", label, port);
+            let _ = old_tx.send(());
+            // Give the old server time to release the socket
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    }
+
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+
+    // Register this server's shutdown sender
+    {
+        let mut servers = OAUTH_SERVERS.lock().await;
+        servers.insert(port, shutdown_tx);
+    }
 
     let app_state_mutex = Arc::new(Mutex::new(AppState {
         auth_state: Arc::clone(&auth_state),
-        server_tx: Some(shutdown_tx),
+        server_tx: None, // shutdown is now managed by OAUTH_SERVERS registry
     }));
 
     let socket_addr = SocketAddr::from(addr);
@@ -652,6 +684,10 @@ where
             log::error!("{} server error: {}", label, e);
             events::emit_auth_error(format!("{} server error: {}", label, e));
         }
+        // Unregister from the registry when the server finishes
+        let mut servers = OAUTH_SERVERS.lock().await;
+        servers.remove(&port);
+        log::info!("{} server on port {} fully stopped", label, port);
     });
 
     let auth_state_clone = Arc::clone(&auth_state);
@@ -665,14 +701,15 @@ where
 /// Generic polling function that waits for an auth code and processes it.
 /// `process_fn` receives (code, auth_state, redirect_uri) when a code is received.
 /// `success_event` is emitted on success (e.g., "twitch-auth-success"). Pass None for Discord.
-/// `app_state_mutex` is used to shut down the server on timeout (None for deep-link/no-server mode).
+/// `port` is the port number of the OAuth server to shut down on completion/timeout.
 async fn poll_for_auth_code_generic<F, Fut>(
     auth_state: Arc<AuthState>,
-    app_state_mutex: Option<Arc<Mutex<AppState>>>,
+    _app_state_mutex: Option<Arc<Mutex<AppState>>>,
     redirect_uri: Option<String>,
     mut process_fn: F,
     success_event: Option<&str>,
     label: &str,
+    port: u16,
 ) where
     F: FnMut(String, Arc<AuthState>, Option<String>) -> Fut + Send,
     Fut: std::future::Future<Output = AuthResult<()>> + Send,
@@ -706,6 +743,15 @@ async fn poll_for_auth_code_generic<F, Fut>(
                     events::emit_auth_error(format!("Error linking {} account: {}", label, e));
                 }
             }
+
+            // Shut down the server after processing the code
+            if port != 0 {
+                let mut servers = OAUTH_SERVERS.lock().await;
+                if let Some(tx) = servers.remove(&port) {
+                    let _ = tx.send(());
+                }
+            }
+
             return;
         }
 
@@ -719,11 +765,10 @@ async fn poll_for_auth_code_generic<F, Fut>(
     log::error!("Timeout waiting for {} authorization code", label);
     events::emit_auth_error(format!("Timeout waiting for {} authorization", label));
 
-    if let Some(mutex) = app_state_mutex {
-        let mut state = mutex.lock().await;
-        if let Some(tx) = state.server_tx.take() {
-            let _ = tx.send(());
-        }
+    // Shut down the server via the registry
+    let mut servers = OAUTH_SERVERS.lock().await;
+    if let Some(tx) = servers.remove(&port) {
+        let _ = tx.send(());
     }
 }
 
@@ -808,6 +853,7 @@ pub async fn start_discord_auth(
                 process_auth_code,
                 None,
                 "Discord",
+                0, // no server in deep-link mode
             ).await;
         });
 
@@ -840,6 +886,7 @@ pub async fn start_discord_auth(
                         process_auth_code,
                         None,
                         "Discord",
+                        SERVER_ADDR.1,
                     ).await;
                 })
             },
@@ -903,6 +950,7 @@ pub async fn start_twitch_auth(
                 },
                 Some("twitch-auth-success"),
                 "Twitch",
+                0, // no server in deep-link mode
             ).await;
         });
 
@@ -944,6 +992,7 @@ pub async fn start_twitch_auth(
                         },
                         Some("twitch-auth-success"),
                         "Twitch",
+                        TWITCH_SERVER_ADDR.1,
                     ).await;
                 })
             },
@@ -1007,6 +1056,7 @@ pub async fn start_patreon_auth(
                 },
                 Some("patreon-auth-success"),
                 "Patreon",
+                0, // no server in deep-link mode
             ).await;
         });
 
@@ -1048,6 +1098,7 @@ pub async fn start_patreon_auth(
                         },
                         Some("patreon-auth-success"),
                         "Patreon",
+                        PATREON_SERVER_ADDR.1,
                     ).await;
                 })
             },
