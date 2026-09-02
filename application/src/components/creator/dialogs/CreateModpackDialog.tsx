@@ -4,13 +4,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { HCaptchaWrapper, HCaptcha_HEADER } from '@/components/ui/hcaptcha';
 import { toast } from 'sonner';
 import { Modpack } from '@/types/modpacks';
 import { UploadCloud, Check, ChevronRight, ChevronLeft, Info, Lock, Eye } from 'lucide-react';
 import { useAuthentication } from "@/stores/AuthContext";
 import { API_ENDPOINT } from "@/consts";
 import { CategorySelector } from '@/components/CategorySelector';
-import { cn } from '@/lib/utils'; // Asegúrate de tener esta utilidad, o usa classnames
+import { cn } from '@/lib/utils';
 
 interface Props {
     isOpen: boolean;
@@ -101,6 +102,9 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, crea
     const [acquisitionMethod, setAcquisitionMethod] = useState<'free' | 'password'>('free');
     const [password, setPassword] = useState('');
 
+    // Captcha
+    const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+
     // Auto-generar slug
     useEffect(() => {
         const generatedSlug = name
@@ -125,6 +129,7 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, crea
         setAcquisitionMethod('free');
         setPassword('');
         setCurrentStep(1);
+        setCaptchaToken(null);
     };
 
     // --- Lógica de Navegación y Validación ---
@@ -159,8 +164,9 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, crea
 
     // --- Envío del Formulario ---
     const handleSubmit = async () => {
-        if (!validateStep(4)) return; // Validar último paso antes de enviar
+        if (!validateStep(4)) return;
         if (!creatorId) { toast.error('Error interno: No creator ID'); return; }
+        if (!captchaToken) { toast.error('Completa el captcha'); return; }
 
         setLoading(true);
         try {
@@ -181,7 +187,10 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, crea
 
             const res = await fetch(`${API_ENDPOINT}/creators/${creatorId}/modpacks`, {
                 method: 'POST',
-                headers: { 'Authorization': `Bearer ${sessionTokens?.accessToken}` },
+                headers: {
+                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                    [HCaptcha_HEADER]: captchaToken,
+                },
                 body: formData,
             });
 
@@ -348,6 +357,15 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, crea
                                 </div>
                             )}
                         </div>
+
+                        {/* Captcha */}
+                        <div className="flex justify-center pt-2">
+                            <HCaptchaWrapper
+                                onVerify={setCaptchaToken}
+                                onExpire={() => setCaptchaToken(null)}
+                                onError={() => setCaptchaToken(null)}
+                            />
+                        </div>
                     </div>
                 );
         }
@@ -413,7 +431,7 @@ const CreateModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, crea
 
                         <Button
                             onClick={currentStep === STEPS.length ? handleSubmit : handleNext}
-                            disabled={loading}
+                            disabled={loading || (currentStep === STEPS.length && !captchaToken)}
                             className={cn(
                                 "gap-2 min-w-[120px]",
                                 currentStep === STEPS.length ? "bg-emerald-600 hover:bg-emerald-700" : "bg-white text-black hover:bg-zinc-200"

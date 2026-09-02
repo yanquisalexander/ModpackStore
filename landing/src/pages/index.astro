@@ -3,203 +3,121 @@ import Layout from "../layouts/Layout.astro";
 import Hero from "../components/Hero.astro";
 import Features from "../components/Features.astro";
 import Footer from "../components/Footer.astro";
-import { DOWNLOAD_URL } from "@/consts";
+import DownloadSection from "../components/DownloadSection.astro";
+import { CANARY_RELEASES_URL } from "@/consts";
 import TrustedCommunities from "@/components/TrustedCommunities.astro";
+
+interface TauriAsset {
+  url?: string;
+  signature?: string;
+  browser_download_url?: string;
+}
+
+interface TauriManifest {
+  version: string;
+  notes: string;
+  pub_date: string;
+  platforms: Record<string, TauriAsset>;
+}
+
+interface ResolvedAsset {
+  browser_download_url: string;
+}
+
+interface ResolvedRelease {
+  version: string;
+  notes: string;
+  pub_date: string;
+  platforms: Record<string, ResolvedAsset>;
+}
+
+const fallbackRelease: ResolvedRelease = {
+  version: "canary",
+  notes: "Última versión disponible",
+  pub_date: new Date().toISOString(),
+  platforms: {},
+};
+
+let release = fallbackRelease;
+
+try {
+  const response = await fetch(CANARY_RELEASES_URL, {
+    headers: { accept: "application/json" },
+  });
+
+  if (response.ok) {
+    const manifest = (await response.json()) as TauriManifest;
+
+    const platformEntries = Object.entries(manifest.platforms);
+
+    const resolvedPlatforms: Record<string, ResolvedAsset> = {};
+
+    await Promise.all(
+      platformEntries.map(async ([key, asset]) => {
+        if (asset.browser_download_url) {
+          resolvedPlatforms[key] = {
+            browser_download_url: asset.browser_download_url,
+          };
+          return;
+        }
+
+        if (!asset.url) return;
+
+        try {
+          const assetResponse = await fetch(asset.url, {
+            headers: { accept: "application/vnd.github+json" },
+          });
+
+          if (assetResponse.ok) {
+            const assetData = (await assetResponse.json()) as ResolvedAsset;
+            if (assetData.browser_download_url) {
+              resolvedPlatforms[key] = assetData;
+            }
+          }
+        } catch {
+          // Skip this asset if fetch fails
+        }
+      }),
+    );
+
+    release = {
+      version: manifest.version,
+      notes: manifest.notes,
+      pub_date: manifest.pub_date,
+      platforms: resolvedPlatforms,
+    };
+  }
+} catch {
+  release = fallbackRelease;
+}
 ---
 
-<Layout title="Modpack Store - Gestiona tu universo Minecraft">
-  <div class="fixed inset-0 z-[-1] bg-[#020202] pointer-events-none">
+<Layout
+  title={`Modpack Store - Canary ${release.version}`}
+  description={`Modpack Store canary ${release.version}: ${release.notes}`}
+>
+  <div class="fixed inset-0 z-[-1] pointer-events-none bg-[#020202]">
     <div
-      class="absolute top-0 left-1/4 w-[600px] h-[600px] bg-ms-primary/20 blur-[130px] rounded-full animate-pulse-slow mix-blend-screen"
+      class="absolute left-1/4 top-0 h-96 w-96 rounded-full bg-ms-primary/15 blur-[110px] animate-pulse-slow mix-blend-screen"
     >
     </div>
-
     <div
-      class="absolute bottom-0 right-1/4 w-[700px] h-[700px] bg-ms-secondary/20 blur-[130px] rounded-full animate-pulse-slow mix-blend-screen"
+      class="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-ms-secondary/15 blur-[110px] animate-pulse-slow mix-blend-screen"
       style="animation-delay: 2s;"
     >
     </div>
-
     <div
       class="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"
     >
     </div>
   </div>
 
-  <main class="relative z-10 flex flex-col gap-32 pt-10 pb-20">
-    <Hero />
+  <main class="relative z-10 flex flex-col gap-24 pb-20 pt-10">
+    <Hero release={release} />
     <TrustedCommunities />
-
     <Features />
-
-    <section id="download" class="px-4 relative py-20">
-      <div class="max-w-5xl mx-auto" id="download-container">
-        <div
-          id="download-card"
-          class="relative group rounded-[2.5rem] overflow-hidden opacity-0 translate-y-20 border border-white/10 shadow-2xl shadow-black/50"
-        >
-          <div class="absolute inset-0 bg-white/5 backdrop-blur-3xl z-0"></div>
-
-          <div
-            class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/40 to-transparent z-10"
-          >
-          </div>
-          <div
-            class="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent z-10"
-          >
-          </div>
-
-          <div
-            class="absolute inset-0 bg-gradient-to-b from-white/5 via-transparent to-black/40 z-0 pointer-events-none"
-          >
-          </div>
-
-          <div
-            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-[500px] bg-ms-primary/20 blur-[100px] rounded-full group-hover:bg-ms-primary/30 transition-all duration-1000 z-0"
-          >
-          </div>
-
-          <div
-            class="relative z-10 px-8 py-20 md:px-24 md:py-24 text-center flex flex-col items-center"
-          >
-            <div
-              class="mb-8 p-6 rounded-2xl bg-gradient-to-br from-white/10 to-white/0 border border-white/20 shadow-[inset_0_0_20px_rgba(255,255,255,0.05)] backdrop-blur-md animate-float"
-            >
-              <svg
-                class="w-12 h-12 text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.5)]"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                ></path>
-              </svg>
-            </div>
-
-            <h2
-              class="text-4xl md:text-6xl font-lexend font-bold text-white mb-6 tracking-tight drop-shadow-lg"
-            >
-              Instala tu próxima <br />
-              <span
-                class="bg-clip-text text-transparent bg-gradient-to-r from-ms-primary-light via-white to-ms-secondary animate-gradient-x bg-[length:200%_auto]"
-              >
-                aventura hoy.
-              </span>
-            </h2>
-
-            <p
-              class="text-lg text-neutral-300 mb-12 max-w-xl mx-auto leading-relaxed drop-shadow-md font-medium"
-            >
-              Compatible con Windows y Linux. <br />
-              Gestiona instancias, importa modpacks y juega sin límites.
-            </p>
-
-            <div
-              class="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto"
-            >
-              <a
-                href={DOWNLOAD_URL}
-                target="_blank"
-                class="relative overflow-hidden w-full sm:w-auto px-10 py-5 rounded-xl font-bold text-lg text-white transition-all hover:scale-105 active:scale-95 group/btn"
-              >
-                <div
-                  class="absolute inset-0 bg-ms-primary transition-colors group-hover/btn:bg-ms-primary-light"
-                >
-                </div>
-
-                <div
-                  class="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent"
-                >
-                </div>
-                <div
-                  class="absolute inset-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_-2px_4px_rgba(0,0,0,0.2)] rounded-xl"
-                >
-                </div>
-
-                <div
-                  class="relative flex items-center justify-center gap-3 drop-shadow-md"
-                >
-                  <svg
-                    class="w-6 h-6"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    ><path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="2"
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                    ></path></svg
-                  >
-                  <span>Descargar Launcher</span>
-                </div>
-              </a>
-            </div>
-
-            <div
-              class="mt-12 pt-8 border-t border-white/10 w-full max-w-sm mx-auto flex justify-between text-xs text-neutral-400 font-mono"
-            >
-              <span class="px-2 py-1 rounded bg-black/20 backdrop-blur-sm"
-                >v1.0.0 Stable</span
-              >
-              <span
-                class="flex items-center gap-2 px-2 py-1 rounded bg-black/20 backdrop-blur-sm text-green-400/90"
-              >
-                <span class="relative flex h-2 w-2">
-                  <span
-                    class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"
-                  ></span>
-                  <span
-                    class="relative inline-flex rounded-full h-2 w-2 bg-green-500"
-                  ></span>
-                </span>
-                Online Services
-              </span>
-            </div>
-          </div>
-        </div>
-      </div>
-    </section>
+    <DownloadSection release={release} />
   </main>
 
   <Footer />
 </Layout>
-
-<script>
-  import { gsap } from "gsap";
-  import { ScrollTrigger } from "gsap/ScrollTrigger";
-
-  gsap.registerPlugin(ScrollTrigger);
-
-  // Download section animation
-  gsap.to("#download-card", {
-    scrollTrigger: {
-      trigger: "#download-container",
-      start: "top 85%",
-    },
-    opacity: 1,
-    y: 0,
-    duration: 1.5, // Un poco más lento para sensación de peso/líquido
-    ease: "power3.out",
-  });
-</script>
-
-<style>
-  /* Animación para el texto gradiente */
-  @keyframes gradient-x {
-    0%,
-    100% {
-      background-position: 0% 50%;
-    }
-    50% {
-      background-position: 100% 50%;
-    }
-  }
-  .animate-gradient-x {
-    animation: gradient-x 3s ease infinite;
-  }
-</style>

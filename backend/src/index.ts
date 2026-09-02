@@ -3,7 +3,7 @@ import { cors } from "@hono/hono/cors";
 import { SERVER_START_TIME } from "@/constants.ts";
 import { APIError } from "@/lib/APIError.ts";
 import v1Router from "@/v1/index.ts";
-import { generateSystemUser } from "@/db/seed.ts";
+import { generateSystemUser, seedDefaultCategories } from "@/db/seed.ts";
 import { ProcessModpackFilesQueue } from "@/worker/queues.ts";
 
 const PORT = Number(Deno.env.get("PORT")) || 3000;
@@ -19,7 +19,7 @@ if (SHOULD_INIT_WORKER) {
 } else {
     app.use("*", cors({
         origin: Deno.env.get("CORS_ORIGIN") || "*",
-        allowHeaders: ["Content-Type", "Authorization"],
+        allowHeaders: ["Content-Type", "Authorization", "x-hcaptcha-response"],
         allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     }));
 
@@ -83,6 +83,10 @@ if (SHOULD_INIT_WORKER) {
 
     await generateSystemUser().catch((error) => {
         console.error("Error generating system user:", error);
+    });
+
+    await seedDefaultCategories().catch((error) => {
+        console.error("Error seeding default categories:", error);
     });
 
     Deno.serve({ port: PORT }, app.fetch);

@@ -198,15 +198,15 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     }
 
     return (
-        <div className="container mx-auto p-4">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="p-4">
+            <div className="flex gap-6">
                 {/* Sidebar */}
-                <div className="lg:col-span-1">
+                <div className="w-64 shrink-0">
                     <AdminSidebar />
                 </div>
 
                 {/* Main Content */}
-                <div className="lg:col-span-3">
+                <div className="flex-1 min-w-0">
                     {children || (
                         <Routes>
                             <Route path="/users" element={<ManageUsersView />} />

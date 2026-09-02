@@ -2,6 +2,7 @@ import { Hono } from "@hono/hono";
 import type { Context } from "@hono/hono";
 import { requireAuth, type AuthVariables } from "@/auth/middleware.ts";
 import { requireCreatorAccess, requireCreatorRole } from "@/middlewares/creator.middleware.ts";
+import { requireCaptcha } from "@/middlewares/requireCaptcha.ts";
 import { CreatorRole } from "@/db/schema.ts";
 import { db } from "@/db/client.ts";
 import { modpacksTable } from "@/db/schema.ts";
@@ -70,15 +71,22 @@ app.get("/", requireAuth, requireCreatorAccess, async (c) => {
     return c.json(modpacks);
 });
 
-app.post("/", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN), async (c) => {
+app.post("/", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN), requireCaptcha, async (c) => {
     const userId = c.get("userId");
     const creatorId = c.req.param("creatorId")!;
     const body = await c.req.parseBody();
+    const categoryIds = body.categoryIds ? JSON.parse(body.categoryIds as string) : [];
     const modpack = await createModpack(creatorId, userId, {
         name: (body.name as string) ?? "",
         shortDescription: (body.shortDescription as string) ?? "",
         description: body.description as string | undefined,
         visibility: body.visibility as any,
+        iconUrl: body.iconUrl as string | undefined,
+        bannerUrl: body.bannerUrl as string | undefined,
+        acquisitionMethod: body.acquisitionMethod as string | undefined,
+        password: body.password as string | undefined,
+        categoryIds,
+        primaryCategoryId: body.primaryCategoryId as string | undefined,
     });
     return c.json(modpack, 201);
 });

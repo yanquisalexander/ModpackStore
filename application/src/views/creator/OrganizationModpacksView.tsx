@@ -47,18 +47,18 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
                         {modpack.name}
                     </h3>
                     {modpack.creatorUser && (
-                        <div className="text-xs text-gray-300 mb-2">
+                        <div className="text-xs text-white/70 mb-2">
                             <img src={modpack.creatorUser.avatarUrl} alt={modpack.creatorUser.username} className="inline-block size-6 rounded-full mr-1" />
                             {modpack.creatorUser.username}
                         </div>
                     )}
 
-                    <p className="text-sm text-gray-200 my-1">
+                    <p className="text-sm text-white/80 my-1">
                         <ModpackStatus status={modpack.status} />
                     </p>
 
-                    <p className="text-xs text-gray-300 mb-2">
-                        Last updated: {new Date(modpack.updatedAt).toLocaleDateString()}
+                    <p className="text-xs text-white/60 mb-2">
+                        Última actualización: {new Date(modpack.updatedAt).toLocaleDateString()}
                     </p>
                 </div>
 
@@ -89,7 +89,6 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
                             size="sm"
                             onClick={() => onDelete(modpack)}
                             title="Eliminar Modpack"
-                            className="bg-red-600/80 hover:bg-red-700/90"
                         >
                             <LucideTrash2 size={16} />
                             Eliminar
@@ -214,9 +213,9 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
     };
 
     return (
-        <div className="container mx-auto p-4">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-2xl font-bold">Modpacks de {team?.publisherName}</h1>
+                <h1 className="text-2xl font-bold">Modpacks de {team?.publisherName || team?.displayName}</h1>
                 <div className="flex gap-2">
                     <Button
                         variant="outline"
@@ -229,13 +228,30 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                     <Button onClick={() => setIsCreateDialogOpen(true)}>Crear nuevo Modpack</Button>
                 </div>
             </div>
-            {isLoading && <p className="text-center py-8">Cargando modpacks...</p>}
-            {error && <p className="text-red-500 text-center py-8">{error}</p>}
+            {isLoading && (
+                <div className="flex items-center justify-center py-8">
+                    <LucidePackage className="h-8 w-8 animate-spin text-primary" />
+                </div>
+            )}
+            {error && (
+                <div className="bg-destructive/10 text-destructive border border-destructive p-4 rounded-md mb-4">
+                    <p>{error}</p>
+                </div>
+            )}
             {!isLoading && !error && modpacks.length === 0 && (
-                <p className="text-center py-8 text-gray-600">Esta organización no tiene modpacks aún.</p>
+                <div className="text-center py-12">
+                    <LucidePackage className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                    <h3 className="text-lg font-medium mb-2">No hay modpacks</h3>
+                    <p className="text-muted-foreground mb-4">
+                        {team?.publisherName || team?.displayName} aún no tiene modpacks.
+                    </p>
+                    <Button onClick={() => setIsCreateDialogOpen(true)}>
+                        Crear primer modpack
+                    </Button>
+                </div>
             )}
             {!isLoading && !error && modpacks.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2  gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {modpacks.map((modpack) => (
                         <ModpackListItem
                             key={modpack.id}
@@ -251,7 +267,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                 isOpen={isCreateDialogOpen}
                 onClose={() => setIsCreateDialogOpen(false)}
                 onSuccess={handleCreateSuccess}
-                teamId={team?.id}
+                creatorId={team?.id}
             />
 
 
@@ -281,7 +297,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                             <AlertDialogCancel onClick={() => setDeletingModpack(null)}>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+                            <AlertDialogAction onClick={confirmDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                                 Confirmar eliminación
                             </AlertDialogAction>
                         </AlertDialogFooter>

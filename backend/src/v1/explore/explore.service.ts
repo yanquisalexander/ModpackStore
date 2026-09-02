@@ -5,10 +5,12 @@ import {
     modpackVersionFilesTable,
     modpackFilesTable,
     creatorsTable,
+    categoriesTable,
+    modpackCategoriesTable,
     ModpackVisibility,
     ModpackStatus,
 } from "@/db/schema.ts";
-import { eq, and, or, desc, ilike, inArray, sql, type SQL } from "drizzle-orm";
+import { eq, and, or, desc, ilike, inArray, sql, type SQL, asc } from "drizzle-orm";
 import { NotFoundError } from "@/lib/errors/index.ts";
 import { hasAccess as checkWhitelistAccess } from "@/services/whitelist.service.ts";
 
@@ -210,7 +212,54 @@ export async function getModpackPassword(modpackId: string) {
 }
 
 export async function getExploreHomepage() {
-    const rows = await db.select({
+    const allCategories = await db.select()
+        .from(categoriesTable)
+        .where(eq(categoriesTable.isAdminOnly, false))
+        .orderBy(asc(categoriesTable.displayOrder));
+
+    const categoryResults = await Promise.all(
+        allCategories.map(async (cat) => {
+            const modpackRows = await db.select({
+                id: modpacksTable.id,
+                name: modpacksTable.name,
+                slug: modpacksTable.slug,
+                shortDescription: modpacksTable.shortDescription,
+                description: modpacksTable.description,
+                iconUrl: modpacksTable.iconUrl,
+                bannerUrl: modpacksTable.bannerUrl,
+                trailerUrl: modpacksTable.trailerUrl,
+                acquisitionMethod: modpacksTable.acquisitionMethod,
+                createdAt: modpacksTable.createdAt,
+                updatedAt: modpacksTable.updatedAt,
+                creator: {
+                    id: creatorsTable.id,
+                    name: creatorsTable.displayName,
+                    slug: creatorsTable.slug,
+                    verified: creatorsTable.verified,
+                    logoUrl: creatorsTable.logoUrl,
+                },
+            })
+                .from(modpacksTable)
+                .innerJoin(modpackCategoriesTable, eq(modpacksTable.id, modpackCategoriesTable.modpackId))
+                .leftJoin(creatorsTable, eq(modpacksTable.creatorId, creatorsTable.id))
+                .where(and(
+                    eq(modpacksTable.visibility, ModpackVisibility.PUBLIC),
+                    eq(modpacksTable.status, ModpackStatus.PUBLISHED),
+                    eq(modpackCategoriesTable.categoryId, cat.id),
+                ))
+                .orderBy(desc(modpacksTable.updatedAt))
+                .limit(20);
+
+            return {
+                id: cat.id,
+                name: cat.name,
+                displayOrder: cat.displayOrder,
+                modpacks: modpackRows,
+            };
+        })
+    );
+
+    const uncategorized = await db.select({
         id: modpacksTable.id,
         name: modpacksTable.name,
         slug: modpacksTable.slug,
@@ -235,15 +284,20 @@ export async function getExploreHomepage() {
         .where(and(
             eq(modpacksTable.visibility, ModpackVisibility.PUBLIC),
             eq(modpacksTable.status, ModpackStatus.PUBLISHED),
+            sql`NOT EXISTS (SELECT 1 FROM ${modpackCategoriesTable} WHERE ${modpackCategoriesTable.modpackId} = ${modpacksTable.id})`,
         ))
-        .orderBy(desc(modpacksTable.updatedAt));
+        .orderBy(desc(modpacksTable.updatedAt))
+        .limit(20);
 
-    const categories = [{
-        id: "uncategorized",
-        name: "Uncategorized",
-        displayOrder: 999,
-        modpacks: rows,
-    }];
+    const categories = [
+        ...categoryResults.filter(c => c.modpacks.length > 0),
+        ...(uncategorized.length > 0 ? [{
+            id: "uncategorized",
+            name: "Uncategorized",
+            displayOrder: 999,
+            modpacks: uncategorized,
+        }] : []),
+    ];
 
     return { categories, featured: [] };
 }

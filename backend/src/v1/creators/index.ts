@@ -2,6 +2,7 @@ import { Hono } from "@hono/hono";
 import type { Context } from "@hono/hono";
 import { requireAuth, type AuthVariables } from "@/auth/middleware.ts";
 import { requireCreatorAccess, requireCreatorRole } from "@/middlewares/creator.middleware.ts";
+import { requireCaptcha } from "@/middlewares/requireCaptcha.ts";
 import {
     createCreator,
     getCreatorsByUser,
@@ -25,7 +26,7 @@ app.route("/:creatorId/modpacks", modpackRoutes);
 
 // ── Creator CRUD ──────────────────────────────────
 
-app.post("/", requireAuth, async (c: Context<{ Variables: AuthVariables }>) => {
+app.post("/", requireAuth, requireCaptcha, async (c: Context<{ Variables: AuthVariables }>) => {
     const userId = c.get("userId");
     const body = await c.req.json();
     const creator = await createCreator(userId, body);

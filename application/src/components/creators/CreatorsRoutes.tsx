@@ -36,8 +36,8 @@ export const CreatorsRoutes: React.FC<CreatorsRoutesProps> = ({ teams }) => {
                 {/* Global */}
                 <Route path="settings" element={
                     <div className="max-w-4xl mx-auto p-6">
-                        <Card className="bg-[#121212] border-white/5">
-                            <CardHeader className="border-b border-white/5 pb-6">
+                        <Card>
+                            <CardHeader className="border-b border-border pb-6">
                                 <div className="flex items-center gap-3">
                                     <div className="p-2 bg-primary/10 rounded-lg">
                                         <LucideSettings className="h-6 w-6 text-primary" />
@@ -49,7 +49,7 @@ export const CreatorsRoutes: React.FC<CreatorsRoutesProps> = ({ teams }) => {
                                 </div>
                             </CardHeader>
                             <CardContent className="p-8">
-                                <div className="h-32 border-2 border-dashed border-white/10 rounded-lg flex items-center justify-center text-muted-foreground">
+                                <div className="h-32 border-2 border-dashed border-border rounded-lg flex items-center justify-center text-muted-foreground">
                                     Panel de configuración en construcción
                                 </div>
                             </CardContent>

@@ -9,7 +9,9 @@ import {
     pgEnum,
     primaryKey,
     numeric,
-    uniqueIndex
+    uniqueIndex,
+    serial,
+    integer
 } from "drizzle-orm/pg-core"
 import { relations } from "drizzle-orm";
 
@@ -164,6 +166,30 @@ export const modpacksTable = pgTable("modpacks", {
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 });
+
+/* Categories */
+
+export const categoriesTable = pgTable("categories", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    name: varchar("name", { length: 100 }).notNull().unique(),
+    shortDescription: varchar("short_description", { length: 200 }),
+    description: text("description"),
+    iconUrl: text("icon_url"),
+    displayOrder: integer("display_order").notNull().default(0),
+    isAdminOnly: boolean("is_admin_only").notNull().default(false),
+    isSelectable: boolean("is_selectable").notNull().default(true),
+    isAutomatic: boolean("is_automatic").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const modpackCategoriesTable = pgTable("modpack_categories", {
+    id: serial("id").primaryKey(),
+    modpackId: uuid("modpack_id").notNull().references(() => modpacksTable.id, { onDelete: "cascade" }),
+    categoryId: uuid("category_id").notNull().references(() => categoriesTable.id, { onDelete: "cascade" }),
+    isPrimary: boolean("is_primary").notNull().default(false),
+}, (table) => ({
+    uniqueModpackCategory: uniqueIndex("uq_modpack_category").on(table.modpackId, table.categoryId),
+}));
 
 export const modpackVersionsTable = pgTable("modpack_versions", {
     id: uuid("id").primaryKey().notNull().defaultRandom(),
@@ -347,6 +373,22 @@ export const modpacksRelations = relations(modpacksTable, ({ one, many }) => ({
     versions: many(modpackVersionsTable),
     acquisitions: many(modpackAcquisitionsTable),
     whitelists: many(modpackWhitelistsTable),
+    categories: many(modpackCategoriesTable),
+}));
+
+export const categoriesRelations = relations(categoriesTable, ({ many }) => ({
+    modpacks: many(modpackCategoriesTable),
+}));
+
+export const modpackCategoriesRelations = relations(modpackCategoriesTable, ({ one }) => ({
+    modpack: one(modpacksTable, {
+        fields: [modpackCategoriesTable.modpackId],
+        references: [modpacksTable.id],
+    }),
+    category: one(categoriesTable, {
+        fields: [modpackCategoriesTable.categoryId],
+        references: [categoriesTable.id],
+    }),
 }));
 
 export const modpackWhitelistsRelations = relations(modpackWhitelistsTable, ({ one }) => ({

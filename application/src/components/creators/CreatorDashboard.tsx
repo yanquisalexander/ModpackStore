@@ -9,6 +9,8 @@ import {
   LucideBuilding2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 
 interface CreatorDashboardProps {
   teams: any[];
@@ -16,15 +18,17 @@ interface CreatorDashboardProps {
 
 function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: string | number; color: string }) {
   return (
-    <div className="bg-black/20 border border-white/[0.04] rounded-lg p-4 flex items-center gap-3">
-      <div className={cn("size-9 rounded-md flex items-center justify-center shrink-0", color)}>
-        <Icon size={16} />
-      </div>
-      <div>
-        <div className="text-xl font-bold text-white">{value}</div>
-        <div className="text-[10px] text-neutral-600 uppercase tracking-wider mt-0.5">{label}</div>
-      </div>
-    </div>
+    <Card>
+      <CardContent className="p-4 flex items-center gap-3">
+        <div className={cn("size-9 rounded-md flex items-center justify-center shrink-0", color)}>
+          <Icon size={16} />
+        </div>
+        <div>
+          <div className="text-xl font-bold">{value}</div>
+          <div className="text-xs text-muted-foreground uppercase tracking-wider mt-0.5">{label}</div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

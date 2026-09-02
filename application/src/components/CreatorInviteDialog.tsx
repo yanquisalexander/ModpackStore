@@ -3,6 +3,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { HCaptchaWrapper, HCaptcha_HEADER } from '@/components/ui/hcaptcha';
 import ReactMarkdown from 'react-markdown';
 import { Loader2 } from 'lucide-react';
 import { fetchWithAuth } from '@/lib/fetchWithAuth';
@@ -42,18 +43,20 @@ export const CreatorInviteDialog: React.FC<CreatorInviteDialogProps> = ({ isOpen
     const [description, setDescription] = React.useState('');
     const [isSubmitting, setIsSubmitting] = React.useState(false);
     const [error, setError] = React.useState<string | null>(null);
+    const [captchaToken, setCaptchaToken] = React.useState<string | null>(null);
 
     const handleClose = () => {
         setShowForm(false);
         setDisplayName('');
         setDescription('');
         setError(null);
+        setCaptchaToken(null);
         onClose();
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!displayName.trim()) return;
+        if (!displayName.trim() || !captchaToken) return;
 
         setIsSubmitting(true);
         setError(null);
@@ -61,7 +64,10 @@ export const CreatorInviteDialog: React.FC<CreatorInviteDialogProps> = ({ isOpen
         try {
             const res = await fetchWithAuth(`${API_ENDPOINT}/creators`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    [HCaptcha_HEADER]: captchaToken,
+                },
                 body: JSON.stringify({
                     displayName: displayName.trim(),
                     description: description.trim() || undefined,
@@ -172,6 +178,12 @@ export const CreatorInviteDialog: React.FC<CreatorInviteDialogProps> = ({ isOpen
                                 <p className="text-xs text-gray-500 mt-1">{description.length}/500</p>
                             </div>
 
+                            <HCaptchaWrapper
+                                onVerify={setCaptchaToken}
+                                onExpire={() => setCaptchaToken(null)}
+                                onError={() => setCaptchaToken(null)}
+                            />
+
                             {error && (
                                 <div className="bg-red-900/30 border border-red-800 text-red-300 text-sm rounded-lg px-4 py-2">
                                     {error}
@@ -193,7 +205,7 @@ export const CreatorInviteDialog: React.FC<CreatorInviteDialogProps> = ({ isOpen
                         <Button
                             type="submit"
                             form="creator-form"
-                            disabled={!displayName.trim() || isSubmitting}
+                            disabled={!displayName.trim() || !captchaToken || isSubmitting}
                             className="min-w-32 bg-purple-600 hover:bg-purple-700 text-white"
                         >
                             {isSubmitting ? (

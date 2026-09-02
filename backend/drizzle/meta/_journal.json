@@ -78,6 +78,13 @@
       "when": 1781700594034,
       "tag": "0010_thick_makkari",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1788316040551,
+      "tag": "0011_spotty_archangel",
+      "breakpoints": true
     }
   ]
 }

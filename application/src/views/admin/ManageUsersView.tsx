@@ -176,7 +176,7 @@ const RoleBadge = ({ role }: { role: string }) => {
         super_admin: {
             variant: "destructive",
             label: "SUPER ADMIN",
-            className: "bg-red-500/10 text-red-400 border-red-500/20",
+            className: "bg-destructive/10 text-destructive border-destructive/20",
         },
         admin: {
             variant: "default",
@@ -186,7 +186,7 @@ const RoleBadge = ({ role }: { role: string }) => {
         user: {
             variant: "secondary",
             label: "USUARIO",
-            className: "bg-white/5 text-neutral-400 border-white/10",
+            className: "bg-muted/30 text-muted-foreground border-border",
         },
         system: {
             variant: "secondary",
@@ -207,7 +207,7 @@ const RoleBadge = ({ role }: { role: string }) => {
 const StatusBadge = ({ isBanned }: { isBanned: boolean }) => {
     if (isBanned) {
         return (
-            <Badge variant="destructive" className="bg-red-500/10 text-red-400 border-red-500/20">
+            <Badge variant="destructive" className="bg-destructive/10 text-destructive border-destructive/20">
                 BANEADO
             </Badge>
         );
@@ -225,7 +225,7 @@ const AvatarInitials = ({ username, avatarUrl, className }: { username: string; 
     }
     const initials = username.slice(0, 2).toUpperCase();
     return (
-        <div className={`w-7 h-7 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-medium text-neutral-400 ${className || ''}`}>
+        <div className={`w-7 h-7 rounded-full bg-muted/30 flex items-center justify-center text-[10px] font-medium text-muted-foreground ${className || ''}`}>
             {initials}
         </div>
     );
@@ -246,27 +246,27 @@ const UserForm = ({ user, onSubmit, onCancel, isLoading }: {
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-                <label htmlFor="username" className="block text-sm font-medium mb-1.5 text-neutral-300">
+                <label htmlFor="username" className="block text-sm font-medium mb-1.5 text-foreground">
                     Nombre de Usuario
                 </label>
                 <Input id="username" value={formData.username} onChange={(e) => setFormData(p => ({ ...p, username: e.target.value }))}
-                    placeholder="Ingresa el nombre de usuario" required className="bg-white/5 border-white/10" />
+                    placeholder="Ingresa el nombre de usuario" required className="bg-muted/30 border-border" />
             </div>
             <div>
-                <label htmlFor="email" className="block text-sm font-medium mb-1.5 text-neutral-300">
+                <label htmlFor="email" className="block text-sm font-medium mb-1.5 text-foreground">
                     Correo Electrónico
                 </label>
                 <Input id="email" type="email" value={formData.email}
                     onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))}
-                    placeholder="Ingresa el correo electrónico" required className="bg-white/5 border-white/10" />
+                    placeholder="Ingresa el correo electrónico" required className="bg-muted/30 border-border" />
             </div>
             <div>
-                <label htmlFor="role" className="block text-sm font-medium mb-1.5 text-neutral-300">
+                <label htmlFor="role" className="block text-sm font-medium mb-1.5 text-foreground">
                     Rol
                 </label>
                 <Select value={formData.role} onValueChange={(value: 'user' | 'admin' | 'super_admin') =>
                     setFormData(p => ({ ...p, role: value }))}>
-                    <SelectTrigger className="bg-white/5 border-white/10">
+                    <SelectTrigger className="bg-muted/30 border-border">
                         <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -277,12 +277,12 @@ const UserForm = ({ user, onSubmit, onCancel, isLoading }: {
                 </Select>
             </div>
             <div>
-                <label htmlFor="avatarUrl" className="block text-sm font-medium mb-1.5 text-neutral-300">
-                    URL del Avatar <span className="text-neutral-500">(Opcional)</span>
+                <label htmlFor="avatarUrl" className="block text-sm font-medium mb-1.5 text-foreground">
+                    URL del Avatar <span className="text-muted-foreground">(Opcional)</span>
                 </label>
                 <Input id="avatarUrl" value={formData.avatarUrl}
                     onChange={(e) => setFormData(p => ({ ...p, avatarUrl: e.target.value }))}
-                    placeholder="https://..." className="bg-white/5 border-white/10" />
+                    placeholder="https://..." className="bg-muted/30 border-border" />
             </div>
             <DialogFooter>
                 <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
@@ -312,15 +312,15 @@ const BanDialog = ({ user, isOpen, onClose, onBan, isLoading }: {
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
-                        <p className="text-sm text-neutral-400 mb-4">
+                        <p className="text-sm text-muted-foreground mb-4">
                             ¿Estás seguro de que quieres banear a <strong className="text-white">{user.username}</strong>?
                         </p>
-                        <label htmlFor="banReason" className="block text-sm font-medium mb-1.5 text-neutral-300">
-                            Razón del ban <span className="text-neutral-500">(opcional)</span>
+                        <label htmlFor="banReason" className="block text-sm font-medium mb-1.5 text-foreground">
+                            Razón del ban <span className="text-muted-foreground">(opcional)</span>
                         </label>
                         <Textarea id="banReason" value={reason} onChange={(e) => setReason(e.target.value)}
                             placeholder="Describe la razón del ban..." rows={4}
-                            className="bg-white/5 border-white/10" />
+                            className="bg-muted/30 border-border" />
                     </div>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
@@ -364,42 +364,42 @@ const BanHistoryDialog = ({ user, isOpen, onClose, accessToken }: {
             <DialogContent className="max-w-2xl">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <LucideHistory className="h-4 w-4 text-neutral-400" />
+                        <LucideHistory className="h-4 w-4 text-muted-foreground" />
                         Historial de Bans — {user.username}
                     </DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-12">
-                            <LucideLoader className="h-5 w-5 animate-spin text-neutral-500" />
+                            <LucideLoader className="h-5 w-5 animate-spin text-muted-foreground" />
                         </div>
                     ) : history.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-neutral-500">
+                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                             <LucideShieldCheck className="h-8 w-8 mb-2 opacity-50" />
                             <p className="text-sm">No hay historial de bans para este usuario.</p>
                         </div>
                     ) : (
                         history.map((ban) => (
-                            <div key={ban.id} className="border border-white/[0.06] rounded-lg p-4 space-y-2 bg-white/[0.02]">
+                            <div key={ban.id} className="border border-border rounded-lg p-4 space-y-2 bg-muted/20">
                                 <div className="flex items-center justify-between">
                                     <Badge variant={ban.isActive ? 'destructive' : 'secondary'}
-                                        className={ban.isActive ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-white/5 text-neutral-400 border-white/10'}>
+                                        className={ban.isActive ? 'bg-destructive/10 text-destructive border-destructive/20' : 'bg-muted/30 text-muted-foreground border-border'}>
                                         {ban.isActive ? 'ACTIVO' : 'INACTIVO'}
                                     </Badge>
-                                    <span className="text-xs text-neutral-500">
+                                    <span className="text-xs text-muted-foreground">
                                         {new Date(ban.banDate).toLocaleString('es-ES')}
                                     </span>
                                 </div>
                                 {ban.reason && (
                                     <div>
-                                        <span className="text-xs font-medium text-neutral-400">Razón:</span>
-                                        <p className="text-sm text-neutral-300 mt-0.5">{ban.reason}</p>
+                                        <span className="text-xs font-medium text-muted-foreground">Razón:</span>
+                                        <p className="text-sm text-foreground mt-0.5">{ban.reason}</p>
                                     </div>
                                 )}
-                                <div className="flex items-center justify-between text-xs text-neutral-500 pt-1 border-t border-white/[0.04]">
-                                    <span>Baneado por: <strong className="text-neutral-300">{ban.admin.username}</strong></span>
+                                <div className="flex items-center justify-between text-xs text-muted-foreground pt-1 border-t border-border">
+                                    <span>Baneado por: <strong className="text-foreground">{ban.admin.username}</strong></span>
                                     {ban.unbannedBy && (
-                                        <span>Desbaneado por: <strong className="text-neutral-300">{ban.unbannedBy.username}</strong></span>
+                                        <span>Desbaneado por: <strong className="text-foreground">{ban.unbannedBy.username}</strong></span>
                                     )}
                                 </div>
                             </div>
@@ -531,16 +531,16 @@ export const ManageUsersView = () => {
                 </div>
                 <div>
                     <h1 className="text-lg font-semibold text-white">Gestión de Usuarios</h1>
-                    <p className="text-sm text-neutral-500">Administrar usuarios, roles y permisos del sistema</p>
+                    <p className="text-sm text-muted-foreground">Administrar usuarios, roles y permisos del sistema</p>
                 </div>
             </div>
 
-            <div className="bg-[#121214] border border-white/[0.06] rounded-xl">
+            <div className="bg-card border border-border rounded-xl">
                 <div className="flex items-center justify-between p-6 pb-0">
                     <div className="flex-1" />
                     <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
                         <DialogTrigger asChild>
-                            <Button className="bg-white text-black hover:bg-white/90">
+                            <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
                                 <LucideUserPlus className="mr-2 h-4 w-4" />
                                 Crear Usuario
                             </Button>
@@ -557,14 +557,14 @@ export const ManageUsersView = () => {
                 <div className="p-6 pb-0">
                     <div className="flex flex-col sm:flex-row gap-3">
                         <div className="flex-1 relative">
-                            <LucideSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
+                            <LucideSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input placeholder="Buscar por nombre o correo..." value={searchTerm}
                                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                                className="pl-10 bg-white/5 border-white/10 text-sm" />
+                                className="pl-10 bg-muted/30 border-border text-sm" />
                         </div>
                         <Select value={roleFilter}
                             onValueChange={(v) => { setRoleFilter(v); setCurrentPage(1); }}>
-                            <SelectTrigger className="w-full sm:w-44 bg-white/5 border-white/10 text-sm">
+                            <SelectTrigger className="w-full sm:w-44 bg-muted/30 border-border text-sm">
                                 <SelectValue placeholder="Filtrar por rol" />
                             </SelectTrigger>
                             <SelectContent>
@@ -575,7 +575,7 @@ export const ManageUsersView = () => {
                             </SelectContent>
                         </Select>
                         <Button variant="outline" onClick={loadUsers} disabled={isLoading}
-                            className="border-white/10 bg-white/5 hover:bg-white/10">
+                            className="border-border bg-muted/30 hover:bg-muted/30">
                             <LucideRefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
                         </Button>
                     </div>
@@ -583,22 +583,22 @@ export const ManageUsersView = () => {
 
                 <div className="p-6">
                     {error && (
-                        <div className="flex items-center gap-3 p-4 mb-4 rounded-lg bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+                        <div className="flex items-center gap-3 p-4 mb-4 rounded-lg bg-destructive/10 border border-destructive text-sm text-destructive">
                             <LucideBan className="h-4 w-4 shrink-0" />
                             {error}
                         </div>
                     )}
 
-                    <div className="border border-white/[0.06] rounded-lg overflow-hidden">
+                    <div className="border border-border rounded-lg overflow-hidden">
                         <Table>
                             <TableHeader>
-                                <TableRow className="border-b border-white/[0.06] hover:bg-transparent">
-                                    <TableHead className="h-10 text-xs font-medium text-neutral-500">Usuario</TableHead>
-                                    <TableHead className="h-10 text-xs font-medium text-neutral-500">Correo</TableHead>
-                                    <TableHead className="h-10 text-xs font-medium text-neutral-500">Rol</TableHead>
-                                    <TableHead className="h-10 text-xs font-medium text-neutral-500">Estado</TableHead>
-                                    <TableHead className="h-10 text-xs font-medium text-neutral-500">Creado</TableHead>
-                                    <TableHead className="h-10 text-xs font-medium text-neutral-500 text-right">Acciones</TableHead>
+                                <TableRow className="border-b border-border hover:bg-transparent">
+                                    <TableHead className="h-10 text-xs font-medium text-muted-foreground">Usuario</TableHead>
+                                    <TableHead className="h-10 text-xs font-medium text-muted-foreground">Correo</TableHead>
+                                    <TableHead className="h-10 text-xs font-medium text-muted-foreground">Rol</TableHead>
+                                    <TableHead className="h-10 text-xs font-medium text-muted-foreground">Estado</TableHead>
+                                    <TableHead className="h-10 text-xs font-medium text-muted-foreground">Creado</TableHead>
+                                    <TableHead className="h-10 text-xs font-medium text-muted-foreground text-right">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
                             {isLoading ? (
@@ -606,8 +606,8 @@ export const ManageUsersView = () => {
                                     <TableRow>
                                         <TableCell colSpan={6}>
                                             <div className="flex items-center justify-center py-12">
-                                                <LucideLoader className="h-5 w-5 animate-spin text-neutral-500" />
-                                                <span className="ml-3 text-sm text-neutral-500">Cargando usuarios...</span>
+                                                <LucideLoader className="h-5 w-5 animate-spin text-muted-foreground" />
+                                                <span className="ml-3 text-sm text-muted-foreground">Cargando usuarios...</span>
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -616,7 +616,7 @@ export const ManageUsersView = () => {
                                 <TableBody>
                                     <TableRow>
                                         <TableCell colSpan={6}>
-                                            <div className="flex flex-col items-center justify-center py-12 text-neutral-500">
+                                            <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
                                                 <LucideUsers className="h-8 w-8 mb-2 opacity-30" />
                                                 <p className="text-sm">No se encontraron usuarios</p>
                                             </div>
@@ -635,7 +635,7 @@ export const ManageUsersView = () => {
                                         return (
                                             <motion.tr key={user.id}
                                                 variants={tableRowVariants}
-                                                className="group border-b border-white/[0.04] last:border-0 transition-colors hover:bg-white/[0.02]">
+                                                className="group border-b border-border last:border-0 transition-colors hover:bg-muted/20">
                                                 <TableCell className="py-3">
                                                     <div className="flex items-center gap-2.5">
                                                         <AvatarInitials username={user.username} avatarUrl={user.avatarUrl} />
@@ -643,7 +643,7 @@ export const ManageUsersView = () => {
                                                     </div>
                                                 </TableCell>
                                                 <TableCell className="py-3">
-                                                    <span className="text-sm text-neutral-400">{user.email}</span>
+                                                    <span className="text-sm text-muted-foreground">{user.email}</span>
                                                 </TableCell>
                                                 <TableCell className="py-3">
                                                     <RoleBadge role={user.role} />
@@ -652,7 +652,7 @@ export const ManageUsersView = () => {
                                                     <StatusBadge isBanned={isBanned} />
                                                 </TableCell>
                                                 <TableCell className="py-3">
-                                                    <span className="text-sm text-neutral-500">
+                                                    <span className="text-sm text-muted-foreground">
                                                         {new Date(user.createdAt).toLocaleDateString('es-ES')}
                                                     </span>
                                                 </TableCell>
@@ -660,34 +660,34 @@ export const ManageUsersView = () => {
                                                     <div className="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                                         <Button variant="outline" size="sm" disabled={isSystem}
                                                             onClick={() => setEditingUser(user)}
-                                                            className="border-white/10 bg-white/5 hover:bg-white/10 h-8 w-8 p-0">
-                                                            <LucideEdit className="h-3.5 w-3.5 text-neutral-400" />
+                                                            className="border-border bg-muted/30 hover:bg-muted/30 h-8 w-8 p-0">
+                                                            <LucideEdit className="h-3.5 w-3.5 text-muted-foreground" />
                                                         </Button>
                                                         <Button variant="outline" size="sm"
                                                             onClick={() => setViewingBanHistory(user)}
-                                                            className="border-white/10 bg-white/5 hover:bg-white/10 h-8 w-8 p-0">
-                                                            <LucideHistory className="h-3.5 w-3.5 text-neutral-400" />
+                                                            className="border-border bg-muted/30 hover:bg-muted/30 h-8 w-8 p-0">
+                                                            <LucideHistory className="h-3.5 w-3.5 text-muted-foreground" />
                                                         </Button>
                                                         {isBanned ? (
                                                             <Button variant="outline" size="sm" disabled={isSystem}
                                                                 onClick={() => handleUnbanUser(user)}
-                                                                className="border-white/10 bg-white/5 hover:bg-white/10 h-8 w-8 p-0">
+                                                                className="border-border bg-muted/30 hover:bg-muted/30 h-8 w-8 p-0">
                                                                 <LucideShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
                                                             </Button>
                                                         ) : (
                                                             <Button variant="outline" size="sm"
                                                                 disabled={isAdmin || isSystem}
                                                                 onClick={() => setBanningUser(user)}
-                                                                className="border-white/10 bg-white/5 hover:bg-white/10 h-8 w-8 p-0"
+                                                                className="border-border bg-muted/30 hover:bg-muted/30 h-8 w-8 p-0"
                                                                 title={isAdmin ? "No se pueden banear administradores" : "Banear usuario"}>
-                                                                <LucideBan className="h-3.5 w-3.5 text-red-400" />
+                                                                <LucideBan className="h-3.5 w-3.5 text-destructive" />
                                                             </Button>
                                                         )}
                                                         <Button variant="outline" size="sm"
                                                             onClick={() => setDeletingUser(user)}
                                                             disabled={isSelf || isSystem}
-                                                            className="border-white/10 bg-white/5 hover:bg-white/10 hover:border-red-500/30 h-8 w-8 p-0">
-                                                            <LucideTrash className="h-3.5 w-3.5 text-red-400" />
+                                                            className="border-border bg-muted/30 hover:bg-muted/50 hover:border-destructive/30 h-8 w-8 p-0">
+                                                            <LucideTrash className="h-3.5 w-3.5 text-destructive" />
                                                         </Button>
                                                     </div>
                                                 </TableCell>
@@ -701,18 +701,18 @@ export const ManageUsersView = () => {
 
                     {usersData.totalPages > 1 && (
                         <div className="flex items-center justify-between mt-4">
-                            <p className="text-xs text-neutral-500">
+                            <p className="text-xs text-muted-foreground">
                                 Mostrando {((currentPage - 1) * 20) + 1}–{Math.min(currentPage * 20, usersData.total)} de {usersData.total} usuarios
                             </p>
                             <div className="flex gap-2">
                                 <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1} className="border-white/10 bg-white/5 hover:bg-white/10 text-xs h-8">
+                                    disabled={currentPage === 1} className="border-border bg-muted/30 hover:bg-muted/30 text-xs h-8">
                                     Anterior
                                 </Button>
                                 <Button variant="outline" size="sm"
                                     onClick={() => setCurrentPage(p => Math.min(usersData.totalPages, p + 1))}
                                     disabled={currentPage === usersData.totalPages}
-                                    className="border-white/10 bg-white/5 hover:bg-white/10 text-xs h-8">
+                                    className="border-border bg-muted/30 hover:bg-muted/30 text-xs h-8">
                                     Siguiente
                                 </Button>
                             </div>
@@ -740,11 +740,11 @@ export const ManageUsersView = () => {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel onClick={() => setDeletingUser(null)}
-                            className="border-white/10 bg-white/5 hover:bg-white/10">
+                            className="border-border bg-muted/30 hover:bg-muted/30">
                             Cancelar
                         </AlertDialogCancel>
                         <AlertDialogAction onClick={confirmDeleteUser}
-                            className="bg-red-600 hover:bg-red-700 text-white">
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                             Eliminar
                         </AlertDialogAction>
                     </AlertDialogFooter>

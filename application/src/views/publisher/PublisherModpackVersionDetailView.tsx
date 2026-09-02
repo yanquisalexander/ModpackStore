@@ -118,7 +118,7 @@ const getFileIcon = (fileName: string) => {
         case 'webp':
             return <LucideFileImage className="h-4 w-4 mr-2 text-purple-500 flex-shrink-0" />;
         default:
-            return <LucideFile className="h-4 w-4 mr-2 text-neutral-500 flex-shrink-0" />;
+            return <LucideFile className="h-4 w-4 mr-2 text-muted-foreground flex-shrink-0" />;
     }
 };
 
@@ -195,7 +195,7 @@ const FileTreeNode: React.FC<{
 
             return (
                 <div>
-                    <div className="flex items-center cursor-pointer hover:bg-white/[0.04] p-1 rounded transition-colors group">
+                    <div className="flex items-center cursor-pointer hover:bg-muted/30 p-1 rounded transition-colors group">
                         <input
                             type="checkbox"
                             checked={allSelected}
@@ -204,14 +204,14 @@ const FileTreeNode: React.FC<{
                             className="mr-2 rounded border-white/20 bg-transparent"
                         />
                         <div onClick={toggleExpand} className="flex items-center flex-1">
-                            {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-neutral-500 group-hover:text-neutral-300 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-neutral-500 group-hover:text-neutral-300 flex-shrink-0" />}
+                            {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-foreground flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-foreground flex-shrink-0" />}
                             <LucideFolder className="h-4 w-4 mr-2 text-sky-500 flex-shrink-0" />
                             <span className="text-neutral-200 font-medium">{name}</span>
-                            <span className="text-xs text-neutral-500 ml-2">({folderFileHashes.length})</span>
+                            <span className="text-xs text-muted-foreground ml-2">({folderFileHashes.length})</span>
                         </div>
                     </div>
                     {isExpanded && (
-                        <div className="pl-6 border-l border-white/[0.04] ml-2">
+                        <div className="pl-6 border-l border-border ml-2">
                             {Object.entries(node.children)
                                 .sort(([aName, aNode], [bName, bNode]) => {
                                     if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
@@ -241,13 +241,13 @@ const FileTreeNode: React.FC<{
 
         return (
             <div>
-                <div onClick={toggleExpand} className="flex items-center cursor-pointer hover:bg-white/[0.04] p-1 rounded transition-colors group">
-                    {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-neutral-500 group-hover:text-neutral-300 flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-neutral-500 group-hover:text-neutral-300 flex-shrink-0" />}
+                <div onClick={toggleExpand} className="flex items-center cursor-pointer hover:bg-muted/30 p-1 rounded transition-colors group">
+                    {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-foreground flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-foreground flex-shrink-0" />}
                     <LucideFolder className="h-4 w-4 mr-2 text-sky-500 flex-shrink-0" />
                     <span className="text-neutral-200 font-medium">{name}</span>
                 </div>
                 {isExpanded && (
-                    <div className="pl-6 border-l border-white/[0.04] ml-2 mt-0.5">
+                    <div className="pl-6 border-l border-border ml-2 mt-0.5">
                         {Object.entries(node.children)
                             .sort(([aName, aNode], [bName, bNode]) => {
                                 if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
@@ -284,7 +284,7 @@ const FileTreeNode: React.FC<{
         );
 
         return (
-            <div className="flex items-center justify-between p-1 ml-4 group hover:bg-white/[0.04] rounded transition-colors">
+            <div className="flex items-center justify-between p-1 ml-4 group hover:bg-muted/30 rounded transition-colors">
                 <div className="flex items-center min-w-0 flex-1">
                     <input
                         type="checkbox"
@@ -294,9 +294,9 @@ const FileTreeNode: React.FC<{
                     />
                     <div className="w-4 mr-2 flex-shrink-0"></div>
                     {getFileIcon(name)}
-                    <span className="text-neutral-300 truncate text-sm" title={`Versión: ${versionId} - Path: ${fileData.path}`}>{name}</span>
+                    <span className="text-foreground truncate text-sm" title={`Versión: ${versionId} - Path: ${fileData.path}`}>{name}</span>
                 </div>
-                <div className="text-[10px] text-neutral-500 flex-shrink-0 ml-2">
+                <div className="text-[10px] text-muted-foreground flex-shrink-0 ml-2">
                     {formatFileSize(fileData.size || 0)}
                 </div>
             </div>
@@ -304,11 +304,11 @@ const FileTreeNode: React.FC<{
     }
 
     return (
-        <div className="flex items-center justify-between p-1 ml-4 group hover:bg-white/[0.04] rounded transition-colors">
+        <div className="flex items-center justify-between p-1 ml-4 group hover:bg-muted/30 rounded transition-colors">
             <div className="flex items-center min-w-0 flex-1">
                 <div className="w-4 mr-2 flex-shrink-0"></div>
                 {getFileIcon(name)}
-                <span className="text-neutral-300 truncate text-sm" title={fileData.path}>{name}</span>
+                <span className="text-foreground truncate text-sm" title={fileData.path}>{name}</span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 ml-2">
                 <TooltipProvider>
@@ -320,7 +320,7 @@ const FileTreeNode: React.FC<{
                                     onValueChange={(value: any) => onUpdateSide?.(fileData.fileHash, fileData.fileType || fileData.file.type, value)}
                                     disabled={versionStatus === 'published'}
                                 >
-                                    <SelectTrigger className="h-7 w-[90px] text-[10px] px-2 bg-black/20 border-white/[0.04] focus:ring-0">
+                                    <SelectTrigger className="h-7 w-[90px] text-[10px] px-2 bg-muted/30 border-border focus:ring-0">
                                         <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -358,7 +358,7 @@ const FileTreeNode: React.FC<{
                         variant="ghost"
                         size="icon"
                         onClick={() => onDelete?.(fileData.fileHash, fileData.fileType || fileData.file.type)}
-                        className="h-7 w-7 text-red-500 hover:text-red-400 hover:bg-red-500/10 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+                        className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
                     >
                         <LucideTrash2 className="h-4 w-4" />
                     </Button>
@@ -442,13 +442,13 @@ const FileTypeManager: React.FC<FileTypeManagerProps> = ({ title, description, t
                 <div>
                     <div className="flex items-center gap-2 mb-1">
                         {icon}
-                        <h3 className="text-lg font-semibold text-white">{title}</h3>
+                        <h3 className="text-lg font-semibold text-foreground">{title}</h3>
                     </div>
-                    <p className="text-sm text-neutral-500">{description}</p>
+                    <p className="text-sm text-muted-foreground">{description}</p>
                 </div>
                 {versionStatus === 'draft' && (
                     <div className="flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => onOpenReuse(type)} disabled={uploadingFile} className="h-9 border-white/[0.06] text-neutral-400 hover:text-white hover:bg-white/[0.04]">
+                        <Button variant="outline" size="sm" onClick={() => onOpenReuse(type)} disabled={uploadingFile} className="h-9 border-border text-muted-foreground hover:text-foreground hover:bg-muted/30">
                             <LucidePackage className="h-4 w-4 mr-2" /> Reutilizar
                         </Button>
                         <Button size="sm" onClick={() => onOpenUpload(type)} disabled={uploadingFile} className="h-9 bg-white text-black hover:bg-neutral-200">
@@ -458,7 +458,7 @@ const FileTypeManager: React.FC<FileTypeManagerProps> = ({ title, description, t
                 )}
             </div>
 
-            <div className="bg-[#0e0e10] rounded-lg border border-white/[0.04] p-4 min-h-[400px]">
+            <div className="bg-background rounded-lg border border-border p-4 min-h-[400px]">
                 {filteredFiles.length > 0 ? (
                     <div className="space-y-1 font-mono text-xs overflow-y-auto max-h-[600px] pr-2 custom-scrollbar">
                         {Object.entries(fileTree)
@@ -484,11 +484,11 @@ const FileTypeManager: React.FC<FileTypeManagerProps> = ({ title, description, t
                     </div>
                 ) : (
                     <div className="h-[400px] flex flex-col items-center justify-center text-center p-8">
-                        <div className="bg-white/[0.04] p-6 rounded-full mb-4">
-                            <LucideUpload className="h-10 w-10 text-neutral-500" />
+                        <div className="bg-muted/30 p-6 rounded-full mb-4">
+                            <LucideUpload className="h-10 w-10 text-muted-foreground" />
                         </div>
-                        <h4 className="text-neutral-300 font-medium mb-1">No hay archivos aún</h4>
-                        <p className="text-sm text-neutral-600 max-w-[250px]">
+                        <h4 className="text-foreground font-medium mb-1">No hay archivos aún</h4>
+                        <p className="text-sm text-muted-foreground max-w-[250px]">
                             {versionStatus !== 'published'
                                 ? "Sube un archivo ZIP o reutiliza archivos de versiones anteriores para comenzar."
                                 : "Esta versión no contiene archivos en esta categoría."}
@@ -515,7 +515,7 @@ interface ProcessingJob {
 const processingStatusConfig: Record<string, { icon: React.ReactNode; className: string; label: string }> = {
     pending: {
         icon: <LucideClock className="size-3" />,
-        className: 'bg-neutral-600/20 text-neutral-400 border-neutral-600/30',
+        className: 'bg-muted text-muted-foreground border-border',
         label: 'En cola',
     },
     processing: {
@@ -530,7 +530,7 @@ const processingStatusConfig: Record<string, { icon: React.ReactNode; className:
     },
     failed: {
         icon: <LucideAlertCircle className="size-3" />,
-        className: 'bg-red-600/20 text-red-400 border-red-600/30',
+        className: 'bg-destructive/10 text-destructive border-destructive/30',
         label: 'Error',
     },
 };
@@ -544,7 +544,7 @@ const ProcessingJobChip: React.FC<{ job: ProcessingJob; onRetry?: (jobId: string
             {job.status === 'failed' && onRetry && (
                 <button
                     onClick={() => onRetry(job.jobId)}
-                    className="ml-1 hover:text-white transition-colors"
+                    className="ml-1 hover:text-foreground transition-colors"
                     title="Reintentar"
                 >
                     <LucideRefreshCw className="size-3" />
@@ -891,7 +891,6 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         setUploadDialog(prev => ({ ...prev, progress: 0 }));
 
         try {
-            // 1. Get presigned URL
             const urlRes = await fetch(
                 `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/upload-url/${type}`,
                 {
@@ -902,7 +901,6 @@ const PublisherModpackVersionDetailView: React.FC = () => {
             if (!urlRes.ok) { await handleApiError(urlRes); return; }
             const { uploadUrl } = await urlRes.json();
 
-            // 2. PUT file to presigned URL (track progress via XMLHttpRequest)
             await new Promise<void>((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
                 xhr.upload.addEventListener('progress', (e) => {
@@ -919,7 +917,6 @@ const PublisherModpackVersionDetailView: React.FC = () => {
 
             setUploadDialog(prev => ({ ...prev, progress: 95 }));
 
-            // 3. Confirm upload
             const confirmRes = await fetch(
                 `${API_ENDPOINT}/creators/${publisherId}/modpacks/${modpackId}/versions/${versionId}/confirm-upload/${type}`,
                 {
@@ -1202,18 +1199,18 @@ const PublisherModpackVersionDetailView: React.FC = () => {
 
     if (loading) {
         return (
-            <div className="min-h-full h-full flex items-center justify-center bg-[#0e0e10]">
-                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-neutral-600"></div>
+            <div className="min-h-full h-full flex items-center justify-center bg-background">
+                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-muted-foreground"></div>
             </div>
         );
     }
 
     if (!version) {
         return (
-            <div className="min-h-full h-full flex items-center justify-center bg-[#0e0e10]">
+            <div className="min-h-full h-full flex items-center justify-center bg-background">
                 <div className="text-center">
-                    <h2 className="text-xl font-semibold text-white mb-2">Versión no encontrada</h2>
-                    <p className="text-sm text-neutral-500">La versión que buscas no existe o no tienes permisos para verla.</p>
+                    <h2 className="text-xl font-semibold text-foreground mb-2">Versión no encontrada</h2>
+                    <p className="text-sm text-muted-foreground">La versión que buscas no existe o no tienes permisos para verla.</p>
                 </div>
             </div>
         );
@@ -1273,7 +1270,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                         <AlertDialogAction
                             onClick={confirmPublishVersion}
                             disabled={publishing}
-                            className="bg-green-600 text-white hover:bg-green-700"
+                            className="bg-emerald-600 text-white hover:bg-emerald-700"
                         >
                             {publishing ? 'Publicando...' : 'Confirmar y Publicar'}
                         </AlertDialogAction>
@@ -1285,17 +1282,17 @@ const PublisherModpackVersionDetailView: React.FC = () => {
 
             {/* Upload Dialog */}
             <Dialog open={uploadDialog.open} onOpenChange={(open) => setUploadDialog(prev => ({ ...prev, open }))}>
-                <DialogContent className="sm:max-w-md bg-[#0e0e10] border border-white/[0.06]">
+                <DialogContent className="sm:max-w-md bg-background border border-border">
                     <DialogHeader>
-                        <DialogTitle className="text-white">Subir archivo ZIP</DialogTitle>
-                        <DialogDescription className="text-neutral-500">
+                        <DialogTitle className="text-foreground">Subir archivo ZIP</DialogTitle>
+                        <DialogDescription className="text-muted-foreground">
                             Selecciona un archivo ZIP para subir a la sección de {uploadDialog.type}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4">
                         {!uploadDialog.file ? (
-                            <div className="border-2 border-dashed border-white/[0.06] rounded-lg p-6 text-center">
+                            <div className="border-2 border-dashed border-border rounded-lg p-6 text-center">
                                 <Input
                                     type="file"
                                     accept=".zip,.rar,.7z"
@@ -1309,23 +1306,23 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                     id="file-upload"
                                 />
                                 <label htmlFor="file-upload" className="cursor-pointer">
-                                    <LucideUpload className="h-8 w-8 mx-auto mb-2 text-neutral-500" />
-                                    <p className="text-sm text-neutral-400">Selecciona un archivo ZIP</p>
-                                    <p className="text-xs text-neutral-600 mt-1">O haz clic aquí para seleccionar</p>
+                                    <LucideUpload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                                    <p className="text-sm text-muted-foreground">Selecciona un archivo ZIP</p>
+                                    <p className="text-xs text-muted-foreground mt-1">O haz clic aquí para seleccionar</p>
                                 </label>
                             </div>
                         ) : (
                             <div className="space-y-4">
-                                <div className="flex items-center gap-2 p-3 bg-black/20 rounded-lg">
-                                    <LucideFile className="h-5 w-5 text-neutral-500" />
-                                    <span className="text-sm font-medium text-neutral-300">{uploadDialog.file.name}</span>
-                                    <span className="text-xs text-neutral-600 ml-auto">
+                                <div className="flex items-center gap-2 p-3 bg-muted/30 rounded-lg">
+                                    <LucideFile className="h-5 w-5 text-muted-foreground" />
+                                    <span className="text-sm font-medium text-foreground">{uploadDialog.file.name}</span>
+                                    <span className="text-xs text-muted-foreground ml-auto">
                                         {formatFileSize(uploadDialog.file.size)}
                                     </span>
                                 </div>
 
                                 <div className="space-y-2">
-                                    <p className="text-[10px] text-neutral-500">
+                                    <p className="text-[10px] text-muted-foreground">
                                         Define dónde se instalarán los archivos contenidos en este ZIP.
                                     </p>
                                 </div>
@@ -1333,7 +1330,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                 {uploadingFile && (
                                     <div className="space-y-2">
                                         <Progress value={uploadDialog.progress} />
-                                        <p className="text-xs text-center text-neutral-500">
+                                        <p className="text-xs text-center text-muted-foreground">
                                             Subiendo... {uploadDialog.progress}%
                                         </p>
                                     </div>
@@ -1347,7 +1344,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                             variant="outline"
                             onClick={() => setUploadDialog(prev => ({ ...prev, open: false, file: null }))}
                             disabled={uploadingFile}
-                            className="border-white/[0.06] text-neutral-400 hover:text-white hover:bg-white/[0.04]"
+                            className="border-border text-muted-foreground hover:text-foreground hover:bg-muted/30"
                         >
                             Cancelar
                         </Button>
@@ -1363,27 +1360,27 @@ const PublisherModpackVersionDetailView: React.FC = () => {
 
             {/* File Reuse Dialog */}
             <Dialog open={reuseDialog.open} onOpenChange={(open) => setReuseDialog(prev => ({ ...prev, open }))}>
-                <DialogContent className="sm:max-w-4xl bg-[#0e0e10] border border-white/[0.06]">
+                <DialogContent className="sm:max-w-4xl bg-background border border-border">
                     <DialogHeader>
-                        <DialogTitle className="text-white">Reutilizar archivos de versiones anteriores</DialogTitle>
-                        <DialogDescription className="text-neutral-500">
+                        <DialogTitle className="text-foreground">Reutilizar archivos de versiones anteriores</DialogTitle>
+                        <DialogDescription className="text-muted-foreground">
                             Selecciona archivos de versiones anteriores para reutilizar en la sección de {reuseDialog.type}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4 max-h-96 overflow-y-auto">
                         {reuseDialog.loading ? (
-                            <p className="text-center text-neutral-500">Cargando versiones anteriores...</p>
+                            <p className="text-center text-muted-foreground">Cargando versiones anteriores...</p>
                         ) : reuseDialog.previousFiles.length === 0 ? (
-                            <p className="text-center text-neutral-500">
+                            <p className="text-center text-muted-foreground">
                                 No hay archivos de tipo {reuseDialog.type} en versiones anteriores.
                             </p>
                         ) : (
                             reuseDialog.previousFiles.map(versionData => {
                                 const fileTree = buildFileTree(versionData.files, reuseDialog.type);
                                 return (
-                                    <div key={versionData.versionId} className="bg-[#121214] border border-white/[0.06] rounded-lg p-4">
-                                        <h4 className="font-medium text-sm mb-3 text-neutral-300">
+                                    <div key={versionData.versionId} className="bg-card border border-border rounded-lg p-4">
+                                        <h4 className="font-medium text-sm mb-3 text-foreground">
                                             Versión {versionData.version} ({versionData.files.length} archivos)
                                         </h4>
                                         <div className="space-y-1 font-mono text-xs max-h-48 overflow-y-auto">
@@ -1416,9 +1413,9 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                         )}
                     </div>
 
-                    <DialogFooter className="flex-wrap justify-between items-center gap-2 pt-4 border-t border-white/[0.06]">
+                    <DialogFooter className="flex-wrap justify-between items-center gap-2 pt-4 border-t border-border">
                         <div className="flex items-center space-x-4">
-                            <div className="text-sm text-neutral-500">
+                            <div className="text-sm text-muted-foreground">
                                 {reuseDialog.selectedFiles.length} archivo(s) seleccionado(s)
                             </div>
                             {(() => {
@@ -1426,7 +1423,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                 return (
                                     <>
                                         {!noneSelected && (
-                                            <Button variant="outline" size="sm" onClick={deselectAllFiles} className="border-white/[0.06] text-neutral-400 hover:text-white hover:bg-white/[0.04]">
+                                            <Button variant="outline" size="sm" onClick={deselectAllFiles} className="border-border text-muted-foreground hover:text-foreground hover:bg-muted/30">
                                                 Deseleccionar todo
                                             </Button>
                                         )}
@@ -1438,7 +1435,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                             <Button
                                 variant="outline"
                                 onClick={() => setReuseDialog(prev => ({ ...prev, open: false }))}
-                                className="border-white/[0.06] text-neutral-400 hover:text-white hover:bg-white/[0.04]"
+                                className="border-border text-muted-foreground hover:text-foreground hover:bg-muted/30"
                             >
                                 Cancelar
                             </Button>
@@ -1456,23 +1453,23 @@ const PublisherModpackVersionDetailView: React.FC = () => {
 
             <div className="space-y-6">
                 {/* Compact Header Card */}
-                <div className="bg-[#121214] border border-white/[0.06] rounded-xl p-6">
+                <div className="bg-card border border-border rounded-xl p-6">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="space-y-1">
                             <div className="flex items-center gap-3 flex-wrap">
-                                <h1 className="text-3xl font-bold text-white tracking-tight">{version.modpackName}</h1>
+                                <h1 className="text-3xl font-bold text-foreground tracking-tight">{version.modpackName}</h1>
                                 <span className={cn(
                                     "text-[10px] font-medium px-2 py-0.5 rounded-md",
                                     version.status === "published" ? "bg-emerald-500/10 text-emerald-400" :
                                         version.status === "draft" ? "bg-amber-500/10 text-amber-400" :
-                                            version.status === "archived" ? "bg-neutral-500/10 text-neutral-400" :
-                                                "bg-red-500/10 text-red-400"
+                                            version.status === "archived" ? "bg-neutral-500/10 text-muted-foreground" :
+                                                "bg-destructive/10 text-destructive"
                                 )}>
                                     {getStatusLabel(version.status)}
                                 </span>
                             </div>
-                            <p className="text-neutral-500 flex items-center gap-2 text-sm">
-                                Versión <code className="bg-white/[0.04] px-1.5 py-0.5 rounded text-neutral-400 font-mono text-sm">{version.version}</code>
+                            <p className="text-muted-foreground flex items-center gap-2 text-sm">
+                                Versión <code className="bg-muted/30 px-1.5 py-0.5 rounded text-muted-foreground font-mono text-sm">{version.version}</code>
                                 <span className="text-neutral-700">•</span>
                                 <span>Enviada el {new Date(version.createdAt).toLocaleDateString()}</span>
                             </p>
@@ -1493,7 +1490,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                     onClick={() => setArchiveDialog(true)}
                                     disabled={publishing}
                                     variant="outline"
-                                    className="border-white/[0.06] text-neutral-400 hover:text-white hover:bg-white/[0.04]"
+                                    className="border-border text-muted-foreground hover:text-foreground hover:bg-muted/30"
                                 >
                                     <LucideFolder className="h-4 w-4 mr-2" />
                                     Archivar
@@ -1503,27 +1500,27 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                     </div>
 
                     {/* Stat chips + inline ProcessingStatus */}
-                    <div className="flex flex-wrap items-center gap-3 mt-5 pt-5 border-t border-white/[0.06]">
-                        <div className="bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 min-w-[100px]">
-                            <p className="text-[10px] uppercase font-bold text-neutral-600 tracking-widest">Minecraft</p>
-                            <p className="text-sm font-medium text-white">{version.mcVersion}</p>
+                    <div className="flex flex-wrap items-center gap-3 mt-5 pt-5 border-t border-border">
+                        <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 min-w-[100px]">
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Minecraft</p>
+                            <p className="text-sm font-medium text-foreground">{version.mcVersion}</p>
                         </div>
-                        <div className="bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 min-w-[100px]">
-                            <p className="text-[10px] uppercase font-bold text-neutral-600 tracking-widest">Loader</p>
-                            <p className="text-sm font-medium text-white">{version.forgeVersion || 'Vanilla'}</p>
+                        <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 min-w-[100px]">
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Loader</p>
+                            <p className="text-sm font-medium text-foreground">{version.forgeVersion || 'Vanilla'}</p>
                         </div>
-                        <div className="bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 min-w-[100px]">
-                            <p className="text-[10px] uppercase font-bold text-neutral-600 tracking-widest">Archivos</p>
-                            <p className="text-sm font-medium text-white">{version.files?.length || 0}</p>
+                        <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 min-w-[100px]">
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Archivos</p>
+                            <p className="text-sm font-medium text-foreground">{version.files?.length || 0}</p>
                         </div>
-                        <div className="bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 min-w-[100px]">
-                            <p className="text-[10px] uppercase font-bold text-neutral-600 tracking-widest">Creado</p>
-                            <p className="text-sm font-medium text-white">{new Date(version.createdAt).toLocaleDateString()}</p>
+                        <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 min-w-[100px]">
+                            <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Creado</p>
+                            <p className="text-sm font-medium text-foreground">{new Date(version.createdAt).toLocaleDateString()}</p>
                         </div>
                         {version.releaseDate && (
-                            <div className="bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 min-w-[100px]">
-                                <p className="text-[10px] uppercase font-bold text-neutral-600 tracking-widest">Publicado</p>
-                                <p className="text-sm font-medium text-white">{new Date(version.releaseDate).toLocaleDateString()}</p>
+                            <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 min-w-[100px]">
+                                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Publicado</p>
+                                <p className="text-sm font-medium text-foreground">{new Date(version.releaseDate).toLocaleDateString()}</p>
                             </div>
                         )}
                         {processingJobs.length > 0 && (
@@ -1537,25 +1534,25 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 </div>
 
                 {/* Expandable Changelog */}
-                <div className="bg-[#121214] border border-white/[0.06] rounded-xl overflow-hidden">
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
                     <button
                         onClick={() => setChangelogExpanded(!changelogExpanded)}
-                        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-white/[0.02] transition-colors"
+                        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/20 transition-colors"
                     >
                         <div className="flex items-center gap-2">
-                            {changelogExpanded ? <LucideChevronDown className="h-4 w-4 text-neutral-500" /> : <LucideChevronRight className="h-4 w-4 text-neutral-500" />}
-                            <h3 className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-2">
+                            {changelogExpanded ? <LucideChevronDown className="h-4 w-4 text-muted-foreground" /> : <LucideChevronRight className="h-4 w-4 text-muted-foreground" />}
+                            <h3 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                                 <LucideFileText className="h-4 w-4" /> Changelog
                             </h3>
                         </div>
                         {version.status === 'draft' && !editingChangelog && (
-                            <button onClick={(e) => { e.stopPropagation(); setEditingChangelog(true); }} className="text-neutral-600 hover:text-neutral-300 transition-colors">
+                            <button onClick={(e) => { e.stopPropagation(); setEditingChangelog(true); }} className="text-muted-foreground hover:text-foreground transition-colors">
                                 <LucideEdit2 className="h-3.5 w-3.5" />
                             </button>
                         )}
                     </button>
                     {changelogExpanded && (
-                        <div className="px-5 pb-5 border-t border-white/[0.06]">
+                        <div className="px-5 pb-5 border-t border-border">
                             <div className="pt-4">
                                 {editingChangelog ? (
                                     <div className="space-y-3">
@@ -1564,10 +1561,10 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                             onChange={(e) => setChangelog(e.target.value)}
                                             placeholder="¿Qué ha cambiado?"
                                             rows={8}
-                                            className="bg-black/20 border-white/[0.06] focus:ring-0 text-sm rounded-lg"
+                                            className="bg-muted/30 border-border focus:ring-0 text-sm rounded-lg"
                                         />
                                         <div className="flex gap-2 justify-end">
-                                            <Button variant="ghost" size="sm" onClick={() => { setEditingChangelog(false); setChangelog(version.changelog || ''); }} className="text-neutral-500 hover:text-white">
+                                            <Button variant="ghost" size="sm" onClick={() => { setEditingChangelog(false); setChangelog(version.changelog || ''); }} className="text-muted-foreground hover:text-foreground">
                                                 Cancelar
                                             </Button>
                                             <Button size="sm" onClick={updateChangelog} className="bg-white text-black hover:bg-neutral-200">
@@ -1576,7 +1573,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="text-sm text-neutral-300 whitespace-pre-wrap bg-black/20 p-4 rounded-lg border border-white/[0.04] max-h-60 overflow-auto custom-scrollbar italic leading-relaxed">
+                                    <div className="text-sm text-foreground whitespace-pre-wrap bg-muted/30 p-4 rounded-lg border border-border max-h-60 overflow-auto custom-scrollbar italic leading-relaxed">
                                         {version.changelog || 'No se ha proporcionado un registro de cambios.'}
                                     </div>
                                 )}
@@ -1586,23 +1583,23 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 </div>
 
                 {/* File Explorer (full-width) */}
-                <div className="bg-[#121214] border border-white/[0.06] rounded-xl overflow-hidden">
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
                     <Tabs defaultValue="mods" className="w-full">
                         <div className="px-6 pt-5 pb-0">
-                            <TabsList className="bg-black/20 border border-white/[0.06] rounded-lg p-1 w-full justify-start overflow-x-auto h-auto no-scrollbar">
-                                <TabsTrigger value="mods" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-white text-neutral-400 text-sm rounded-md transition-all">
+                            <TabsList className="bg-muted/30 border border-border rounded-lg p-1 w-full justify-start overflow-x-auto h-auto no-scrollbar">
+                                <TabsTrigger value="mods" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-foreground text-muted-foreground text-sm rounded-md transition-all">
                                     <LucidePackage className="h-4 w-4" /> Mods
                                 </TabsTrigger>
-                                <TabsTrigger value="resourcepacks" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-white text-neutral-400 text-sm rounded-md transition-all">
+                                <TabsTrigger value="resourcepacks" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-foreground text-muted-foreground text-sm rounded-md transition-all">
                                     <LucideImage className="h-4 w-4" /> Resources
                                 </TabsTrigger>
-                                <TabsTrigger value="config" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-white text-neutral-400 text-sm rounded-md transition-all">
+                                <TabsTrigger value="config" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-foreground text-muted-foreground text-sm rounded-md transition-all">
                                     <LucideSettings className="h-4 w-4" /> Config
                                 </TabsTrigger>
-                                <TabsTrigger value="shaderpacks" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-white text-neutral-400 text-sm rounded-md transition-all">
+                                <TabsTrigger value="shaderpacks" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-foreground text-muted-foreground text-sm rounded-md transition-all">
                                     <LucidePalette className="h-4 w-4" /> Shaders
                                 </TabsTrigger>
-                                <TabsTrigger value="extras" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-white text-neutral-400 text-sm rounded-md transition-all">
+                                <TabsTrigger value="extras" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-foreground text-muted-foreground text-sm rounded-md transition-all">
                                     <LucideFolder className="h-4 w-4" /> Extras
                                 </TabsTrigger>
                             </TabsList>
@@ -1614,7 +1611,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                     description="Modificaciones de jugabilidad (.jar)"
                                     type="mods"
                                     files={version.files || []}
-                                    icon={<LucidePackage className="h-5 w-5 text-neutral-400" />}
+                                    icon={<LucidePackage className="h-5 w-5 text-muted-foreground" />}
                                     versionStatus={version.status}
                                     onDeleteFile={deleteFile}
                                     onUpdateSide={handleUpdateSide}
@@ -1631,7 +1628,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                     description="Paquetes de texturas y sonidos (.zip)"
                                     type="resourcepacks"
                                     files={version.files || []}
-                                    icon={<LucideImage className="h-5 w-5 text-neutral-400" />}
+                                    icon={<LucideImage className="h-5 w-5 text-muted-foreground" />}
                                     versionStatus={version.status}
                                     onDeleteFile={deleteFile}
                                     onUpdateSide={handleUpdateSide}
@@ -1648,7 +1645,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                     description="Archivos de configuración del servidor y mods"
                                     type="config"
                                     files={version.files || []}
-                                    icon={<LucideSettings className="h-5 w-5 text-neutral-400" />}
+                                    icon={<LucideSettings className="h-5 w-5 text-muted-foreground" />}
                                     versionStatus={version.status}
                                     onDeleteFile={deleteFile}
                                     onUpdateSide={handleUpdateSide}
@@ -1665,7 +1662,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                     description="Mejoras visuales y sombreadores"
                                     type="shaderpacks"
                                     files={version.files || []}
-                                    icon={<LucidePalette className="h-5 w-5 text-neutral-400" />}
+                                    icon={<LucidePalette className="h-5 w-5 text-muted-foreground" />}
                                     versionStatus={version.status}
                                     onDeleteFile={deleteFile}
                                     onUpdateSide={handleUpdateSide}
@@ -1682,7 +1679,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                     description="Archivos adicionales en la raíz (.minecraft)"
                                     type="extras"
                                     files={version.files || []}
-                                    icon={<LucideFolder className="h-5 w-5 text-neutral-400" />}
+                                    icon={<LucideFolder className="h-5 w-5 text-muted-foreground" />}
                                     versionStatus={version.status}
                                     onDeleteFile={deleteFile}
                                     onUpdateSide={handleUpdateSide}

@@ -1,237 +1,209 @@
 ---
-// src/components/Hero.astro
+interface ReleasePlatform {
+  browser_download_url?: string;
+  url?: string;
+}
+
+interface ReleaseData {
+  version: string;
+  notes: string;
+  pub_date: string;
+  platforms: Record<string, ReleasePlatform>;
+}
+
+const release = Astro.props.release as ReleaseData | undefined;
+const releaseVersion = release?.version ?? "canary";
+const releaseNotes = release?.notes ?? "Última versión publicada";
 ---
 
 <section
   id="hero-section"
-  class="relative pt-32 pb-20 lg:pt-48 lg:pb-32 overflow-hidden perspective-distant"
+  class="relative overflow-hidden pb-16 pt-28 lg:pb-20 lg:pt-36"
 >
-  <div class="relative z-10 max-w-7xl mx-auto px-4 text-center">
-    <div id="hero-armadillo" class="flex justify-center mb-4 opacity-0">
-      <img
-        src="/armadillo_running.gif"
-        alt="Armadillo running"
-        class="h-12 w-auto opacity-80 hover:opacity-100 transition-opacity"
-      />
-    </div>
+  <div class="relative z-10 mx-auto max-w-6xl px-4">
     <div
       id="hero-badge"
-      class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#121212] border border-white/10 mb-8 animate-fade-in-up hover:border-ms-primary/30 transition-colors cursor-default opacity-0"
+      class="mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/20 px-3 py-1.5 opacity-0 backdrop-blur-md"
     >
       <span class="relative flex h-2 w-2">
         <span
-          class="animate-ping absolute inline-flex h-full w-full rounded-full bg-ms-primary opacity-75"
+          class="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400/70"
         ></span>
-        <span class="relative inline-flex rounded-full h-2 w-2 bg-ms-primary"
+        <span class="relative inline-flex h-2 w-2 rounded-full bg-green-400"
         ></span>
       </span>
-      <span class="text-xs font-medium text-neutral-400 tracking-wide">
-        v1.0.0 Stable <span class="text-neutral-700 mx-2">|</span> Multiplataforma
-      </span>
+      <span class="text-xs font-medium tracking-wide text-neutral-300"
+        >Versión {releaseVersion}</span
+      >
     </div>
 
-    <h1
-      id="hero-title"
-      class="mb-6 text-5xl font-lexend font-bold tracking-tight leading-[1.1] md:text-7xl text-white drop-shadow-2xl opacity-0"
-    >
-      Tu universo Minecraft, <br />
-      <span
-        class="bg-clip-text text-transparent bg-gradient-to-b from-ms-primary-light to-ms-secondary"
-      >
-        perfectamente organizado.
-      </span>
-    </h1>
-
-    <p
-      id="hero-desc"
-      class="mb-10 text-lg text-neutral-400 max-w-2xl mx-auto leading-relaxed opacity-0"
-    >
-      Modpack Store es el launcher definitivo diseñado para velocidad y
-      estética. Gestiona instancias, importa mrpacks y juega sin distracciones.
-    </p>
-
-    <div
-      id="hero-cta"
-      class="flex flex-col sm:flex-row justify-center gap-4 mb-24 opacity-0"
-    >
-      <a
-        href="#download"
-        class="group relative px-8 py-4 bg-gradient-to-b from-ms-primary to-ms-primary-dark hover:from-ms-primary-light hover:to-ms-primary text-white rounded-xl font-bold text-lg transition-all shadow-[0_0_40px_rgba(99,102,241,0.2)] hover:shadow-[0_0_60px_rgba(99,102,241,0.4)] hover:-translate-y-1"
-      >
-        <span class="flex items-center gap-2">
-          <svg
-            class="w-5 h-5"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            ><path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="2"
-              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-            ></path></svg
-          >
-          Descargar Gratis
-        </span>
-      </a>
-    </div>
-
-    <div
-      id="hero-preview"
-      class="relative mx-auto max-w-5xl perspective-2000 group opacity-0"
-    >
-      <div
-        class="absolute -inset-1 bg-gradient-to-r from-ms-primary via-ms-secondary to-ms-primary rounded-2xl blur-2xl opacity-10 group-hover:opacity-20 transition duration-1000"
-      >
-      </div>
-
-      <div
-        class="relative bg-[#0a0a0a] rounded-xl border border-white/10 shadow-2xl overflow-hidden transform transition-transform duration-700 hover:scale-[1.01] rotate-x-6 group-hover:rotate-x-0 origin-center"
-      >
-        <div
-          class="h-10 bg-[#121212] border-b border-white/5 flex items-center px-4 justify-between"
+    <div class="grid items-start gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+      <div>
+        <h1
+          id="hero-title"
+          class="max-w-3xl text-4xl font-lexend font-bold leading-[1.05] tracking-tight text-white opacity-0 md:text-6xl"
         >
-          <div class="flex gap-2">
-            <div
-              class="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/50"
-            >
-            </div>
-            <div
-              class="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/50"
-            >
-            </div>
-            <div
-              class="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/50"
-            >
-            </div>
-          </div>
-          <div
-            class="text-[10px] font-mono text-neutral-600 uppercase tracking-widest pointer-events-none select-none"
+          Tus modpacks, listos para
+          <span
+            class="block bg-clip-text text-transparent bg-linear-to-r from-ms-primary-light to-ms-secondary"
           >
-            Modpack Store
+            jugar en un click.
+          </span>
+        </h1>
+
+        <p
+          id="hero-desc"
+          class="mt-6 max-w-2xl text-base leading-relaxed text-neutral-400 opacity-0 md:text-lg"
+        >
+          Instala modpacks al instante, mantén tus mundos separados y juega sin
+          complicaciones. Todo lo que necesitas, nada que no.
+        </p>
+
+        <div
+          id="hero-meta"
+          class="mt-8 grid max-w-2xl gap-3 opacity-0 sm:grid-cols-3"
+        >
+          <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+            <div
+              class="text-[10px] uppercase tracking-[0.24em] text-neutral-500"
+            >
+              Versión
+            </div>
+            <div class="mt-1 text-sm font-semibold text-white">
+              {releaseVersion}
+            </div>
           </div>
-          <div class="w-12"></div>
+          <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+            <div
+              class="text-[10px] uppercase tracking-[0.24em] text-neutral-500"
+            >
+              Notas
+            </div>
+            <div class="mt-1 text-sm font-semibold text-white">
+              {releaseNotes}
+            </div>
+          </div>
+          <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+            <div
+              class="text-[10px] uppercase tracking-[0.24em] text-neutral-500"
+            >
+              Estado
+            </div>
+            <div class="mt-1 text-sm font-semibold text-white">Disponible</div>
+          </div>
         </div>
 
-        <div class="flex h-[450px] md:h-[550px]">
-          <div
-            class="w-16 md:w-64 border-r border-white/5 bg-[#0f0f0f] hidden md:flex flex-col p-4 gap-2"
+        <div
+          id="hero-cta"
+          class="mt-8 flex flex-col gap-3 opacity-0 sm:flex-row"
+        >
+          <a
+            href="#download"
+            class="inline-flex items-center justify-center rounded-xl bg-ms-primary px-6 py-3 font-semibold text-white transition-colors hover:bg-ms-primary-light"
           >
-            <div
-              class="flex items-center gap-3 mb-6 p-2 rounded-lg bg-white/5 border border-white/5"
-            >
-              <div
-                class="w-8 h-8 rounded-full bg-gradient-to-tr from-ms-primary to-ms-secondary"
-              >
-              </div>
-              <div class="flex-1 space-y-1">
-                <div class="h-2 w-20 bg-white/20 rounded-full"></div>
-                <div class="h-1.5 w-12 bg-white/10 rounded-full"></div>
-              </div>
-            </div>
+            Ver descargas
+          </a>
+          <a
+            href="#features"
+            class="inline-flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-6 py-3 font-semibold text-white transition-colors hover:bg-white/10"
+          >
+            Ver funciones
+          </a>
+        </div>
+      </div>
 
-            <div
-              class="h-10 w-full bg-ms-primary/10 border border-ms-primary/20 rounded-lg flex items-center gap-3 px-3"
-            >
-              <div class="w-5 h-5 rounded bg-ms-primary/50"></div>
-              <div class="w-24 h-2 bg-ms-primary/30 rounded"></div>
+      <div id="hero-preview" class="relative opacity-0">
+        <div class="absolute -inset-4 rounded-[2rem] bg-ms-primary/10 blur-3xl">
+        </div>
+        <div
+          class="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#0c0c0c] shadow-2xl"
+        >
+          <div
+            class="flex items-center justify-between border-b border-white/5 bg-[#141414] px-4 py-3"
+          >
+            <div class="flex items-center gap-2">
+              <span class="h-3 w-3 rounded-full bg-red-500/70"></span>
+              <span class="h-3 w-3 rounded-full bg-yellow-500/70"></span>
+              <span class="h-3 w-3 rounded-full bg-green-500/70"></span>
             </div>
             <div
-              class="h-10 w-full hover:bg-white/5 rounded-lg flex items-center gap-3 px-3 opacity-40"
+              class="text-[10px] uppercase tracking-[0.24em] text-neutral-500"
             >
-              <div class="w-5 h-5 rounded bg-white/20"></div>
-              <div class="w-16 h-2 bg-white/10 rounded"></div>
+              Modpack Store
             </div>
-            <div
-              class="h-10 w-full hover:bg-white/5 rounded-lg flex items-center gap-3 px-3 opacity-40"
-            >
-              <div class="w-5 h-5 rounded bg-white/20"></div>
-              <div class="w-20 h-2 bg-white/10 rounded"></div>
-            </div>
+            <div class="w-10"></div>
           </div>
 
-          <div class="flex-1 bg-[#0a0a0a] p-6 md:p-8 relative">
-            <div
-              class="flex items-end justify-between mb-8 border-b border-white/5 pb-4"
-            >
-              <div>
+          <div class="grid gap-4 p-5 md:grid-cols-[220px_1fr] md:p-6">
+            <aside class="rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div class="mb-4 flex items-center gap-3">
                 <div
-                  class="h-8 w-48 bg-gradient-to-r from-ms-primary/20 to-transparent rounded mb-2"
+                  class="h-10 w-10 rounded-xl bg-linear-to-br from-ms-primary to-ms-secondary"
                 >
                 </div>
-                <div class="h-4 w-64 bg-white/5 rounded"></div>
+                <div>
+                  <div class="h-2.5 w-20 rounded-full bg-white/15"></div>
+                  <div class="mt-2 h-2 w-14 rounded-full bg-white/10"></div>
+                </div>
               </div>
-              <div class="w-8 h-8 rounded bg-teal-500/20"></div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div
-                class="group/card relative p-4 rounded-xl bg-[#121212] border border-white/5 hover:border-teal-500/30 transition-all cursor-default overflow-hidden"
-              >
-                <div
-                  class="absolute inset-0 bg-gradient-to-b from-teal-500/5 to-transparent opacity-0 group-hover/card:opacity-100 transition"
-                >
+              <div class="space-y-2 text-sm text-neutral-300">
+                <div class="rounded-lg bg-ms-primary/15 px-3 py-2 text-white">
+                  Instancias
                 </div>
-                <div class="flex items-center gap-4 mb-4 relative z-10">
+                <div class="rounded-lg px-3 py-2 text-neutral-400">
+                  Biblioteca
+                </div>
+                <div class="rounded-lg px-3 py-2 text-neutral-400">
+                  Descargas
+                </div>
+              </div>
+            </aside>
+
+            <div class="rounded-2xl border border-white/10 bg-[#101010] p-5">
+              <div
+                class="flex items-center justify-between border-b border-white/5 pb-4"
+              >
+                <div>
+                  <div class="h-3 w-28 rounded-full bg-white/20"></div>
+                  <div class="mt-2 h-2 w-40 rounded-full bg-white/10"></div>
+                </div>
+                <div
+                  class="rounded-full border border-green-400/20 bg-green-500/10 px-3 py-1 text-[10px] uppercase tracking-[0.2em] text-green-300"
+                >
+                  Online
+                </div>
+              </div>
+
+              <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
                   <div
-                    class="w-12 h-12 rounded-lg bg-neutral-800 shrink-0 border border-white/5"
+                    class="text-xs uppercase tracking-[0.22em] text-neutral-500"
                   >
+                    Instancia activa
                   </div>
-                  <div>
-                    <div class="h-3 w-24 bg-white/20 rounded mb-2"></div>
-                    <div class="h-2 w-16 bg-white/10 rounded"></div>
+                  <div class="mt-2 text-sm font-semibold text-white">
+                    Survival
                   </div>
+                  <div class="mt-3 h-2 rounded-full bg-white/10"></div>
                 </div>
-                <div
-                  class="h-8 w-full bg-teal-600 text-white text-[10px] tracking-wider font-bold rounded-lg flex items-center justify-center opacity-90 group-hover/card:opacity-100 shadow-lg shadow-teal-900/20 transition"
-                >
-                  JUGAR
+                <div class="rounded-2xl border border-white/10 bg-white/5 p-4">
+                  <div
+                    class="text-xs uppercase tracking-[0.22em] text-neutral-500"
+                  >
+                    Actualización
+                  </div>
+                  <div class="mt-2 text-sm font-semibold text-white">
+                    Lista para instalar
+                  </div>
+                  <div class="mt-3 h-2 rounded-full bg-ms-primary/40"></div>
                 </div>
               </div>
 
               <div
-                class="p-4 rounded-xl bg-[#121212] border border-white/5 opacity-50"
+                class="mt-3 rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm text-neutral-400"
               >
-                <div class="flex items-center gap-4 mb-4">
-                  <div class="w-12 h-12 rounded-lg bg-neutral-800 shrink-0">
-                  </div>
-                  <div>
-                    <div class="h-3 w-20 bg-white/10 rounded mb-2"></div>
-                    <div class="h-2 w-12 bg-white/5 rounded"></div>
-                  </div>
-                </div>
-                <div class="h-8 w-full bg-white/5 rounded-lg"></div>
+                Estado, biblioteca y descargas en un solo panel.
               </div>
-
-              <div
-                class="p-4 rounded-xl bg-[#121212] border border-white/5 opacity-50 hidden lg:block"
-              >
-                <div class="flex items-center gap-4 mb-4">
-                  <div class="w-12 h-12 rounded-lg bg-neutral-800 shrink-0">
-                  </div>
-                  <div>
-                    <div class="h-3 w-28 bg-white/10 rounded mb-2"></div>
-                    <div class="h-2 w-14 bg-white/5 rounded"></div>
-                  </div>
-                </div>
-                <div class="h-8 w-full bg-white/5 rounded-lg"></div>
-              </div>
-
-              <div
-                class="p-4 rounded-xl border border-dashed border-white/10 flex flex-col items-center justify-center gap-2 opacity-50"
-              >
-                <div
-                  class="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/20 text-xl"
-                >
-                  +
-                </div>
-                <div class="h-2 w-16 bg-white/5 rounded"></div>
-              </div>
-            </div>
-
-            <div
-              class="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#0a0a0a] to-transparent pointer-events-none"
-            >
             </div>
           </div>
         </div>
@@ -246,27 +218,15 @@
 
   gsap.registerPlugin(ScrollTrigger);
 
-  // Hero Animation
   const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
 
-  tl.to("#hero-armadillo", { opacity: 1, y: 0, duration: 1, delay: 0.2 })
-    .to("#hero-badge", { opacity: 1, y: 0, duration: 0.8 }, "-=0.6")
-    .to("#hero-title", { opacity: 1, y: 0, duration: 1 }, "-=0.6")
-    .to("#hero-desc", { opacity: 1, y: 0, duration: 1 }, "-=0.8")
-    .to("#hero-cta", { opacity: 1, y: 0, duration: 1 }, "-=0.8")
-    .to(
-      "#hero-preview",
-      {
-        opacity: 1,
-        y: 0,
-        rotationX: 0,
-        duration: 1.5,
-        ease: "expo.out",
-      },
-      "-=1"
-    );
+  tl.to("#hero-badge", { opacity: 1, y: 0, duration: 0.7 })
+    .to("#hero-title", { opacity: 1, y: 0, duration: 0.9 }, "-=0.3")
+    .to("#hero-desc", { opacity: 1, y: 0, duration: 0.8 }, "-=0.5")
+    .to("#hero-meta", { opacity: 1, y: 0, duration: 0.7 }, "-=0.4")
+    .to("#hero-cta", { opacity: 1, y: 0, duration: 0.7 }, "-=0.4")
+    .to("#hero-preview", { opacity: 1, y: 0, duration: 1 }, "-=0.5");
 
-  // Parallax effect on preview
   gsap.to("#hero-preview", {
     scrollTrigger: {
       trigger: "#hero-section",
@@ -274,33 +234,23 @@
       end: "bottom top",
       scrub: true,
     },
-    y: 100,
-    scale: 0.95,
-    opacity: 0.8,
+    y: 40,
+    scale: 0.98,
+    opacity: 0.85,
   });
 </script>
 
 <style>
-  #hero-armadillo,
   #hero-badge,
   #hero-title,
   #hero-desc,
+  #hero-meta,
   #hero-cta,
   #hero-preview {
-    transform: translateY(30px);
+    transform: translateY(24px);
   }
 
-  #hero-preview {
-    transform: translateY(50px) rotateX(10deg);
-  }
-
-  .perspective-2000 {
-    perspective: 2000px;
-  }
-  .rotate-x-6 {
-    transform: rotateX(6deg);
-  }
-  .rotate-x-0 {
-    transform: rotateX(0deg);
+  .perspective-distant {
+    perspective: 1600px;
   }
 </style>

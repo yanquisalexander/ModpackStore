@@ -3,6 +3,7 @@ import { modpacksTable, ModpackStatus, ModpackVisibility, AcquisitionMethod } fr
 import { eq } from "drizzle-orm";
 import { NotFoundError, ValidationError } from "@/lib/errors/index.ts";
 import * as bcrypt from "npm:bcryptjs";
+import { setModpackCategories } from "@/services/category.service.ts";
 
 function validateVisibilityConstraints(visibility: string | undefined, acquisitionMethod: string | undefined, password: string | null | undefined) {
     if (visibility === ModpackVisibility.WHITELIST) {
@@ -31,6 +32,8 @@ export async function createModpack(
         requiresTwitchSubscription?: boolean;
         twitchCreatorIds?: string[];
         twitchChannels?: Array<{ id: string; username: string; displayName: string }>;
+        categoryIds?: string[];
+        primaryCategoryId?: string;
     },
 ) {
     if (!data.name?.trim()) {
@@ -83,6 +86,10 @@ export async function createModpack(
             twitchChannels: data.twitchChannels ? JSON.stringify(data.twitchChannels) : null,
         })
         .returning();
+
+    if (data.categoryIds && data.categoryIds.length > 0) {
+        await setModpackCategories(modpack.id, data.categoryIds, data.primaryCategoryId);
+    }
 
     return modpack;
 }
@@ -137,6 +144,8 @@ export async function updateModpack(
         requiresTwitchSubscription: boolean;
         twitchCreatorIds: string[];
         twitchChannels: Array<{ id: string; username: string; displayName: string }>;
+        categoryIds: string[];
+        primaryCategoryId: string;
     }>,
     currentModpack?: typeof modpacksTable.$inferSelect,
 ) {
@@ -165,6 +174,11 @@ export async function updateModpack(
         .returning();
 
     if (!modpack) throw new NotFoundError("Modpack not found", "MODPACK_NOT_FOUND");
+
+    if (data.categoryIds !== undefined) {
+        await setModpackCategories(modpackId, data.categoryIds, data.primaryCategoryId);
+    }
+
     return modpack;
 }
 

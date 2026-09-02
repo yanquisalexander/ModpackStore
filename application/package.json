@@ -21,6 +21,7 @@
     "@fontsource-variable/jost": "^5.2.6",
     "@fontsource-variable/lexend": "^5.2.11",
     "@formkit/drag-and-drop": "^0.5.3",
+    "@hcaptcha/react-hcaptcha": "^2.2.0",
     "@hookform/resolvers": "^5.2.1",
     "@midudev/tailwind-animations": "^0.2.0",
     "@paypal/react-paypal-js": "^8.9.2",
