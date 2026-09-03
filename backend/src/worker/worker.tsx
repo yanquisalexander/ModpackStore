@@ -135,9 +135,8 @@ const worker = new Worker(
         await handler(job);
     },
     {
-        connection: {
-            url: Deno.env.get("REDIS_URL") || "redis://localhost:6379",
-        },
+        connection: redisConnection,
+        concurrency: 5,
     },
 );
 
