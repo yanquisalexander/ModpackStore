@@ -139,7 +139,22 @@ async function recoverStuckJobs() {
         for (const record of pendingJobs) {
             const existingJob = await ProcessModpackFilesQueue.getJob(record.jobId);
             if (existingJob) {
-                log(`  Job ${record.jobId} already exists in queue, skipping.`);
+                const state = await existingJob.getState();
+                if (state === "completed") {
+                    // Already done in Redis but DB is stale — update DB
+                    await db.update(modpackVersionProcessingJobsTable)
+                        .set({ status: ProcessingJobStatus.COMPLETED, progress: "100", updatedAt: new Date() })
+                        .where(eq(modpackVersionProcessingJobsTable.jobId, record.jobId));
+                    log(`  Job ${record.jobId} already completed, synced DB.`);
+                    continue;
+                }
+                if (state === "failed" || state === "stalled") {
+                    await existingJob.retry();
+                    log(`  Retried failed job ${record.jobId} (${record.fileType})`);
+                    continue;
+                }
+                // waiting/delayed/active — already in progress
+                log(`  Job ${record.jobId} already ${state}, skipping.`);
                 continue;
             }
 
