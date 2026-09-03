@@ -5,6 +5,9 @@ import { Hono } from "@hono/hono";
 import { redisConnection } from "@/services/redis.ts";
 import { getJobHandler } from "@/jobs/index.ts";
 import { ProcessModpackFilesQueue } from "@/worker/queues.ts";
+import { db } from "@/db/client.ts";
+import { modpackVersionProcessingJobsTable, ProcessingJobStatus } from "@/db/schema.ts";
+import { eq } from "drizzle-orm";
 import { StatusPage } from "./status-page.tsx";
 import type { StatusPageData } from "./status-page.tsx";
 import { log, getLogBuffer, subscribeLogs } from "@/lib/logger.ts";
@@ -119,6 +122,41 @@ function startServer() {
     }
 }
 
+// --- Recovery: re-enqueue orphaned PENDING jobs ---
+async function recoverStuckJobs() {
+    try {
+        const pendingJobs = await db.select()
+            .from(modpackVersionProcessingJobsTable)
+            .where(eq(modpackVersionProcessingJobsTable.status, ProcessingJobStatus.PENDING));
+
+        if (pendingJobs.length === 0) {
+            log("No stuck jobs to recover.");
+            return;
+        }
+
+        log(`Found ${pendingJobs.length} stuck PENDING job(s), re-enqueuing...`);
+
+        for (const record of pendingJobs) {
+            const existingJob = await ProcessModpackFilesQueue.getJob(record.jobId);
+            if (existingJob) {
+                log(`  Job ${record.jobId} already exists in queue, skipping.`);
+                continue;
+            }
+
+            await ProcessModpackFilesQueue.add(
+                "process-modpack-files",
+                { versionId: record.versionId, fileType: record.fileType },
+                { jobId: record.jobId },
+            );
+            log(`  Re-enqueued job ${record.jobId} (${record.fileType})`);
+        }
+
+        log("Recovery complete.");
+    } catch (err) {
+        log(`[RECOVERY_ERROR] Failed to recover stuck jobs: ${err}`);
+    }
+}
+
 // --- Worker ---
 const worker = new Worker(
     "process-modpack-files",
@@ -140,11 +178,12 @@ const worker = new Worker(
     },
 );
 
-worker.on("ready", () => {
+worker.on("ready", async () => {
     log("Worker is ready and listening for jobs...");
     workerStatus = "ready";
     startedAt = Date.now();
     startServer();
+    await recoverStuckJobs();
 });
 
 worker.on("active", (job) => {
