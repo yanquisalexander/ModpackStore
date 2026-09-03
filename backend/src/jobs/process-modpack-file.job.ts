@@ -284,21 +284,21 @@ export async function processModpackFiles(job: Job) {
         log(`═══ end [${jobId}] ═══`);
 
         await updateProcessingJob(jobId, { status: ProcessingJobStatus.COMPLETED, progress: 100 });
+
+        // Clean up temp ZIP only on success
+        if (zipKey) {
+            try {
+                await deleteObject(zipKey);
+                log(`  Cleaned up temp ZIP: ${zipKey}`);
+            } catch {
+                // Best effort
+            }
+        }
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         log(`  [ERROR] Job failed: ${message}`);
         await updateProcessingJob(jobId, { status: ProcessingJobStatus.FAILED, error: message });
         throw err;
-    } finally {
-        // Clean up temp ZIP on permanent failure (last attempt)
-        if (zipKey && job.attemptsMade >= (job.opts.attempts ?? 3) - 1) {
-            try {
-                await deleteObject(zipKey);
-                log(`  Cleaned up temp ZIP: ${zipKey}`);
-            } catch {
-                // Best effort — ZIP may already be deleted
-            }
-        }
     }
 }
 

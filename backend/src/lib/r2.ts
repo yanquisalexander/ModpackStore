@@ -3,6 +3,7 @@ import {
     PutObjectCommand,
     GetObjectCommand,
     DeleteObjectCommand,
+    ListObjectsV2Command,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { FetchHttpHandler } from "@smithy/fetch-http-handler";
@@ -94,4 +95,35 @@ export async function uploadObject(key: string, body: Uint8Array, contentType?: 
 export async function deleteObject(key: string) {
     const command = new DeleteObjectCommand({ Bucket: bucket, Key: key });
     await getS3Client().send(command);
+}
+
+export async function cleanupOldTempZips(maxAgeMs: number = 24 * 60 * 60 * 1000): Promise<number> {
+    const prefix = "temp-zips/";
+    const cutoff = new Date(Date.now() - maxAgeMs);
+    let deleted = 0;
+    let continuationToken: string | undefined;
+
+    do {
+        const listCmd = new ListObjectsV2Command({
+            Bucket: bucket,
+            Prefix: prefix,
+            ContinuationToken: continuationToken,
+        });
+        const listed = await getS3Client().send(listCmd);
+
+        for (const obj of listed.Contents ?? []) {
+            if (obj.LastModified && obj.LastModified < cutoff) {
+                try {
+                    await deleteObject(obj.Key!);
+                    deleted++;
+                } catch {
+                    // Best effort
+                }
+            }
+        }
+
+        continuationToken = listed.NextContinuationToken;
+    } while (continuationToken);
+
+    return deleted;
 }

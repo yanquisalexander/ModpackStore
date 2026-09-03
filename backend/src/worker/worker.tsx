@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 import { StatusPage } from "./status-page.tsx";
 import type { StatusPageData } from "./status-page.tsx";
 import { log, getLogBuffer, subscribeLogs } from "@/lib/logger.ts";
+import { cleanupOldTempZips } from "@/lib/r2.ts";
 
 log("Initializing worker...");
 
@@ -122,21 +123,45 @@ function startServer() {
     }
 }
 
-// --- Recovery: re-enqueue orphaned PENDING jobs ---
+// --- Recovery: re-enqueue orphaned PENDING and stale PROCESSING jobs ---
 async function recoverStuckJobs() {
     try {
-        const pendingJobs = await db.select()
+        const stuckStatuses = await db.select()
             .from(modpackVersionProcessingJobsTable)
             .where(eq(modpackVersionProcessingJobsTable.status, ProcessingJobStatus.PENDING));
 
-        if (pendingJobs.length === 0) {
+        // Also find PROCESSING jobs older than 5 minutes (stale from crashed worker)
+        const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
+        const staleProcessing = await db.select()
+            .from(modpackVersionProcessingJobsTable)
+            .where(
+                and(
+                    eq(modpackVersionProcessingJobsTable.status, ProcessingJobStatus.PROCESSING),
+                    // drizzle doesn't have lt on timestamp directly, use sql
+                ),
+            );
+
+        const staleJobs = staleProcessing.filter(
+            (r) => r.updatedAt && r.updatedAt < fiveMinAgo,
+        );
+
+        const allJobs = [...stuckStatuses, ...staleJobs];
+
+        if (allJobs.length === 0) {
             log("No stuck jobs to recover.");
             return;
         }
 
-        log(`Found ${pendingJobs.length} stuck PENDING job(s), re-enqueuing...`);
+        log(`Found ${allJobs.length} stuck job(s) (${stuckStatuses.length} PENDING, ${staleJobs.length} stale PROCESSING), re-enqueuing...`);
 
-        for (const record of pendingJobs) {
+        for (const record of allJobs) {
+            // Reset stale PROCESSING back to PENDING in DB
+            if (record.status === ProcessingJobStatus.PROCESSING) {
+                await db.update(modpackVersionProcessingJobsTable)
+                    .set({ status: ProcessingJobStatus.PENDING, updatedAt: new Date() })
+                    .where(eq(modpackVersionProcessingJobsTable.jobId, record.jobId));
+            }
+
             const existingJob = await ProcessModpackFilesQueue.getJob(record.jobId);
             if (existingJob) {
                 const state = await existingJob.getState();
@@ -147,15 +172,14 @@ async function recoverStuckJobs() {
                     log(`  Job ${record.jobId} already completed, synced DB.`);
                     continue;
                 }
-                if (state === "failed" || state === "stalled") {
-                    // Remove exhausted job and re-add fresh
+                if (state === "failed" || state === "stalled" || state === "active") {
                     await existingJob.remove();
                     await ProcessModpackFilesQueue.add(
                         "process-modpack-files",
                         { versionId: record.versionId, fileType: record.fileType },
                         { jobId: record.jobId },
                     );
-                    log(`  Removed exhausted job ${record.jobId}, re-added fresh (${record.fileType})`);
+                    log(`  Removed stale job ${record.jobId} (was ${state}), re-added fresh (${record.fileType})`);
                     continue;
                 }
                 log(`  Job ${record.jobId} already ${state}, skipping.`);
@@ -171,6 +195,16 @@ async function recoverStuckJobs() {
         }
 
         log("Recovery complete.");
+
+        // Clean up temp ZIPs older than 24 hours
+        try {
+            const cleaned = await cleanupOldTempZips(24 * 60 * 60 * 1000);
+            if (cleaned > 0) {
+                log(`Cleaned up ${cleaned} old temp ZIP(s) from R2.`);
+            }
+        } catch (err) {
+            log(`[CLEANUP_WARN] Failed to clean old temp ZIPs: ${err}`);
+        }
     } catch (err) {
         log(`[RECOVERY_ERROR] Failed to recover stuck jobs: ${err}`);
     }
