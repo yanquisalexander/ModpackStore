@@ -97,12 +97,5 @@
     "@vitejs/plugin-react": "^5.0.2",
     "typescript": "~5.9.2",
     "vite": "^7.1.4"
-  },
-  "resolutions": {
-    "@codemirror/state": "^6.5.2",
-    "@codemirror/view": "^6.38.2",
-    "@codemirror/language": "^6.11.3",
-    "@codemirror/commands": "^6.8.1",
-    "codemirror": "^6.0.2"
   }
 }
