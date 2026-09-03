@@ -109,8 +109,14 @@ export async function processModpackFiles(job: Job) {
         try {
             zipBuffer = await downloadObject(zipKey);
         } catch (err) {
-            log(`  [ERROR] Failed to download ZIP: ${err}`);
-            await updateProcessingJob(jobId, { status: ProcessingJobStatus.FAILED, error: `Failed to download ZIP: ${err}` });
+            const msg = err instanceof Error ? err.message : String(err);
+            log(`  [ERROR] Failed to download ZIP: ${msg}`);
+            await updateProcessingJob(jobId, { status: ProcessingJobStatus.FAILED, error: `Failed to download ZIP: ${msg}` });
+            // If the ZIP doesn't exist, don't retry — it's unrecoverable
+            if (msg.includes("NoSuchKey") || msg.includes("does not exist")) {
+                log(`  [SKIP] ZIP not found in R2, marking as permanently failed (no retry).`);
+                return;
+            }
             throw err;
         }
 
