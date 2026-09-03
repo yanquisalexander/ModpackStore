@@ -242,7 +242,7 @@ export async function processModpackFiles(job: Job) {
 
         const insertStart = Date.now();
 
-        // Batch insert with chunking inside a transaction
+        // Batch insert with chunking (no transaction — neon-http doesn't support it)
         const fileRows = Array.from(uniqueMetas.values()).map((pf) => ({
             hash: pf.hash,
             size: String(pf.size),
@@ -257,19 +257,17 @@ export async function processModpackFiles(job: Job) {
             side: pf.side,
         }));
 
-        await db.transaction(async (tx) => {
-            // Chunked insert modpack_files
-            for (let i = 0; i < fileRows.length; i += INSERT_CHUNK_SIZE) {
-                const chunk = fileRows.slice(i, i + INSERT_CHUNK_SIZE);
-                await tx.insert(modpackFilesTable).values(chunk).onConflictDoNothing();
-            }
+        // Chunked insert modpack_files
+        for (let i = 0; i < fileRows.length; i += INSERT_CHUNK_SIZE) {
+            const chunk = fileRows.slice(i, i + INSERT_CHUNK_SIZE);
+            await db.insert(modpackFilesTable).values(chunk).onConflictDoNothing();
+        }
 
-            // Chunked insert modpack_version_files
-            for (let i = 0; i < versionFileRows.length; i += INSERT_CHUNK_SIZE) {
-                const chunk = versionFileRows.slice(i, i + INSERT_CHUNK_SIZE);
-                await tx.insert(modpackVersionFilesTable).values(chunk).onConflictDoNothing();
-            }
-        });
+        // Chunked insert modpack_version_files
+        for (let i = 0; i < versionFileRows.length; i += INSERT_CHUNK_SIZE) {
+            const chunk = versionFileRows.slice(i, i + INSERT_CHUNK_SIZE);
+            await db.insert(modpackVersionFilesTable).values(chunk).onConflictDoNothing();
+        }
 
         await updateProcessingJob(jobId, { progress: 80 });
 
