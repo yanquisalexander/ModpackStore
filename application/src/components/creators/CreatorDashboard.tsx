@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import {
   LucidePackage,
@@ -11,9 +11,11 @@ import {
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { API_ENDPOINT } from "@/consts";
 
 interface CreatorDashboardProps {
   teams: any[];
+  accessToken?: string;
 }
 
 function StatCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: string | number; color: string }) {
@@ -32,11 +34,42 @@ function StatCard({ icon: Icon, label, value, color }: { icon: any; label: strin
   );
 }
 
-export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ teams }) => {
-  const totalModpacks = 0;
-  const totalVersions = 0;
+export const CreatorDashboard: React.FC<CreatorDashboardProps> = ({ teams, accessToken }) => {
+  const [totalModpacks, setTotalModpacks] = useState(0);
+  const [totalVersions, setTotalVersions] = useState(0);
   const totalTeams = teams.length;
   const approvedTeams = teams.filter((t: any) => t.status === "approved").length;
+
+  useEffect(() => {
+    if (!accessToken || teams.length === 0) return;
+
+    const fetchAllModpacks = async () => {
+      let modpackCount = 0;
+      let versionCount = 0;
+
+      for (const team of teams) {
+        try {
+          const res = await fetch(`${API_ENDPOINT}/creators/${team.id}/modpacks`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          if (!res.ok) continue;
+          const data = await res.json();
+          const modpacks = data.modpacks || [];
+          modpackCount += modpacks.length;
+          for (const mp of modpacks) {
+            versionCount += mp.versions?.length ?? 0;
+          }
+        } catch {
+          // Skip failed teams
+        }
+      }
+
+      setTotalModpacks(modpackCount);
+      setTotalVersions(versionCount);
+    };
+
+    fetchAllModpacks();
+  }, [teams, accessToken]);
 
   return (
     <div className="space-y-6">

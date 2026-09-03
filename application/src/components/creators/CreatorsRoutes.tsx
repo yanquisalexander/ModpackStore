@@ -15,13 +15,14 @@ import { PublisherSettingsView } from "@/views/publisher/PublisherSettingsView";
 
 interface CreatorsRoutesProps {
     teams: any[];
+    accessToken?: string;
 }
 
-export const CreatorsRoutes: React.FC<CreatorsRoutesProps> = ({ teams }) => {
+export const CreatorsRoutes: React.FC<CreatorsRoutesProps> = ({ teams, accessToken }) => {
     return (
         <div className="min-h-full">
             <Routes>
-                <Route index element={<CreatorDashboard teams={teams} />} />
+                <Route index element={<CreatorDashboard teams={teams} accessToken={accessToken} />} />
 
                 {/* Org routes */}
                 <Route path="org/:publisherId/modpacks" element={<PublisherModpacksView />} />

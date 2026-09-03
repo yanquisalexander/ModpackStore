@@ -212,7 +212,7 @@ export const CreatorsLayout = () => {
                 <div className="p-4 lg:p-6">
                     {isVersionDetail ? (
                         <div className="w-full">
-                            <CreatorsRoutes teams={teams} />
+                            <CreatorsRoutes teams={teams} accessToken={sessionTokens?.accessToken} />
                         </div>
                     ) : (
                         <div className="flex gap-6">
@@ -230,7 +230,7 @@ export const CreatorsLayout = () => {
                             </div>
 
                             <div className="flex-1 min-w-0">
-                                <CreatorsRoutes teams={teams} />
+                                <CreatorsRoutes teams={teams} accessToken={sessionTokens?.accessToken} />
                             </div>
                         </div>
                     )}
