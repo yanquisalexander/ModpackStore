@@ -7,7 +7,7 @@ import { getJobHandler } from "@/jobs/index.ts";
 import { ProcessModpackFilesQueue } from "@/worker/queues.ts";
 import { db } from "@/db/client.ts";
 import { modpackVersionProcessingJobsTable, ProcessingJobStatus } from "@/db/schema.ts";
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { StatusPage } from "./status-page.tsx";
 import type { StatusPageData } from "./status-page.tsx";
 import { log, getLogBuffer, subscribeLogs } from "@/lib/logger.ts";
@@ -134,12 +134,7 @@ async function recoverStuckJobs() {
         const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
         const staleProcessing = await db.select()
             .from(modpackVersionProcessingJobsTable)
-            .where(
-                and(
-                    eq(modpackVersionProcessingJobsTable.status, ProcessingJobStatus.PROCESSING),
-                    // drizzle doesn't have lt on timestamp directly, use sql
-                ),
-            );
+            .where(eq(modpackVersionProcessingJobsTable.status, ProcessingJobStatus.PROCESSING));
 
         const staleJobs = staleProcessing.filter(
             (r) => r.updatedAt && r.updatedAt < fiveMinAgo,
