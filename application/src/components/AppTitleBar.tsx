@@ -24,7 +24,6 @@ import { WindowControls } from "./appbar/WindowControls";
 import { UpdateButton } from "./appbar/UpdateButton";
 import { PatreonButton } from "./appbar/PatreonButton";
 import { NativeContextMenu } from "./appbar/ContextMenu";
-import { TicketNotificationButton } from "./appbar/TicketNotificationButton";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState<Window | null>(null);
@@ -263,7 +262,6 @@ export const AppTitleBar = () => {
                         }
 
                         <UpdateButton updateState={updateState} applyUpdate={applyUpdate} />
-                        <TicketNotificationButton />
                         <RunningTasks />
                         <RunningInstances />
 

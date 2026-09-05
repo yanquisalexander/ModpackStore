@@ -1,4 +1,5 @@
 import { API_ENDPOINT } from '@/consts';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
 import {
     WhitelistUser,
     WhitelistStats,
@@ -19,11 +20,8 @@ class WhitelistService {
      */
     async getWhitelistedUsers(modpackId: string, accessToken: string): Promise<WhitelistUser[]> {
         try {
-            const response = await fetch(`${this.baseUrl}/${modpackId}`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithAuth(`${this.baseUrl}/${modpackId}`, {
+                token: accessToken,
             });
 
             if (!response.ok) {
@@ -44,11 +42,8 @@ class WhitelistService {
      */
     async getWhitelistStats(modpackId: string, accessToken: string): Promise<WhitelistStats> {
         try {
-            const response = await fetch(`${this.baseUrl}/${modpackId}/stats`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithAuth(`${this.baseUrl}/${modpackId}/stats`, {
+                token: accessToken,
             });
 
             if (!response.ok) {
@@ -69,10 +64,10 @@ class WhitelistService {
      */
     async addToWhitelist(modpackId: string, data: AddToWhitelistData, accessToken: string): Promise<void> {
         try {
-            const response = await fetch(`${this.baseUrl}/${modpackId}`, {
+            const response = await fetchWithAuth(`${this.baseUrl}/${modpackId}`, {
                 method: 'POST',
+                token: accessToken,
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(data),
@@ -93,10 +88,10 @@ class WhitelistService {
      */
     async bulkAddToWhitelist(modpackId: string, data: BulkAddToWhitelistData, accessToken: string): Promise<{ added: number; failed: number }> {
         try {
-            const response = await fetch(`${this.baseUrl}/${modpackId}/bulk`, {
+            const response = await fetchWithAuth(`${this.baseUrl}/${modpackId}/bulk`, {
                 method: 'POST',
+                token: accessToken,
                 headers: {
-                    'Authorization': `Bearer ${accessToken}`,
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify(data),
@@ -120,12 +115,9 @@ class WhitelistService {
      */
     async removeFromWhitelist(modpackId: string, userId: string, accessToken: string): Promise<void> {
         try {
-            const response = await fetch(`${this.baseUrl}/${modpackId}/user/${userId}`, {
+            const response = await fetchWithAuth(`${this.baseUrl}/${modpackId}/user/${userId}`, {
                 method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
+                token: accessToken,
             });
 
             if (!response.ok) {
@@ -143,12 +135,9 @@ class WhitelistService {
      */
     async clearWhitelist(modpackId: string, accessToken: string): Promise<number> {
         try {
-            const response = await fetch(`${this.baseUrl}/${modpackId}/clear`, {
+            const response = await fetchWithAuth(`${this.baseUrl}/${modpackId}/clear`, {
                 method: 'DELETE',
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
+                token: accessToken,
             });
 
             if (!response.ok) {
@@ -169,11 +158,8 @@ class WhitelistService {
      */
     async exportWhitelist(modpackId: string, accessToken: string): Promise<WhitelistExportData> {
         try {
-            const response = await fetch(`${this.baseUrl}/${modpackId}/export`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithAuth(`${this.baseUrl}/${modpackId}/export`, {
+                token: accessToken,
             });
 
             if (!response.ok) {
@@ -196,11 +182,8 @@ class WhitelistService {
      */
     async checkModpackAccess(modpackId: string, accessToken: string): Promise<WhitelistAccessCheck> {
         try {
-            const response = await fetch(`${this.accessUrl}/modpack/${modpackId}`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithAuth(`${this.accessUrl}/modpack/${modpackId}`, {
+                token: accessToken,
             });
 
             if (!response.ok) {
@@ -220,11 +203,8 @@ class WhitelistService {
      */
     async getMyWhitelistedModpacks(accessToken: string): Promise<WhitelistedModpack[]> {
         try {
-            const response = await fetch(`${this.accessUrl}/my-whitelists`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithAuth(`${this.accessUrl}/my-whitelists`, {
+                token: accessToken,
             });
 
             if (!response.ok) {
@@ -244,11 +224,8 @@ class WhitelistService {
      */
     async hasAnyWhitelists(accessToken: string): Promise<UserWhitelistInfo> {
         try {
-            const response = await fetch(`${this.accessUrl}/has-any`, {
-                headers: {
-                    'Authorization': `Bearer ${accessToken}`,
-                    'Content-Type': 'application/json',
-                },
+            const response = await fetchWithAuth(`${this.accessUrl}/has-any`, {
+                token: accessToken,
             });
 
             if (!response.ok) {

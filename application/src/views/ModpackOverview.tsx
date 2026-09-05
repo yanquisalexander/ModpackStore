@@ -318,6 +318,7 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 modpackName={modpack.name}
                                 localInstances={localInstances}
                                 acquisitionMethod={modpack.acquisitionMethod || 'free'}
+                                visibility={modpack.visibility || 'public'}
                                 selectedVersionId={selectedVersionId}
                                 className="h-12 px-8"
                             />

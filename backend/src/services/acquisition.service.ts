@@ -301,6 +301,7 @@ export async function getModpackAccessInfo(modpackId: string) {
         acquisitionMethod: modpacksTable.acquisitionMethod,
         requiresTwitchSubscription: modpacksTable.requiresTwitchSubscription,
         twitchChannels: modpacksTable.twitchChannels,
+        visibility: modpacksTable.visibility,
     })
         .from(modpacksTable)
         .where(eq(modpacksTable.id, modpackId))
@@ -310,6 +311,7 @@ export async function getModpackAccessInfo(modpackId: string) {
 
     return {
         acquisitionMethod: modpack.acquisitionMethod,
+        visibility: modpack.visibility,
         isFree: modpack.acquisitionMethod === AcquisitionMethod.FREE,
         requiresPassword: modpack.acquisitionMethod === AcquisitionMethod.PASSWORD,
         requiresTwitchSubscription: modpack.acquisitionMethod === AcquisitionMethod.TWITCH_SUB,

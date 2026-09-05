@@ -31,6 +31,7 @@ interface InstallButtonProps {
     modpackName: string;
     localInstances: TauriCommandReturns["get_instances_by_modpack_id"];
     acquisitionMethod?: 'free' | 'password' | 'twitch_sub';
+    visibility?: 'public' | 'private' | 'whitelist';
     isPasswordProtected?: boolean;
     isFree?: boolean;
     requiresTwitchSubscription?: boolean;
@@ -53,6 +54,7 @@ export const InstallButton = ({
     modpackName,
     localInstances,
     acquisitionMethod = 'free',
+    visibility: visibilityProp = 'public',
     isPasswordProtected = false,
     isFree = true,
     requiresTwitchSubscription = false,
@@ -72,6 +74,7 @@ export const InstallButton = ({
     const [isCheckingAccess, setIsCheckingAccess] = useState<boolean>(true)
 
     const [acquisitionMethodState, setAcquisitionMethodState] = useState<'free' | 'password' | 'twitch_sub'>(acquisitionMethod);
+    const [visibilityState, setVisibilityState] = useState<'public' | 'private' | 'whitelist'>(visibilityProp);
     const [requiresPasswordState, setRequiresPasswordState] = useState(isPasswordProtected);
     const [requiresTwitchState, setRequiresTwitchState] = useState(requiresTwitchSubscription);
     const [isFreeState, setIsFreeState] = useState(isFree);
@@ -132,17 +135,30 @@ export const InstallButton = ({
                 }),
             ]);
 
+            let visibility = 'public';
             if (accessRes.ok) {
                 const accessJson = await accessRes.json();
                 const info = accessJson.data || {};
+                visibility = info.visibility || 'public';
                 setAcquisitionMethodState(info.acquisitionMethod || 'free');
+                setVisibilityState(info.visibility || 'public');
                 setRequiresPasswordState(info.requiresPassword || false);
                 setRequiresTwitchState(info.requiresTwitchSubscription || false);
                 setIsFreeState(info.isFree || true);
                 setRequiredTwitchChannelsState(info.twitchChannels || requiredTwitchChannels);
             }
 
-            if (acqRes.ok) {
+            if (visibility === 'whitelist') {
+                const wlRes = await fetch(`${API_ENDPOINT}/whitelist-access/modpack/${modpackId}`, {
+                    headers: { 'Authorization': `Bearer ${sessionTokens.accessToken}` },
+                });
+                if (wlRes.ok) {
+                    const wlJson = await wlRes.json();
+                    setHasAccess(wlJson.data?.hasAccess === true);
+                } else {
+                    setHasAccess(false);
+                }
+            } else if (acqRes.ok) {
                 const acqJson = await acqRes.json();
                 const acquisitions = acqJson.data || [];
                 setHasAccess(acquisitions.some((a: any) => a.acquisition?.modpackId === modpackId && a.acquisition?.status === 'active'));

@@ -3,10 +3,29 @@ use crate::core::minecraft_instance::MinecraftInstance;
 use crate::API_ENDPOINT;
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
-use serde_json::from_slice;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tokio::io::AsyncReadExt;
+
+fn toml_value_to_json(val: toml::Value) -> serde_json::Value {
+    match val {
+        toml::Value::String(s) => serde_json::Value::String(s),
+        toml::Value::Integer(i) => serde_json::json!(i),
+        toml::Value::Float(f) => serde_json::json!(f),
+        toml::Value::Boolean(b) => serde_json::Value::Bool(b),
+        toml::Value::Datetime(d) => serde_json::Value::String(d.to_string()),
+        toml::Value::Array(arr) => {
+            serde_json::Value::Array(arr.into_iter().map(toml_value_to_json).collect())
+        }
+        toml::Value::Table(table) => {
+            let map: serde_json::Map<String, serde_json::Value> = table
+                .into_iter()
+                .map(|(k, v)| (k, toml_value_to_json(v)))
+                .collect();
+            serde_json::Value::Object(map)
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -341,33 +360,60 @@ fn log_unknown_fields(parent_name: &str, unknown_fields: &HashMap<String, serde_
 
 #[tauri::command]
 pub async fn get_prelaunch_appearance(instance_id: String) -> Option<PreLaunchAppearance> {
-    let instance = get_instance_by_id(instance_id.clone()).ok()??; // handles Result and Option
+    let instance = get_instance_by_id(instance_id.clone()).ok()??;
     let instance_dir = instance.instanceDirectory?;
 
-    let prelaunch_appearance_path = PathBuf::from(instance_dir).join("prelaunch_appearance.json");
-    log::info!("Prelaunch appearance path: {:?}", prelaunch_appearance_path);
-    if tokio::fs::metadata(&prelaunch_appearance_path)
-        .await
-        .is_err()
-    {
+    let instance_path = PathBuf::from(instance_dir);
+
+    // Try TOML first, then fall back to JSON for legacy instances
+    let toml_path = instance_path.join("prelaunch_appearance.toml");
+    let json_path = instance_path.join("prelaunch_appearance.json");
+
+    let (contents, format) = if tokio::fs::metadata(&toml_path).await.is_ok() {
+        let mut file = File::open(&toml_path).await.ok()?;
+        let mut contents = Vec::new();
+        file.read_to_end(&mut contents).await.ok()?;
+        (contents, "toml")
+    } else if tokio::fs::metadata(&json_path).await.is_ok() {
+        let mut file = File::open(&json_path).await.ok()?;
+        let mut contents = Vec::new();
+        file.read_to_end(&mut contents).await.ok()?;
+        (contents, "json")
+    } else {
         log::error!(
             "Prelaunch appearance file not found for instance: {:?}",
-            instance_id.to_string()
+            instance_id
         );
-        log::error!("Path: {:?}", prelaunch_appearance_path);
         return None;
-    }
+    };
 
-    let mut file = File::open(&prelaunch_appearance_path).await.ok()?;
-    let mut contents = Vec::new();
-    file.read_to_end(&mut contents).await.ok()?;
+    log::info!(
+        "Reading prelaunch appearance as {} from instance: {:?}",
+        format,
+        instance_id
+    );
 
-    match serde_json::from_slice::<PreLaunchAppearance>(&contents) {
+    let result = if format == "toml" {
+        let toml_str = String::from_utf8_lossy(&contents);
+        match toml::from_str::<toml::Value>(&toml_str) {
+            Ok(toml_val) => {
+                let json_val = toml_value_to_json(toml_val);
+                let json_bytes = serde_json::to_vec(&json_val).ok()?;
+                serde_json::from_slice::<PreLaunchAppearance>(&json_bytes)
+            }
+            Err(e) => {
+                log::error!("Failed to parse prelaunch_appearance.toml: {:?}", e);
+                return None;
+            }
+        }
+    } else {
+        serde_json::from_slice::<PreLaunchAppearance>(&contents)
+    };
+
+    match result {
         Ok(data) => {
-            // Registrar los campos desconocidos
             log_unknown_fields("prelaunch_appearance", &data.unknown_fields);
 
-            // Registrar campos desconocidos de los componentes anidados
             if let Some(logo) = &data.logo {
                 log_unknown_fields("logo", &logo.unknown_fields);
                 if let Some(position) = &logo.position {
@@ -448,7 +494,7 @@ pub async fn get_prelaunch_appearance(instance_id: String) -> Option<PreLaunchAp
             Some(data)
         }
         Err(e) => {
-            log::error!("Failed to parse prelaunch_appearance.json: {:?}", e);
+            log::error!("Failed to parse prelaunch_appearance ({}): {:?}", format, e);
             None
         }
     }
@@ -512,17 +558,17 @@ async fn fetch_prelaunch_appearance_from_api(
     }
 }
 
-/// Save prelaunch appearance to the instance directory
+/// Save prelaunch appearance to the instance directory as TOML
 async fn save_prelaunch_appearance(
     instance_dir: &PathBuf,
     appearance: &PreLaunchAppearance,
 ) -> std::result::Result<(), String> {
-    let prelaunch_appearance_path = instance_dir.join("prelaunch_appearance.json");
+    let prelaunch_appearance_path = instance_dir.join("prelaunch_appearance.toml");
 
-    let json_content = serde_json::to_string_pretty(appearance)
-        .map_err(|e| format!("Failed to serialize prelaunch appearance: {}", e))?;
+    let toml_content = toml::to_string_pretty(appearance)
+        .map_err(|e| format!("Failed to serialize prelaunch appearance to TOML: {}", e))?;
 
-    tokio::fs::write(&prelaunch_appearance_path, json_content)
+    tokio::fs::write(&prelaunch_appearance_path, toml_content)
         .await
         .map_err(|e| format!("Failed to save prelaunch appearance: {}", e))?;
 

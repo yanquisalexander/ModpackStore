@@ -12,9 +12,10 @@ import { toast } from 'sonner';
 import { Modpack } from '@/types/modpacks';
 import { UploadCloud, X, Search, Check, AlertTriangle, Lock, Tv, Code } from 'lucide-react';
 import CodeMirror from '@uiw/react-codemirror';
-import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { basicSetup } from 'codemirror';
+import { toml } from '@/lib/toml-lang';
+import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 import { CategorySelector } from '@/components/CategorySelector';
 import { ModpackStatusManager } from '@/components/creator/ModpackStatusManager';
 import { resizeImage } from '@/utils/imageResize';
@@ -113,8 +114,8 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
     const [channelSearchQuery, setChannelSearchQuery] = useState('');
     const [isSearchingChannels, setIsSearchingChannels] = useState(false);
 
-    const [prelaunchJson, setPrelaunchJson] = useState('{}');
-    const [isJsonValid, setIsJsonValid] = useState(true);
+    const [prelaunchToml, setPrelaunchToml] = useState('');
+    const [isTomlValid, setIsTomlValid] = useState(true);
 
     useEffect(() => {
         if (!modpack) return;
@@ -145,35 +146,35 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
         setTwitchAccessEnabled(channels.length > 0);
 
         try {
-            const jsonStr = typeof modpack.prelaunchAppearance === 'string'
-                ? modpack.prelaunchAppearance
-                : JSON.stringify(modpack.prelaunchAppearance || {}, null, 2);
-            setPrelaunchJson(jsonStr === 'null' ? '{}' : jsonStr);
+            const jsonObj = typeof modpack.prelaunchAppearance === 'string'
+                ? JSON.parse(modpack.prelaunchAppearance || '{}')
+                : modpack.prelaunchAppearance || {};
+            setPrelaunchToml(jsonObj && Object.keys(jsonObj).length > 0 ? stringifyToml(jsonObj) : '');
         } catch {
-            setPrelaunchJson('{}');
+            setPrelaunchToml('');
         }
 
         setIconFile(null);
         setBannerFile(null);
     }, [modpack, isOpen]);
 
-    const handleJsonChange = (val: string) => {
-        setPrelaunchJson(val);
+    const handleTomlChange = (val: string) => {
+        setPrelaunchToml(val);
         try {
-            if (val.trim()) JSON.parse(val);
-            setIsJsonValid(true);
+            if (val.trim()) parseToml(val);
+            setIsTomlValid(true);
         } catch {
-            setIsJsonValid(false);
+            setIsTomlValid(false);
         }
     };
 
-    const formatJson = () => {
+    const formatToml = () => {
         try {
-            const parsed = JSON.parse(prelaunchJson);
-            setPrelaunchJson(JSON.stringify(parsed, null, 2));
-            setIsJsonValid(true);
+            const parsed = parseToml(prelaunchToml);
+            setPrelaunchToml(stringifyToml(parsed));
+            setIsTomlValid(true);
         } catch {
-            toast.error('JSON inválido, no se puede formatear');
+            toast.error('TOML inválido, no se puede formatear');
         }
     };
 
@@ -225,8 +226,11 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
             submission.append('categories', JSON.stringify(selectedCategories));
             if (primaryCategoryId) submission.append('primaryCategoryId', primaryCategoryId);
 
-            if (!isJsonValid) throw new Error("JSON de apariencia inválido");
-            submission.append('prelaunchAppearance', prelaunchJson);
+            if (!isTomlValid) throw new Error("TOML de apariencia inválido");
+            if (prelaunchToml.trim()) {
+                const parsed = parseToml(prelaunchToml);
+                submission.append('prelaunchAppearance', JSON.stringify(parsed));
+            }
 
             if (accessMode === 'free') {
                 if (twitchAccessEnabled && twitchChannels.length === 0) throw new Error("Añade al menos un canal de Twitch o desactiva la restricción.");
@@ -391,23 +395,23 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                     <div className="flex items-center justify-between mb-3">
                                         <div className="flex flex-col">
                                             <label className="text-sm font-medium text-zinc-300">Configuración Pre-Launch</label>
-                                            <span className="text-xs text-zinc-500">Personalización avanzada de la ventana de carga.</span>
+                                            <span className="text-xs text-zinc-500">Personalización avanzada de la ventana de carga (TOML).</span>
                                         </div>
-                                        <Button type="button" size="sm" variant="outline" onClick={formatJson} disabled={!isJsonValid}>
-                                            Formatear JSON
+                                        <Button type="button" size="sm" variant="outline" onClick={formatToml} disabled={!isTomlValid}>
+                                            Formatear TOML
                                         </Button>
                                     </div>
-                                    <div className={`border rounded-md overflow-hidden ${!isJsonValid ? 'border-red-500' : 'border-zinc-800'}`}>
+                                    <div className={`border rounded-md overflow-hidden ${!isTomlValid ? 'border-red-500' : 'border-zinc-800'}`}>
                                         <CodeMirror
-                                            value={prelaunchJson}
-                                            onChange={handleJsonChange}
-                                            extensions={[basicSetup, json(), oneDark]}
+                                            value={prelaunchToml}
+                                            onChange={handleTomlChange}
+                                            extensions={[basicSetup, toml(), oneDark]}
                                             theme={oneDark}
                                             className="text-sm"
                                             height="250px"
                                         />
                                     </div>
-                                    {!isJsonValid && <p className="text-xs text-red-400 mt-2">Sintaxis JSON inválida.</p>}
+                                    {!isTomlValid && <p className="text-xs text-red-400 mt-2">Sintaxis TOML inválida.</p>}
                                 </div>
                             </TabsContent>
 
@@ -521,7 +525,7 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                             <Button type="button" variant="ghost" onClick={onClose} disabled={loading} className="text-zinc-400 hover:text-white">
                                 Cancelar
                             </Button>
-                            <Button type="submit" className="bg-amber-600 hover:bg-amber-700 text-white" disabled={loading || !isJsonValid}>
+                            <Button type="submit" className="bg-amber-600 hover:bg-amber-700 text-white" disabled={loading || !isTomlValid}>
                                 {loading ? 'Guardando...' : 'Guardar Cambios'}
                             </Button>
                         </DialogFooter>
