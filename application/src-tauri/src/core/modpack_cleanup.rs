@@ -729,8 +729,8 @@ pub fn audit_user_data_protection(
         favorite: false,
         favorite_order: None,
         ms_nickname: None,
+        useModpackStoreAuth: false,
         instanceType: InstanceType::Client,
-    };
 
     let essential_paths = get_essential_minecraft_paths(minecraft_dir, &dummy_instance);
     audit.add_info(&format!(

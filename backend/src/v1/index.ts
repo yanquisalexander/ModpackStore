@@ -8,6 +8,7 @@ import purchaseRoutes from "@/v1/explore/purchase.routes.ts";
 import whitelistRoutes from "@/v1/creators/whitelist.routes.ts";
 import whitelistAccessRoutes from "@/v1/whitelist-access.routes.ts";
 import categoriesRoutes from "@/v1/categories.routes.ts";
+import yggdrasilRoutes from "@/v1/yggdrasil/yggdrasil.routes.ts";
 
 const v1Router = new Hono();
 
@@ -20,6 +21,7 @@ v1Router.route("/explore", purchaseRoutes);
 v1Router.route("/creators/whitelist", whitelistRoutes);
 v1Router.route("/whitelist-access", whitelistAccessRoutes);
 v1Router.route("/categories", categoriesRoutes);
+v1Router.route("/yggdrasil", yggdrasilRoutes);
 
 v1Router.get("/ping", (c) => c.body(null, 204));
 

@@ -9,6 +9,8 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { LucideUser, LucideSettings, LucideGamepad2, LucideLoader2, LucideWifiOff } from 'lucide-react';
 import { TauriCommandReturns } from '@/types/TauriCommandReturns';
 import { toast } from 'sonner';
@@ -19,7 +21,7 @@ import { cn } from '@/lib/utils';
 interface AccountSelectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAccountSelected: (accountUuid: string) => void;
+  onAccountSelected: (data: { accountUuid: string | null; useModpackStoreAuth: boolean; ms_nickname: string | null }) => void;
   instanceId?: string;
 }
 
@@ -35,6 +37,7 @@ export const AccountSelectionDialog: React.FC<AccountSelectionDialogProps> = ({
   const [loading, setLoading] = useState(true);
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [avatarErrors, setAvatarErrors] = useState<Record<string, boolean>>({});
+  const [useModpackStoreAuth, setUseModpackStoreAuth] = useState(false);
   const navigate = useNavigate();
 
   const fetchAccounts = async () => {
@@ -68,10 +71,15 @@ export const AccountSelectionDialog: React.FC<AccountSelectionDialogProps> = ({
         instance: {
           ...currentInstance,
           accountUuid: accountUuid,
+          useModpackStoreAuth: useModpackStoreAuth,
         }
       });
 
-      onAccountSelected(accountUuid);
+      onAccountSelected({
+        accountUuid,
+        useModpackStoreAuth,
+        ms_nickname: null,
+      });
       onOpenChange(false);
     } catch (error) {
       console.error('Error selecting account:', error);
@@ -99,6 +107,26 @@ export const AccountSelectionDialog: React.FC<AccountSelectionDialogProps> = ({
               Elige con qué perfil quieres lanzar esta instancia.
             </DialogDescription>
           </DialogHeader>
+        </div>
+
+        <div className="px-6 py-3">
+          <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-black/20 px-4 py-3">
+            <div className="space-y-0.5">
+              <Label className="text-sm text-white cursor-pointer">Usar servicios de autenticación de Modpack Store</Label>
+              <p className="text-xs text-neutral-500">
+                {useModpackStoreAuth
+                  ? "Se usará el nombre de la cuenta seleccionada para autenticarte"
+                  : "Se usará la cuenta local directamente"}
+              </p>
+            </div>
+            <Switch
+              checked={useModpackStoreAuth}
+              onCheckedChange={(checked) => {
+                setUseModpackStoreAuth(checked);
+                setSelectingId(null);
+              }}
+            />
+          </div>
         </div>
 
         <div className="p-4 min-h-[200px] max-h-[min(60vh,400px)] overflow-y-auto custom-scrollbar flex flex-col">

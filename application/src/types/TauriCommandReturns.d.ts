@@ -24,6 +24,7 @@ interface MinecraftInstance {
     loaderType?: ModLoaderType;
     loaderVersion?: string;
     ms_nickname?: string;
+    useModpackStoreAuth?: boolean;
     instanceType?: InstanceType;
 }
 

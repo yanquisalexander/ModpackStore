@@ -2049,6 +2049,7 @@ pub async fn create_instance_from_mrpack(
         favorite: true,
         favorite_order: None,
         ms_nickname: None,
+        useModpackStoreAuth: false,
         instanceType: InstanceType::Client,
     };
 

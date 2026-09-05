@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
     Select,
     SelectContent,
@@ -44,6 +45,7 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
     const [formData, setFormData] = useState({
         instanceName: "",
         selectedAccountValue: "",
+        useModpackStoreAuth: false,
     });
 
     useEffect(() => {
@@ -62,6 +64,7 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
                     setFormData({
                         instanceName: instanceData.instanceName || "",
                         selectedAccountValue: instanceData.accountUuid || "",
+                        useModpackStoreAuth: instanceData.useModpackStoreAuth || false,
                     });
                 }
                 setAccounts(accountsData);
@@ -87,7 +90,7 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
                 ...instance,
                 instanceName: formData.instanceName,
                 accountUuid: formData.selectedAccountValue || null,
-                ms_nickname: null,
+                useModpackStoreAuth: formData.useModpackStoreAuth,
             };
 
             await invoke("update_instance", { instance: payload });
@@ -153,8 +156,29 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
                                 />
                             </div>
 
+                            <div className="flex items-center justify-between rounded-lg border border-white/[0.06] bg-black/20 px-4 py-3">
+                                <div className="space-y-0.5">
+                                    <Label className="text-sm text-white cursor-pointer">Usar servicios de autenticación de Modpack Store</Label>
+                                    <p className="text-xs text-neutral-500">
+                                        {formData.useModpackStoreAuth
+                                            ? "Se usará el nombre de la cuenta seleccionada para autenticarte"
+                                            : "Se usará la cuenta local directamente"}
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={formData.useModpackStoreAuth}
+                                    onCheckedChange={(checked) => setFormData(prev => ({
+                                        ...prev,
+                                        useModpackStoreAuth: checked,
+                                        selectedAccountValue: "",
+                                    }))}
+                                />
+                            </div>
+
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-medium text-neutral-500 ml-1">Cuenta</Label>
+                                <Label className="text-xs font-medium text-neutral-500 ml-1">
+                                    {formData.useModpackStoreAuth ? "Cuenta (para nombre de usuario)" : "Cuenta"}
+                                </Label>
                                 <Select
                                     value={formData.selectedAccountValue}
                                     onValueChange={(val) => setFormData(prev => ({ ...prev, selectedAccountValue: val }))}

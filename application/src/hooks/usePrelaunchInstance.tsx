@@ -177,11 +177,15 @@ export const usePrelaunchInstance = (instanceId: string) => {
          } */
 
         if (instance.accountUuid) {
-            const accountExists = await invoke<boolean>("ensure_account_exists", { uuid: instance.accountUuid });
-            if (!accountExists) {
-                playSound('ERROR_NOTIFICATION');
-                toast.error("Cuenta no encontrada", { description: "La cuenta asociada ya no existe." });
-                return;
+            if (instance.useModpackStoreAuth) {
+                // ModpackStore auth - account UUID is used to look up username, no need to verify local account
+            } else {
+                const accountExists = await invoke<boolean>("ensure_account_exists", { uuid: instance.accountUuid });
+                if (!accountExists) {
+                    playSound('ERROR_NOTIFICATION');
+                    toast.error("Cuenta no encontrada", { description: "La cuenta asociada ya no existe." });
+                    return;
+                }
             }
         } else {
             setShowAccountSelection(true);
@@ -200,27 +204,24 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }
     }, [isLaunchInProgress, isPlaying, isInstanceBootstraping, state.instance, isConnected, instanceId]);
 
-    const handleAccountSelected = useCallback(async (selectedAccountUuid: string) => {
-        if (!state.instance || !selectedAccountUuid) {
+    const handleAccountSelected = useCallback(async (data: { accountUuid: string | null; useModpackStoreAuth: boolean; ms_nickname: string | null }) => {
+        if (!state.instance) {
             toast.warning("No se seleccionó una cuenta válida.");
             return;
         }
 
         setShowAccountSelection(false);
 
-        // 1. Crea el objeto de la instancia actualizado en el frontend.
         const updatedInstance = {
             ...state.instance,
-            accountUuid: selectedAccountUuid,
-            ms_nickname: null, // Importante: Limpia la cuenta anterior para evitar conflictos.
+            accountUuid: data.accountUuid,
+            useModpackStoreAuth: data.useModpackStoreAuth,
         };
 
         try {
             await invoke("update_instance", { instance: updatedInstance });
             const controller = new AbortController();
             await fetchInstanceAndAppearance(controller.signal);
-            // El useEffect se encargará de llamar a handlePlay() con los datos correctos.
-
         } catch (error) {
             console.error("Error al guardar la configuración de la instancia:", error);
             toast.error("No se pudo guardar la nueva selección de cuenta.");

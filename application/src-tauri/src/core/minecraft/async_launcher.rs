@@ -94,7 +94,7 @@ impl AsyncMinecraftLauncher {
             .map_err(|e| format!("Failed to process arguments: {}", e))?;
 
         // Add authlib-injector if using ModpackStore auth
-        if self.instance.accountUuid.is_none() {
+        if self.instance.useModpackStoreAuth {
             let authlib_arg = self.get_authlib_injector_arg(&paths).await?;
             // Insert authlib-injector as the first JVM argument
             jvm_args.insert(0, authlib_arg);
@@ -139,107 +139,112 @@ impl AsyncMinecraftLauncher {
     }
 
     async fn get_or_create_account(&self) -> Result<MinecraftAccount, String> {
-        match &self.instance.accountUuid {
-            Some(uuid) => {
-                let accounts_manager = AccountsManager::new();
-                let mut account = accounts_manager
-                    .get_minecraft_account_by_uuid(uuid)
-                    .ok_or_else(|| format!("Account with UUID {} not found", uuid))?;
+        if self.instance.useModpackStoreAuth {
+            // ModpackStore Yggdrasil auth - look up username from selected account
+            log::info!("[AsyncMinecraftLauncher] Using ModpackStore authentication");
 
-                // Auto-refresh Microsoft tokens if expired
-                if account.user_type() == "Microsoft" && account.is_expired() {
-                    log::info!(
-                        "[AsyncMinecraftLauncher] Microsoft token expired for {}, refreshing...",
-                        account.username()
-                    );
+            let account_uuid = self.instance.accountUuid.as_deref()
+                .ok_or_else(|| "useModpackStoreAuth is true but no account UUID set".to_string())?;
 
-                    let refresh_token = account
-                        .refresh_token()
-                        .ok_or("No refresh token stored. Please re-authenticate.")?;
+            // Fetch the selected account's username
+            let accounts_manager = AccountsManager::new();
+            let selected_account = accounts_manager
+                .get_minecraft_account_by_uuid(account_uuid)
+                .ok_or_else(|| format!("Account with UUID {} not found", account_uuid))?;
+            let username = selected_account.username().to_string();
 
-                    let authenticator =
-                        crate::core::microsoft_auth::MicrosoftAuthenticator::new();
-                    let (mc_token, ms_token, new_refresh, expiration) = authenticator
-                        .refresh_minecraft_tokens(refresh_token)
-                        .await
-                        .map_err(|e| {
-                            format!(
-                                "Failed to refresh Microsoft tokens for {}: {}",
-                                account.username(),
-                                e
-                            )
-                        })?;
+            // Get JWT token from store
+            let access_token = crate::core::instance_manager::get_access_token()
+                .await
+                .map_err(|e| format!("Failed to get access token: {}", e))?
+                .ok_or_else(|| "No access token found in store".to_string())?;
 
-                    // Persist updated tokens
-                    let accounts_manager_arc = crate::core::accounts_manager::get_accounts_manager();
-                    let mut manager = accounts_manager_arc
-                        .lock()
-                        .map_err(|e| format!("Failed to lock accounts manager: {}", e))?;
-                    manager
-                        .update_account_tokens(uuid, &mc_token, expiration, &ms_token)
-                        .map_err(|e| e.to_string())?;
-                    if new_refresh != refresh_token {
-                        if let Some(acc) = manager
-                            .accounts
-                            .iter_mut()
-                            .find(|a| a.uuid() == uuid)
-                        {
-                            acc.set_refresh_token(Some(new_refresh));
-                        }
-                        manager.save();
-                    }
+            let api_endpoint = crate::API_ENDPOINT.to_string();
+            let ms_auth = ModpackStoreAuth::new(api_endpoint);
 
-                    // Update in-memory account
-                    account.set_access_token(Some(mc_token));
-                    account.set_token_expiration(Some(expiration));
-                    account.set_microsoft_access_token(Some(ms_token));
+            let auth_response = ms_auth
+                .authenticate(access_token, Some(username))
+                .await
+                .map_err(|e| format!("Failed to authenticate with ModpackStore: {}", e))?;
 
-                    log::info!(
-                        "[AsyncMinecraftLauncher] Tokens refreshed for {}",
-                        account.username()
-                    );
-                }
+            let account = MinecraftAccount::new(
+                auth_response.selected_profile.name,
+                auth_response.selected_profile.id,
+                Some(auth_response.access_token),
+                "modpackstore".to_string(),
+            );
 
-                Ok(account)
-            }
-            None => {
-                // No account UUID - use ModpackStore auth
-                log::info!("[AsyncMinecraftLauncher] Using ModpackStore authentication");
+            log::info!(
+                "[AsyncMinecraftLauncher] Created ModpackStore account: {}",
+                account.username()
+            );
 
-                // Get JWT token from store using the proper function
-                let access_token = crate::core::instance_manager::get_access_token()
-                    .await
-                    .map_err(|e| format!("Failed to get access token: {}", e))?
-                    .ok_or_else(|| "No access token found in store".to_string())?;
+            Ok(account)
+        } else if let Some(uuid) = &self.instance.accountUuid {
+            // Local account auth
+            let accounts_manager = AccountsManager::new();
+            let mut account = accounts_manager
+                .get_minecraft_account_by_uuid(uuid)
+                .ok_or_else(|| format!("Account with UUID {} not found", uuid))?;
 
-                // Create ModpackStore auth client
-                let api_endpoint = crate::API_ENDPOINT.to_string();
-                let ms_auth = ModpackStoreAuth::new(api_endpoint);
-
-                // Get username (ms_nickname if set, otherwise default from session)
-                let username = self.instance.ms_nickname.clone();
-
-                // Authenticate with Yggdrasil server
-                let auth_response = ms_auth
-                    .authenticate(access_token, username)
-                    .await
-                    .map_err(|e| format!("Failed to authenticate with ModpackStore: {}", e))?;
-
-                // Create temporary MinecraftAccount
-                let account = MinecraftAccount::new(
-                    auth_response.selected_profile.name,
-                    auth_response.selected_profile.id,
-                    Some(auth_response.access_token),
-                    "modpackstore".to_string(),
-                );
-
+            // Auto-refresh Microsoft tokens if expired
+            if account.user_type() == "Microsoft" && account.is_expired() {
                 log::info!(
-                    "[AsyncMinecraftLauncher] Created ModpackStore account: {}",
+                    "[AsyncMinecraftLauncher] Microsoft token expired for {}, refreshing...",
                     account.username()
                 );
 
-                Ok(account)
+                let refresh_token = account
+                    .refresh_token()
+                    .ok_or("No refresh token stored. Please re-authenticate.")?;
+
+                let authenticator =
+                    crate::core::microsoft_auth::MicrosoftAuthenticator::new();
+                let (mc_token, ms_token, new_refresh, expiration) = authenticator
+                    .refresh_minecraft_tokens(refresh_token)
+                    .await
+                    .map_err(|e| {
+                        format!(
+                            "Failed to refresh Microsoft tokens for {}: {}",
+                            account.username(),
+                            e
+                        )
+                    })?;
+
+                // Persist updated tokens
+                let accounts_manager_arc = crate::core::accounts_manager::get_accounts_manager();
+                let mut manager = accounts_manager_arc
+                    .lock()
+                    .map_err(|e| format!("Failed to lock accounts manager: {}", e))?;
+                manager
+                    .update_account_tokens(uuid, &mc_token, expiration, &ms_token)
+                    .map_err(|e| e.to_string())?;
+                if new_refresh != refresh_token {
+                    if let Some(acc) = manager
+                        .accounts
+                        .iter_mut()
+                        .find(|a| a.uuid() == uuid)
+                    {
+                        acc.set_refresh_token(Some(new_refresh));
+                    }
+                    manager.save();
+                }
+
+                // Update in-memory account
+                account.set_access_token(Some(mc_token));
+                account.set_token_expiration(Some(expiration));
+                account.set_microsoft_access_token(Some(ms_token));
+
+                log::info!(
+                    "[AsyncMinecraftLauncher] Tokens refreshed for {}",
+                    account.username()
+                );
             }
+
+            Ok(account)
+        } else {
+            // No account UUID and not ModpackStore auth - show account selection
+            Err("No account assigned to this instance".to_string())
         }
     }
 

@@ -64,6 +64,8 @@ pub struct MinecraftInstance {
     #[serde(default)]
     pub ms_nickname: Option<String>, // Custom nickname for ModpackStore auth
     #[serde(default)]
+    pub useModpackStoreAuth: bool, // Use ModpackStore Yggdrasil auth instead of local account
+    #[serde(default)]
     pub instanceType: InstanceType,
 }
 
@@ -122,6 +124,7 @@ impl MinecraftInstance {
             favorite: false,
             favorite_order: None,
             ms_nickname: None,
+            useModpackStoreAuth: false,
             instanceType: InstanceType::Client,
         }
     }

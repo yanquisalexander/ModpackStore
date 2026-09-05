@@ -294,6 +294,28 @@ export const modpackAcquisitionsTable = pgTable("modpack_acquisitions", {
     uniqueUserModpack: uniqueIndex("uq_acq_user_modpack").on(table.userId, table.modpackId)
 }));
 
+/* Game Sessions (Yggdrasil) */
+
+export const gameSessionsTable = pgTable("game_sessions", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    accessToken: text("access_token").notNull().unique(),
+    clientToken: text("client_token").notNull(),
+    serverId: text("server_id"),
+    ipAddress: text("ip_address"),
+    requestedUsername: varchar("requested_username", { length: 64 }),
+    lastActivity: timestamp("last_activity", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const gameSessionsRelations = relations(gameSessionsTable, ({ one }) => ({
+    user: one(users, {
+        fields: [gameSessionsTable.userId],
+        references: [users.id],
+    }),
+}));
+
 /* Whitelist */
 
 export const modpackWhitelistsTable = pgTable("modpack_whitelists", {
@@ -359,6 +381,7 @@ export const usersRelations = relations(users, ({ many }) => ({
     bans: many(bansTable, { relationName: "user_bans" }),
     adminBans: many(bansTable, { relationName: "admin_bans" }),
     unbanAdminBans: many(bansTable, { relationName: "unban_admin_bans" }),
+    gameSessions: many(gameSessionsTable),
 }));
 
 export const modpacksRelations = relations(modpacksTable, ({ one, many }) => ({
