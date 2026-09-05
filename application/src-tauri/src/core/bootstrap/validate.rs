@@ -364,6 +364,7 @@ mod tests {
             favorite: false,
             favorite_order: None,
             ms_nickname: None,
+            useModpackStoreAuth: false,
             instanceType: InstanceType::Client,
         };
 

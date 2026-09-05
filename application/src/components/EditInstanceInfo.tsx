@@ -161,7 +161,7 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
                                     <Label className="text-sm text-white cursor-pointer">Usar servicios de autenticación de Modpack Store</Label>
                                     <p className="text-xs text-neutral-500">
                                         {formData.useModpackStoreAuth
-                                            ? "Se usará el nombre de la cuenta seleccionada para autenticarte"
+                                            ? "Se utilizarán los servicios de autenticación de Modpack Store para iniciar sesión en Minecraft"
                                             : "Se usará la cuenta local directamente"}
                                     </p>
                                 </div>
@@ -177,7 +177,7 @@ export const EditInstanceInfo = ({ instanceId, onUpdate, defaultShowEditInfo }: 
 
                             <div className="space-y-1.5">
                                 <Label className="text-xs font-medium text-neutral-500 ml-1">
-                                    {formData.useModpackStoreAuth ? "Cuenta (para nombre de usuario)" : "Cuenta"}
+                                    Cuenta
                                 </Label>
                                 <Select
                                     value={formData.selectedAccountValue}

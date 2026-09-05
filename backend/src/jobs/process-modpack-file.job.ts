@@ -1,5 +1,5 @@
 import type { Job } from "bullmq";
-import { BlobReader, ZipReader } from "@zip.js/zip.js";
+import { Uint8ArrayReader, Uint8ArrayWriter, ZipReader } from "@zip.js/zip.js";
 import { db } from "@/db/client.ts";
 import {
     modpackVersionsTable,
@@ -123,13 +123,13 @@ export async function processModpackFiles(job: Job) {
         await updateProcessingJob(jobId, { progress: 20 });
         log(`  Downloaded ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB`);
 
-        // Read ZIP entries using @zip.js/zip.js (streaming-friendly)
+        // Read ZIP entries using @zip.js/zip.js
         log(`  Reading ZIP entries...`);
-        const zipReader = new ZipReader(new BlobReader(new Blob([zipBuffer as BlobPart])));
-        const entries = await zipReader.getEntries();
-
-        // Release the download buffer — we no longer need it
+        const zipData = zipBuffer;
         zipBuffer = null as any;
+
+        const zipReader = new ZipReader(new Uint8ArrayReader(zipData));
+        const entries = await zipReader.getEntries();
 
         // Detect if the ZIP has a single root folder matching the fileType
         const rootDirs = new Set<string>();
@@ -150,43 +150,15 @@ export async function processModpackFiles(job: Job) {
         let uploaded = 0;
         let dedupSavingsLocal = 0;
 
-        const BATCH_SIZE = 10;
-        const uploadBatch: Array<{ hash: string; content: Uint8Array }> = [];
-
-        const flushUploadBatch = async () => {
-            if (uploadBatch.length === 0) return;
-            await Promise.all(uploadBatch.map(({ hash, content }) =>
-                uploadObject(getFileKey(hash), content, "application/octet-stream"),
-            ));
-            uploaded += uploadBatch.length;
-            uploadBatch.length = 0;
-        };
-
-        // Process entries one at a time — each entry's content is released after processing
+        // Process entries one at a time — upload immediately and release
         for (const entry of entries) {
             if (entry.directory) continue;
             if (entry.filename.startsWith("__MACOSX/")) { skipped++; continue; }
             if (entry.filename.startsWith(".")) { skipped++; continue; }
 
-            // Get decompressed content for THIS entry only
-            const chunks: Uint8Array[] = [];
-            let totalLen = 0;
-            await entry.getData(
-                new WritableStream({
-                    write(chunk) {
-                        chunks.push(chunk);
-                        totalLen += chunk.length;
-                    },
-                }),
-            );
-            if (totalLen === 0) { skipped++; continue; }
-            const content = new Uint8Array(totalLen);
-            let offset = 0;
-            for (const chunk of chunks) {
-                content.set(chunk, offset);
-                offset += chunk.length;
-            }
-            chunks.length = 0; // Release references
+            const writer = new Uint8ArrayWriter();
+            const content = await entry.getData(writer);
+            if (content.length === 0) { skipped++; continue; }
 
             const hash = await sha1(content);
             const filePath = stripPrefix ? entry.filename.slice(stripPrefix.length) : entry.filename;
@@ -196,13 +168,10 @@ export async function processModpackFiles(job: Job) {
 
             if (!uniqueMetas.has(hash)) {
                 uniqueMetas.set(hash, { hash, path: filePath, fileType: fileType as FileType, side, size: content.length });
-                uploadBatch.push({ hash, content });
-                if (uploadBatch.length >= BATCH_SIZE) {
-                    await flushUploadBatch();
-                }
+                await uploadObject(getFileKey(hash), content, "application/octet-stream");
+                uploaded++;
             } else {
                 dedupSavingsLocal += content.length;
-                // content is eligible for GC after this iteration
             }
 
             const ext = filePath.includes(".") ? filePath.split(".").pop()!.toLowerCase() : "(none)";
@@ -212,9 +181,6 @@ export async function processModpackFiles(job: Job) {
                 log(`  Progress: ${fileMetas.length} files scanned, ${uploaded} unique uploaded...`);
             }
         }
-
-        // Flush remaining uploads
-        await flushUploadBatch();
 
         // Close the reader
         await zipReader.close();
@@ -240,7 +206,7 @@ export async function processModpackFiles(job: Job) {
         const totalSize = fileMetas.reduce((sum, pf) => sum + pf.size, 0);
         log(`  Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
         log(`  Unique files: ${uniqueMetas.size} (dedup saved ${(dedupSavingsLocal / 1024 / 1024).toFixed(2)} MB)`);
-        log(`  Uploaded ${uploaded} unique files to R2 (batched, max ${BATCH_SIZE} concurrent)`);
+        log(`  Uploaded ${uploaded} unique files to R2`);
 
         const uploadEnd = Date.now();
         log(`  All uploads done in ${((uploadEnd - start) / 1000).toFixed(1)}s`);

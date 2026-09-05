@@ -222,7 +222,7 @@ const worker = new Worker(
     },
     {
         connection: redisConnection,
-        concurrency: 5,
+        concurrency: 1,
     },
 );
 
