@@ -1,6 +1,6 @@
 import type { Job } from "bullmq";
 import { createHash } from "node:crypto";
-import { Reader, WritableStreamWriter, ZipReader } from "@zip.js/zip.js";
+import { Reader, ZipReader } from "@zip.js/zip.js";
 import { db } from "@/db/client.ts";
 import {
     modpackVersionsTable,
@@ -18,14 +18,14 @@ import { downloadObjectToFile, uploadStreamObject, deleteObject, getTempZipKey, 
 const INSERT_CHUNK_SIZE = 500;
 
 // --- Helper para que zip.js lea desde el disco en lugar de la RAM ---
-class DenoFileReader extends Reader {
+class DenoFileReader extends Reader<Deno.FsFile> {
     file: Deno.FsFile;
     constructor(file: Deno.FsFile, size: number) {
-        super();
+        super(file);
         this.file = file;
         this.size = size; // Propiedad requerida por zip.js
     }
-    async readUint8Array(offset: number, length: number): Promise<Uint8Array> {
+    override async readUint8Array(offset: number, length: number): Promise<Uint8Array> {
         await this.file.seek(offset, Deno.SeekMode.Start);
         const buffer = new Uint8Array(length);
         let bytesRead = 0;
@@ -185,9 +185,12 @@ export async function processModpackFiles(job: Job) {
                         await entryFile.write(chunk); // Guardar en disco on the fly
                     }
                 });
+                const transferStream = new TransformStream<Uint8Array, Uint8Array>();
+                const transferPromise = transferStream.readable.pipeTo(writableStream);
 
                 // Extraemos el archivo pasándolo por nuestro stream
-                await entry.getData(new WritableStreamWriter(writableStream));
+                await entry.getData(transferStream.writable);
+                await transferPromise;
                 sha1Hex = hash.digest("hex");
 
                 // Verificamos el tamaño real del archivo extraído
