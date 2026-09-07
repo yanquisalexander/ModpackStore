@@ -55,9 +55,26 @@ export const AccountSelectionDialog: React.FC<AccountSelectionDialogProps> = ({
 
   useEffect(() => {
     if (open) {
-      fetchAccounts();
-      setSelectingId(null);
-      setAvatarErrors({});
+      const loadDialogData = async () => {
+        await fetchAccounts();
+        setSelectingId(null);
+        setAvatarErrors({});
+
+        if (!instanceId) {
+          setUseModpackStoreAuth(false);
+          return;
+        }
+
+        try {
+          const currentInstance = await invoke<TauriCommandReturns['get_instance_by_id']>('get_instance_by_id', { instanceId });
+          setUseModpackStoreAuth(currentInstance?.useModpackStoreAuth ?? false);
+        } catch (error) {
+          console.error('Error loading instance auth mode:', error);
+          setUseModpackStoreAuth(false);
+        }
+      };
+
+      loadDialogData();
     }
   }, [open]);
 
