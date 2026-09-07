@@ -1,5 +1,6 @@
 import { Hono } from "@hono/hono";
 import { yggdrasilService } from "@/v1/yggdrasil/yggdrasil.service.ts";
+import { APIError } from "@/lib/errors/index.ts";
 
 const yggdrasilRoutes = new Hono();
 
@@ -14,22 +15,42 @@ yggdrasilRoutes.get("/", (c) =>
 );
 
 yggdrasilRoutes.post("/authenticate", async (c) => {
-    const body = await c.req.json();
-    const result = await yggdrasilService.authenticate(
-        body.password,
-        body.clientToken,
-        body.username,
-    );
-    return c.json(result);
+    try {
+        const body = await c.req.json();
+        const result = await yggdrasilService.authenticate(
+            body.password,
+            body.clientToken,
+            body.username,
+        );
+        return c.json(result);
+    } catch (err) {
+        if (err instanceof APIError) {
+            return c.json(
+                { error: "ForbiddenOperationException", errorMessage: err.message },
+                err.statusCode as any,
+            );
+        }
+        throw err;
+    }
 });
 
 yggdrasilRoutes.post("/refresh", async (c) => {
-    const body = await c.req.json();
-    const result = await yggdrasilService.refresh(
-        body.accessToken,
-        body.clientToken,
-    );
-    return c.json(result);
+    try {
+        const body = await c.req.json();
+        const result = await yggdrasilService.refresh(
+            body.accessToken,
+            body.clientToken,
+        );
+        return c.json(result);
+    } catch (err) {
+        if (err instanceof APIError) {
+            return c.json(
+                { error: "ForbiddenOperationException", errorMessage: err.message },
+                err.statusCode as any,
+            );
+        }
+        throw err;
+    }
 });
 
 yggdrasilRoutes.post("/validate", async (c) => {
@@ -55,30 +76,50 @@ yggdrasilRoutes.post("/signout", async (c) => {
 });
 
 yggdrasilRoutes.post("/session/minecraft/join", async (c) => {
-    const body = await c.req.json();
-    await yggdrasilService.joinServer(
-        body.accessToken,
-        body.selectedProfile,
-        body.serverId,
-        body.ip,
-    );
-    return c.body(null, 204);
+    try {
+        const body = await c.req.json();
+        await yggdrasilService.joinServer(
+            body.accessToken,
+            body.selectedProfile,
+            body.serverId,
+            body.ip,
+        );
+        return c.body(null, 204);
+    } catch (err) {
+        if (err instanceof APIError) {
+            return c.json(
+                { error: "ForbiddenOperationException", errorMessage: err.message },
+                err.statusCode as any,
+            );
+        }
+        throw err;
+    }
 });
 
 yggdrasilRoutes.get("/session/minecraft/hasJoined", async (c) => {
-    const username = c.req.query("username");
-    const serverId = c.req.query("serverId");
-    const ip = c.req.query("ip");
+    try {
+        const username = c.req.query("username");
+        const serverId = c.req.query("serverId");
+        const ip = c.req.query("ip");
 
-    if (!username || !serverId) {
-        return c.body(null, 204);
-    }
+        if (!username || !serverId) {
+            return c.body(null, 204);
+        }
 
-    const profile = await yggdrasilService.hasJoined(username, serverId, ip);
-    if (!profile) {
-        return c.body(null, 204);
+        const profile = await yggdrasilService.hasJoined(username, serverId, ip);
+        if (!profile) {
+            return c.body(null, 204);
+        }
+        return c.json(profile);
+    } catch (err) {
+        if (err instanceof APIError) {
+            return c.json(
+                { error: "ForbiddenOperationException", errorMessage: err.message },
+                err.statusCode as any,
+            );
+        }
+        throw err;
     }
-    return c.json(profile);
 });
 
 yggdrasilRoutes.get("/session/minecraft/profile/:uuid", async (c) => {
@@ -93,30 +134,50 @@ yggdrasilRoutes.get("/session/minecraft/profile/:uuid", async (c) => {
 });
 
 yggdrasilRoutes.post("/sessionserver/session/minecraft/join", async (c) => {
-    const body = await c.req.json();
-    await yggdrasilService.joinServer(
-        body.accessToken,
-        body.selectedProfile,
-        body.serverId,
-        body.ip,
-    );
-    return c.body(null, 204);
+    try {
+        const body = await c.req.json();
+        await yggdrasilService.joinServer(
+            body.accessToken,
+            body.selectedProfile,
+            body.serverId,
+            body.ip,
+        );
+        return c.body(null, 204);
+    } catch (err) {
+        if (err instanceof APIError) {
+            return c.json(
+                { error: "ForbiddenOperationException", errorMessage: err.message },
+                err.statusCode as any,
+            );
+        }
+        throw err;
+    }
 });
 
 yggdrasilRoutes.get("/sessionserver/session/minecraft/hasJoined", async (c) => {
-    const username = c.req.query("username");
-    const serverId = c.req.query("serverId");
-    const ip = c.req.query("ip");
+    try {
+        const username = c.req.query("username");
+        const serverId = c.req.query("serverId");
+        const ip = c.req.query("ip");
 
-    if (!username || !serverId) {
-        return c.body(null, 204);
-    }
+        if (!username || !serverId) {
+            return c.body(null, 204);
+        }
 
-    const profile = await yggdrasilService.hasJoined(username, serverId, ip);
-    if (!profile) {
-        return c.body(null, 204);
+        const profile = await yggdrasilService.hasJoined(username, serverId, ip);
+        if (!profile) {
+            return c.body(null, 204);
+        }
+        return c.json(profile);
+    } catch (err) {
+        if (err instanceof APIError) {
+            return c.json(
+                { error: "ForbiddenOperationException", errorMessage: err.message },
+                err.statusCode as any,
+            );
+        }
+        throw err;
     }
-    return c.json(profile);
 });
 
 export default yggdrasilRoutes;

@@ -43,12 +43,20 @@ export const yggdrasilService = {
         try {
             decoded = await verify(jwtToken, JWT_SECRET, "HS256");
         } catch {
-            throw new APIError(401, "Invalid or expired JWT token.", "INVALID_JWT");
+            throw new APIError(
+                401,
+                "\n§c§l⚠ ACCESS DENIED ⚠§r\n§6Please use the §e§lModpack Store Launcher§r to access this server.",
+                "INVALID_JWT",
+            );
         }
 
         const userId = decoded.sub as string | undefined;
         if (!userId) {
-            throw new APIError(401, "Invalid JWT token payload.", "INVALID_JWT_PAYLOAD");
+            throw new APIError(
+                401,
+                "\n§c§l⚠ ACCESS DENIED ⚠§r\n§6Please use the §e§lModpack Store Launcher§r to access this server.",
+                "INVALID_JWT_PAYLOAD",
+            );
         }
 
         const [user] = await db
@@ -100,7 +108,11 @@ export const yggdrasilService = {
             .limit(1);
 
         if (!session || session.session.clientToken !== clientToken) {
-            throw new APIError(401, "Invalid token pair.", "INVALID_TOKEN");
+            throw new APIError(
+                401,
+                "\n§c§l⚠ ACCESS DENIED ⚠§r\n§6Please use the §e§lModpack Store Launcher§r to access this server.",
+                "INVALID_TOKEN",
+            );
         }
 
         const { session: gs, user } = session;
@@ -183,7 +195,11 @@ export const yggdrasilService = {
             .limit(1);
 
         if (!gs) {
-            throw new APIError(403, "Invalid session.", "INVALID_SESSION");
+            throw new APIError(
+                403,
+                "\n§c§l⚠ ACCESS DENIED ⚠§r\n§6Please use the §e§lModpack Store Launcher§r to access this server.",
+                "INVALID_SESSION",
+            );
         }
 
         if (isExpired(gs.expiresAt) || isInactive(gs.lastActivity)) {
@@ -247,7 +263,13 @@ export const yggdrasilService = {
             )
             .limit(1);
 
-        if (!row) return null;
+        if (!row) {
+            throw new APIError(
+                403,
+                "\n§c§l⚠ ACCESS DENIED ⚠§r\n§6Please use the §e§lModpack Store Launcher§r to access this server.",
+                "INVALID_SESSION",
+            );
+        }
 
         const { session: gs, user } = row;
 
