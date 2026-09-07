@@ -3,7 +3,6 @@
 name: 'Setup Environment and Build'
 description: 'Sets up Node, Rust, caches dependencies, and runs the Tauri build'
 
-# Define las entradas que tu acción necesita (los secrets)
 inputs:
   TAURI_SIGNING_PRIVATE_KEY:
     required: true
@@ -13,9 +12,8 @@ inputs:
     description: 'GitHub token for authentication'
 
 runs:
-  using: "composite" # <-- Le dices a GitHub que es una acción compuesta
+  using: "composite"
   steps:
-    # --- Todos tus pasos comunes van aquí ---
     - name: Set up pnpm
       uses: pnpm/action-setup@v4
       with:
@@ -31,7 +29,7 @@ runs:
     - name: Install frontend dependencies
       working-directory: ./application
       run: pnpm install --frozen-lockfile
-      shell: bash # Especificar el shell es una buena práctica en acciones compuestas
+      shell: bash
 
     - name: Install Rust stable
       uses: dtolnay/rust-toolchain@stable
@@ -44,10 +42,20 @@ runs:
         cache-all-crates: true
         save-if: ${{ github.ref == 'refs/heads/main' }}
 
+    # --- PASO DE LIMPIEZA AUTOMÁTICA ---
+    - name: Purge old Canary release to free storage
+      env:
+        GH_TOKEN: ${{ inputs.GITHUB_TOKEN }}
+      shell: bash
+      run: |
+        echo "Eliminando release y assets antiguos de 'canary'..."
+        gh release delete canary --repo ModpackStore/ModpackStore-Releases --yes --cleanup-tag || true
+        # Limpieza adicional por si quedan referencias remotas del tag
+        git push origin --delete tag canary 2>/dev/null || true
+
     - name: Build & Publish Canary Release
       uses: tauri-apps/tauri-action@dev
       env:
-        # Usa los inputs que definiste arriba
         TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.TAURI_SIGNING_PRIVATE_KEY }}
         GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
         GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
