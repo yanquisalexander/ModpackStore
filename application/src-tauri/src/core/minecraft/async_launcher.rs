@@ -117,6 +117,13 @@ impl AsyncMinecraftLauncher {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+
         // Log the complete launch command for debugging
         log::info!("Launching Minecraft with command: {:?}", command);
         log::debug!("Java executable: {}", paths.java_path().display());
