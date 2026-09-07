@@ -11,9 +11,7 @@ import {
 } from "@/db/schema.ts";
 import { eq } from "drizzle-orm";
 import { log } from "@/lib/logger.ts";
-// Importante: Necesitas adaptar downloadObject y uploadObject en r2.ts 
-// para que acepten archivos locales/streams (ver sección abajo)
-import { downloadObjectToFile, uploadStreamObject, deleteObject, getTempZipKey, getFileKey, fileExists } from "@/lib/r2.ts";
+import { downloadObjectToFile, uploadObject, deleteObject, getTempZipKey, getFileKey, fileExists } from "@/lib/r2.ts";
 
 const INSERT_CHUNK_SIZE = 500;
 
@@ -227,11 +225,10 @@ export async function processModpackFiles(job: Job) {
                     if (exists) {
                         crossJobSkipped++;
                     } else {
-                        // Reseteamos el puntero del archivo al inicio para leerlo y subirlo
                         await entryFile.seek(0, Deno.SeekMode.Start);
-
-                        // Subimos el ReadableStream directamente a R2. ¡Sin RAM!
-                        await uploadStreamObject(getFileKey(sha1Hex), entryFile.readable, "application/octet-stream");
+                        const fileBytes = new Uint8Array(contentSize);
+                        await entryFile.read(fileBytes);
+                        await uploadObject(getFileKey(sha1Hex), fileBytes, "application/octet-stream");
                         uploaded++;
                     }
                 } else {
