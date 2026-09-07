@@ -562,7 +562,7 @@ pub async fn wait_for_task_completion(task_id: &str, timeout_seconds: u64) -> Re
 /// Start a background task to periodically check for and cleanup stuck tasks
 /// This should be called once when the application starts
 pub fn start_periodic_task_cleanup() {
-    tokio::spawn(async {
+    tauri::async_runtime::spawn(async {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300)); // Check every 5 minutes
 
         loop {
