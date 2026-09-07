@@ -14,6 +14,13 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Install mold (Linux only)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y mold
+
     - name: Set up pnpm
       uses: pnpm/action-setup@v4
       with:
@@ -33,6 +40,20 @@ runs:
 
     - name: Install Rust stable
       uses: dtolnay/rust-toolchain@stable
+
+    - name: Configure sccache
+      uses: mozilla-actions/sccache-action@v0.0.10
+
+    - name: Set linker flags (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: echo "RUSTFLAGS=-C link-arg=-fuse-ld=mold" >> "$GITHUB_ENV"
+
+    - name: Set sccache env vars
+      shell: bash
+      run: |
+        echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+        echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
 
     - name: Rust cache
       uses: swatinem/rust-cache@v2
