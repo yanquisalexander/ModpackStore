@@ -155,13 +155,13 @@ async function recoverStuckJobs() {
                         .where(eq(modpackVersionProcessingJobsTable.jobId, record.jobId));
                 }
 
-                // BullMQ ignorará esto si ya está en cola con el mismo jobId gracias a sus locks
                 await ProcessModpackFilesQueue.add(
                     "process-modpack-files",
                     { versionId: record.versionId, fileType: record.fileType },
                     {
                         jobId: record.jobId,
-                        // Fundamental para no llenar la RAM de Redis
+                        override: true,
+                        delay: 0,
                         removeOnComplete: { age: 3600, count: 100 },
                         removeOnFail: { age: 24 * 3600, count: 100 }
                     }
