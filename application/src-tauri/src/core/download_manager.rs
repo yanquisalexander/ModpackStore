@@ -596,14 +596,29 @@ impl DownloadManager {
             download_tasks.push(task);
         }
 
-        // Wait for all downloads to complete
+        // Wait for all downloads to complete — log failures but don't abort
         let mut download_count = 0;
+        let mut failed_count = 0;
         for task in download_tasks {
             match task.await {
                 Ok(Ok(())) => download_count += 1,
-                Ok(Err(e)) => return Err(e),
-                Err(e) => return Err(format!("Task join error: {}", e)),
+                Ok(Err(e)) => {
+                    log::warn!("[Download] File download failed (non-fatal): {}", e);
+                    failed_count += 1;
+                }
+                Err(e) => {
+                    log::warn!("[Download] Task join error (non-fatal): {}", e);
+                    failed_count += 1;
+                }
             }
+        }
+
+        if failed_count > 0 {
+            log::warn!(
+                "[Download] {} of {} files failed to download",
+                failed_count,
+                total_files
+            );
         }
 
         Ok(download_count)
