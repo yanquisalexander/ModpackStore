@@ -109,15 +109,13 @@ fn download_missing_assets(
     for (asset_name, asset_info) in objects {
         processed_assets += 1;
 
-        let hash = asset_info
-            .get("hash")
-            .and_then(|v| v.as_str())
-            .ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    format!("Hash inválido para asset: {}", asset_name),
-                )
-            })?;
+        let hash = match asset_info.get("hash").and_then(|v| v.as_str()) {
+            Some(h) => h,
+            None => {
+                log::warn!("Hash inválido para asset {}, saltando...", asset_name);
+                continue;
+            }
+        };
 
         let hash_prefix = &hash[0..2];
         let asset_file = assets_objects_dir.join(hash_prefix).join(hash);
@@ -153,7 +151,7 @@ fn download_missing_assets(
         )
     })?;
 
-    runtime.block_on(async {
+    let download_result = runtime.block_on(async {
         // Create DownloadManager optimized for asset downloads (higher concurrency for small files)
         let download_manager = DownloadManager::with_concurrency(8);
 
@@ -174,18 +172,25 @@ fn download_missing_assets(
                     }
                 },
             )
-            .await
-            .map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Error al descargar assets con DownloadManager: {}", e),
-                )
-            })?;
+            .await;
 
-        log::info!(
-            "Se han descargado {} assets faltantes usando DownloadManager.",
-            missing_count
-        );
+        // Log result but don't fail — individual asset download failures are non-critical
+        // Minecraft can still launch with missing assets (it will re-download or show missing textures)
+        match download_result {
+            Ok(()) => {
+                log::info!(
+                    "Se han descargado {} assets faltantes usando DownloadManager.",
+                    missing_count
+                );
+            }
+            Err(e) => {
+                log::warn!(
+                    "Algunos assets fallaron al descargar (no crítico): {}. El juego puede lanzarse con textures faltantes.",
+                    e
+                );
+            }
+        }
+
         Ok::<(), io::Error>(())
     })?;
 
