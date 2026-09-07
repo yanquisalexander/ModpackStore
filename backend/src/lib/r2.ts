@@ -8,6 +8,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { FetchHttpHandler } from "@smithy/fetch-http-handler";
+import { log } from "@/lib/logger.ts";
 
 const accountId = Deno.env.get("R2_ACCOUNT_ID") ?? "";
 const bucket = Deno.env.get("R2_BUCKET") ?? "";
@@ -29,6 +30,8 @@ export function getS3Client(): S3Client {
                 secretAccessKey: Deno.env.get("R2_SECRET_ACCESS_KEY")!,
             },
             requestHandler: new FetchHttpHandler({}),
+            requestChecksumCalculation: "WHEN_REQUIRED",
+            responseChecksumValidation: "WHEN_REQUIRED",
         });
     }
     return client;
@@ -207,7 +210,7 @@ export async function batchUploadFromPaths(uploadList: Array<{ key: string; file
                 await uploadFileFromPath(upload.key, upload.filePath, upload.contentType);
                 uploaded++;
             } catch (err) {
-                console.error(`Failed to upload ${upload.key}:`, err);
+                log(`  [ERROR] Failed to upload ${upload.key}: ${err instanceof Error ? err.message : String(err)}`);
                 skipped++;
             }
         }));

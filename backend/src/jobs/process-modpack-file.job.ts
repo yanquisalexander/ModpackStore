@@ -270,11 +270,12 @@ export async function processModpackFiles(job: Job) {
         log(`  ${uploadList.length} files to upload, ${crossJobSkipped} already in database.`);
 
         // 6. Batch upload: subir todos los nuevos archivos con concurrencia
-        try {
-            const result = await batchUploadFromPaths(uploadList, 5);
-            uploaded = result.uploaded;
-        } catch (err) {
-            log(`  [ERROR] Batch upload failed: ${err instanceof Error ? err.message : String(err)}`);
+        const result = await batchUploadFromPaths(uploadList, 5);
+        uploaded = result.uploaded;
+        log(`  ${result.uploaded} files uploaded to R2, ${result.skipped} failed.`);
+
+        if (result.skipped > 0) {
+            throw new Error(`${result.skipped} of ${uploadList.length} files failed to upload to R2`);
         }
 
         // Limpiar todos los archivos temporales de entrada
@@ -285,7 +286,7 @@ export async function processModpackFiles(job: Job) {
         await updateProcessingJob(jobId, { progress: 40 });
 
         const uploadEnd = Date.now();
-        log(`  Uploaded ${uploaded} new files to R2 (skipped ${crossJobSkipped} already in DB, ${dedupSavingsLocal > 0 ? `${(dedupSavingsLocal / 1024 / 1024).toFixed(2)} MB deduped within ZIP` : "no intra-ZIP dupes"})`);
+        log(`  ${crossJobSkipped} already in DB, ${dedupSavingsLocal > 0 ? `${(dedupSavingsLocal / 1024 / 1024).toFixed(2)} MB deduped within ZIP` : "no intra-ZIP dupes"}`);
         log(`  All uploads done in ${((uploadEnd - start) / 1000).toFixed(1)}s`);
         log(`  Inserting DB records...`);
 
