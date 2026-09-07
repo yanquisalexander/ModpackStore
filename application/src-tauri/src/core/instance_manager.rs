@@ -184,10 +184,11 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
                         if updated {
                             // Mark that update was performed
                             update_was_performed = true;
-                            // Save the updated instance
-                            instance
-                                .save()
-                                .map_err(|e| format!("Failed to save updated instance: {}", e))?;
+                            // Reload instance from disk to pick up the updated version info
+                            // (handle_latest_version_update → update_modpack_instance already
+                            // saved the correct minecraftVersion, forgeVersion, modpackVersionId)
+                            instance = MinecraftInstance::from_instance_id(&instance_id)
+                                .ok_or_else(|| format!("Failed to reload updated instance: {}", instance_id))?;
                         }
                     }
                     Err(e) => {
@@ -433,12 +434,13 @@ async fn validate_modpack_assets_for_launch(instance: &MinecraftInstance) -> Res
     }
 
     // Validate and download missing assets
-    crate::core::modpack_file_manager::validate_and_download_modpack_assets(
+    let result = crate::core::modpack_file_manager::validate_and_download_modpack_assets(
         instance.instanceId.clone(),
     )
-    .await?;
+    .await;
 
-    // Emit completion event after validation/download
+    // Always emit completion event so the frontend never stays stuck
+    // at "Descargando archivos" even if validation/download failed
     if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
         if let Some(app_handle) = guard.as_ref() {
             let _ = app_handle.emit(
@@ -450,6 +452,8 @@ async fn validate_modpack_assets_for_launch(instance: &MinecraftInstance) -> Res
             );
         }
     }
+
+    result?;
 
     Ok(())
 }
@@ -1346,102 +1350,126 @@ fn spawn_modpack_update_task(
                 return;
             }
         };
-        let files_processed = runtime.block_on(async {
-            // First, validate existing files and get only those that need downloading
-            update_task(
-                &task_id,
-                TaskStatus::Running,
-                25.0,
-                "Validando archivos existentes...",
-                None,
-            );
 
-            let files_to_download =
-                match crate::core::modpack_file_manager::validate_modpack_assets(
-                    &instance,
-                    &manifest,
-                    Some(task_id.clone()),
-                )
-                .await
-                {
-                    Ok(files) => files,
-                    Err(e) => {
-                        update_task(
-                            &task_id,
-                            TaskStatus::Failed,
-                            0.0,
-                            &format!("Error validando archivos: {}", e),
-                            None,
-                        );
-                        return Err(e);
+        // Wrap block_on in catch_unwind so a panic marks the task as Failed
+        // instead of killing the thread silently (which leaves the task stuck in Running)
+        let block_on_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            runtime.block_on(async {
+                // First, validate existing files and get only those that need downloading
+                update_task(
+                    &task_id,
+                    TaskStatus::Running,
+                    25.0,
+                    "Validando archivos existentes...",
+                    None,
+                );
+
+                let files_to_download =
+                    match crate::core::modpack_file_manager::validate_modpack_assets(
+                        &instance,
+                        &manifest,
+                        Some(task_id.clone()),
+                    )
+                    .await
+                    {
+                        Ok(files) => files,
+                        Err(e) => {
+                            update_task(
+                                &task_id,
+                                TaskStatus::Failed,
+                                0.0,
+                                &format!("Error validando archivos: {}", e),
+                                None,
+                            );
+                            return Err(e);
+                        }
+                    };
+
+                update_task(
+                    &task_id,
+                    TaskStatus::Running,
+                    50.0,
+                    &format!(
+                        "Encontrados {} archivos para actualizar",
+                        files_to_download.len()
+                    ),
+                    None,
+                );
+
+                // Download and install only files that need updating
+                // This function will also move existing files with correct hashes to new locations
+                let processed_count = if files_to_download.is_empty() {
+                    0
+                } else {
+                    match crate::core::modpack_file_manager::download_and_install_files(
+                        &instance,
+                        &manifest,
+                        Some(task_id.clone()),
+                    )
+                    .await
+                    {
+                        Ok(count) => count,
+                        Err(e) => {
+                            update_task(
+                                &task_id,
+                                TaskStatus::Failed,
+                                0.0,
+                                &format!("Error descargando archivos: {}", e),
+                                None,
+                            );
+                            return Err(e);
+                        }
                     }
                 };
 
-            update_task(
-                &task_id,
-                TaskStatus::Running,
-                50.0,
-                &format!(
-                    "Encontrados {} archivos para actualizar",
-                    files_to_download.len()
-                ),
-                None,
-            );
+                // Clean up obsolete files after processing the updates
+                update_task(
+                    &task_id,
+                    TaskStatus::Running,
+                    85.0,
+                    "Limpiando archivos obsoletos...",
+                    None,
+                );
 
-            // Download and install only files that need updating
-            // This function will also move existing files with correct hashes to new locations
-            let processed_count = if files_to_download.is_empty() {
-                0
-            } else {
-                match crate::core::modpack_file_manager::download_and_install_files(
-                    &instance,
-                    &manifest,
-                    Some(task_id.clone()),
-                )
-                .await
-                {
-                    Ok(count) => count,
+                let removed_files = match crate::core::modpack_file_manager::cleanup_obsolete_files(
+                    &instance, &manifest,
+                ) {
+                    Ok(files) => files,
                     Err(e) => {
-                        update_task(
-                            &task_id,
-                            TaskStatus::Failed,
-                            0.0,
-                            &format!("Error descargando archivos: {}", e),
-                            None,
-                        );
-                        return Err(e);
+                        log::warn!("Error during cleanup (non-fatal): {}", e);
+                        // Don't fail the update for cleanup errors, just log them
+                        Vec::new()
                     }
-                }
-            };
+                };
 
-            // Clean up obsolete files after processing the updates
-            update_task(
-                &task_id,
-                TaskStatus::Running,
-                85.0,
-                "Limpiando archivos obsoletos...",
-                None,
-            );
+                log::info!(
+                    "Incremental update completed: {} files processed, {} obsolete files removed",
+                    processed_count,
+                    removed_files.len()
+                );
 
-            let removed_files = match crate::core::modpack_file_manager::cleanup_obsolete_files(
-                &instance, &manifest,
-            ) {
-                Ok(files) => files,
-                Err(e) => {
-                    log::warn!("Error during cleanup (non-fatal): {}", e);
-                    // Don't fail the update for cleanup errors, just log them
-                    Vec::new()
-                }
-            };
+                Ok(processed_count)
+            })
+        }));
 
-            log::info!(
-                "Incremental update completed: {} files processed, {} obsolete files removed",
-                processed_count,
-                removed_files.len()
-            );
-
-            Ok(processed_count)
-        });
+        // Handle catch_unwind result
+        let files_processed = match block_on_result {
+            Ok(async_result) => async_result,
+            Err(_panic) => {
+                // Panic inside block_on — mark task as Failed
+                log::error!("Panic during modpack update task (task: {})", task_id);
+                update_task(
+                    &task_id,
+                    TaskStatus::Failed,
+                    0.0,
+                    "Error interno durante la actualización (panic)",
+                    None,
+                );
+                std::thread::sleep(std::time::Duration::from_secs(TASK_CLEANUP_DELAY));
+                remove_task(&task_id);
+                return;
+            }
+        };
 
         let files_processed = match files_processed {
             Ok(count) => count,

@@ -486,11 +486,11 @@ impl DownloadManager {
         Ok(downloaded_count)
     }
 
-    /// Download multiple files in parallel with sequential progress reporting
+    /// Download multiple files in parallel with smooth progress reporting.
     ///
-    /// This method downloads files concurrently using a configurable number of simultaneous connections,
-    /// but ensures that progress is reported in sequential order (file 1, file 2, file 3...) regardless
-    /// of the order in which downloads complete.
+    /// Progress is reported based on the total number of completed downloads,
+    /// not sequential order. This prevents the UI from appearing stuck when
+    /// a single large file is slow — the bar always moves forward as files complete.
     ///
     /// Features:
     /// - Configurable concurrency limit (set via max_concurrent_downloads)
@@ -498,20 +498,18 @@ impl DownloadManager {
     /// - Streams data directly to disk without loading into memory
     /// - Verifies SHA1 hash of each downloaded file
     /// - Automatic retry on failure (up to 3 attempts per file)
-    /// - Sequential progress reporting despite parallel execution
+    /// - Completion-count based progress (always moves forward)
     /// - Robust error handling for network, HTTP, disk I/O, and hash validation errors
     ///
     /// # Arguments
     ///
     /// * `files` - Vec of (url, target_path, expected_hash) tuples
-    /// * `progress_callback` - Closure called for each completed file in order
+    /// * `progress_callback` - Closure called with (completed, total, message)
     ///
     /// # Returns
     ///
     /// * `Ok(usize)` - Number of successfully downloaded files
     /// * `Err(String)` - Error message if any download fails
-    ///
-    /// Takes Vec<(url, target_path, expected_hash)> as requested in the specification
     pub async fn download_files_parallel_with_progress<F>(
         &self,
         files: Vec<(String, PathBuf, String)>, // (url, target_path, expected_hash)
@@ -520,6 +518,8 @@ impl DownloadManager {
     where
         F: FnMut(usize, usize, &str) + Send + 'static,
     {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
         let total_files = files.len();
         if total_files == 0 {
             return Ok(0);
@@ -528,9 +528,9 @@ impl DownloadManager {
         // Create semaphore to limit concurrent downloads
         let semaphore = Arc::new(Semaphore::new(self.max_concurrent_downloads));
 
-        // Shared state for tracking download completion in order
-        let completed_downloads = Arc::new(Mutex::new(HashMap::<usize, String>::new()));
-        let next_to_report = Arc::new(Mutex::new(0usize));
+        // Atomic counter for completed downloads — no mutex needed
+        let completed_count = Arc::new(AtomicUsize::new(0));
+
         // Box the callback into a trait object that is Send so it can be shared across spawned tasks
         let progress_callback = Arc::new(tokio::sync::Mutex::new(
             Box::new(progress_callback) as Box<dyn FnMut(usize, usize, &str) + Send>
@@ -554,8 +554,7 @@ impl DownloadManager {
         for (index, (url, target_path, expected_hash)) in files.into_iter().enumerate() {
             let semaphore = semaphore.clone();
             let client = self.client.clone();
-            let completed_downloads = completed_downloads.clone();
-            let next_to_report = next_to_report.clone();
+            let completed_count = completed_count.clone();
             let progress_callback = progress_callback.clone();
             let file_names = file_names.clone();
 
@@ -583,32 +582,12 @@ impl DownloadManager {
                     ));
                 }
 
-                // Mark this download as complete and check if we can report progress
+                // Increment completed count and report progress
+                let completed = completed_count.fetch_add(1, Ordering::Relaxed) + 1;
                 {
-                    let mut completed = completed_downloads.lock().await;
-                    let file_name = target_path
-                        .file_name()
-                        .unwrap_or_default()
-                        .to_string_lossy()
-                        .to_string();
-                    completed.insert(index, file_name);
-
-                    let mut next = next_to_report.lock().await;
-
-                    // Report progress for all consecutive completed downloads
-                    while completed.contains_key(&*next) {
-                        if let Some(_completed_file_name) = completed.get(&*next) {
-                            // Call progress callback with the correct filename for this index
-                            {
-                                let mut callback = progress_callback.lock().await; // Using tokio::sync::Mutex<Box<dyn FnMut...>>
-                                let msg = format!("Descargando {}", file_names[*next]);
-                                (&mut *callback)(*next + 1, total_files, &msg);
-                            }
-                        }
-
-                        completed.remove(&*next);
-                        *next += 1;
-                    }
+                    let mut callback = progress_callback.lock().await;
+                    let msg = format!("Descargando {}", file_names[index]);
+                    (&mut *callback)(completed, total_files, &msg);
                 }
 
                 Ok::<(), String>(())
@@ -795,25 +774,45 @@ pub(crate) fn build_hash_to_path_map(
     Ok(hash_map)
 }
 
-/// Recursively scans a directory and adds file hashes to the map
+/// Recursively scans a directory and adds file hashes to the map.
+/// Skips unreadable directories/files with a warning instead of crashing the entire validation.
 fn scan_directory_for_hashes(
     dir: &Path,
     minecraft_dir: &Path,
     hash_map: &mut HashMap<String, PathBuf>,
 ) -> Result<(), String> {
-    let entries = fs::read_dir(dir)
-        .map_err(|e| format!("Failed to read directory {}: {}", dir.display(), e))?;
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) => {
+            // Permission errors, broken symlinks, etc. — skip this directory
+            log::warn!(
+                "[HashMap] Skipping unreadable directory {}: {}",
+                dir.display(),
+                e
+            );
+            return Ok(());
+        }
+    };
 
     for entry in entries {
-        let entry = entry.map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(e) => {
+                log::warn!(
+                    "[HashMap] Skipping unreadable entry in {}: {}",
+                    dir.display(),
+                    e
+                );
+                continue;
+            }
+        };
         let path = entry.path();
 
         if path.is_file() {
             if let Ok(hash) = calculate_file_hash(&path) {
-                let relative_path = path
-                    .strip_prefix(minecraft_dir)
-                    .map_err(|_| "Failed to get relative path")?;
-                hash_map.insert(hash, relative_path.to_path_buf());
+                if let Ok(relative_path) = path.strip_prefix(minecraft_dir) {
+                    hash_map.insert(hash, relative_path.to_path_buf());
+                }
             }
         } else if path.is_dir() {
             scan_directory_for_hashes(&path, minecraft_dir, hash_map)?;

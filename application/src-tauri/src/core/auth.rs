@@ -547,8 +547,6 @@ mod session {
                     "Server or network error restoring session: {}. Keeping local session.",
                     e
                 );
-                // Emit event so the frontend doesn't hang on authStatusPromise
-                events::emit_auth_status_changed(None, None);
                 return Err(e);
             }
         }
@@ -594,7 +592,6 @@ mod session {
                     "Server or network error refreshing tokens: {}. Keeping credentials.",
                     e
                 );
-                events::emit_auth_status_changed(None, None);
                 Err(e)
             }
         }
