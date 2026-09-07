@@ -1,6 +1,6 @@
 import type { Job } from "bullmq";
 import { createHash } from "node:crypto";
-import { Reader, ZipReader } from "@zip.js/zip.js";
+import { Reader, Writer, ZipReader } from "@zip.js/zip.js";
 import { db } from "@/db/client.ts";
 import {
     modpackVersionsTable,
@@ -35,6 +35,21 @@ class DenoFileReader extends Reader<Deno.FsFile> {
             bytesRead += n;
         }
         return buffer.subarray(0, bytesRead);
+    }
+}
+
+// --- Writer para que zip.js escriba directamente al archivo temporal ---
+class DenoFileWriter extends Writer<void> {
+    constructor(private readonly file: Deno.FsFile) {
+        super();
+    }
+
+    override async writeUint8Array(array: Uint8Array): Promise<void> {
+        await this.file.write(array);
+    }
+
+    override async getData(): Promise<void> {
+        return;
     }
 }
 
@@ -173,24 +188,21 @@ export async function processModpackFiles(job: Job) {
             // Creamos un archivo temporal para extraer este mod específico
             const tempEntryPath = await Deno.makeTempFile({ prefix: "entry_", suffix: ".dat" });
             let entryFile = await Deno.open(tempEntryPath, { write: true, read: true, create: true });
+            const entryWriter = new DenoFileWriter(entryFile);
 
             let sha1Hex = "";
 
             try {
                 // Función de Hashing en streaming (0 memoria extra)
                 const hash = createHash("sha1");
-                const writableStream = new WritableStream({
-                    async write(chunk) {
-                        hash.update(chunk); // Hash on the fly
-                        await entryFile.write(chunk); // Guardar en disco on the fly
-                    }
-                });
-                const transferStream = new TransformStream<Uint8Array, Uint8Array>();
-                const transferPromise = transferStream.readable.pipeTo(writableStream);
+                const originalWrite = entryWriter.writeUint8Array.bind(entryWriter);
+                entryWriter.writeUint8Array = async (array: Uint8Array) => {
+                    hash.update(array); // Hash on the fly
+                    await originalWrite(array); // Guardar en disco on the fly
+                };
 
-                // Extraemos el archivo pasándolo por nuestro stream
-                await entry.getData(transferStream.writable);
-                await transferPromise;
+                // Extraemos el archivo escribiéndolo directo al archivo temporal
+                await entry.getData(entryWriter);
                 sha1Hex = hash.digest("hex");
 
                 // Verificamos el tamaño real del archivo extraído
