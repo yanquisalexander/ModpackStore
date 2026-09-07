@@ -53,8 +53,8 @@ pub enum LaunchError {
     #[error("Asset revalidation error: {0}")]
     AssetRevalidationError(String),
 
-    #[error("The Minecraft launcher failed to start the process.")]
-    ProcessStartFailed,
+    #[error("The Minecraft launcher failed to start the process: {0}")]
+    ProcessStartFailed(String),
 }
 
 impl From<String> for LaunchError {
@@ -642,7 +642,7 @@ impl InstanceLauncher {
 
             minecraft_launcher
                 .launch()
-                .ok_or(LaunchError::ProcessStartFailed)
+                .map_err(LaunchError::ProcessStartFailed)
         })();
 
         match launch_result {

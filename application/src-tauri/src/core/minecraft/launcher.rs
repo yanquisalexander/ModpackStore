@@ -21,18 +21,19 @@ impl MinecraftLauncher {
         Self { instance }
     }
 
-    fn launch_server(&self) -> Option<Child> {
+    fn launch_server(&self) -> Result<Child, String> {
         let config_manager = match get_config_manager().lock() {
             Ok(manager) => manager,
-            Err(_) => return None,
+            Err(e) => return Err(format!("Failed to lock config manager: {}", e)),
         };
 
         let config = match config_manager.as_ref() {
             Ok(cfg) => cfg,
-            Err(_) => return None,
+            Err(e) => return Err(format!("Failed to load config: {}", e)),
         };
 
-        let paths = MinecraftPaths::new(&self.instance, config)?;
+        let paths = MinecraftPaths::new(&self.instance, config)
+            .ok_or_else(|| "Failed to resolve Minecraft paths for server launch".to_string())?;
         let game_dir = paths.game_dir();
 
         // 1. Try to find Modern Forge/NeoForge startup scripts (run.bat / run.sh)
@@ -82,7 +83,9 @@ impl MinecraftLauncher {
                         .stderr(Stdio::piped());
 
                     log::info!("[MinecraftLauncher] Launching Modern Server: {:?}", command);
-                    return command.spawn().ok();
+                    return command
+                        .spawn()
+                        .map_err(|e| format!("Failed to spawn modern server process: {}", e));
                 }
             }
         }
@@ -154,11 +157,9 @@ impl MinecraftLauncher {
         }
 
         if !server_jar.exists() {
-            log::error!(
-                "[MinecraftLauncher] No server JAR found in {}",
-                game_dir.display()
-            );
-            return None;
+            let message = format!("No server JAR found in {}", game_dir.display());
+            log::error!("[MinecraftLauncher] {}", message);
+            return Err(message);
         }
 
         let mc_memory = config.get_minecraft_memory().unwrap_or(2048);
@@ -183,24 +184,26 @@ impl MinecraftLauncher {
 
         log::info!("[MinecraftLauncher] Launching Server: {:?}", command);
 
-        command.spawn().ok()
+        command
+            .spawn()
+            .map_err(|e| format!("Failed to spawn server process: {}", e))
     }
 }
 
 impl GameLauncher for MinecraftLauncher {
-    fn launch(&self) -> Option<Child> {
+    fn launch(&self) -> Result<Child, String> {
         if self.instance.is_server() {
             return self.launch_server();
         }
 
         let config_manager = match get_config_manager().lock() {
             Ok(manager) => manager,
-            Err(_) => return None,
+            Err(e) => return Err(format!("Failed to lock config manager: {}", e)),
         };
 
         let config = match config_manager.as_ref() {
             Ok(cfg) => cfg,
-            Err(_) => return None,
+            Err(e) => return Err(format!("Failed to load config: {}", e)),
         };
 
         log::info!("[MinecraftLauncher] Config loaded");
@@ -228,8 +231,9 @@ impl GameLauncher for MinecraftLauncher {
             let account_uuid = match self.instance.accountUuid.as_deref() {
                 Some(uuid) => uuid,
                 None => {
-                    log::error!("[MinecraftLauncher] useModpackStoreAuth is true but no account UUID set");
-                    return None;
+                        let message = "useModpackStoreAuth is true but no account UUID set".to_string();
+                        log::error!("[MinecraftLauncher] {}", message);
+                        return Err(message);
                 }
             };
 
@@ -237,8 +241,9 @@ impl GameLauncher for MinecraftLauncher {
             let selected_account = match accounts_manager.get_minecraft_account_by_uuid(account_uuid) {
                 Some(acc) => acc,
                 None => {
-                    log::error!("[MinecraftLauncher] Account with UUID {} not found", account_uuid);
-                    return None;
+                    let message = format!("Account with UUID {} not found", account_uuid);
+                    log::error!("[MinecraftLauncher] {}", message);
+                    return Err(message);
                 }
             };
             let username = selected_account.username().to_string();
@@ -246,7 +251,7 @@ impl GameLauncher for MinecraftLauncher {
             // Get JWT token from store synchronously
             let app_handle = match crate::GLOBAL_APP_HANDLE.lock() {
                 Ok(guard) => guard.as_ref().cloned(),
-                Err(_) => return None,
+                Err(e) => return Err(format!("Failed to lock global app handle: {}", e)),
             };
 
             let access_token = match app_handle {
@@ -254,14 +259,16 @@ impl GameLauncher for MinecraftLauncher {
                     match crate::core::instance_manager::get_access_token_sync(&handle) {
                         Ok(Some(token)) => token,
                         _ => {
-                            log::error!("[MinecraftLauncher] No access token found in store");
-                            return None;
+                            let message = "No access token found in store".to_string();
+                            log::error!("[MinecraftLauncher] {}", message);
+                            return Err(message);
                         }
                     }
                 }
                 None => {
-                    log::error!("[MinecraftLauncher] No app handle available");
-                    return None;
+                    let message = "No app handle available".to_string();
+                    log::error!("[MinecraftLauncher] {}", message);
+                    return Err(message);
                 }
             };
 
@@ -271,19 +278,18 @@ impl GameLauncher for MinecraftLauncher {
             let rt = match tokio::runtime::Runtime::new() {
                 Ok(rt) => rt,
                 Err(e) => {
-                    log::error!("[MinecraftLauncher] Failed to create Tokio runtime: {}", e);
-                    return None;
+                    let message = format!("Failed to create Tokio runtime: {}", e);
+                    log::error!("[MinecraftLauncher] {}", message);
+                    return Err(message);
                 }
             };
             let auth_response =
                 match rt.block_on(ms_auth.authenticate(access_token, Some(username))) {
                     Ok(response) => response,
                     Err(e) => {
-                        log::error!(
-                            "[MinecraftLauncher] Failed to authenticate with ModpackStore: {}",
-                            e
-                        );
-                        return None;
+                        let message = format!("Failed to authenticate with ModpackStore: {}", e);
+                        log::error!("[MinecraftLauncher] {}", message);
+                        return Err(message);
                     }
                 };
 
@@ -311,13 +317,15 @@ impl GameLauncher for MinecraftLauncher {
                     acc
                 }
                 None => {
-                    log::error!("[MinecraftLauncher] Account with UUID {} not found", uuid);
-                    return None;
+                    let message = format!("Account with UUID {} not found", uuid);
+                    log::error!("[MinecraftLauncher] {}", message);
+                    return Err(message);
                 }
             }
         } else {
-            log::error!("[MinecraftLauncher] No account assigned to this instance");
-            return None;
+            let message = "No account assigned to this instance".to_string();
+            log::error!("[MinecraftLauncher] {}", message);
+            return Err(message);
         };
 
         log::info!(
@@ -326,7 +334,8 @@ impl GameLauncher for MinecraftLauncher {
         );
 
         // Setup paths
-        let paths = MinecraftPaths::new(&self.instance, config)?;
+        let paths = MinecraftPaths::new(&self.instance, config)
+            .ok_or_else(|| "Failed to resolve Minecraft paths".to_string())?;
 
         log::info!("[MinecraftLauncher] Minecraft paths: {:?}", paths);
         log::info!("[MinecraftLauncher] Java path: {:?}", paths.java_path());
@@ -335,8 +344,9 @@ impl GameLauncher for MinecraftLauncher {
         let manifest_json = match manifest_parser.load_merged_manifest() {
             Ok(manifest) => manifest,
             Err(e) => {
-                log::error!("[MinecraftLauncher] Failed to load manifest: {}", e);
-                return None;
+                let message = format!("Failed to load manifest: {}", e);
+                log::error!("[MinecraftLauncher] {}", message);
+                return Err(message);
             }
         };
 
@@ -347,8 +357,9 @@ impl GameLauncher for MinecraftLauncher {
         let classpath_str = match classpath_builder.build() {
             Ok(classpath) => classpath,
             Err(e) => {
-                log::error!("[MinecraftLauncher] Failed to build classpath: {}", e);
-                return None;
+                let message = format!("Failed to build classpath: {}", e);
+                log::error!("[MinecraftLauncher] {}", message);
+                return Err(message);
             }
         };
 
@@ -360,8 +371,9 @@ impl GameLauncher for MinecraftLauncher {
         let (mut jvm_args, game_args) = match argument_processor.process_arguments() {
             Ok(args) => args,
             Err(e) => {
-                log::error!("[MinecraftLauncher] Failed to process arguments: {}", e);
-                return None;
+                let message = format!("Failed to process arguments: {}", e);
+                log::error!("[MinecraftLauncher] {}", message);
+                return Err(message);
             }
         };
 
@@ -377,11 +389,9 @@ impl GameLauncher for MinecraftLauncher {
                     log::info!("[MinecraftLauncher] Added authlib-injector to JVM arguments");
                 }
                 Err(e) => {
-                    log::error!(
-                        "[MinecraftLauncher] Failed to get authlib-injector argument: {}",
-                        e
-                    );
-                    return None;
+                    let message = format!("Failed to get authlib-injector argument: {}", e);
+                    log::error!("[MinecraftLauncher] {}", message);
+                    return Err(message);
                 }
             }
         }
@@ -390,8 +400,9 @@ impl GameLauncher for MinecraftLauncher {
         let main_class = match manifest_json.get("mainClass").and_then(|v| v.as_str()) {
             Some(class) => class,
             None => {
-                log::error!("[MinecraftLauncher] No mainClass found in manifest");
-                return None;
+                let message = "No mainClass found in manifest".to_string();
+                log::error!("[MinecraftLauncher] {}", message);
+                return Err(message);
             }
         };
 
@@ -430,10 +441,11 @@ impl GameLauncher for MinecraftLauncher {
                     "[MinecraftLauncher] Minecraft process started successfully with PID: {:?}",
                     child.id()
                 );
-                Some(child)
+                Ok(child)
             }
             Err(e) => {
-                log::error!("[MinecraftLauncher] Failed to launch Minecraft: {}", e);
+                let message = format!("Failed to launch Minecraft: {}", e);
+                log::error!("[MinecraftLauncher] {}", message);
                 log::error!(
                     "[MinecraftLauncher] Java path exists: {}",
                     paths.java_path().exists()
@@ -442,7 +454,7 @@ impl GameLauncher for MinecraftLauncher {
                     "[MinecraftLauncher] Working directory exists: {}",
                     paths.game_dir().exists()
                 );
-                None
+                Err(message)
             }
         }
     }

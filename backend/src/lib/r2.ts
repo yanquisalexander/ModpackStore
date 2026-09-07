@@ -4,6 +4,7 @@ import {
     GetObjectCommand,
     DeleteObjectCommand,
     ListObjectsV2Command,
+    HeadObjectCommand,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { FetchHttpHandler } from "@smithy/fetch-http-handler";
@@ -97,6 +98,16 @@ export async function deleteObject(key: string) {
     await getS3Client().send(command);
 }
 
+export async function fileExists(key: string): Promise<boolean> {
+    try {
+        await getS3Client().send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+        return true;
+    } catch (err: any) {
+        if (err.name === "NotFound" || err.$metadata?.httpStatusCode === 404) return false;
+        throw err;
+    }
+}
+
 export async function cleanupOldTempZips(maxAgeMs: number = 24 * 60 * 60 * 1000): Promise<number> {
     const prefix = "temp-zips/";
     const cutoff = new Date(Date.now() - maxAgeMs);
@@ -126,4 +137,45 @@ export async function cleanupOldTempZips(maxAgeMs: number = 24 * 60 * 60 * 1000)
     } while (continuationToken);
 
     return deleted;
+}
+
+// ============================================================================
+// NUEVAS FUNCIONES PARA LOW-MEMORY (STREAMING I/O)
+// ============================================================================
+
+/**
+ * Descarga un archivo desde R2 y lo guarda directamente en el disco.
+ * Al usar streams (pipeTo), el consumo de memoria RAM es casi de 0MB,
+ * sin importar si el archivo pesa 10MB o 2GB.
+ */
+export async function downloadObjectToFile(key: string, destinationPath: string): Promise<void> {
+    const command = new GetObjectCommand({ Bucket: bucket, Key: key });
+    const response = await getS3Client().send(command);
+
+    if (!response.Body) throw new Error(`Empty body returned from R2 for key: ${key}`);
+
+    // Convertimos el body de AWS a un Web Stream estándar
+    const stream = response.Body.transformToWebStream();
+
+    // Abrimos el archivo local en modo escritura
+    const destFile = await Deno.open(destinationPath, { write: true, create: true });
+
+    // Pipeamos los datos: todo lo que entra por red, va directo al disco
+    await stream.pipeTo(destFile.writable);
+}
+
+/**
+ * Sube un archivo a R2 leyendo directamente desde un flujo de datos (Stream).
+ * Permite subir archivos masivos sin necesidad de cargarlos enteros en un Uint8Array.
+ */
+export async function uploadStreamObject(key: string, stream: ReadableStream, contentType?: string): Promise<void> {
+    const command = new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        // El SDK v3 de AWS soporta ReadableStream de forma nativa como Body
+        Body: stream,
+        ContentType: contentType,
+    });
+
+    await getS3Client().send(command);
 }

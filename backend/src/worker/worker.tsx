@@ -7,7 +7,7 @@ import { getJobHandler } from "@/jobs/index.ts";
 import { ProcessModpackFilesQueue } from "@/worker/queues.ts";
 import { db } from "@/db/client.ts";
 import { modpackVersionProcessingJobsTable, ProcessingJobStatus } from "@/db/schema.ts";
-import { eq, and } from "drizzle-orm";
+import { eq, and, lt, or } from "drizzle-orm";
 import { StatusPage } from "./status-page.tsx";
 import type { StatusPageData } from "./status-page.tsx";
 import { log, getLogBuffer, subscribeLogs } from "@/lib/logger.ts";
@@ -30,6 +30,9 @@ let activeJobId: string | null = null;
 
 // --- Status HTTP server ---
 const app = new Hono();
+
+// Endpoint ultra-ligero para el Healthcheck de Render
+app.get("/health", (c) => c.text("OK", 200));
 
 app.get("/", (c) => c.body(null, 204));
 
@@ -67,6 +70,7 @@ app.get("/status/stream", (c) => {
     const writer = writable.getWriter();
     const encoder = new TextEncoder();
 
+    // Nota: Asegúrate que getLogBuffer() no crezca infinitamente en logger.ts
     for (const line of getLogBuffer()) {
         writer.write(encoder.encode(`data: ${line}\n\n`));
     }
@@ -100,106 +104,75 @@ function startServer() {
         }
     })();
 
-    try {
-        server = Deno.serve(
-            {
-                port: desiredPort,
-                onListen: (addr) => {
-                    log(`Worker status server listening on port ${addr.port}`);
-                },
-            },
-            app.fetch,
-        );
-    } catch {
-        server = Deno.serve(
-            {
-                port: 0,
-                onListen: (addr) => {
-                    log(`Worker status server listening on port ${addr.port}`);
-                },
-            },
-            app.fetch,
-        );
-    }
+    const serveOptions = {
+        port: desiredPort > 0 ? desiredPort : 0,
+        onListen: (addr: Deno.NetAddr) => {
+            log(`Worker status server listening on port ${addr.port}`);
+        },
+    };
+
+    server = Deno.serve(serveOptions, app.fetch);
 }
 
-// --- Recovery: re-enqueue orphaned PENDING and stale PROCESSING jobs ---
+// --- Recovery: Recuperación en lotes para no saturar memoria ---
 async function recoverStuckJobs() {
     try {
-        const stuckStatuses = await db.select()
-            .from(modpackVersionProcessingJobsTable)
-            .where(eq(modpackVersionProcessingJobsTable.status, ProcessingJobStatus.PENDING));
+        log("Checking for orphaned jobs...");
+        const limit = 50; // Procesar en lotes pequeños
+        let offset = 0;
+        let hasMore = true;
 
-        // Also find PROCESSING jobs older than 5 minutes (stale from crashed worker)
         const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000);
-        const staleProcessing = await db.select()
-            .from(modpackVersionProcessingJobsTable)
-            .where(eq(modpackVersionProcessingJobsTable.status, ProcessingJobStatus.PROCESSING));
 
-        const staleJobs = staleProcessing.filter(
-            (r) => r.updatedAt && r.updatedAt < fiveMinAgo,
-        );
+        while (hasMore) {
+            // Buscamos PENDING o PROCESSING obsoletos
+            const stuckJobs = await db.select()
+                .from(modpackVersionProcessingJobsTable)
+                .where(
+                    or(
+                        eq(modpackVersionProcessingJobsTable.status, ProcessingJobStatus.PENDING),
+                        and(
+                            eq(modpackVersionProcessingJobsTable.status, ProcessingJobStatus.PROCESSING),
+                            lt(modpackVersionProcessingJobsTable.updatedAt, fiveMinAgo)
+                        )
+                    )
+                )
+                .limit(limit)
+                .offset(offset);
 
-        const allJobs = [...stuckStatuses, ...staleJobs];
-
-        if (allJobs.length === 0) {
-            log("No stuck jobs to recover.");
-            return;
-        }
-
-        log(`Found ${allJobs.length} stuck job(s) (${stuckStatuses.length} PENDING, ${staleJobs.length} stale PROCESSING), re-enqueuing...`);
-
-        for (const record of allJobs) {
-            // Reset stale PROCESSING back to PENDING in DB
-            if (record.status === ProcessingJobStatus.PROCESSING) {
-                await db.update(modpackVersionProcessingJobsTable)
-                    .set({ status: ProcessingJobStatus.PENDING, updatedAt: new Date() })
-                    .where(eq(modpackVersionProcessingJobsTable.jobId, record.jobId));
+            if (stuckJobs.length === 0) {
+                hasMore = false;
+                break;
             }
 
-            const existingJob = await ProcessModpackFilesQueue.getJob(record.jobId);
-            if (existingJob) {
-                const state = await existingJob.getState();
-                if (state === "completed") {
+            log(`Processing batch of ${stuckJobs.length} stuck/stale jobs (offset ${offset})...`);
+
+            for (const record of stuckJobs) {
+                // Resetear estado en DB si estaba estancado en PROCESSING
+                if (record.status === ProcessingJobStatus.PROCESSING) {
                     await db.update(modpackVersionProcessingJobsTable)
-                        .set({ status: ProcessingJobStatus.COMPLETED, progress: "100", updatedAt: new Date() })
+                        .set({ status: ProcessingJobStatus.PENDING, updatedAt: new Date() })
                         .where(eq(modpackVersionProcessingJobsTable.jobId, record.jobId));
-                    log(`  Job ${record.jobId} already completed, synced DB.`);
-                    continue;
                 }
-                if (state === "failed" || state === "stalled" || state === "active") {
-                    await existingJob.remove();
-                    await ProcessModpackFilesQueue.add(
-                        "process-modpack-files",
-                        { versionId: record.versionId, fileType: record.fileType },
-                        { jobId: record.jobId },
-                    );
-                    log(`  Removed stale job ${record.jobId} (was ${state}), re-added fresh (${record.fileType})`);
-                    continue;
-                }
-                log(`  Job ${record.jobId} already ${state}, skipping.`);
-                continue;
+
+                // BullMQ ignorará esto si ya está en cola con el mismo jobId gracias a sus locks
+                await ProcessModpackFilesQueue.add(
+                    "process-modpack-files",
+                    { versionId: record.versionId, fileType: record.fileType },
+                    {
+                        jobId: record.jobId,
+                        // Fundamental para no llenar la RAM de Redis
+                        removeOnComplete: { age: 3600, count: 100 },
+                        removeOnFail: { age: 24 * 3600, count: 100 }
+                    }
+                );
+                log(`  Re-enqueued job ${record.jobId} (${record.fileType})`);
             }
 
-            await ProcessModpackFilesQueue.add(
-                "process-modpack-files",
-                { versionId: record.versionId, fileType: record.fileType },
-                { jobId: record.jobId },
-            );
-            log(`  Re-enqueued job ${record.jobId} (${record.fileType})`);
+            offset += limit;
         }
 
-        log("Recovery complete.");
-
-        // Clean up temp ZIPs older than 24 hours
-        try {
-            const cleaned = await cleanupOldTempZips(24 * 60 * 60 * 1000);
-            if (cleaned > 0) {
-                log(`Cleaned up ${cleaned} old temp ZIP(s) from R2.`);
-            }
-        } catch (err) {
-            log(`[CLEANUP_WARN] Failed to clean old temp ZIPs: ${err}`);
-        }
+        log("Recovery process finished.");
     } catch (err) {
         log(`[RECOVERY_ERROR] Failed to recover stuck jobs: ${err}`);
     }
@@ -217,12 +190,13 @@ const worker = new Worker(
         }
 
         log(`Processing job ${job.id} of type ${job.name} with data:`, job.data);
-
         await handler(job);
     },
     {
         connection: redisConnection,
-        concurrency: 1,
+        concurrency: 1, // Mantiene bajo el consumo de CPU/RAM
+        maxStalledCount: 1, // Configurado para delegar stalled jobs
+        lockDuration: 30000,
     },
 );
 
@@ -230,8 +204,27 @@ worker.on("ready", async () => {
     log("Worker is ready and listening for jobs...");
     workerStatus = "ready";
     startedAt = Date.now();
+
     startServer();
     await recoverStuckJobs();
+
+    // Limpieza de R2 al iniciar
+    try {
+        const cleaned = await cleanupOldTempZips(24 * 60 * 60 * 1000);
+        if (cleaned > 0) log(`Cleaned up ${cleaned} old temp ZIP(s) from R2.`);
+    } catch (err) {
+        log(`[CLEANUP_WARN] Failed to clean old temp ZIPs: ${err}`);
+    }
+
+    // Tarea cron en memoria para limpiar recursos cada 6 horas
+    setInterval(async () => {
+        try {
+            const cleaned = await cleanupOldTempZips(24 * 60 * 60 * 1000);
+            if (cleaned > 0) log(`[CRON] Cleaned up ${cleaned} old temp ZIP(s) from R2.`);
+        } catch (err) {
+            log(`[CRON_ERROR] Failed to clean old temp ZIPs: ${err}`);
+        }
+    }, 6 * 60 * 60 * 1000);
 });
 
 worker.on("active", (job) => {
@@ -268,3 +261,40 @@ worker.on("error", (err) => {
     log("[WORKER_ERROR]", err);
     workerStatus = "error";
 });
+
+// --- Graceful Shutdown ---
+let isShuttingDown = false;
+
+async function gracefulShutdown(signal: string) {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+
+    log(`\n[SHUTDOWN] Received ${signal}. Gracefully shutting down worker...`);
+    workerStatus = "shutting_down";
+
+    try {
+        // 1. Detener el servidor HTTP para dejar de recibir peticiones de status/health
+        if (server) {
+            log("[SHUTDOWN] Stopping HTTP Server...");
+            await server.shutdown();
+        }
+
+        // 2. Esperar a que el Worker termine su trabajo activo actual (si lo hay)
+        log("[SHUTDOWN] Closing BullMQ Worker (waiting for active jobs to finish)...");
+        await worker.close();
+
+        // 3. Cerrar la conexión de Redis limpiamente
+        log("[SHUTDOWN] Quitting Redis connection...");
+        redisConnection.quit();
+
+        log("[SHUTDOWN] Cleanup complete. Exiting process.");
+        Deno.exit(0);
+    } catch (error) {
+        log(`[SHUTDOWN_ERROR] Error during shutdown: ${error}`);
+        Deno.exit(1);
+    }
+}
+
+// Interceptar señales de término enviadas por Render
+Deno.addSignalListener("SIGINT", () => gracefulShutdown("SIGINT"));
+Deno.addSignalListener("SIGTERM", () => gracefulShutdown("SIGTERM"));

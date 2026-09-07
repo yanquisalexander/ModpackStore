@@ -1,5 +1,6 @@
 import type { Job } from "bullmq";
-import { Uint8ArrayReader, Uint8ArrayWriter, ZipReader } from "@zip.js/zip.js";
+import { createHash } from "node:crypto";
+import { Reader, WritableStreamWriter, ZipReader } from "@zip.js/zip.js";
 import { db } from "@/db/client.ts";
 import {
     modpackVersionsTable,
@@ -10,9 +11,32 @@ import {
 } from "@/db/schema.ts";
 import { eq } from "drizzle-orm";
 import { log } from "@/lib/logger.ts";
-import { downloadObject, uploadObject, deleteObject, getTempZipKey, getFileKey } from "@/lib/r2.ts";
+// Importante: Necesitas adaptar downloadObject y uploadObject en r2.ts 
+// para que acepten archivos locales/streams (ver sección abajo)
+import { downloadObjectToFile, uploadStreamObject, deleteObject, getTempZipKey, getFileKey, fileExists } from "@/lib/r2.ts";
 
 const INSERT_CHUNK_SIZE = 500;
+
+// --- Helper para que zip.js lea desde el disco en lugar de la RAM ---
+class DenoFileReader extends Reader {
+    file: Deno.FsFile;
+    constructor(file: Deno.FsFile, size: number) {
+        super();
+        this.file = file;
+        this.size = size; // Propiedad requerida por zip.js
+    }
+    async readUint8Array(offset: number, length: number): Promise<Uint8Array> {
+        await this.file.seek(offset, Deno.SeekMode.Start);
+        const buffer = new Uint8Array(length);
+        let bytesRead = 0;
+        while (bytesRead < length) {
+            const n = await this.file.read(buffer.subarray(bytesRead));
+            if (n === null) break;
+            bytesRead += n;
+        }
+        return buffer.subarray(0, bytesRead);
+    }
+}
 
 async function updateProcessingJob(jobId: string, updates: Partial<{
     status: ProcessingJobStatus;
@@ -45,18 +69,6 @@ interface FileMeta {
     size: number;
 }
 
-async function sha1(data: Uint8Array): Promise<string> {
-    // Ensure plain ArrayBuffer for crypto.subtle.digest (avoids SharedArrayBuffer type issues)
-    const arrayBuffer = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
-    const hashBuffer = await crypto.subtle.digest("SHA-1", arrayBuffer);
-    const hashArray = new Uint8Array(hashBuffer);
-    let hex = "";
-    for (let i = 0; i < hashArray.length; i++) {
-        hex += hashArray[i].toString(16).padStart(2, "0");
-    }
-    return hex;
-}
-
 function determineSideByPath(filePath: string): FileSide {
     const firstDir = filePath.split("/")[0]?.toLowerCase();
     switch (firstDir) {
@@ -81,6 +93,10 @@ export async function processModpackFiles(job: Job) {
     const jobId = job.id!;
     let zipKey = "";
 
+    // Almacenará la ruta de nuestro ZIP temporal en disco
+    let tempZipPath: string | null = null;
+    let zipFile: Deno.FsFile | null = null;
+
     try {
         await updateProcessingJob(jobId, { status: ProcessingJobStatus.PROCESSING, progress: 0 });
 
@@ -101,37 +117,34 @@ export async function processModpackFiles(job: Job) {
 
         const modpackId = version.modpackId;
         zipKey = getTempZipKey(modpackId, versionId, fileType);
-        log(`  ZIP key: ${zipKey}`);
 
-        // Download ZIP
-        log(`  Downloading ZIP from R2...`);
-        let zipBuffer: Uint8Array;
+        // 1. Crear archivo temporal en disco para descargar el ZIP
+        tempZipPath = await Deno.makeTempFile({ prefix: "modpack_", suffix: ".zip" });
+        log(`  ZIP key: ${zipKey}`);
+        log(`  Downloading ZIP directly to disk (${tempZipPath})...`);
+
         try {
-            zipBuffer = await downloadObject(zipKey);
+            // DEBES cambiar tu función en r2.ts para que guarde directo al disco
+            await downloadObjectToFile(zipKey, tempZipPath);
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             log(`  [ERROR] Failed to download ZIP: ${msg}`);
             await updateProcessingJob(jobId, { status: ProcessingJobStatus.FAILED, error: `Failed to download ZIP: ${msg}` });
-            // If the ZIP doesn't exist, don't retry — it's unrecoverable
-            if (msg.includes("NoSuchKey") || msg.includes("does not exist")) {
-                log(`  [SKIP] ZIP not found in R2, marking as permanently failed (no retry).`);
-                return;
-            }
+            if (msg.includes("NoSuchKey") || msg.includes("does not exist")) return;
             throw err;
         }
 
         await updateProcessingJob(jobId, { progress: 20 });
-        log(`  Downloaded ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB`);
 
-        // Read ZIP entries using @zip.js/zip.js
+        // 2. Abrir el ZIP desde el disco sin cargarlo a RAM
+        zipFile = await Deno.open(tempZipPath, { read: true });
+        const zipStat = await zipFile.stat();
+        log(`  Downloaded ${(zipStat.size / 1024 / 1024).toFixed(2)} MB to disk`);
+
         log(`  Reading ZIP entries...`);
-        const zipData = zipBuffer;
-        zipBuffer = null as any;
-
-        const zipReader = new ZipReader(new Uint8ArrayReader(zipData));
+        const zipReader = new ZipReader(new DenoFileReader(zipFile, zipStat.size));
         const entries = await zipReader.getEntries();
 
-        // Detect if the ZIP has a single root folder matching the fileType
         const rootDirs = new Set<string>();
         for (const entry of entries) {
             if (entry.directory) {
@@ -149,72 +162,94 @@ export async function processModpackFiles(job: Job) {
         let skipped = 0;
         let uploaded = 0;
         let dedupSavingsLocal = 0;
+        let crossJobSkipped = 0;
 
-        // Process entries one at a time — upload immediately and release
+        // 3. Procesar archivo por archivo
         for (const entry of entries) {
             if (entry.directory) continue;
             if (entry.filename.startsWith("__MACOSX/")) { skipped++; continue; }
             if (entry.filename.startsWith(".")) { skipped++; continue; }
 
-            const writer = new Uint8ArrayWriter();
-            const content = await entry.getData(writer);
-            if (content.length === 0) { skipped++; continue; }
+            // Creamos un archivo temporal para extraer este mod específico
+            const tempEntryPath = await Deno.makeTempFile({ prefix: "entry_", suffix: ".dat" });
+            let entryFile = await Deno.open(tempEntryPath, { write: true, read: true, create: true });
 
-            const hash = await sha1(content);
-            const filePath = stripPrefix ? entry.filename.slice(stripPrefix.length) : entry.filename;
-            const side = determineSideByPath(filePath);
+            let sha1Hex = "";
 
-            fileMetas.push({ hash, path: filePath, fileType: fileType as FileType, side, size: content.length });
+            try {
+                // Función de Hashing en streaming (0 memoria extra)
+                const hash = createHash("sha1");
+                const writableStream = new WritableStream({
+                    async write(chunk) {
+                        hash.update(chunk); // Hash on the fly
+                        await entryFile.write(chunk); // Guardar en disco on the fly
+                    }
+                });
 
-            if (!uniqueMetas.has(hash)) {
-                uniqueMetas.set(hash, { hash, path: filePath, fileType: fileType as FileType, side, size: content.length });
-                await uploadObject(getFileKey(hash), content, "application/octet-stream");
-                uploaded++;
-            } else {
-                dedupSavingsLocal += content.length;
-            }
+                // Extraemos el archivo pasándolo por nuestro stream
+                await entry.getData(new WritableStreamWriter(writableStream));
+                sha1Hex = hash.digest("hex");
 
-            const ext = filePath.includes(".") ? filePath.split(".").pop()!.toLowerCase() : "(none)";
-            extCounts.set(ext, (extCounts.get(ext) ?? 0) + 1);
+                // Verificamos el tamaño real del archivo extraído
+                const entryStat = await entryFile.stat();
+                const contentSize = entryStat.size;
 
-            if (fileMetas.length % 500 === 0) {
-                log(`  Progress: ${fileMetas.length} files scanned, ${uploaded} unique uploaded...`);
+                if (contentSize === 0) {
+                    skipped++;
+                    continue;
+                }
+
+                const filePath = stripPrefix ? entry.filename.slice(stripPrefix.length) : entry.filename;
+                const side = determineSideByPath(filePath);
+
+                fileMetas.push({ hash: sha1Hex, path: filePath, fileType: fileType as FileType, side, size: contentSize });
+
+                // LÓGICA DE DE-DUPLICACIÓN MÁGICA
+                if (!uniqueMetas.has(sha1Hex)) {
+                    uniqueMetas.set(sha1Hex, { hash: sha1Hex, path: filePath, fileType: fileType as FileType, side, size: contentSize });
+
+                    const exists = await fileExists(getFileKey(sha1Hex));
+                    if (exists) {
+                        crossJobSkipped++;
+                    } else {
+                        // Reseteamos el puntero del archivo al inicio para leerlo y subirlo
+                        await entryFile.seek(0, Deno.SeekMode.Start);
+
+                        // Subimos el ReadableStream directamente a R2. ¡Sin RAM!
+                        await uploadStreamObject(getFileKey(sha1Hex), entryFile.readable, "application/octet-stream");
+                        uploaded++;
+                    }
+                } else {
+                    dedupSavingsLocal += contentSize;
+                }
+
+                const ext = filePath.includes(".") ? filePath.split(".").pop()!.toLowerCase() : "(none)";
+                extCounts.set(ext, (extCounts.get(ext) ?? 0) + 1);
+
+                if (fileMetas.length % 50 === 0) {
+                    log(`  Progress: ${fileMetas.length} files scanned, ${uploaded} uploaded...`);
+                }
+
+            } finally {
+                // Siempre cerrar y borrar el archivo temporal del mod (RAM y Disco limpios)
+                try {
+                    entryFile.close();
+                    await Deno.remove(tempEntryPath);
+                } catch { /* Ignorar si ya fue cerrado */ }
             }
         }
 
-        // Close the reader
         await zipReader.close();
 
-        if (stripPrefix) {
-            log(`  Detected root folder "${fileType}/" — stripped prefix from all paths`);
-        }
+        log(`  Uploaded ${uploaded} new files to R2 (skipped ${crossJobSkipped} already in R2, ${dedupSavingsLocal > 0 ? `${(dedupSavingsLocal / 1024 / 1024).toFixed(2)} MB deduped within ZIP` : "no intra-ZIP dupes"})`);
 
         await updateProcessingJob(jobId, { progress: 40 });
-
-        log(`  Parsed ${fileMetas.length} files (${skipped} skipped)`);
-        log(`  Extensions: ${Array.from(extCounts.entries()).sort((a, b) => b[1] - a[1]).map(([ext, count]) => `${ext}: ${count}`).join(", ")}`);
-
-        // Side summary
-        const sideCounts = { both: 0, client: 0, server: 0 };
-        for (const pf of fileMetas) {
-            if (pf.side === "both") sideCounts.both++;
-            else if (pf.side === "client") sideCounts.client++;
-            else if (pf.side === "server") sideCounts.server++;
-        }
-        log(`  Sides: both=${sideCounts.both}, client=${sideCounts.client}, server=${sideCounts.server}`);
-
-        const totalSize = fileMetas.reduce((sum, pf) => sum + pf.size, 0);
-        log(`  Total size: ${(totalSize / 1024 / 1024).toFixed(2)} MB`);
-        log(`  Unique files: ${uniqueMetas.size} (dedup saved ${(dedupSavingsLocal / 1024 / 1024).toFixed(2)} MB)`);
-        log(`  Uploaded ${uploaded} unique files to R2`);
 
         const uploadEnd = Date.now();
         log(`  All uploads done in ${((uploadEnd - start) / 1000).toFixed(1)}s`);
         log(`  Inserting DB records...`);
 
         const insertStart = Date.now();
-
-        // Batch insert with chunking (no transaction — neon-http doesn't support it)
         const fileRows = Array.from(uniqueMetas.values()).map((pf) => ({
             hash: pf.hash,
             size: String(pf.size),
@@ -229,42 +264,38 @@ export async function processModpackFiles(job: Job) {
             side: pf.side,
         }));
 
-        // Chunked insert modpack_files
         for (let i = 0; i < fileRows.length; i += INSERT_CHUNK_SIZE) {
             const chunk = fileRows.slice(i, i + INSERT_CHUNK_SIZE);
             await db.insert(modpackFilesTable).values(chunk).onConflictDoNothing();
         }
 
-        // Chunked insert modpack_version_files
         for (let i = 0; i < versionFileRows.length; i += INSERT_CHUNK_SIZE) {
             const chunk = versionFileRows.slice(i, i + INSERT_CHUNK_SIZE);
             await db.insert(modpackVersionFilesTable).values(chunk).onConflictDoNothing();
         }
 
         await updateProcessingJob(jobId, { progress: 80 });
-
-        log(`  DB inserts done in ${((Date.now() - insertStart) / 1000).toFixed(2)}s (${fileRows.length} file records, ${versionFileRows.length} version-file records)`);
-
-        const elapsed = ((Date.now() - start) / 1000).toFixed(1);
-        log(`  ✅ Completed in ${elapsed}s — ${fileMetas.length} files processed, ${uniqueMetas.size} unique`);
-        log(`═══ end [${jobId}] ═══`);
-
+        log(`  ✅ Completed in ${((Date.now() - start) / 1000).toFixed(1)}s`);
         await updateProcessingJob(jobId, { status: ProcessingJobStatus.COMPLETED, progress: 100 });
 
-        // Clean up temp ZIP only on success
         if (zipKey) {
             try {
                 await deleteObject(zipKey);
-                log(`  Cleaned up temp ZIP: ${zipKey}`);
-            } catch {
-                // Best effort
-            }
+                log(`  Cleaned up temp ZIP in R2: ${zipKey}`);
+            } catch { /* Best effort */ }
         }
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         log(`  [ERROR] Job failed: ${message}`);
         await updateProcessingJob(jobId, { status: ProcessingJobStatus.FAILED, error: message });
         throw err;
+    } finally {
+        // Limpiar recursos físicos del Worker
+        if (zipFile) {
+            try { zipFile.close(); } catch { }
+        }
+        if (tempZipPath) {
+            try { await Deno.remove(tempZipPath); } catch { }
+        }
     }
 }
-

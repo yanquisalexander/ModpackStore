@@ -1,3 +1,3 @@
 pub trait GameLauncher {
-    fn launch(&self) -> Option<std::process::Child>;
+    fn launch(&self) -> Result<std::process::Child, String>;
 }
