@@ -153,17 +153,21 @@ export async function downloadObjectToFile(key: string, destinationPath: string)
 
     if (!response.Body) throw new Error(`Empty body returned from R2 for key: ${key}`);
 
-    const destFile = await Deno.open(destinationPath, { write: true, create: true, truncate: true });
-    
-    try {
-        if (response.Body.pipeTo) {
+    if (response.Body.pipeTo) {
+        const destFile = await Deno.open(destinationPath, { write: true, create: true, truncate: true });
+        try {
             await response.Body.pipeTo(destFile.writable);
-        } else {
-            const bytes = await response.Body.transformToByteArray();
-            await destFile.write(bytes);
+        } finally {
+            try { destFile.close(); } catch { /* pipeTo already closed it */ }
         }
-    } finally {
-        await destFile.close();
+    } else {
+        const bytes = await response.Body.transformToByteArray();
+        const destFile = await Deno.open(destinationPath, { write: true, create: true, truncate: true });
+        try {
+            await destFile.write(bytes);
+        } finally {
+            destFile.close();
+        }
     }
 }
 
@@ -187,7 +191,7 @@ export async function uploadFileFromPath(key: string, filePath: string, contentT
     try {
         await uploadStreamObject(key, file.readable, contentType);
     } finally {
-        file.close();
+        try { file.close(); } catch { /* already closed */ }
     }
 }
 
