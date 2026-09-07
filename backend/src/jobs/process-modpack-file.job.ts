@@ -1,6 +1,6 @@
 import type { Job } from "bullmq";
 import { createHash } from "node:crypto";
-import { Reader, Writer, ZipReader } from "@zip.js/zip.js";
+import { Reader, Writer, ZipReader } from "@zip-js/zip-js";
 import { db } from "@/db/client.ts";
 import {
     modpackVersionsTable,

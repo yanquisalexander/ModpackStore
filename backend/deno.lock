@@ -2,6 +2,7 @@
   "version": "5",
   "specifiers": {
     "jsr:@hono/hono@^4.12.23": "4.12.23",
+    "jsr:@zip-js/zip-js@2.11.2": "2.11.2",
     "jsr:@zip-js/zip-js@^2.11.2": "2.11.2",
     "npm:@aws-sdk/client-s3@^3.758.0": "3.1067.0",
     "npm:@aws-sdk/s3-request-presigner@^3.758.0": "3.1067.0",
