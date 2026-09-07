@@ -95,6 +95,7 @@ pub fn update_instance(instance: MinecraftInstance) -> Result<(), String> {
 
         existing_instance.instanceName = instance.instanceName;
         existing_instance.accountUuid = instance.accountUuid;
+        existing_instance.useModpackStoreAuth = instance.useModpackStoreAuth;
         existing_instance.ms_nickname = instance.ms_nickname;
         existing_instance.favorite = instance.favorite;
 
@@ -126,6 +127,14 @@ pub fn delete_instance(instance_path: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
+    if crate::core::instance_launcher::get_running_instances_list()
+        .iter()
+        .any(|info| info.id == instance_id)
+        || crate::core::instance_launcher::is_instance_launching(&instance_id)
+    {
+        return Err(format!("Instance {} is already running or launching", instance_id));
+    }
+
     let instances_dir = get_instances_dir()?;
     let instances = get_instances(instances_dir.to_str().unwrap_or_default())?;
 

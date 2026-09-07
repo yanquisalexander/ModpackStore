@@ -1,7 +1,7 @@
 //! Handles the logic for preparing and launching a specific Minecraft instance.
 
 // --- Standard Library Imports ---
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::io::{Error as IoError, ErrorKind as IoErrorKind};
@@ -132,6 +132,8 @@ pub struct InstanceStats {
 lazy_static! {
     static ref RUNNING_INSTANCES: Arc<Mutex<HashMap<String, RunningInstanceInfo>>> =
         Arc::new(Mutex::new(HashMap::new()));
+    static ref LAUNCHING_INSTANCES: Arc<Mutex<HashSet<String>>> =
+        Arc::new(Mutex::new(HashSet::new()));
     static ref SYSTEM: Arc<Mutex<System>> = Arc::new(Mutex::new(System::new_all()));
     // Regex to capture Java version mismatch details from stderr
     static ref RE_JAVA_VERSION: Regex = Regex::new(r"class file version (\d+\.\d+).*, this version of the Java Runtime only recognizes class file versions up to (\d+\.\d+)").unwrap();
@@ -147,6 +149,14 @@ pub fn get_running_instances_list() -> Vec<RunningInstanceInfo> {
         .ok()
         .map(|lock| lock.values().cloned().collect())
         .unwrap_or_default()
+}
+
+pub fn is_instance_launching(instance_id: &str) -> bool {
+    LAUNCHING_INSTANCES
+        .lock()
+        .ok()
+        .map(|lock| lock.contains(instance_id))
+        .unwrap_or(false)
 }
 
 #[tauri::command]
@@ -729,8 +739,9 @@ impl InstanceLauncher {
             "[Launch Thread: {}] Closing launcher as configured.",
             self.instance.instanceId
         );
-        // Give MC time to load by polling for the process to appear in the running instances
+        // Wait for the launched process to appear in the registry before closing.
         let instance_id = self.instance.instanceId.clone();
+        let mut appeared = false;
         for _ in 0..10 {
             let found = RUNNING_INSTANCES
                 .lock()
@@ -738,10 +749,18 @@ impl InstanceLauncher {
                 .map(|lock| lock.contains_key(&instance_id))
                 .unwrap_or(false);
             if found {
-                thread::sleep(std::time::Duration::from_millis(500));
-            } else {
+                appeared = true;
                 break;
             }
+            thread::sleep(std::time::Duration::from_millis(500));
+        }
+
+        if !appeared {
+            warn!(
+                "[Launch Thread: {}] Launcher not closed because the instance never registered as running.",
+                self.instance.instanceId
+            );
+            return;
         }
 
         if let Ok(guard) = GLOBAL_APP_HANDLE.lock() {
@@ -756,9 +775,34 @@ impl InstanceLauncher {
     /// Initiates the instance launch process in a separate background thread.
     pub fn launch_instance_async(&self) {
         let instance_arc_clone = Arc::clone(&self.instance);
+        let instance_id = instance_arc_clone.instanceId.clone();
+
+        let already_running = RUNNING_INSTANCES
+            .lock()
+            .ok()
+            .map(|lock| lock.contains_key(&instance_id))
+            .unwrap_or(false);
+        let already_launching = LAUNCHING_INSTANCES
+            .lock()
+            .ok()
+            .map(|lock| lock.contains(&instance_id))
+            .unwrap_or(false);
+
+        if already_running || already_launching {
+            warn!(
+                "[Main Thread] Instance {} is already running or launching; ignoring duplicate launch request.",
+                instance_id
+            );
+            return;
+        }
+
+        if let Ok(mut lock) = LAUNCHING_INSTANCES.lock() {
+            lock.insert(instance_id.clone());
+        }
+
         info!(
             "[Main Thread] Spawning launch thread for instance: {}",
-            instance_arc_clone.instanceId
+            instance_id
         );
 
         thread::spawn(move || {
@@ -766,6 +810,10 @@ impl InstanceLauncher {
                 instance: instance_arc_clone,
             };
             thread_launcher.perform_launch_steps();
+
+            if let Ok(mut lock) = LAUNCHING_INSTANCES.lock() {
+                lock.remove(&thread_launcher.instance.instanceId);
+            }
         });
     }
 }

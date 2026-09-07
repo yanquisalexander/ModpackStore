@@ -274,6 +274,9 @@ pub fn main() {
             let mut app_handle = GLOBAL_APP_HANDLE.lock().unwrap();
             *app_handle = Some(app.handle().clone());
 
+            // Start periodic task cleanup once the app is ready.
+            crate::core::tasks_manager::start_periodic_task_cleanup();
+
             // Initialize i18n system
             if let Err(e) = crate::core::i18n::init_i18n_manager(app.handle().clone()) {
                 log::error!("Failed to initialize i18n manager: {}", e);
