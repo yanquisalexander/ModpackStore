@@ -298,8 +298,10 @@ export async function processModpackFiles(job: Job) {
         }
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        const stack = err instanceof Error ? err.stack : "";
         log(`  [ERROR] Job failed: ${message}`);
-        await updateProcessingJob(jobId, { status: ProcessingJobStatus.FAILED, error: message });
+        if (stack) log(`  [STACK] ${stack}`);
+        await updateProcessingJob(jobId, { status: ProcessingJobStatus.FAILED, error: `${message}\n${stack}` });
         throw err;
     } finally {
         // Limpiar recursos físicos del Worker
