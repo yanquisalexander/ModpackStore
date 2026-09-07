@@ -144,9 +144,8 @@ export async function cleanupOldTempZips(maxAgeMs: number = 24 * 60 * 60 * 1000)
 // ============================================================================
 
 /**
- * Descarga un archivo desde R2 y lo guarda directamente en el disco.
- * Al usar streams (pipeTo), el consumo de memoria RAM es casi de 0MB,
- * sin importar si el archivo pesa 10MB o 2GB.
+ * Descarga un archivo desde R2 y lo guarda directamente en el disco usando streaming.
+ * Evita OOM al no cargar el archivo completo en RAM.
  */
 export async function downloadObjectToFile(key: string, destinationPath: string): Promise<void> {
     const command = new GetObjectCommand({ Bucket: bucket, Key: key });
@@ -154,14 +153,18 @@ export async function downloadObjectToFile(key: string, destinationPath: string)
 
     if (!response.Body) throw new Error(`Empty body returned from R2 for key: ${key}`);
 
-    // Convertimos el body de AWS a un Web Stream estándar
-    const stream = response.Body.transformToWebStream();
-
-    // Abrimos el archivo local en modo escritura
-    const destFile = await Deno.open(destinationPath, { write: true, create: true });
-
-    // Pipeamos los datos: todo lo que entra por red, va directo al disco
-    await stream.pipeTo(destFile.writable);
+    const destFile = await Deno.open(destinationPath, { write: true, create: true, truncate: true });
+    
+    try {
+        if (response.Body.pipeTo) {
+            await response.Body.pipeTo(destFile.writable);
+        } else {
+            const bytes = await response.Body.transformToByteArray();
+            await destFile.write(bytes);
+        }
+    } finally {
+        await destFile.close();
+    }
 }
 
 /**
@@ -172,10 +175,39 @@ export async function uploadStreamObject(key: string, stream: ReadableStream, co
     const command = new PutObjectCommand({
         Bucket: bucket,
         Key: key,
-        // El SDK v3 de AWS soporta ReadableStream de forma nativa como Body
         Body: stream,
         ContentType: contentType,
     });
 
     await getS3Client().send(command);
+}
+
+export async function uploadFileFromPath(key: string, filePath: string, contentType?: string): Promise<void> {
+    const file = await Deno.open(filePath, { read: true });
+    try {
+        await uploadStreamObject(key, file.readable, contentType);
+    } finally {
+        file.close();
+    }
+}
+
+export async function batchUploadFromPaths(uploadList: Array<{ key: string; filePath: string; contentType?: string }>, concurrency = 5): Promise<{ uploaded: number; skipped: number }> {
+    let uploaded = 0;
+    let skipped = 0;
+    
+    for (let i = 0; i < uploadList.length; i += concurrency) {
+        const batch = uploadList.slice(i, i + concurrency);
+        
+        await Promise.all(batch.map(async (upload) => {
+            try {
+                await uploadFileFromPath(upload.key, upload.filePath, upload.contentType);
+                uploaded++;
+            } catch (err) {
+                console.error(`Failed to upload ${upload.key}:`, err);
+                skipped++;
+            }
+        }));
+    }
+    
+    return { uploaded, skipped };
 }

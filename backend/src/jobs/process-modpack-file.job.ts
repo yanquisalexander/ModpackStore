@@ -9,9 +9,9 @@ import {
     modpackVersionProcessingJobsTable,
     ProcessingJobStatus,
 } from "@/db/schema.ts";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { log } from "@/lib/logger.ts";
-import { downloadObjectToFile, uploadObject, deleteObject, getTempZipKey, getFileKey, fileExists } from "@/lib/r2.ts";
+import { downloadObjectToFile, deleteObject, getTempZipKey, getFileKey, batchUploadFromPaths } from "@/lib/r2.ts";
 
 const INSERT_CHUNK_SIZE = 500;
 
@@ -137,7 +137,6 @@ export async function processModpackFiles(job: Job) {
         log(`  Downloading ZIP directly to disk (${tempZipPath})...`);
 
         try {
-            // DEBES cambiar tu función en r2.ts para que guarde directo al disco
             await downloadObjectToFile(zipKey, tempZipPath);
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
@@ -149,7 +148,7 @@ export async function processModpackFiles(job: Job) {
 
         await updateProcessingJob(jobId, { progress: 20 });
 
-        // 2. Abrir el ZIP desde el disco sin cargarlo a RAM
+        // Abrir el ZIP desde el disco sin cargarlo a RAM
         zipFile = await Deno.open(tempZipPath, { read: true });
         const zipStat = await zipFile.stat();
         log(`  Downloaded ${(zipStat.size / 1024 / 1024).toFixed(2)} MB to disk`);
@@ -171,6 +170,7 @@ export async function processModpackFiles(job: Job) {
 
         const fileMetas: FileMeta[] = [];
         const uniqueMetas = new Map<string, FileMeta>();
+        const tempFilesForUpload = new Map<string, string>(); // hash -> tempEntryPath
         const extCounts = new Map<string, number>();
         let skipped = 0;
         let uploaded = 0;
@@ -178,10 +178,14 @@ export async function processModpackFiles(job: Job) {
         let crossJobSkipped = 0;
 
         // 3. Procesar archivo por archivo
+        let processedCount = 0;
         for (const entry of entries) {
             if (entry.directory) continue;
             if (entry.filename.startsWith("__MACOSX/")) { skipped++; continue; }
             if (entry.filename.startsWith(".")) { skipped++; continue; }
+
+            processedCount++;
+            if (processedCount <= 3) log(`  [DEBUG] Processing entry #${processedCount}: ${entry.filename} (${entry.compressedSize}→${entry.uncompressedSize} bytes)`);
 
             // Creamos un archivo temporal para extraer este mod específico
             const tempEntryPath = await Deno.makeTempFile({ prefix: "entry_", suffix: ".dat" });
@@ -199,8 +203,10 @@ export async function processModpackFiles(job: Job) {
                     await originalWrite(array); // Guardar en disco on the fly
                 };
 
+                if (processedCount <= 3) log(`  [DEBUG] Calling entry.getData for: ${entry.filename}`);
                 // Extraemos el archivo escribiéndolo directo al archivo temporal
                 await entry.getData(entryWriter);
+                if (processedCount <= 3) log(`  [DEBUG] getData completed for: ${entry.filename}`);
                 sha1Hex = hash.digest("hex");
 
                 // Verificamos el tamaño real del archivo extraído
@@ -220,17 +226,7 @@ export async function processModpackFiles(job: Job) {
                 // LÓGICA DE DE-DUPLICACIÓN MÁGICA
                 if (!uniqueMetas.has(sha1Hex)) {
                     uniqueMetas.set(sha1Hex, { hash: sha1Hex, path: filePath, fileType: fileType as FileType, side, size: contentSize });
-
-                    const exists = await fileExists(getFileKey(sha1Hex));
-                    if (exists) {
-                        crossJobSkipped++;
-                    } else {
-                        await entryFile.seek(0, Deno.SeekMode.Start);
-                        const fileBytes = new Uint8Array(contentSize);
-                        await entryFile.read(fileBytes);
-                        await uploadObject(getFileKey(sha1Hex), fileBytes, "application/octet-stream");
-                        uploaded++;
-                    }
+                    tempFilesForUpload.set(sha1Hex, tempEntryPath);
                 } else {
                     dedupSavingsLocal += contentSize;
                 }
@@ -239,25 +235,57 @@ export async function processModpackFiles(job: Job) {
                 extCounts.set(ext, (extCounts.get(ext) ?? 0) + 1);
 
                 if (fileMetas.length % 50 === 0) {
-                    log(`  Progress: ${fileMetas.length} files scanned, ${uploaded} uploaded...`);
+                    log(`  Progress: ${fileMetas.length} files scanned...`);
                 }
 
             } finally {
-                // Siempre cerrar y borrar el archivo temporal del mod (RAM y Disco limpios)
+                // Cerramos el archivo, pero NO borramos todavía - necesitamos para batch upload
                 try {
                     entryFile.close();
-                    await Deno.remove(tempEntryPath);
                 } catch { /* Ignorar si ya fue cerrado */ }
             }
         }
 
         await zipReader.close();
 
-        log(`  Uploaded ${uploaded} new files to R2 (skipped ${crossJobSkipped} already in R2, ${dedupSavingsLocal > 0 ? `${(dedupSavingsLocal / 1024 / 1024).toFixed(2)} MB deduped within ZIP` : "no intra-ZIP dupes"})`);
+        // 4. Check database for existing files (like legacy system - avoids R2 HEAD calls)
+        log(`  Checking database for ${uniqueMetas.size} unique files...`);
+        
+        const allHashes = Array.from(uniqueMetas.keys());
+        const existingFiles = await db.select().from(modpackFilesTable).where(inArray(modpackFilesTable.hash, allHashes));
+        const existingHashes = new Set(existingFiles.map(ef => ef.hash));
+
+        // 5. Build upload list from files not in database
+        const uploadList: Array<{ key: string; filePath: string; contentType?: string }> = [];
+        
+        uniqueMetas.forEach((pf, hash) => {
+            if (!existingHashes.has(hash)) {
+                const tempPath = tempFilesForUpload.get(hash)!;
+                uploadList.push({ key: getFileKey(hash), filePath: tempPath, contentType: "application/octet-stream" });
+            } else {
+                crossJobSkipped++;
+            }
+        });
+
+        log(`  ${uploadList.length} files to upload, ${crossJobSkipped} already in database.`);
+
+        // 6. Batch upload: subir todos los nuevos archivos con concurrencia
+        try {
+            const result = await batchUploadFromPaths(uploadList, 5);
+            uploaded = result.uploaded;
+        } catch (err) {
+            log(`  [ERROR] Batch upload failed: ${err instanceof Error ? err.message : String(err)}`);
+        }
+
+        // Limpiar todos los archivos temporales de entrada
+        for (const tempPath of tempFilesForUpload.values()) {
+            try { await Deno.remove(tempPath); } catch { /* Ignorar */ }
+        }
 
         await updateProcessingJob(jobId, { progress: 40 });
 
         const uploadEnd = Date.now();
+        log(`  Uploaded ${uploaded} new files to R2 (skipped ${crossJobSkipped} already in DB, ${dedupSavingsLocal > 0 ? `${(dedupSavingsLocal / 1024 / 1024).toFixed(2)} MB deduped within ZIP` : "no intra-ZIP dupes"})`);
         log(`  All uploads done in ${((uploadEnd - start) / 1000).toFixed(1)}s`);
         log(`  Inserting DB records...`);
 
