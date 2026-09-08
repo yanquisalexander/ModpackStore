@@ -20,7 +20,7 @@ import { CategorySelector } from '@/components/CategorySelector';
 import { ModpackStatusManager } from '@/components/creator/ModpackStatusManager';
 import { resizeImage } from '@/utils/imageResize';
 import { createAssetCompletionSource, resolveAssetReferences, clearAssetCache } from '@/lib/asset-completion';
-import { assetMentionPlugin } from '@/lib/asset-mention';
+import { createAssetMentionPlugin } from '@/lib/asset-mention';
 import { autocompletion } from '@codemirror/autocomplete';
 
 interface Props {
@@ -422,7 +422,9 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                             extensions={[
                                                 basicSetup,
                                                 toml(),
-                                                assetMentionPlugin,
+                                                sessionTokens?.accessToken
+                                                    ? createAssetMentionPlugin(sessionTokens.accessToken)
+                                                    : [],
                                                 autocompletion({
                                                     override: modpack?.creatorId && sessionTokens?.accessToken
                                                         ? [createAssetCompletionSource(modpack.creatorId, sessionTokens.accessToken)]

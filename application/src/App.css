@@ -422,18 +422,29 @@ body,
 }
 
 /* @asset mention badge */
+.cm-asset-mention-hidden {
+    display: none !important;
+}
+
 .cm-asset-mention {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
     color: white !important;
-    padding: 2px 8px !important;
-    border-radius: 12px !important;
+    padding: 4px 10px !important;
+    border-radius: 16px !important;
     font-size: 12px !important;
     font-weight: 500 !important;
     white-space: nowrap !important;
     cursor: default !important;
-    border: 1px solid rgba(255, 255, 255, 0.1) !important;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
-    transition: all 0.15s ease !important;
+    border: 1px solid rgba(255, 255, 255, 0.15) !important;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3) !important;
+    vertical-align: middle;
+    line-height: 1;
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .cm-asset-mention * {
@@ -441,7 +452,26 @@ body,
     background: transparent !important;
 }
 
+.cm-asset-mention-img {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.cm-asset-mention-icon {
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.cm-asset-mention-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .cm-asset-mention:hover {
     background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%) !important;
-    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4) !important;
+    box-shadow: 0 3px 12px rgba(99, 102, 241, 0.5) !important;
 }
