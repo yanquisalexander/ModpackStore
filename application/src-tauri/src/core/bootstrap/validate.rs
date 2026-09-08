@@ -158,7 +158,7 @@ fn download_missing_assets(
         let instance_clone = instance.clone();
 
         // Download all missing assets in parallel with progress reporting
-        download_manager
+        let result = download_manager
             .download_files_parallel_with_progress(
                 missing_assets_info,
                 move |current, total, message| {
@@ -176,7 +176,7 @@ fn download_missing_assets(
 
         // Log result but don't fail — individual asset download failures are non-critical
         // Minecraft can still launch with missing assets (it will re-download or show missing textures)
-        match download_result {
+        match result {
             Ok(()) => {
                 log::info!(
                     "Se han descargado {} assets faltantes usando DownloadManager.",
