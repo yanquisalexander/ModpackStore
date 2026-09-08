@@ -177,10 +177,10 @@ fn download_missing_assets(
         // Log result but don't fail — individual asset download failures are non-critical
         // Minecraft can still launch with missing assets (it will re-download or show missing textures)
         match result {
-            Ok(()) => {
+            Ok(downloaded) => {
                 log::info!(
-                    "Se han descargado {} assets faltantes usando DownloadManager.",
-                    missing_count
+                    "Se han descargado {} de {} assets faltantes usando DownloadManager.",
+                    downloaded, missing_count
                 );
             }
             Err(e) => {
