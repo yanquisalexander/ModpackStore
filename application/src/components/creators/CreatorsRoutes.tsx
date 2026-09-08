@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { LucideSettings } from "lucide-react";
 
 import { CreatorDashboard } from "@/components/creators/CreatorDashboard";
-import { OrganizationModpacksView } from "@/views/creator/OrganizationModpacksView";
+import { PublisherDashboardView } from "@/views/publisher/PublisherDashboardView";
 import { PublisherModpacksView } from "@/views/publisher/PublisherModpacksView";
 import { PublisherModpackVersionsView } from "@/views/publisher/PublisherModpackVersionsView";
 import PublisherModpackVersionDetailView from "@/views/publisher/PublisherModpackVersionDetailView";
@@ -25,6 +25,7 @@ export const CreatorsRoutes: React.FC<CreatorsRoutesProps> = ({ teams, accessTok
                 <Route index element={<CreatorDashboard teams={teams} accessToken={accessToken} />} />
 
                 {/* Org routes */}
+                <Route path="org/:publisherId" element={<PublisherDashboardView />} />
                 <Route path="org/:publisherId/modpacks" element={<PublisherModpacksView />} />
                 <Route path="org/:publisherId/modpacks/:modpackId/versions" element={<PublisherModpackVersionsView />} />
                 <Route path="org/:publisherId/modpacks/:modpackId/versions/:versionId" element={<PublisherModpackVersionDetailView />} />
@@ -32,7 +33,6 @@ export const CreatorsRoutes: React.FC<CreatorsRoutesProps> = ({ teams, accessTok
                 <Route path="org/:publisherId/analytics" element={<PublisherAnalyticsView />} />
                 <Route path="org/:publisherId/storage" element={<PublisherStorageView />} />
                 <Route path="org/:publisherId/settings" element={<PublisherSettingsView />} />
-                <Route path="org/:publisherId" element={<OrganizationModpacksView teams={teams} />} />
 
                 {/* Global */}
                 <Route path="settings" element={

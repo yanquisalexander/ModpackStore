@@ -53,6 +53,8 @@ interface ModpackVersion {
     id: string;
     version: string;
     mcVersion: string;
+    loaderType?: string;
+    loaderVersion?: string;
     forgeVersion?: string;
     changelog?: string;
     status: string;
@@ -70,7 +72,7 @@ interface ModpackVersion {
 interface ModpackVersionFile {
     fileHash: string;
     path: string;
-    fileType?: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras' | 'datapacks'; // NEW: direct fileType on ModpackVersionFile
+    fileType?: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras'; // direct fileType on ModpackVersionFile
     side: 'client' | 'server' | 'both';
     file: {
         type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras'; // DEPRECATED: kept for backward compatibility
@@ -1314,25 +1316,11 @@ const ModpackVersionDetailView: React.FC = () => {
                             <div className="text-sm text-gray-600">
                                 {reuseDialog.selectedFiles.length} archivo(s) seleccionado(s)
                             </div>
-                            {(() => {
-                                const allFileHashes = reuseDialog.previousFiles.flatMap(version => version.files.map(file => file.fileHash));
-                                const allSelected = allFileHashes.length > 0 && allFileHashes.every(hash => reuseDialog.selectedFiles.includes(hash));
-                                const noneSelected = reuseDialog.selectedFiles.length === 0;
-                                return (
-                                    <>
-                                        {!allSelected && (
-                                            <Button variant="outline" size="sm" onClick={selectAllFiles}>
-                                                Seleccionar todo
-                                            </Button>
-                                        )}
-                                        {!noneSelected && (
-                                            <Button variant="outline" size="sm" onClick={deselectAllFiles}>
-                                                Deseleccionar todo
-                                            </Button>
-                                        )}
-                                    </>
-                                );
-                            })()}
+                            {reuseDialog.selectedFiles.length > 0 && (
+                                <Button variant="outline" size="sm" onClick={deselectAllFiles}>
+                                    Deseleccionar todo
+                                </Button>
+                            )}
                         </div>
                         <div className="space-x-2">
                             <Button
@@ -1401,7 +1389,11 @@ const ModpackVersionDetailView: React.FC = () => {
                             </div>
                             <div className="bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 min-w-[100px]">
                                 <p className="text-[10px] uppercase font-bold text-neutral-600 tracking-widest">Loader</p>
-                                <p className="text-sm font-medium text-white">{version.forgeVersion || 'Vanilla'}</p>
+                                <p className="text-sm font-medium text-white">
+                                    {version.loaderType && version.loaderType.toLowerCase() !== 'vanilla'
+                                        ? `${version.loaderType.charAt(0).toUpperCase() + version.loaderType.slice(1)} ${version.loaderVersion || ''}`.trim()
+                                        : (version.forgeVersion || 'Vanilla')}
+                                </p>
                             </div>
                             <div className="bg-black/20 border border-white/[0.04] rounded-lg px-3 py-2 min-w-[100px]">
                                 <p className="text-[10px] uppercase font-bold text-neutral-600 tracking-widest">Archivos</p>

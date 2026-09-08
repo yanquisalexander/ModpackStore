@@ -326,11 +326,16 @@ export const PublisherAnalyticsView: React.FC = () => {
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500">
-            {/* Header */}
+            {/* Header (Consistent with Admin Layout) */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div>
-                    <h1 className="text-3xl font-bold tracking-tight">Analíticas</h1>
-                    <p className="text-muted-foreground">Monitoriza el impacto de tus creaciones con datos reales.</p>
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+                        <LucideActivity className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h1 className="text-lg font-semibold text-foreground">Métricas y Analíticas</h1>
+                        <p className="text-sm text-muted-foreground">Monitoriza el impacto y rendimiento de tus creaciones.</p>
+                    </div>
                 </div>
                 <div className="flex items-center gap-2 bg-background/50 p-1 rounded-lg border backdrop-blur-sm">
                     <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>

@@ -6,7 +6,6 @@ import { API_ENDPOINT } from "@/consts";
 import { Modpack } from "@/types/modpacks";
 import { Button } from "@/components/ui/button";
 import CreateModpackDialog from "@/components/creator/dialogs/CreateModpackDialog";
-import EditModpackDialog from "../../components/creator/dialogs/EditModpackDialog";
 import ImportCurseForgeDialog from "@/components/creator/dialogs/ImportCurseForgeDialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { LucideEdit, LucideHistory, LucideTrash2, LucidePackage } from "lucide-react";
@@ -29,7 +28,6 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
         <div
             className="relative cursor-crosshair border rounded-lg shadow-sm hover:shadow-md transition-shadow overflow-hidden group"
         >
-            {/* Imagen de fondo con efecto scale */}
             <div
                 className="absolute inset-0 bg-cover bg-center transition-transform duration-500 group-hover:scale-105"
                 style={{
@@ -37,10 +35,8 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
                 }}
             />
 
-            {/* Overlay degradado */}
             <div className="absolute inset-0 bg-gradient-to-tr from-black/95 via-black/80 to-transparent" />
 
-            {/* Contenido */}
             <div className="relative z-10 flex flex-col justify-between h-full p-4">
                 <div>
                     <h3 className="text-lg font-semibold text-white drop-shadow mb-1">
@@ -100,8 +96,6 @@ const ModpackListItem: React.FC<ModpackListItemProps> = ({ modpack, onEdit, onDe
     );
 };
 
-
-
 interface OrganizationModpacksViewProps {
     teams: any;
 }
@@ -117,12 +111,8 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
-    const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-    const [editingModpack, setEditingModpack] = useState<Modpack | null>(null);
     const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
     const [deletingModpack, setDeletingModpack] = useState<Modpack | null>(null);
-    const [isVersionsDialogOpen, setIsVersionsDialogOpen] = useState(false);
-    const [selectedModpack, setSelectedModpack] = useState<Modpack | null>(null);
     const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
 
     const fetchModpacks = useCallback(async () => {
@@ -136,10 +126,11 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
             });
             if (!res.ok) throw new Error(`Error fetching modpacks: ${res.status}`);
             const data = await res.json();
-            setModpacks(data.modpacks || []);
+            const items = Array.isArray(data) ? data : (data.modpacks || []);
+            setModpacks(items);
         } catch (err: any) {
             const apiError = err as ApiErrorPayload;
-            setError(apiError.errors[0]?.detail || String(err));
+            setError(apiError.errors?.[0]?.detail || String(err));
         } finally {
             setIsLoading(false);
         }
@@ -154,12 +145,6 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
         fetchModpacks();
     };
 
-    const handleEditSuccess = () => {
-        setIsEditDialogOpen(false);
-        setEditingModpack(null);
-        fetchModpacks();
-    };
-
     const handleImportSuccess = (result: any) => {
         setIsImportDialogOpen(false);
         fetchModpacks();
@@ -168,11 +153,10 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
 
     const openEditDialog = (modpack: Modpack) => {
         if (modpack.status === 'deleted') {
-            playSound("ERROR_NOTIFICATION")
+            playSound("ERROR_NOTIFICATION");
             toast.warning("No se puede editar un modpack eliminado");
             return;
         }
-        // Navigate to the new edit page instead of opening a dialog
         navigate(`/creators/org/${publisherId}/modpacks/${modpack.id}/edit`);
     };
 
@@ -183,14 +167,13 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
 
     const openVersionsDialog = (modpack: Modpack) => {
         if (modpack.status === 'deleted') {
-            playSound("ERROR_NOTIFICATION")
+            playSound("ERROR_NOTIFICATION");
             toast.warning("No se puede administrar un modpack eliminado", {
                 icon: <MdiMinecraft />
             });
             return;
-        };
-        setSelectedModpack(modpack);
-        setIsVersionsDialogOpen(true);
+        }
+        navigate(`/creators/org/${publisherId}/modpacks/${modpack.id}/versions`);
     };
 
     const confirmDelete = async () => {
@@ -213,8 +196,8 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
     };
 
     return (
-        <div className="p-4">
-            <div className="flex justify-between items-center mb-6">
+        <div className="space-y-6">
+            <div className="flex justify-between items-center">
                 <h1 className="text-2xl font-bold">Modpacks de {team?.publisherName || team?.displayName}</h1>
                 <div className="flex gap-2">
                     <Button
@@ -270,17 +253,6 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                 creatorId={team?.id}
             />
 
-
-            {/* Commented out: Now using dedicated edit page instead of dialog
-            {editingModpack && (
-                <EditModpackDialog
-                    isOpen={isEditDialogOpen}
-                    onClose={() => { setIsEditDialogOpen(false); setEditingModpack(null); }}
-                    onSuccess={handleEditSuccess}
-                    modpack={editingModpack}
-                />
-            )}
-            */}
             {deletingModpack && (
                 <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
                     <AlertDialogContent>
@@ -291,7 +263,7 @@ export const OrganizationModpacksView: React.FC<OrganizationModpacksViewProps> =
                                 <br />
                                 <br />
                                 <span className="text-xs">
-                                    Por motivos de seguridad, el modpack no se eliminará permanentemente, sino que se marcará como "eliminado" y se ocultará de la vista pública. Si deseas eliminarlo permanentemente, contacta con el soporte.
+                                    Por motivos de seguridad, el modpack no se eliminará permanentemente, sino que se marcará como "eliminado" y se ocultará de la vista pública.
                                 </span>
                             </AlertDialogDescription>
                         </AlertDialogHeader>

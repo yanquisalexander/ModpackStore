@@ -11,7 +11,8 @@ import {
     LucideLoader,
     LucideImage,
     LucideAlertCircle,
-    LucideUpload
+    LucideUpload,
+    LucideSettings
 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -156,10 +157,15 @@ export const PublisherSettingsView: React.FC = () => {
     const isNameDisabled = !!nameAvailableAt;
 
     return (
-        <div className="space-y-6 max-w-4xl mx-auto pb-10">
-            <div>
-                <h1 className="text-2xl font-bold">Configuración del Perfil</h1>
-                <p className="text-muted-foreground">Gestiona la información pública de tu organización.</p>
+        <div className="space-y-6">
+            <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
+                    <LucideSettings className="h-5 w-5" />
+                </div>
+                <div>
+                    <h1 className="text-lg font-semibold text-foreground">Configuración de la Organización</h1>
+                    <p className="text-sm text-muted-foreground">Gestiona la información pública, branding y enlaces de tu equipo.</p>
+                </div>
             </div>
 
             <Form {...form}>

@@ -235,16 +235,18 @@ export const PublisherTeamView: React.FC = () => {
     }
 
     return (
-        <div className="p-6 space-y-6">
-            <div className="flex justify-between items-center">
-                <div>
-                    <h1 className="text-2xl font-bold flex items-center gap-2">
-                        <LucideUsers className="h-6 w-6" />
-                        Gestión del equipo
-                    </h1>
-                    <p className="text-muted-foreground">
-                        Administra los miembros y permisos de tu creator
-                    </p>
+        <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-lg bg-amber-500/10 text-amber-500">
+                        <LucideUsers className="h-5 w-5" />
+                    </div>
+                    <div>
+                        <h1 className="text-lg font-semibold text-foreground">Gestión del Equipo</h1>
+                        <p className="text-sm text-muted-foreground">
+                            Administra los miembros, roles y permisos de tu organización
+                        </p>
+                    </div>
                 </div>
                 {canManageMembers && sessionTokens?.accessToken && (
                     <AddMemberDialog
@@ -255,15 +257,18 @@ export const PublisherTeamView: React.FC = () => {
                 )}
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Miembros del equipo</CardTitle>
-                </CardHeader>
-                <CardContent>
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+                <div className="p-4 border-b border-border/70 flex items-center justify-between">
+                    <h2 className="font-semibold text-sm">Miembros del equipo</h2>
+                    <Badge variant="outline" className="text-xs">
+                        {members.length} {members.length === 1 ? 'Miembro' : 'Miembros'}
+                    </Badge>
+                </div>
+                <div className="p-0">
                     {loading ? (
-                        <div className="flex items-center justify-center py-8">
-                            <LucideLoader className="h-6 w-6 animate-spin mr-2" />
-                            Cargando miembros...
+                        <div className="flex items-center justify-center py-12">
+                            <LucideLoader className="h-6 w-6 animate-spin text-primary mr-2" />
+                            <span className="text-sm text-muted-foreground">Cargando miembros...</span>
                         </div>
                     ) : error ? (
                         <Alert variant="destructive">
@@ -381,8 +386,8 @@ export const PublisherTeamView: React.FC = () => {
                             </TableBody>
                         </Table>
                     )}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
             {sessionTokens?.accessToken && (
                 <MemberPermissionsDialog

@@ -29,28 +29,43 @@ export const LoadingScreen = ({ message = "Cargando panel de creador..." }) => (
 );
 
 interface SidebarNavProps {
-    items: { path: string; label: string; icon: React.FC<{ size?: number }> }[];
+    items: { path: string; label: string; description?: string; icon: React.FC<{ className?: string; size?: number }> }[];
     currentPath: string;
     onClose?: () => void;
 }
 
 function SidebarNav({ items, currentPath, onClose }: SidebarNavProps) {
     return (
-        <nav className="space-y-0.5">
+        <nav className="space-y-2">
             {items.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentPath === item.path;
                 return (
-                    <NavLink key={item.path} to={item.path} end onClick={onClose}>
-                        <div className={cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
+                    <NavLink
+                        key={item.path}
+                        to={item.path}
+                        end
+                        onClick={onClose}
+                        className={cn(
+                            "flex items-center gap-3 p-3 rounded-lg transition-colors",
                             isActive
                                 ? "bg-primary text-primary-foreground"
-                                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                        )}>
-                            <Icon size={16} />
-                            <span>{item.label}</span>
+                                : "hover:bg-muted/50 text-foreground"
+                        )}
+                    >
+                        <Icon className="h-4 w-4 shrink-0" />
+                        <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm leading-none mb-1">{item.label}</div>
+                            {item.description && (
+                                <div className={cn(
+                                    "text-xs truncate",
+                                    isActive ? "text-primary-foreground/70" : "text-muted-foreground"
+                                )}>
+                                    {item.description}
+                                </div>
+                            )}
                         </div>
+                        {isActive && <LucideChevronRight className="h-4 w-4 shrink-0" />}
                     </NavLink>
                 );
             })}
@@ -72,23 +87,25 @@ function SidebarContent({ isOrgRoute, orgId, teams, currentPath, onClose }: {
         <div className="space-y-6">
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                    {isOrgRoute ? (
-                        <LucideBuilding2 size={16} className="text-primary shrink-0" />
-                    ) : (
-                        <LucidePencilRuler size={16} className="text-primary shrink-0" />
-                    )}
-                    <h2 className="font-semibold truncate">
+                    <div className="p-1 rounded bg-primary/10 text-primary shrink-0">
+                        {isOrgRoute ? (
+                            <LucideBuilding2 className="h-4 w-4" />
+                        ) : (
+                            <LucidePencilRuler className="h-4 w-4" />
+                        )}
+                    </div>
+                    <h2 className="font-semibold truncate flex-1">
                         {isOrgRoute
                             ? (currentTeam?.displayName || currentTeam?.publisherName || "Equipo")
                             : "Panel de Creadores"
                         }
                     </h2>
-                    <Badge variant="secondary" className="text-xs">
+                    <Badge variant="secondary" className="text-xs shrink-0">
                         CREATOR
                     </Badge>
                 </div>
                 <p className="text-sm text-muted-foreground">
-                    {isOrgRoute ? "Administra este equipo" : "Gestiona tus equipos y modpacks"}
+                    {isOrgRoute ? "Administra este equipo y sus recursos" : "Gestiona tus equipos y modpacks"}
                 </p>
             </div>
 
@@ -98,43 +115,57 @@ function SidebarContent({ isOrgRoute, orgId, teams, currentPath, onClose }: {
                 <Link
                     to="/creators"
                     onClick={onClose}
-                    className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors p-2 rounded-md hover:bg-muted/40 border border-border/50"
                 >
-                    <LucideChevronRight size={12} className="rotate-180" />
-                    <span>Todos los paneles</span>
+                    <LucideChevronRight size={14} className="rotate-180 shrink-0" />
+                    <span>Volver a todos los paneles</span>
                 </Link>
             )}
 
             <SidebarNav items={navItems} currentPath={currentPath} onClose={onClose} />
 
             {!isOrgRoute && teams.length > 0 && (
-                <div className="pt-4 border-t border-border">
-                    <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-1">
-                        Equipos
+                <div className="pt-4 border-t border-border space-y-2">
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+                        Tus Organizaciones ({teams.length})
                     </h3>
-                    <div className="space-y-0.5">
-                        {teams.map((team: any) => (
-                            <Link
-                                key={team.id}
-                                to={`/creators/org/${team.id}`}
-                                onClick={onClose}
-                                className={cn(
-                                    "flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-colors",
-                                    currentPath.startsWith(`/creators/org/${team.id}`)
-                                        ? "bg-primary text-primary-foreground"
-                                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                                )}
-                            >
-                                <div className="size-6 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
-                                    {team.logoUrl ? (
-                                        <img src={team.logoUrl} alt="" className="size-full object-cover" />
-                                    ) : (
-                                        <LucideBuilding2 size={12} className="text-muted-foreground" />
+                    <div className="space-y-1">
+                        {teams.map((team: any) => {
+                            const isCurrent = currentPath.startsWith(`/creators/org/${team.id}`);
+                            return (
+                                <Link
+                                    key={team.id}
+                                    to={`/creators/org/${team.id}`}
+                                    onClick={onClose}
+                                    className={cn(
+                                        "flex items-center gap-3 p-2.5 rounded-lg transition-colors border border-transparent",
+                                        isCurrent
+                                            ? "bg-primary text-primary-foreground font-medium"
+                                            : "hover:bg-muted/50 text-foreground"
                                     )}
-                                </div>
-                                <span className="truncate">{team.displayName || team.publisherName}</span>
-                            </Link>
-                        ))}
+                                >
+                                    <div className="size-7 rounded-md bg-muted/50 border border-border/60 flex items-center justify-center shrink-0 overflow-hidden">
+                                        {team.logoUrl ? (
+                                            <img src={team.logoUrl} alt="" className="size-full object-cover" />
+                                        ) : (
+                                            <LucideBuilding2 size={14} className="text-muted-foreground" />
+                                        )}
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="text-sm truncate font-medium">
+                                            {team.displayName || team.publisherName}
+                                        </div>
+                                        <div className={cn(
+                                            "text-[10px] truncate",
+                                            isCurrent ? "text-primary-foreground/70" : "text-muted-foreground"
+                                        )}>
+                                            {team.status === "approved" ? "Activo" : "Pendiente"}
+                                        </div>
+                                    </div>
+                                    <LucideChevronRight size={14} className={cn("shrink-0", isCurrent ? "text-primary-foreground" : "text-muted-foreground/50")} />
+                                </Link>
+                            );
+                        })}
                     </div>
                 </div>
             )}
@@ -144,10 +175,13 @@ function SidebarContent({ isOrgRoute, orgId, teams, currentPath, onClose }: {
                     <Link
                         to="/creators"
                         onClick={onClose}
-                        className="flex items-center gap-2.5 px-3 py-2 rounded-md text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                        className="flex items-center justify-between p-2.5 rounded-lg text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors border border-dashed border-border"
                     >
-                        <LucideBuilding2 size={16} />
-                        <span>Cambiar de equipo</span>
+                        <div className="flex items-center gap-2">
+                            <LucideBuilding2 size={14} />
+                            <span>Cambiar de equipo</span>
+                        </div>
+                        <LucideChevronRight size={12} />
                     </Link>
                 </div>
             )}

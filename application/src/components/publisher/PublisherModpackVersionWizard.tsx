@@ -128,9 +128,7 @@ const PublisherModpackVersionWizard = ({
                 if (cancelled) return;
                 const releases = data.versions.filter((v: MinecraftVersion) => v.type === 'release');
                 setMinecraftVersions(releases);
-                if (!mcVersion && releases.length > 0) {
-                    setMcVersion(releases[0].id);
-                }
+                setMcVersion(prev => (!prev && releases.length > 0) ? releases[0].id : prev);
             } catch (error) {
                 if (cancelled) return;
                 console.error('Error loading versions:', error);
@@ -152,9 +150,7 @@ const PublisherModpackVersionWizard = ({
                 const versions = await fetchLoaderVersions(loaderType, mcVersion);
                 if (cancelled) return;
                 setLoaderVersions(versions);
-                if (versions.length > 0 && !loaderVersion) {
-                    setLoaderVersion(versions[0]);
-                }
+                setLoaderVersion(prev => (!prev && versions.length > 0) ? versions[0] : prev);
             } catch (error) {
                 if (cancelled) return;
                 console.error('Error loading loader versions:', error);

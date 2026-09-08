@@ -55,7 +55,9 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { handleApiError, cn } from '@/lib/utils';
+import { getModLoaderDisplayName } from '@/utils/modloaderVersions';
 
 // --- Interfaces & Types ---
 
@@ -63,6 +65,8 @@ interface ModpackVersion {
     id: string;
     version: string;
     mcVersion: string;
+    loaderType?: string;
+    loaderVersion?: string;
     forgeVersion?: string;
     changelog?: string;
     status: string;
@@ -76,7 +80,7 @@ interface ModpackVersion {
 interface ModpackVersionFile {
     fileHash: string;
     path: string;
-    fileType?: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras' | 'datapacks'; // NEW: direct fileType on ModpackVersionFile
+    fileType?: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras'; // direct fileType on ModpackVersionFile
     side: 'client' | 'server' | 'both';
     file: {
         type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras'; // DEPRECATED: kept for backward compatibility
@@ -633,6 +637,53 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     const [reuseExpandedFolders, setReuseExpandedFolders] = useState<{ [key: string]: boolean }>({});
     const [changelogExpanded, setChangelogExpanded] = useState(false);
 
+    // Compute files breakdown by type and total size
+    const fileCountsByType = useMemo(() => {
+        const counts = {
+            mods: 0,
+            config: 0,
+            resourcepacks: 0,
+            shaderpacks: 0,
+            extras: 0,
+            total: 0,
+            totalSizeBytes: 0,
+        };
+        if (!version?.files) return counts;
+        counts.total = version.files.length;
+        for (const file of version.files) {
+            const type = (file.fileType || file.file?.type || 'extras') as 'mods' | 'config' | 'resourcepacks' | 'shaderpacks' | 'extras';
+            if (counts[type] !== undefined) {
+                counts[type]++;
+            } else {
+                counts.extras++;
+            }
+            if (file.size) {
+                counts.totalSizeBytes += file.size;
+            }
+        }
+        return counts;
+    }, [version?.files]);
+
+    // Format modloader label with version
+    const getFormattedLoader = useCallback(() => {
+        if (!version) return 'Vanilla';
+        const rawType = (version.loaderType || (version.forgeVersion ? 'forge' : 'vanilla')) as any;
+        const displayName = getModLoaderDisplayName(rawType);
+        if (!displayName || displayName.toLowerCase() === 'vanilla') return 'Vanilla';
+        if (version.loaderVersion) {
+            return `${displayName} ${version.loaderVersion}`;
+        }
+        return displayName;
+    }, [version]);
+
+    const formatFileSize = (bytes?: number) => {
+        if (!bytes || bytes <= 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+    };
+
     // Processing jobs polling
     const [processingJobs, setProcessingJobs] = useState<ProcessingJob[]>([]);
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -1128,6 +1179,28 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         setReuseDialog(prev => ({ ...prev, selectedFiles: [] }));
     };
 
+    const noneSelected = useMemo(() =>
+        reuseDialog.selectedFiles.length === 0,
+        [reuseDialog.selectedFiles.length]
+    );
+
+    const selectAllFilesForVersion = useCallback((versionId: string) => {
+        const versionData = reuseDialog.previousFiles.find(v => v.versionId === versionId);
+        if (!versionData) return;
+        const versionFiles = versionData.files.map(f => ({ versionId: versionData.versionId, fileHash: f.fileHash, path: f.path }));
+        setReuseDialog(prev => ({
+            ...prev,
+            selectedFiles: [...prev.selectedFiles, ...versionFiles.filter(vf => !prev.selectedFiles.some(s => s.versionId === vf.versionId && s.fileHash === vf.fileHash && s.path === vf.path))]
+        }));
+    }, [reuseDialog.previousFiles]);
+
+    const deselectAllFilesForVersion = useCallback((versionId: string) => {
+        setReuseDialog(prev => ({
+            ...prev,
+            selectedFiles: prev.selectedFiles.filter(f => f.versionId !== versionId)
+        }));
+    }, []);
+
     const buildFileTree = (files: Array<{ fileHash: string; path: string; size: number; side?: 'client' | 'server' | 'both' }>, type: string): { [key: string]: TreeNode } => {
         const tree: { [key: string]: TreeNode } = {};
         files.forEach(fileEntry => {
@@ -1378,11 +1451,39 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                         ) : (
                             reuseDialog.previousFiles.map(versionData => {
                                 const fileTree = buildFileTree(versionData.files, reuseDialog.type);
+                                const versionFileIds = versionData.files.map(f => `${versionData.versionId}::${f.fileHash}`);
+                                const allVersionSelected = versionFileIds.length > 0 && versionFileIds.every(id => reuseDialog.selectedFiles.some(s => `${s.versionId}::${s.fileHash}` === id));
+                                const someVersionSelected = versionFileIds.some(id => reuseDialog.selectedFiles.some(s => `${s.versionId}::${s.fileHash}` === id));
+
                                 return (
                                     <div key={versionData.versionId} className="bg-card border border-border rounded-lg p-4">
-                                        <h4 className="font-medium text-sm mb-3 text-foreground">
-                                            Versión {versionData.version} ({versionData.files.length} archivos)
-                                        </h4>
+                                        <div className="flex items-center justify-between mb-3">
+                                            <h4 className="font-medium text-sm text-foreground">
+                                                Versión {versionData.version} ({versionData.files.length} archivos)
+                                            </h4>
+                                            <div className="flex gap-2">
+                                                {!allVersionSelected && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => selectAllFilesForVersion(versionData.versionId)}
+                                                        className="border-border text-muted-foreground hover:text-foreground hover:bg-muted/30 h-7 text-xs"
+                                                    >
+                                                        Seleccionar todo
+                                                    </Button>
+                                                )}
+                                                {someVersionSelected && (
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => deselectAllFilesForVersion(versionData.versionId)}
+                                                        className="border-border text-muted-foreground hover:text-foreground hover:bg-muted/30 h-7 text-xs"
+                                                    >
+                                                        Deseleccionar
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
                                         <div className="space-y-1 font-mono text-xs max-h-48 overflow-y-auto">
                                             {Object.entries(fileTree)
                                                 .sort(([aName, aNode], [bName, bNode]) => {
@@ -1418,18 +1519,11 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                             <div className="text-sm text-muted-foreground">
                                 {reuseDialog.selectedFiles.length} archivo(s) seleccionado(s)
                             </div>
-                            {(() => {
-                                const noneSelected = reuseDialog.selectedFiles.length === 0;
-                                return (
-                                    <>
-                                        {!noneSelected && (
-                                            <Button variant="outline" size="sm" onClick={deselectAllFiles} className="border-border text-muted-foreground hover:text-foreground hover:bg-muted/30">
-                                                Deseleccionar todo
-                                            </Button>
-                                        )}
-                                    </>
-                                );
-                            })()}
+                            {!noneSelected && (
+                                <Button variant="outline" size="sm" onClick={deselectAllFiles} className="border-border text-muted-foreground hover:text-foreground hover:bg-muted/30">
+                                    Deseleccionar todo
+                                </Button>
+                            )}
                         </div>
                         <div className="space-x-2">
                             <Button
@@ -1505,13 +1599,20 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                             <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Minecraft</p>
                             <p className="text-sm font-medium text-foreground">{version.mcVersion}</p>
                         </div>
-                        <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 min-w-[100px]">
+                        <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 min-w-[110px]">
                             <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Loader</p>
-                            <p className="text-sm font-medium text-foreground">{version.forgeVersion || 'Vanilla'}</p>
+                            <p className="text-sm font-medium text-foreground">{getFormattedLoader()}</p>
                         </div>
-                        <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 min-w-[100px]">
+                        <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 min-w-[120px]">
                             <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Archivos</p>
-                            <p className="text-sm font-medium text-foreground">{version.files?.length || 0}</p>
+                            <p className="text-sm font-medium text-foreground">
+                                {fileCountsByType.total}
+                                {fileCountsByType.totalSizeBytes > 0 && (
+                                    <span className="text-xs text-muted-foreground font-normal ml-1.5">
+                                        ({formatFileSize(fileCountsByType.totalSizeBytes)})
+                                    </span>
+                                )}
+                            </p>
                         </div>
                         <div className="bg-muted/30 border border-border rounded-lg px-3 py-2 min-w-[100px]">
                             <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Creado</p>
@@ -1530,6 +1631,66 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                 ))}
                             </div>
                         )}
+                    </div>
+                </div>
+
+                {/* File breakdown summary card */}
+                <div className="bg-card border border-border rounded-xl p-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Distribución de Archivos
+                        </h3>
+                        <span className="text-xs text-muted-foreground">
+                            {fileCountsByType.total} {fileCountsByType.total === 1 ? 'archivo' : 'archivos'}
+                            {fileCountsByType.totalSizeBytes > 0 && ` • ${formatFileSize(fileCountsByType.totalSizeBytes)}`}
+                        </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                        <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/20 border border-border">
+                            <div className="p-2 rounded-md bg-blue-500/10 text-blue-400">
+                                <LucidePackage className="h-4 w-4" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-muted-foreground uppercase font-medium">Mods</p>
+                                <p className="text-sm font-bold text-foreground">{fileCountsByType.mods}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/20 border border-border">
+                            <div className="p-2 rounded-md bg-purple-500/10 text-purple-400">
+                                <LucideImage className="h-4 w-4" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-muted-foreground uppercase font-medium">Resources</p>
+                                <p className="text-sm font-bold text-foreground">{fileCountsByType.resourcepacks}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/20 border border-border">
+                            <div className="p-2 rounded-md bg-amber-500/10 text-amber-400">
+                                <LucideSettings className="h-4 w-4" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-muted-foreground uppercase font-medium">Configs</p>
+                                <p className="text-sm font-bold text-foreground">{fileCountsByType.config}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/20 border border-border">
+                            <div className="p-2 rounded-md bg-emerald-500/10 text-emerald-400">
+                                <LucidePalette className="h-4 w-4" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-muted-foreground uppercase font-medium">Shaders</p>
+                                <p className="text-sm font-bold text-foreground">{fileCountsByType.shaderpacks}</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2.5 p-2.5 rounded-lg bg-muted/20 border border-border">
+                            <div className="p-2 rounded-md bg-neutral-500/10 text-neutral-400">
+                                <LucideFolder className="h-4 w-4" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] text-muted-foreground uppercase font-medium">Extras</p>
+                                <p className="text-sm font-bold text-foreground">{fileCountsByType.extras}</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -1586,21 +1747,41 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 <div className="bg-card border border-border rounded-xl overflow-hidden">
                     <Tabs defaultValue="mods" className="w-full">
                         <div className="px-6 pt-5 pb-0">
-                            <TabsList className="bg-muted/30 border border-border rounded-lg p-1 w-full justify-start overflow-x-auto h-auto no-scrollbar">
+                            <TabsList className="bg-muted/30 border border-border rounded-lg p-1 w-full justify-start overflow-x-auto h-auto no-scrollbar gap-1">
                                 <TabsTrigger value="mods" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-foreground text-muted-foreground text-sm rounded-md transition-all">
-                                    <LucidePackage className="h-4 w-4" /> Mods
+                                    <LucidePackage className="h-4 w-4" />
+                                    <span>Mods</span>
+                                    <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-muted/60 text-muted-foreground border-0 font-mono">
+                                        {fileCountsByType.mods}
+                                    </Badge>
                                 </TabsTrigger>
                                 <TabsTrigger value="resourcepacks" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-foreground text-muted-foreground text-sm rounded-md transition-all">
-                                    <LucideImage className="h-4 w-4" /> Resources
+                                    <LucideImage className="h-4 w-4" />
+                                    <span>Resources</span>
+                                    <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-muted/60 text-muted-foreground border-0 font-mono">
+                                        {fileCountsByType.resourcepacks}
+                                    </Badge>
                                 </TabsTrigger>
                                 <TabsTrigger value="config" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-foreground text-muted-foreground text-sm rounded-md transition-all">
-                                    <LucideSettings className="h-4 w-4" /> Config
+                                    <LucideSettings className="h-4 w-4" />
+                                    <span>Config</span>
+                                    <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-muted/60 text-muted-foreground border-0 font-mono">
+                                        {fileCountsByType.config}
+                                    </Badge>
                                 </TabsTrigger>
                                 <TabsTrigger value="shaderpacks" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-foreground text-muted-foreground text-sm rounded-md transition-all">
-                                    <LucidePalette className="h-4 w-4" /> Shaders
+                                    <LucidePalette className="h-4 w-4" />
+                                    <span>Shaders</span>
+                                    <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-muted/60 text-muted-foreground border-0 font-mono">
+                                        {fileCountsByType.shaderpacks}
+                                    </Badge>
                                 </TabsTrigger>
                                 <TabsTrigger value="extras" className="flex items-center gap-2 py-2 data-[state=active]:bg-[#252525] data-[state=active]:text-foreground text-muted-foreground text-sm rounded-md transition-all">
-                                    <LucideFolder className="h-4 w-4" /> Extras
+                                    <LucideFolder className="h-4 w-4" />
+                                    <span>Extras</span>
+                                    <Badge variant="secondary" className="ml-1 text-[10px] px-1.5 py-0 h-4 bg-muted/60 text-muted-foreground border-0 font-mono">
+                                        {fileCountsByType.extras}
+                                    </Badge>
                                 </TabsTrigger>
                             </TabsList>
                         </div>

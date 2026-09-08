@@ -285,60 +285,81 @@ export const PublisherModpackVersionsView: React.FC = () => {
             </AlertDialog>
 
             <div className="space-y-6">
-                {/* Header */}
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
+                {/* Page Header (Consistent with Admin Layout) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleBackToModpacks}
+                            className="h-9 px-2 text-muted-foreground hover:text-foreground"
+                            title="Volver a Modpacks"
+                        >
+                            <LucideArrowLeft className="h-4 w-4 mr-1" />
+                            <span>Modpacks</span>
+                        </Button>
+                        <div className="p-2.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+                            <LucidePackage className="h-5 w-5" />
+                        </div>
+                        <div>
                             <div className="flex items-center gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={handleBackToModpacks}
-                                    className="mr-2"
-                                >
-                                    <LucideArrowLeft className="h-4 w-4 mr-1" />
-                                    Volver
-                                </Button>
-                                <LucidePackage className="h-5 w-5" />
-                                <CardTitle>
+                                <h1 className="text-lg font-semibold text-foreground">
                                     Versiones de {modpack?.name || 'Modpack'}
-                                </CardTitle>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={handleCopyId}
-                                    className="flex items-center gap-1"
-                                    title="Copiar ID del modpack"
-                                >
-                                    <Copy className="w-4 h-4" />
-                                    Copiar ID
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={handleGoToModpack}
-                                    className="flex items-center gap-2"
-                                >
-                                    <ExternalLink className="w-4 h-4" />
-                                    Ir al modpack
-                                </Button>
-                                {canCreateVersions && (
-                                    <Button onClick={handleCreateVersion}>
-                                        <LucidePlus className="h-4 w-4 mr-2" />
-                                        Crear Nueva Versión
-                                    </Button>
+                                </h1>
+                                {modpack && (
+                                    <Badge variant="outline" className="text-xs">
+                                        {modpack.visibility}
+                                    </Badge>
                                 )}
                             </div>
-
+                            <p className="text-sm text-muted-foreground">
+                                Historial de versiones y lanzamientos de este modpack
+                            </p>
                         </div>
-                    </CardHeader>
-                </Card>
+                    </div>
 
-                {/* Content */}
-                <Card>
-                    <CardContent className="p-6">
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleCopyId}
+                            className="bg-card hover:bg-muted/50 border-border text-xs gap-1.5"
+                            title="Copiar ID del modpack"
+                        >
+                            <Copy className="w-3.5 h-3.5" />
+                            Copiar ID
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleGoToModpack}
+                            className="bg-card hover:bg-muted/50 border-border text-xs gap-1.5"
+                        >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                            Ver en tienda
+                        </Button>
+                        {canCreateVersions && (
+                            <Button
+                                size="sm"
+                                onClick={handleCreateVersion}
+                                className="bg-primary text-primary-foreground hover:bg-primary/90 text-xs"
+                            >
+                                <LucidePlus className="h-3.5 w-3.5 mr-1.5" />
+                                Nueva Versión
+                            </Button>
+                        )}
+                    </div>
+                </div>
+
+                {/* Table Container */}
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                    <div className="p-4 border-b border-border/70 flex items-center justify-between">
+                        <h2 className="font-semibold text-sm">Historial de Versiones</h2>
+                        <Badge variant="outline" className="text-xs">
+                            {versions.length} {versions.length === 1 ? 'Versión' : 'Versiones'}
+                        </Badge>
+                    </div>
+                    <div className="p-0">
                         {error && (
                             <Alert variant="destructive" className="mb-4">
                                 <AlertDescription>{error}</AlertDescription>
@@ -424,8 +445,8 @@ export const PublisherModpackVersionsView: React.FC = () => {
                                 </TableBody>
                             </Table>
                         )}
-                    </CardContent>
-                </Card>
+                    </div>
+                </div>
             </div>
         </>
     );

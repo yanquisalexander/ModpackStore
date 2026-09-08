@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
     LucidePackage,
     LucideLoader,
@@ -15,7 +17,9 @@ import {
     LucideSettings,
     LucideTrash2,
     LucideHistory,
-    LucideUsers
+    LucideUsers,
+    LucideSearch,
+    LucideRefreshCw
 } from 'lucide-react';
 import {
     DropdownMenu,
@@ -146,6 +150,9 @@ export const PublisherModpacksView: React.FC = () => {
     const [modpacks, setModpacks] = useState<Modpack[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [visibilityFilter, setVisibilityFilter] = useState('all');
 
     // AlertDialog states for confirmations
     const [deleteDialog, setDeleteDialog] = useState<{
@@ -316,58 +323,136 @@ export const PublisherModpacksView: React.FC = () => {
             />
 
             <div className="space-y-6">
-                {/* Header */}
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <LucidePackage className="h-5 w-5" />
-                                <CardTitle>Gestión de Modpacks</CardTitle>
-                            </div>
-                            {canCreateModpacks && (
-                                <div className="flex gap-2">
-                                    <Button variant="outline" onClick={() => setImportCurseForgeDialogOpen(true)}>
-                                        <LucidePackage className="h-4 w-4 mr-2" />
-                                        Importar desde CurseForge
-                                    </Button>
-                                    <Button onClick={handleCreateModpack}>
-                                        <LucidePlus className="h-4 w-4 mr-2" />
-                                        Crear Nuevo Modpack
-                                    </Button>
-                                </div>
-                            )}
+                {/* Page Header (Consistent with Admin Layout) */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2.5 rounded-lg bg-blue-500/10 text-blue-500">
+                            <LucidePackage className="h-5 w-5" />
                         </div>
-                    </CardHeader>
-                </Card>
+                        <div>
+                            <h1 className="text-lg font-semibold text-foreground">Gestión de Modpacks</h1>
+                            <p className="text-sm text-muted-foreground">
+                                Administra los modpacks, visibilidad y versiones de tu organización
+                            </p>
+                        </div>
+                    </div>
 
-                {/* Content */}
-                <Card>
-                    <CardContent className="p-6">
-                        {error && (
-                            <Alert variant="destructive" className="mb-4">
+                    {canCreateModpacks && (
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                onClick={() => setImportCurseForgeDialogOpen(true)}
+                                className="bg-card hover:bg-muted/50 border-border"
+                            >
+                                <LucidePackage className="h-4 w-4 mr-2 text-muted-foreground" />
+                                Importar CurseForge
+                            </Button>
+                            <Button
+                                onClick={handleCreateModpack}
+                                className="bg-primary text-primary-foreground hover:bg-primary/90"
+                            >
+                                <LucidePlus className="h-4 w-4 mr-2" />
+                                Crear Modpack
+                            </Button>
+                        </div>
+                    )}
+                </div>
+
+                {/* Table Container with Filters */}
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                    {/* Filter Toolbar (Admin Style) */}
+                    <div className="p-4 border-b border-border/70 flex flex-col sm:flex-row gap-3">
+                        <div className="flex-1 relative">
+                            <LucideSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                                placeholder="Buscar por nombre o descripción..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="pl-9 bg-muted/30 border-border text-sm"
+                            />
+                        </div>
+
+                        <Select value={statusFilter} onValueChange={setStatusFilter}>
+                            <SelectTrigger className="w-full sm:w-44 bg-muted/30 border-border text-sm">
+                                <SelectValue placeholder="Estado" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todos los estados</SelectItem>
+                                <SelectItem value="published">Publicado</SelectItem>
+                                <SelectItem value="draft">Borrador</SelectItem>
+                                <SelectItem value="deleted">Eliminado</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <Select value={visibilityFilter} onValueChange={setVisibilityFilter}>
+                            <SelectTrigger className="w-full sm:w-44 bg-muted/30 border-border text-sm">
+                                <SelectValue placeholder="Visibilidad" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">Todas las visibilidades</SelectItem>
+                                <SelectItem value="public">Público</SelectItem>
+                                <SelectItem value="unlisted">No listado</SelectItem>
+                                <SelectItem value="whitelist">Whitelist</SelectItem>
+                                <SelectItem value="private">Privado</SelectItem>
+                            </SelectContent>
+                        </Select>
+
+                        <Button
+                            variant="outline"
+                            onClick={loadModpacks}
+                            disabled={loading}
+                            className="border-border bg-muted/30 hover:bg-muted/50 shrink-0"
+                            title="Actualizar lista"
+                        >
+                            <LucideRefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                        </Button>
+                    </div>
+
+                    {error && (
+                        <div className="p-4">
+                            <Alert variant="destructive">
                                 <AlertDescription>{error}</AlertDescription>
                             </Alert>
-                        )}
+                        </div>
+                    )}
 
-                        {loading ? (
-                            <div className="flex items-center justify-center py-8">
-                                <LucideLoader className="h-8 w-8 animate-spin" />
-                            </div>
-                        ) : modpacks.length === 0 ? (
-                            <div className="text-center py-12">
-                                <LucidePackage className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                                <h3 className="text-lg font-medium mb-2">No hay modpacks</h3>
-                                <p className="text-muted-foreground mb-4">
-                                    Aún no tienes modpacks en este publisher.
-                                </p>
-                                {canCreateModpacks && (
-                                    <Button onClick={handleCreateModpack}>
-                                        <LucidePlus className="h-4 w-4 mr-2" />
-                                        Crear tu primer modpack
-                                    </Button>
-                                )}
-                            </div>
-                        ) : (
+                    {loading ? (
+                        <div className="flex items-center justify-center py-12">
+                            <LucideLoader className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                    ) : modpacks.length === 0 ? (
+                        <div className="text-center py-12 px-4">
+                            <LucidePackage className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                            <h3 className="text-base font-medium mb-1">No hay modpacks</h3>
+                            <p className="text-sm text-muted-foreground mb-4 max-w-sm mx-auto">
+                                Aún no tienes modpacks en esta organización.
+                            </p>
+                            {canCreateModpacks && (
+                                <Button onClick={handleCreateModpack}>
+                                    <LucidePlus className="h-4 w-4 mr-2" />
+                                    Crear tu primer modpack
+                                </Button>
+                            )}
+                        </div>
+                    ) : (() => {
+                        const filteredModpacks = modpacks.filter((modpack) => {
+                            const matchesSearch = !searchTerm.trim() ||
+                                modpack.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                                (modpack.shortDescription && modpack.shortDescription.toLowerCase().includes(searchTerm.toLowerCase()));
+                            const matchesStatus = statusFilter === 'all' || modpack.status.toLowerCase() === statusFilter.toLowerCase();
+                            const matchesVisibility = visibilityFilter === 'all' || modpack.visibility.toLowerCase() === visibilityFilter.toLowerCase();
+                            return matchesSearch && matchesStatus && matchesVisibility;
+                        });
+
+                        if (filteredModpacks.length === 0) {
+                            return (
+                                <div className="text-center py-12 px-4 text-muted-foreground text-sm">
+                                    No se encontraron modpacks con los filtros aplicados.
+                                </div>
+                            );
+                        }
+
+                        return (
                             <Table>
                                 <TableHeader>
                                     <TableRow>
@@ -379,12 +464,12 @@ export const PublisherModpacksView: React.FC = () => {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {modpacks.map((modpack) => (
-                                        <TableRow key={modpack.id}>
+                                    {filteredModpacks.map((modpack) => (
+                                        <TableRow key={modpack.id} className="hover:bg-muted/40">
                                             <TableCell>
                                                 <div className="flex items-center gap-3">
                                                     <img
-                                                        className="w-10 h-10 rounded object-cover"
+                                                        className="w-10 h-10 rounded-lg object-cover border border-border/60 shrink-0"
                                                         src={modpack.iconUrl || '/images/modpack-fallback.webp'}
                                                         onError={(e) => {
                                                             const target = e.currentTarget;
@@ -394,31 +479,31 @@ export const PublisherModpacksView: React.FC = () => {
                                                         alt={modpack.name}
                                                     />
 
-                                                    <div>
-                                                        <p className="font-medium">{modpack.name}</p>
-                                                        <p className="text-sm text-muted-foreground">
+                                                    <div className="min-w-0">
+                                                        <p className="font-medium text-foreground truncate">{modpack.name}</p>
+                                                        <p className="text-xs text-muted-foreground truncate max-w-sm">
                                                             {modpack.shortDescription || 'Sin descripción'}
                                                         </p>
                                                     </div>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant={getVisibilityBadgeVariant(modpack.visibility)}>
+                                                <Badge variant={getVisibilityBadgeVariant(modpack.visibility)} className="text-[10px]">
                                                     {getVisibilityLabel(modpack.visibility)}
                                                 </Badge>
                                             </TableCell>
                                             <TableCell>
-                                                <Badge variant={getStatusBadgeVariant(modpack.status)}>
+                                                <Badge variant={getStatusBadgeVariant(modpack.status)} className="text-[10px]">
                                                     {getStatusLabel(modpack.status)}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell>
+                                            <TableCell className="text-xs text-muted-foreground">
                                                 {new Date(modpack.updatedAt).toLocaleDateString('es-ES')}
                                             </TableCell>
                                             <TableCell>
                                                 <DropdownMenu>
                                                     <DropdownMenuTrigger asChild>
-                                                        <Button variant="ghost" size="sm">
+                                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
                                                             <LucideMoreHorizontal className="h-4 w-4" />
                                                         </Button>
                                                     </DropdownMenuTrigger>
@@ -431,7 +516,7 @@ export const PublisherModpacksView: React.FC = () => {
                                                             <LucideEdit className="h-4 w-4 mr-2" />
                                                             Editar
                                                         </DropdownMenuItem>
-                                                        
+
                                                         {modpack.visibility === 'whitelist' && (
                                                             <DropdownMenuItem onClick={() => setWhitelistDialog({ open: true, modpack })}>
                                                                 <LucideUsers className="h-4 w-4 mr-2" />
@@ -455,9 +540,9 @@ export const PublisherModpacksView: React.FC = () => {
                                     ))}
                                 </TableBody>
                             </Table>
-                        )}
-                    </CardContent>
-                </Card>
+                        );
+                    })()}
+                </div>
             </div>
 
             {/* Manage Whitelist Modal */}

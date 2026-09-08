@@ -186,52 +186,51 @@ export const PublisherStorageView: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <Card>
-                <CardHeader>
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <LucideCloud className="h-5 w-5" />
-                            <div>
-                                <CardTitle>Cloud Storage</CardTitle>
-                                <CardDescription className="mt-1">
-                                    Administra tus recursos multimedia para los modpacks
-                                </CardDescription>
-                            </div>
-                        </div>
-                        <div>
-                            <input
-                                type="file"
-                                id="file-upload"
-                                className="hidden"
-                                accept="image/*,audio/*,video/*"
-                                onChange={handleFileUpload}
-                                disabled={uploading}
-                            />
-                            <label htmlFor="file-upload">
-                                <Button 
-                                    asChild 
-                                    disabled={uploading}
-                                >
-                                    <span>
-                                        {uploading ? (
-                                            <>
-                                                <LucideLoader2 className="h-4 w-4 mr-2 animate-spin" />
-                                                Subiendo...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <LucideUpload className="h-4 w-4 mr-2" />
-                                                Subir Archivo
-                                            </>
-                                        )}
-                                    </span>
-                                </Button>
-                            </label>
-                        </div>
+            {/* Header (Consistent with Admin Layout) */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-lg bg-sky-500/10 text-sky-500">
+                        <LucideCloud className="h-5 w-5" />
                     </div>
-                </CardHeader>
-            </Card>
+                    <div>
+                        <h1 className="text-lg font-semibold text-foreground">Cloud Storage</h1>
+                        <p className="text-sm text-muted-foreground">
+                            Administra tus recursos multimedia para los modpacks
+                        </p>
+                    </div>
+                </div>
+                <div>
+                    <input
+                        type="file"
+                        id="file-upload"
+                        className="hidden"
+                        accept="image/*,audio/*,video/*"
+                        onChange={handleFileUpload}
+                        disabled={uploading}
+                    />
+                    <label htmlFor="file-upload">
+                        <Button 
+                            asChild 
+                            disabled={uploading}
+                            className="bg-primary text-primary-foreground hover:bg-primary/90"
+                        >
+                            <span>
+                                {uploading ? (
+                                    <>
+                                        <LucideLoader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        Subiendo...
+                                    </>
+                                ) : (
+                                    <>
+                                        <LucideUpload className="h-4 w-4 mr-2" />
+                                        Subir Archivo
+                                    </>
+                                )}
+                            </span>
+                        </Button>
+                    </label>
+                </div>
+            </div>
 
             {/* Upload Progress */}
             {uploading && (
