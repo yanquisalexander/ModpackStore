@@ -28,20 +28,20 @@ import {
     LucideLoader2
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
-import { getPublisherFiles, getStorageUsage, uploadFile, deleteFile, PublisherFile, StorageUsage } from '@/services/storage';
+import { getCreatorAssets, getStorageUsage, uploadAsset, deleteAsset, CreatorAsset, StorageUsage } from '@/services/storage';
 import { toast } from 'sonner';
 
 export const PublisherStorageView: React.FC = () => {
     const { publisherId } = useParams<{ publisherId: string }>();
     const { sessionTokens } = useAuthentication();
     
-    const [files, setFiles] = useState<PublisherFile[]>([]);
+    const [files, setFiles] = useState<CreatorAsset[]>([]);
     const [usage, setUsage] = useState<StorageUsage | null>(null);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
     const [uploadProgress, setUploadProgress] = useState(0);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-    const [fileToDelete, setFileToDelete] = useState<PublisherFile | null>(null);
+    const [fileToDelete, setFileToDelete] = useState<CreatorAsset | null>(null);
     const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
     // Load files and usage
@@ -51,7 +51,7 @@ export const PublisherStorageView: React.FC = () => {
         try {
             setLoading(true);
             const [filesData, usageData] = await Promise.all([
-                getPublisherFiles(sessionTokens.accessToken, publisherId),
+                getCreatorAssets(sessionTokens.accessToken, publisherId),
                 getStorageUsage(sessionTokens.accessToken, publisherId)
             ]);
             setFiles(filesData);
@@ -73,10 +73,10 @@ export const PublisherStorageView: React.FC = () => {
         const file = event.target.files?.[0];
         if (!file || !publisherId || !sessionTokens?.accessToken) return;
 
-        // Check file size (50 MB limit)
-        const maxSize = 50 * 1024 * 1024;
+        // Check file size (10 MB limit)
+        const maxSize = 10 * 1024 * 1024;
         if (file.size > maxSize) {
-            toast.error('El archivo excede el tamaño máximo permitido (50 MB)');
+            toast.error('El archivo excede el tamaño máximo permitido (10 MB)');
             return;
         }
 
@@ -96,7 +96,7 @@ export const PublisherStorageView: React.FC = () => {
             setUploading(true);
             setUploadProgress(0);
             
-            await uploadFile(
+            await uploadAsset(
                 sessionTokens.accessToken,
                 publisherId,
                 file,
@@ -121,7 +121,7 @@ export const PublisherStorageView: React.FC = () => {
         if (!fileToDelete || !publisherId || !sessionTokens?.accessToken) return;
 
         try {
-            await deleteFile(sessionTokens.accessToken, publisherId, fileToDelete.id);
+            await deleteAsset(sessionTokens.accessToken, publisherId, fileToDelete.id);
             toast.success('Archivo eliminado exitosamente');
             await loadData();
         } catch (error) {
@@ -134,9 +134,9 @@ export const PublisherStorageView: React.FC = () => {
     };
 
     // Copy URL to clipboard
-    const handleCopyUrl = async (file: PublisherFile) => {
+    const handleCopyUrl = async (file: CreatorAsset) => {
         try {
-            await navigator.clipboard.writeText(file.cdnUrl);
+            await navigator.clipboard.writeText(file.url);
             setCopiedUrl(file.id);
             toast.success('URL copiada al portapapeles');
             setTimeout(() => setCopiedUrl(null), 2000);
@@ -155,9 +155,12 @@ export const PublisherStorageView: React.FC = () => {
     };
 
     // Format file size
-    const formatFileSize = (kb: number) => {
-        if (kb < 1024) return `${kb} KB`;
-        return `${(kb / 1024).toFixed(2)} MB`;
+    const formatFileSize = (bytes: number) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
     };
 
     // Format date
@@ -256,7 +259,7 @@ export const PublisherStorageView: React.FC = () => {
                     <CardContent className="space-y-2">
                         <div className="flex items-center justify-between text-sm">
                             <span className="text-muted-foreground">
-                                {formatFileSize(usage.usedKb)} de {formatFileSize(usage.limitKb)} utilizados
+                                {formatFileSize(usage.usedBytes)} de {formatFileSize(usage.limitBytes)} utilizados
                             </span>
                             <span className="font-medium">{usage.percentage.toFixed(1)}%</span>
                         </div>
@@ -300,7 +303,7 @@ export const PublisherStorageView: React.FC = () => {
                                         <div className="flex-shrink-0">
                                             {isImage ? (
                                                 <img
-                                                    src={file.cdnUrl}
+                                                    src={file.url}
                                                     alt={file.fileName}
                                                     className="w-16 h-16 object-cover rounded"
                                                 />
@@ -315,9 +318,9 @@ export const PublisherStorageView: React.FC = () => {
                                         <div className="flex-1 min-w-0">
                                             <p className="font-medium truncate">{file.fileName}</p>
                                             <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-                                                <span>{formatFileSize(file.fileSizeKb)}</span>
+                                                <span>{formatFileSize(file.sizeBytes)}</span>
                                                 <span>•</span>
-                                                <span>{formatDate(file.uploadedAt)}</span>
+                                                <span>{formatDate(file.createdAt)}</span>
                                             </div>
                                         </div>
 
@@ -326,11 +329,11 @@ export const PublisherStorageView: React.FC = () => {
                                             <div className="flex-shrink-0">
                                                 {isAudio ? (
                                                     <audio controls className="h-10 max-w-xs">
-                                                        <source src={file.cdnUrl} type={file.contentType} />
+                                                        <source src={file.url} type={file.contentType} />
                                                     </audio>
                                                 ) : (
                                                     <video controls className="h-20 max-w-xs rounded">
-                                                        <source src={file.cdnUrl} type={file.contentType} />
+                                                        <source src={file.url} type={file.contentType} />
                                                     </video>
                                                 )}
                                             </div>

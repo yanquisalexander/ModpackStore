@@ -165,9 +165,12 @@ export const PublisherDashboardView: React.FC = () => {
     const publishedCount = modpacks.filter(m => m.status === 'published').length;
     const draftCount = modpacks.filter(m => m.status === 'draft').length;
 
-    const formatStorageMb = (kb: number) => {
-        if (kb < 1024) return `${kb} KB`;
-        return `${(kb / 1024).toFixed(1)} MB`;
+    const formatStorageMb = (bytes: number) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
     };
 
     return (
@@ -269,9 +272,9 @@ export const PublisherDashboardView: React.FC = () => {
                     <StatCard
                         icon={LucideCloud}
                         label="Almacenamiento"
-                        value={storageUsage ? formatStorageMb(storageUsage.used_kb) : "0 MB"}
+                        value={storageUsage ? formatStorageMb(storageUsage.usedBytes) : "0 MB"}
                         color="bg-purple-500/10 text-purple-500"
-                        subtext={storageUsage ? `${storageUsage.used_percentage}% del cupo usado` : "Cloud storage"}
+                        subtext={storageUsage ? `${storageUsage.percentage}% del cupo usado` : "Cloud storage"}
                     />
                 </div>
 

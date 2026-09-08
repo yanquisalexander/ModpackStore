@@ -1,31 +1,38 @@
 import { API_ENDPOINT } from "@/consts";
 
-export interface PublisherFile {
+export interface CreatorAsset {
     id: string;
-    publisherId: string;
+    creatorId: string;
     fileName: string;
-    fileSizeKb: number;
     r2Key: string;
     contentType: string;
-    uploadedAt: string;
-    cdnUrl: string;
+    sizeBytes: number;
+    createdAt: string;
+    url: string;
 }
 
 export interface StorageUsage {
-    usedKb: number;
-    limitKb: number;
-    availableKb: number;
+    usedBytes: number;
+    limitBytes: number;
+    availableBytes: number;
     percentage: number;
 }
 
+export interface StorageConfig {
+    creatorId: string;
+    storageLimitBytes: number;
+    createdAt: string;
+    updatedAt: string;
+}
+
 /**
- * Get all files for a publisher
+ * Get all assets for a creator
  */
-export async function getPublisherFiles(
+export async function getCreatorAssets(
     token: string,
-    publisherId: string
-): Promise<PublisherFile[]> {
-    const response = await fetch(`${API_ENDPOINT}/creators/${publisherId}/storage`, {
+    creatorId: string
+): Promise<CreatorAsset[]> {
+    const response = await fetch(`${API_ENDPOINT}/creators/${creatorId}/assets`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${token}`,
@@ -34,21 +41,21 @@ export async function getPublisherFiles(
     });
 
     if (!response.ok) {
-        throw new Error(`Failed to fetch files: ${response.statusText}`);
+        throw new Error(`Failed to fetch assets: ${response.statusText}`);
     }
 
     const data = await response.json();
-    return data.files;
+    return data.data;
 }
 
 /**
- * Get storage usage for a publisher
+ * Get storage usage for a creator
  */
 export async function getStorageUsage(
     token: string,
-    publisherId: string
+    creatorId: string
 ): Promise<StorageUsage> {
-    const response = await fetch(`${API_ENDPOINT}/creators/${publisherId}/storage/usage`, {
+    const response = await fetch(`${API_ENDPOINT}/creators/${creatorId}/storage/usage`, {
         method: 'GET',
         headers: {
             'Authorization': `Bearer ${token}`,
@@ -61,25 +68,47 @@ export async function getStorageUsage(
     }
 
     const data = await response.json();
-    return data.usage;
+    return data.data;
 }
 
 /**
- * Upload a file to publisher storage
+ * Get storage config for a creator
  */
-export async function uploadFile(
+export async function getStorageConfig(
     token: string,
-    publisherId: string,
+    creatorId: string
+): Promise<StorageConfig> {
+    const response = await fetch(`${API_ENDPOINT}/creators/${creatorId}/storage/config`, {
+        method: 'GET',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+    });
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch storage config: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.data;
+}
+
+/**
+ * Upload an asset to creator storage
+ */
+export async function uploadAsset(
+    token: string,
+    creatorId: string,
     file: File,
     onProgress?: (progress: number) => void
-): Promise<PublisherFile> {
+): Promise<CreatorAsset> {
     const formData = new FormData();
     formData.append('file', file);
 
     return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
 
-        // Track upload progress
         if (onProgress) {
             xhr.upload.addEventListener('progress', (e) => {
                 if (e.lengthComputable) {
@@ -93,14 +122,14 @@ export async function uploadFile(
             if (xhr.status >= 200 && xhr.status < 300) {
                 try {
                     const data = JSON.parse(xhr.responseText);
-                    resolve(data.file);
+                    resolve(data.data);
                 } catch (error) {
                     reject(new Error('Failed to parse response'));
                 }
             } else {
                 try {
                     const error = JSON.parse(xhr.responseText);
-                    reject(new Error(error.message || xhr.statusText));
+                    reject(new Error(error.errors?.[0]?.detail || error.message || xhr.statusText));
                 } catch {
                     reject(new Error(xhr.statusText));
                 }
@@ -111,21 +140,21 @@ export async function uploadFile(
             reject(new Error('Network error occurred'));
         });
 
-        xhr.open('POST', `${API_ENDPOINT}/creators/${publisherId}/storage/upload`);
+        xhr.open('POST', `${API_ENDPOINT}/creators/${creatorId}/assets`);
         xhr.setRequestHeader('Authorization', `Bearer ${token}`);
         xhr.send(formData);
     });
 }
 
 /**
- * Delete a file from publisher storage
+ * Delete an asset from creator storage
  */
-export async function deleteFile(
+export async function deleteAsset(
     token: string,
-    publisherId: string,
-    fileId: string
+    creatorId: string,
+    assetId: string
 ): Promise<void> {
-    const response = await fetch(`${API_ENDPOINT}/creators/${publisherId}/storage/${fileId}`, {
+    const response = await fetch(`${API_ENDPOINT}/creators/${creatorId}/assets/${assetId}`, {
         method: 'DELETE',
         headers: {
             'Authorization': `Bearer ${token}`,
@@ -134,6 +163,17 @@ export async function deleteFile(
     });
 
     if (!response.ok) {
-        throw new Error(`Failed to delete file: ${response.statusText}`);
+        throw new Error(`Failed to delete asset: ${response.statusText}`);
     }
+}
+
+// Legacy exports for backwards compatibility
+export const getPublisherFiles = getCreatorAssets;
+export const uploadFile = uploadAsset;
+export const deleteFile = deleteAsset;
+
+export interface PublisherFile extends CreatorAsset {
+    fileSizeKb: number;
+    uploadedAt: string;
+    cdnUrl: string;
 }
