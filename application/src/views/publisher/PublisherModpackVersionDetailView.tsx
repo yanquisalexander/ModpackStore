@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -80,12 +81,13 @@ interface ModpackVersion {
 interface ModpackVersionFile {
     fileHash: string;
     path: string;
-    fileType?: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras'; // direct fileType on ModpackVersionFile
+    fileType?: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras';
     side: 'client' | 'server' | 'both';
     file: {
         type: 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'extras'; // DEPRECATED: kept for backward compatibility
+        size?: number; // bytes — comes from modpack_files table via JOIN
     };
-    size?: number;
+    size?: number; // may also come directly in some responses
 }
 
 // --- Helper Components & Types for File Tree ---
@@ -126,8 +128,8 @@ const getFileIcon = (fileName: string) => {
     }
 };
 
-const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 B';
+const formatFileSize = (bytes?: number): string => {
+    if (!bytes || bytes <= 0 || !isFinite(bytes)) return '0 B';
     const k = 1024;
     const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -301,7 +303,7 @@ const FileTreeNode: React.FC<{
                     <span className="text-foreground truncate text-sm" title={`Versión: ${versionId} - Path: ${fileData.path}`}>{name}</span>
                 </div>
                 <div className="text-[10px] text-muted-foreground flex-shrink-0 ml-2">
-                    {formatFileSize(fileData.size || 0)}
+                    {formatFileSize(fileData.file?.size ?? fileData.size)}
                 </div>
             </div>
         );
@@ -315,6 +317,11 @@ const FileTreeNode: React.FC<{
                 <span className="text-foreground truncate text-sm" title={fileData.path}>{name}</span>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                {(fileData.file?.size ?? fileData.size) ? (
+                    <span className="text-[10px] text-muted-foreground font-mono tabular-nums opacity-60 group-hover:opacity-100 transition-opacity">
+                        {formatFileSize(fileData.file?.size ?? fileData.size)}
+                    </span>
+                ) : null}
                 <TooltipProvider>
                     <Tooltip>
                         <TooltipTrigger asChild>
@@ -504,6 +511,220 @@ const FileTypeManager: React.FC<FileTypeManagerProps> = ({ title, description, t
     );
 };
 
+// --- Virtualized File Tree for Reuse Dialog ---
+
+interface FlatFileItem {
+    key: string;
+    name: string;
+    depth: number;
+    type: 'file' | 'folder';
+    isExpanded?: boolean;
+    fileHash?: string;
+    filePath?: string;
+    fileSize?: number;
+    childCount?: number;
+}
+
+const flattenFileTree = (
+    tree: { [key: string]: TreeNode },
+    expandedFolders: { [key: string]: boolean },
+    basePath: string,
+    depth: number
+): FlatFileItem[] => {
+    const items: FlatFileItem[] = [];
+    const entries = Object.entries(tree).sort(([aName, aNode], [bName, bNode]) => {
+        if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
+        if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
+        return aName.localeCompare(bName);
+    });
+
+    for (const [name, node] of entries) {
+        const itemPath = `${basePath}/${name}`;
+        if (node.type === 'folder') {
+            const isExpanded = !!expandedFolders[itemPath];
+            const childCount = countFiles(node);
+            items.push({ key: itemPath, name, depth, type: 'folder', isExpanded, childCount });
+            if (isExpanded) {
+                items.push(...flattenFileTree(node.children, expandedFolders, itemPath, depth + 1));
+            }
+        } else {
+            items.push({
+                key: `${itemPath}::${node.data.fileHash}`,
+                name,
+                depth,
+                type: 'file',
+                fileHash: node.data.fileHash,
+                filePath: node.data.path,
+                fileSize: node.data.file?.size ?? node.data.size,
+            });
+        }
+    }
+    return items;
+};
+
+const countFiles = (node: FolderNodeData): number => {
+    let count = 0;
+    for (const child of Object.values(node.children)) {
+        if (child.type === 'file') count++;
+        else count += countFiles(child);
+    }
+    return count;
+};
+
+const VirtualizedFileTree: React.FC<{
+    tree: { [key: string]: TreeNode };
+    expandedFolders: { [key: string]: boolean };
+    setExpandedFolders: React.Dispatch<React.SetStateAction<{ [key: string]: boolean }>>;
+    basePath: string;
+    versionId: string;
+    selectedFilesSet: Set<string>;
+    onToggleSelection: (versionId: string, fileHash: string, path: string) => void;
+    onToggleFolderSelection: (folderPath: string, fileHashes: string[], versionId?: string) => void;
+    maxHeight?: number;
+}> = ({ tree, expandedFolders, setExpandedFolders, basePath, versionId, selectedFilesSet, onToggleSelection, onToggleFolderSelection, maxHeight = 192 }) => {
+    const parentRef = useRef<HTMLDivElement>(null);
+
+    const flatItems = useMemo(
+        () => flattenFileTree(tree, expandedFolders, basePath, 0),
+        [tree, expandedFolders, basePath]
+    );
+
+    const virtualizer = useVirtualizer({
+        count: flatItems.length,
+        getScrollElement: () => parentRef.current,
+        estimateSize: () => 28,
+        overscan: 10,
+    });
+
+    const toggleExpand = (path: string) => {
+        setExpandedFolders(prev => ({ ...prev, [path]: !prev[path] }));
+    };
+
+    const getAllFileHashes = (folderNode: FolderNodeData): string[] => {
+        const hashes: string[] = [];
+        Object.values(folderNode.children).forEach(child => {
+            if (child.type === 'file') hashes.push(child.data.fileHash);
+            else hashes.push(...getAllFileHashes(child));
+        });
+        return hashes;
+    };
+
+    const getAllFiles = (folderNode: FolderNodeData): Array<{ fileHash: string; path: string }> => {
+        const files: Array<{ fileHash: string; path: string }> = [];
+        Object.values(folderNode.children).forEach(child => {
+            if (child.type === 'file') files.push({ fileHash: child.data.fileHash, path: child.data.path });
+            else files.push(...getAllFiles(child));
+        });
+        return files;
+    };
+
+    const findNodeByPath = (t: { [key: string]: TreeNode }, fullPath: string): TreeNode | undefined => {
+        const basePathParts = basePath.split('/').filter(Boolean);
+        const fullPathParts = fullPath.split('/').filter(Boolean);
+        const relativeParts = fullPathParts.slice(basePathParts.length);
+        let current: TreeNode | undefined;
+        let level = t;
+        for (const part of relativeParts) {
+            current = level[part];
+            if (!current || current.type === 'file') return current;
+            level = (current as FolderNodeData).children;
+        }
+        return current;
+    };
+
+    const checkFileSelected = (fileHash: string, path: string) => {
+        return selectedFilesSet.has(`${versionId}::${fileHash}::${path}`);
+    };
+
+    return (
+        <div
+            ref={parentRef}
+            style={{ height: `${maxHeight}px`, overflow: 'auto' }}
+            className="font-mono text-xs custom-scrollbar"
+        >
+            <div style={{ height: `${virtualizer.getTotalSize()}px`, position: 'relative', width: '100%' }}>
+                {virtualizer.getVirtualItems().map(virtualRow => {
+                    const item = flatItems[virtualRow.index];
+                    return (
+                        <div
+                            key={item.key}
+                            style={{
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                width: '100%',
+                                height: `${virtualRow.size}px`,
+                                transform: `translateY(${virtualRow.start}px)`,
+                            }}
+                        >
+                            <div
+                                className="flex items-center p-1 hover:bg-muted/30 rounded transition-colors group"
+                                style={{ paddingLeft: `${item.depth * 16 + 4}px` }}
+                            >
+                                {item.type === 'folder' ? (
+                                    <>
+                                        <input
+                                            type="checkbox"
+                                            checked={(() => {
+                                                const node = findNodeByPath(tree, item.key);
+                                                if (!node || node.type !== 'folder') return false;
+                                                const files = getAllFiles(node);
+                                                return files.length > 0 && files.every(f => checkFileSelected(f.fileHash, f.path));
+                                            })()}
+                                            ref={(el) => {
+                                                if (!el) return;
+                                                const node = findNodeByPath(tree, item.key);
+                                                if (node && node.type === 'folder') {
+                                                    const files = getAllFiles(node);
+                                                    const allSelected = files.length > 0 && files.every(f => checkFileSelected(f.fileHash, f.path));
+                                                    const someSelected = files.some(f => checkFileSelected(f.fileHash, f.path));
+                                                    el.indeterminate = someSelected && !allSelected;
+                                                }
+                                            }}
+                                            onChange={() => {
+                                                const node = findNodeByPath(tree, item.key);
+                                                if (node && node.type === 'folder') {
+                                                    onToggleFolderSelection(item.key, getAllFileHashes(node), versionId);
+                                                }
+                                            }}
+                                            className="mr-2 rounded border-white/20 bg-transparent"
+                                        />
+                                        <div onClick={() => toggleExpand(item.key)} className="flex items-center flex-1 cursor-pointer">
+                                            {item.isExpanded
+                                                ? <LucideChevronDown className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-foreground flex-shrink-0" />
+                                                : <LucideChevronRight className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-foreground flex-shrink-0" />
+                                            }
+                                            <LucideFolder className="h-4 w-4 mr-2 text-sky-500 flex-shrink-0" />
+                                            <span className="text-neutral-200 font-medium">{item.name}</span>
+                                            <span className="text-xs text-muted-foreground ml-2">({item.childCount})</span>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <input
+                                            type="checkbox"
+                                            checked={checkFileSelected(item.fileHash!, item.filePath!)}
+                                            onChange={() => onToggleSelection(versionId, item.fileHash!, item.filePath!)}
+                                            className="mr-2 rounded border-white/20 bg-transparent flex-shrink-0"
+                                        />
+                                        {getFileIcon(item.name)}
+                                        <span className="text-foreground truncate text-sm" title={item.filePath}>{item.name}</span>
+                                        {item.fileSize ? (
+                                            <span className="text-[10px] text-muted-foreground ml-auto flex-shrink-0 font-mono tabular-nums">
+                                                {formatFileSize(item.fileSize)}
+                                            </span>
+                                        ) : null}
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
 interface ProcessingJob {
     id: string;
     versionId: string;
@@ -637,6 +858,19 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     const [reuseExpandedFolders, setReuseExpandedFolders] = useState<{ [key: string]: boolean }>({});
     const [changelogExpanded, setChangelogExpanded] = useState(false);
 
+    // Derived Set for O(1) selection lookups
+    const selectedFilesSet = useMemo(() => {
+        const s = new Set<string>();
+        for (const f of reuseDialog.selectedFiles) {
+            s.add(`${f.versionId}::${f.fileHash}::${f.path}`);
+        }
+        return s;
+    }, [reuseDialog.selectedFiles]);
+
+    const isSelectedFile = useCallback((versionId: string, fileHash: string, path: string) => {
+        return selectedFilesSet.has(`${versionId}::${fileHash}::${path}`);
+    }, [selectedFilesSet]);
+
     // Compute files breakdown by type and total size
     const fileCountsByType = useMemo(() => {
         const counts = {
@@ -657,8 +891,9 @@ const PublisherModpackVersionDetailView: React.FC = () => {
             } else {
                 counts.extras++;
             }
-            if (file.size) {
-                counts.totalSizeBytes += file.size;
+            const sizeBytes = file.file?.size ?? file.size;
+            if (sizeBytes && isFinite(sizeBytes)) {
+                counts.totalSizeBytes += sizeBytes;
             }
         }
         return counts;
@@ -675,14 +910,6 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         }
         return displayName;
     }, [version]);
-
-    const formatFileSize = (bytes?: number) => {
-        if (!bytes || bytes <= 0) return '0 B';
-        const k = 1024;
-        const sizes = ['B', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-    };
 
     // Processing jobs polling
     const [processingJobs, setProcessingJobs] = useState<ProcessingJob[]>([]);
@@ -822,7 +1049,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
             setVersion({
                 ...version,
                 files: version.files.map(f =>
-                    f.fileHash === fileHash && (f.fileType === fileType || f.file.type === fileType)
+                    f.fileHash === fileHash && (f.fileType === _fileType || f.file.type === _fileType)
                         ? { ...f, side }
                         : f
                 )
@@ -1101,18 +1328,17 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     };
 
     const toggleFileSelection = (versionId: string, fileHash: string, path: string) => {
-        const fileIdentifier = { versionId, fileHash, path };
-        setReuseDialog(prev => ({
-            ...prev,
-            selectedFiles: prev.selectedFiles.some(f => f.versionId === versionId && f.fileHash === fileHash && f.path === path)
-                ? prev.selectedFiles.filter(f => !(f.versionId === versionId && f.fileHash === fileHash && f.path === path))
-                : [...prev.selectedFiles, fileIdentifier]
-        }));
+        const key = `${versionId}::${fileHash}::${path}`;
+        setReuseDialog(prev => {
+            const currentSet = new Set(prev.selectedFiles.map(f => `${f.versionId}::${f.fileHash}::${f.path}`));
+            if (currentSet.has(key)) {
+                return { ...prev, selectedFiles: prev.selectedFiles.filter(f => `${f.versionId}::${f.fileHash}::${f.path}` !== key) };
+            }
+            return { ...prev, selectedFiles: [...prev.selectedFiles, { versionId, fileHash, path }] };
+        });
     };
 
     const toggleFolderSelection = (_folderPath: string, fileHashes: string[], versionId?: string) => {
-        // For folder selection, prefer selecting files within the given versionId
-        // If no versionId is provided, fall back to searching across all previous versions.
         const folderFiles: Array<{ versionId: string, fileHash: string, path: string }> = [];
 
         if (versionId) {
@@ -1142,33 +1368,19 @@ const PublisherModpackVersionDetailView: React.FC = () => {
             });
         }
 
-
-
         setReuseDialog(prev => {
-            const currentlySelected = prev.selectedFiles;
-            const isAllSelected = folderFiles.length > 0 && folderFiles.every(ff =>
-                currentlySelected.some(f =>
-                    f.versionId === ff.versionId &&
-                    f.fileHash === ff.fileHash &&
-                    f.path === ff.path
-                )
-            );
+            const currentSet = new Set(prev.selectedFiles.map(f => `${f.versionId}::${f.fileHash}::${f.path}`));
+            const folderKeys = folderFiles.map(f => `${f.versionId}::${f.fileHash}::${f.path}`);
+            const isAllSelected = folderKeys.length > 0 && folderKeys.every(k => currentSet.has(k));
 
-            const newSelected = isAllSelected
-                ? currentlySelected.filter(f =>
-                    !folderFiles.some(ff =>
-                        ff.versionId === f.versionId &&
-                        ff.fileHash === f.fileHash &&
-                        ff.path === f.path
-                    )
-                )
-                : [...currentlySelected, ...folderFiles.filter(ff =>
-                    !currentlySelected.some(f =>
-                        f.versionId === ff.versionId &&
-                        f.fileHash === ff.fileHash &&
-                        f.path === f.path
-                    )
-                )];
+            let newSelected;
+            if (isAllSelected) {
+                const folderKeySet = new Set(folderKeys);
+                newSelected = prev.selectedFiles.filter(f => !folderKeySet.has(`${f.versionId}::${f.fileHash}::${f.path}`));
+            } else {
+                const newFiles = folderFiles.filter(f => !currentSet.has(`${f.versionId}::${f.fileHash}::${f.path}`));
+                newSelected = [...prev.selectedFiles, ...newFiles];
+            }
 
             return { ...prev, selectedFiles: newSelected };
         });
@@ -1188,10 +1400,11 @@ const PublisherModpackVersionDetailView: React.FC = () => {
         const versionData = reuseDialog.previousFiles.find(v => v.versionId === versionId);
         if (!versionData) return;
         const versionFiles = versionData.files.map(f => ({ versionId: versionData.versionId, fileHash: f.fileHash, path: f.path }));
-        setReuseDialog(prev => ({
-            ...prev,
-            selectedFiles: [...prev.selectedFiles, ...versionFiles.filter(vf => !prev.selectedFiles.some(s => s.versionId === vf.versionId && s.fileHash === vf.fileHash && s.path === vf.path))]
-        }));
+        setReuseDialog(prev => {
+            const currentSet = new Set(prev.selectedFiles.map(f => `${f.versionId}::${f.fileHash}::${f.path}`));
+            const newFiles = versionFiles.filter(vf => !currentSet.has(`${vf.versionId}::${vf.fileHash}::${vf.path}`));
+            return { ...prev, selectedFiles: [...prev.selectedFiles, ...newFiles] };
+        });
     }, [reuseDialog.previousFiles]);
 
     const deselectAllFilesForVersion = useCallback((versionId: string) => {
@@ -1230,11 +1443,10 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     };
 
     const confirmFileReuse = async () => {
-        // Build unique list of { versionId, fileHash }
-        const uniquePairsMap = new Map<string, { versionId: string; fileHash: string }>();
+        const uniquePairsMap = new Map<string, { versionId: string; fileHash: string; path: string }>();
         reuseDialog.selectedFiles.forEach(f => {
-            const key = `${f.versionId}::${f.fileHash}`;
-            if (!uniquePairsMap.has(key)) uniquePairsMap.set(key, { versionId: f.versionId, fileHash: f.fileHash });
+            const key = `${f.versionId}::${f.fileHash}::${f.path}`;
+            if (!uniquePairsMap.has(key)) uniquePairsMap.set(key, { versionId: f.versionId, fileHash: f.fileHash, path: f.path });
         });
 
         const fileRefs = Array.from(uniquePairsMap.values());
@@ -1259,7 +1471,9 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                 return;
             }
 
-            toast.success(`Añadidos ${fileRefs.length} archivo(s) de versiones anteriores (sin reemplazar existentes)`);
+            const result = await res.json();
+            const reusedCount = result.reused ?? fileRefs.length;
+            toast.success(`Añadidos ${reusedCount} archivo(s) de versiones anteriores (sin reemplazar existentes)`);
             fetchVersionDetails();
             setReuseDialog(prev => ({ ...prev, open: false, selectedFiles: [] }));
         } catch (error) {
@@ -1451,9 +1665,8 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                         ) : (
                             reuseDialog.previousFiles.map(versionData => {
                                 const fileTree = buildFileTree(versionData.files, reuseDialog.type);
-                                const versionFileIds = versionData.files.map(f => `${versionData.versionId}::${f.fileHash}`);
-                                const allVersionSelected = versionFileIds.length > 0 && versionFileIds.every(id => reuseDialog.selectedFiles.some(s => `${s.versionId}::${s.fileHash}` === id));
-                                const someVersionSelected = versionFileIds.some(id => reuseDialog.selectedFiles.some(s => `${s.versionId}::${s.fileHash}` === id));
+                                const allVersionSelected = versionData.files.length > 0 && versionData.files.every(f => isSelectedFile(versionData.versionId, f.fileHash, f.path));
+                                const someVersionSelected = versionData.files.some(f => isSelectedFile(versionData.versionId, f.fileHash, f.path));
 
                                 return (
                                     <div key={versionData.versionId} className="bg-card border border-border rounded-lg p-4">
@@ -1484,30 +1697,17 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="space-y-1 font-mono text-xs max-h-48 overflow-y-auto">
-                                            {Object.entries(fileTree)
-                                                .sort(([aName, aNode], [bName, bNode]) => {
-                                                    if (aNode.type === 'folder' && bNode.type !== 'folder') return -1;
-                                                    if (aNode.type !== 'folder' && bNode.type === 'folder') return 1;
-                                                    return aName.localeCompare(bName);
-                                                })
-                                                .map(([name, node]) => (
-                                                    <FileTreeNode
-                                                        key={`${versionData.versionId}-${name}`}
-                                                        name={name}
-                                                        node={node}
-                                                        expandedFolders={reuseExpandedFolders}
-                                                        setExpandedFolders={setReuseExpandedFolders}
-                                                        path={`${versionData.versionId}-${name}`}
-                                                        mode="select"
-                                                        selectedFiles={reuseDialog.selectedFiles}
-                                                        onToggleSelection={toggleFileSelection}
-                                                        onToggleFolderSelection={toggleFolderSelection}
-                                                        versionId={versionData.versionId}
-                                                    />
-                                                ))
-                                            }
-                                        </div>
+                                        <VirtualizedFileTree
+                                            tree={fileTree}
+                                            expandedFolders={reuseExpandedFolders}
+                                            setExpandedFolders={setReuseExpandedFolders}
+                                            basePath={versionData.versionId}
+                                            versionId={versionData.versionId}
+                                            selectedFilesSet={selectedFilesSet}
+                                            onToggleSelection={toggleFileSelection}
+                                            onToggleFolderSelection={toggleFolderSelection}
+                                            maxHeight={192}
+                                        />
                                     </div>
                                 );
                             })
