@@ -390,3 +390,33 @@ body,
     grid-template-rows: subgrid;
   
 }
+
+/* CodeMirror Asset Completion Tooltip */
+.cm-tooltip-autocomplete {
+    background: #18181b !important;
+    border: 1px solid #3f3f46 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+    overflow: hidden !important;
+}
+
+.cm-tooltip-autocomplete ul {
+    font-family: inherit !important;
+}
+
+.cm-tooltip-autocomplete ul li {
+    padding: 0 !important;
+    line-height: normal !important;
+}
+
+.cm-tooltip-autocomplete ul li[aria-selected] {
+    background: #27272a !important;
+}
+
+.cm-asset-preview {
+    background: transparent;
+}
+
+.cm-tooltip-autocomplete ul li[aria-selected] .cm-asset-preview {
+    background: transparent;
+}
