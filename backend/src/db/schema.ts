@@ -11,7 +11,8 @@ import {
     numeric,
     uniqueIndex,
     serial,
-    integer
+    integer,
+    bigint
 } from "drizzle-orm/pg-core"
 import { relations } from "drizzle-orm";
 
@@ -362,6 +363,25 @@ export const bansRelations = relations(bansTable, ({ one }) => ({
     }),
 }));
 
+/* Creator Storage */
+
+export const creatorAssetsTable = pgTable("creator_assets", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    creatorId: uuid("creator_id").notNull().references(() => creatorsTable.id, { onDelete: "cascade" }),
+    fileName: text("file_name").notNull(),
+    r2Key: text("r2_key").notNull().unique(),
+    contentType: text("content_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const creatorStorageConfigTable = pgTable("creator_storage_config", {
+    creatorId: uuid("creator_id").primaryKey().notNull().references(() => creatorsTable.id, { onDelete: "cascade" }),
+    storageLimitBytes: bigint("storage_limit_bytes", { mode: "number" }).notNull().default(31457280), // 30 MB
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /* 
     Relationships
 */
@@ -369,6 +389,7 @@ export const bansRelations = relations(bansTable, ({ one }) => ({
 export const creatorsRelations = relations(creatorsTable, ({ many }) => ({
     users: many(creatorUsersTable),
     modpacks: many(modpacksTable),
+    assets: many(creatorAssetsTable),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
@@ -437,5 +458,19 @@ export const modpackAcquisitionsRelations = relations(modpackAcquisitionsTable, 
     modpack: one(modpacksTable, {
         fields: [modpackAcquisitionsTable.modpackId],
         references: [modpacksTable.id],
+    }),
+}));
+
+export const creatorAssetsRelations = relations(creatorAssetsTable, ({ one }) => ({
+    creator: one(creatorsTable, {
+        fields: [creatorAssetsTable.creatorId],
+        references: [creatorsTable.id],
+    }),
+}));
+
+export const creatorStorageConfigRelations = relations(creatorStorageConfigTable, ({ one }) => ({
+    creator: one(creatorsTable, {
+        fields: [creatorStorageConfigTable.creatorId],
+        references: [creatorsTable.id],
     }),
 }));

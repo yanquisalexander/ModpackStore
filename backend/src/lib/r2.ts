@@ -72,6 +72,15 @@ export function getCreatorImageUrl(creatorId: string, type: 'logo' | 'banner'): 
     return publicDomain ? `${publicDomain}/${key}?t=${ts}` : `${key}?t=${ts}`;
 }
 
+export function getCreatorAssetKey(creatorId: string, fileName: string): string {
+    return `creator-assets/${creatorId}/${fileName}`;
+}
+
+export function getCreatorAssetUrl(r2Key: string): string {
+    const ts = Date.now();
+    return publicDomain ? `${publicDomain}/${r2Key}?t=${ts}` : `${r2Key}?t=${ts}`;
+}
+
 export async function generatePresignedUploadUrl(key: string, expiresIn = 3600): Promise<string> {
     const command = new PutObjectCommand({
         Bucket: bucket,

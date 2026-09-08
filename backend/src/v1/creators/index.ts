@@ -20,9 +20,11 @@ import {
 import { CreatorRole } from "@/db/schema.ts";
 import { getMemberPermissions, setMemberPermission } from "@/services/permission.service.ts";
 import modpackRoutes from "./modpacks.routes.ts";
+import storageRoutes from "./storage.routes.ts";
 
 const app = new Hono();
 app.route("/:creatorId/modpacks", modpackRoutes);
+app.route("/", storageRoutes);
 
 // ── Creator CRUD ──────────────────────────────────
 
