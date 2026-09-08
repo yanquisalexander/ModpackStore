@@ -11,11 +11,11 @@ interface AssetData {
 }
 
 const assetCache = new Map<string, AssetData>();
-let fetchPromise: Promise<void> | null = null;
+const fetchedCreators = new Set<string>();
+let pendingRebuild: (() => void) | null = null;
 
 async function fetchAllAssets(creatorId: string, token: string): Promise<void> {
-    const cacheKey = `creator:${creatorId}`;
-    if (assetCache.has(cacheKey)) return;
+    if (fetchedCreators.has(creatorId)) return;
 
     try {
         const response = await fetch(`${API_ENDPOINT}/creators/${creatorId}/assets`, {
@@ -28,7 +28,10 @@ async function fetchAllAssets(creatorId: string, token: string): Promise<void> {
         for (const asset of assets) {
             assetCache.set(`${asset.creatorId}/${asset.id}`, asset);
         }
-        assetCache.set(cacheKey as any, null as any); // Mark as fetched
+        fetchedCreators.add(creatorId);
+
+        // Trigger rebuild
+        if (pendingRebuild) pendingRebuild();
     } catch {
         // Ignore errors
     }
@@ -59,43 +62,35 @@ class AssetWidget extends WidgetType {
         wrap.className = "cm-asset-mention";
         wrap.contentEditable = "false";
 
-        if (this.assetData) {
-            const isImage = this.assetData.contentType.startsWith("image/");
+        const data = this.assetData;
+
+        if (data) {
+            const isImage = data.contentType.startsWith("image/");
 
             if (isImage) {
                 const img = document.createElement("img");
-                img.src = this.assetData.url;
-                img.alt = this.assetData.fileName;
+                img.src = data.url;
+                img.alt = data.fileName;
                 img.className = "cm-asset-mention-img";
                 img.onerror = () => {
                     img.remove();
-                    const fallback = document.createElement("span");
-                    fallback.className = "cm-asset-mention-icon";
-                    fallback.textContent = "📎";
-                    wrap.insertBefore(fallback, wrap.firstChild);
+                    const icon = document.createElement("span");
+                    icon.className = "cm-asset-mention-icon";
+                    icon.textContent = "📎";
+                    wrap.insertBefore(icon, wrap.firstChild);
                 };
                 wrap.appendChild(img);
-            } else if (this.assetData.contentType.startsWith("audio/")) {
-                const icon = document.createElement("span");
-                icon.className = "cm-asset-mention-icon";
-                icon.textContent = "🎵";
-                wrap.appendChild(icon);
-            } else if (this.assetData.contentType.startsWith("video/")) {
-                const icon = document.createElement("span");
-                icon.className = "cm-asset-mention-icon";
-                icon.textContent = "🎬";
-                wrap.appendChild(icon);
             } else {
                 const icon = document.createElement("span");
                 icon.className = "cm-asset-mention-icon";
-                icon.textContent = "📎";
+                icon.textContent = data.contentType.startsWith("audio/") ? "🎵" : "📎";
                 wrap.appendChild(icon);
             }
 
             const name = document.createElement("span");
             name.className = "cm-asset-mention-name";
-            name.textContent = this.assetData.fileName;
-            name.title = `${this.assetData.fileName} (${formatFileSize(this.assetData.sizeBytes)})`;
+            name.textContent = data.fileName;
+            name.title = `${data.fileName} (${formatFileSize(data.sizeBytes)})`;
             wrap.appendChild(name);
         } else {
             const icon = document.createElement("span");
@@ -120,10 +115,24 @@ class AssetWidget extends WidgetType {
 class AssetMentionView {
     decorations: DecorationSet;
     private creatorId: string;
+    private view: EditorView;
 
     constructor(view: EditorView, creatorId: string) {
+        this.view = view;
         this.creatorId = creatorId;
         this.decorations = this.buildDeco(view);
+        pendingRebuild = () => this.rebuild();
+    }
+
+    destroy() {
+        if (pendingRebuild === this.rebuild) {
+            pendingRebuild = null;
+        }
+    }
+
+    rebuild() {
+        this.decorations = this.buildDeco(this.view);
+        this.view.dispatch({ effects: [] });
     }
 
     update(update: ViewUpdate) {
@@ -154,7 +163,7 @@ class AssetMentionView {
                     }).range(start, end)
                 );
 
-                // Add widget before the hidden text
+                // Add widget
                 decorations.push(
                     Decoration.widget({
                         widget: new AssetWidget(creatorId, assetId),
@@ -170,7 +179,7 @@ class AssetMentionView {
 
 export function createAssetMentionPlugin(creatorId: string, token: string) {
     // Fetch all assets upfront
-    fetchPromise = fetchAllAssets(creatorId, token);
+    fetchAllAssets(creatorId, token);
 
     return ViewPlugin.fromClass(
         class extends AssetMentionView {
@@ -186,5 +195,6 @@ export function createAssetMentionPlugin(creatorId: string, token: string) {
 
 export function clearAssetCache() {
     assetCache.clear();
-    fetchPromise = null;
+    fetchedCreators.clear();
+    pendingRebuild = null;
 }
