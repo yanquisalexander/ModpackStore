@@ -111,7 +111,7 @@ export async function getPublishedVersions(modpackId: string) {
     return versions.map(v => ({
         ...v,
         files: (filesByVersion.get(v.id) || []).map(f => ({
-            path: f.fileType ? `${f.fileType}/${f.path}` : f.path,
+            path: f.fileType && f.fileType !== "extras" ? `${f.fileType}/${f.path}` : f.path,
             file: { type: f.fileType },
         })),
     }));

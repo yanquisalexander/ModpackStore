@@ -215,7 +215,7 @@ app.get("/modpacks/:modpackId/versions/:versionId", requireAuth, async (c) => {
             status: version.status,
             version: version.version,
             files: files.map((f) => ({
-                path: f.fileType ? `${f.fileType}/${f.path}` : f.path,
+                path: f.fileType && f.fileType !== "extras" ? `${f.fileType}/${f.path}` : f.path,
                 fileHash: f.fileHash,
                 fileType: f.fileType,
                 downloadUrl: `/${getFileKey(f.fileHash)}`,
