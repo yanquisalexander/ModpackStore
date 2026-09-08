@@ -1,12 +1,15 @@
 import { EditorView, ViewPlugin, Decoration, DecorationSet, MatchDecorator } from "@codemirror/view";
 import { PluginValue } from "@codemirror/view";
 
-const assetMentionDeco = Decoration.mark({
-    attributes: {
-        class: "cm-asset-mention",
-    },
-    nodeName: "span",
-});
+function createAssetMentionDecoration() {
+    return Decoration.mark({
+        inclusive: true,
+        attributes: {
+            class: "cm-asset-mention",
+        },
+        nodeName: "span",
+    });
+}
 
 class AssetMentionView implements PluginValue {
     decorations: DecorationSet;
@@ -22,23 +25,21 @@ class AssetMentionView implements PluginValue {
     }
 
     buildDeco(view: EditorView): DecorationSet {
-        const decorator = new MatchDecorator({
-            regexp: /@asset:[a-f0-9-]{36}/g,
-            decoration: (match) => {
-                // Extract the asset ID
-                const id = match[0].replace("@asset:", "");
-                const deco = Decoration.mark({
-                    attributes: {
-                        class: "cm-asset-mention",
-                        "data-asset-id": id,
-                    },
-                    nodeName: "span",
-                });
-                return deco;
-            },
-            boundary: /[^a-zA-Z0-9_\-:]/,
-        });
-        return decorator.createDeco(view);
+        const decorations: any[] = [];
+        
+        for (const { from, to } of view.visibleRanges) {
+            const text = view.state.doc.sliceString(from, to);
+            const regex = /@asset:[a-f0-9-]{36}\/[a-f0-9-]{36}/g;
+            let match;
+            
+            while ((match = regex.exec(text)) !== null) {
+                const start = from + match.index;
+                const end = start + match[0].length;
+                decorations.push(createAssetMentionDecoration().range(start, end));
+            }
+        }
+        
+        return Decoration.set(decorations, true);
     }
 }
 

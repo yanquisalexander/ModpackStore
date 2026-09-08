@@ -150,7 +150,7 @@ function createAssetPreviewElement(asset: CreatorAsset): HTMLElement {
 
 export function createAssetCompletionSource(creatorId: string, token: string) {
     return async (ctx: CompletionContext): Promise<CompletionResult | null> => {
-        const word = ctx.matchBefore(/@asset:\w*/);
+        const word = ctx.matchBefore(/@\w*/);
 
         if (!word) return null;
 

@@ -423,20 +423,25 @@ body,
 
 /* @asset mention badge */
 .cm-asset-mention {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-    color: white;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 12px;
-    font-weight: 500;
-    white-space: nowrap;
-    cursor: default;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-    transition: all 0.15s ease;
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+    color: white !important;
+    padding: 2px 8px !important;
+    border-radius: 12px !important;
+    font-size: 12px !important;
+    font-weight: 500 !important;
+    white-space: nowrap !important;
+    cursor: default !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3) !important;
+    transition: all 0.15s ease !important;
+}
+
+.cm-asset-mention * {
+    color: white !important;
+    background: transparent !important;
 }
 
 .cm-asset-mention:hover {
-    background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
-    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4);
+    background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%) !important;
+    box-shadow: 0 2px 6px rgba(99, 102, 241, 0.4) !important;
 }
