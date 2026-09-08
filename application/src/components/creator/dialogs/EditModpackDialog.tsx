@@ -422,8 +422,8 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                             extensions={[
                                                 basicSetup,
                                                 toml(),
-                                                sessionTokens?.accessToken
-                                                    ? createAssetMentionPlugin(sessionTokens.accessToken)
+                                                modpack?.creatorId && sessionTokens?.accessToken
+                                                    ? createAssetMentionPlugin(modpack.creatorId, sessionTokens.accessToken)
                                                     : [],
                                                 autocompletion({
                                                     override: modpack?.creatorId && sessionTokens?.accessToken

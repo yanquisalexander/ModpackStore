@@ -11,25 +11,26 @@ interface AssetData {
 }
 
 const assetCache = new Map<string, AssetData>();
+let fetchPromise: Promise<void> | null = null;
 
-async function fetchAndCacheAsset(creatorId: string, assetId: string, token: string): Promise<AssetData | null> {
-    const key = `${creatorId}/${assetId}`;
-    if (assetCache.has(key)) return assetCache.get(key)!;
+async function fetchAllAssets(creatorId: string, token: string): Promise<void> {
+    const cacheKey = `creator:${creatorId}`;
+    if (assetCache.has(cacheKey)) return;
 
     try {
         const response = await fetch(`${API_ENDPOINT}/creators/${creatorId}/assets`, {
             headers: { 'Authorization': `Bearer ${token}` },
         });
-        if (!response.ok) return null;
+        if (!response.ok) return;
 
         const data = await response.json();
         const assets: AssetData[] = data.data || [];
         for (const asset of assets) {
             assetCache.set(`${asset.creatorId}/${asset.id}`, asset);
         }
-        return assetCache.get(key) || null;
+        assetCache.set(cacheKey as any, null as any); // Mark as fetched
     } catch {
-        return null;
+        // Ignore errors
     }
 }
 
@@ -42,12 +43,11 @@ function formatFileSize(bytes: number): string {
 }
 
 class AssetWidget extends WidgetType {
-    constructor(
-        readonly creatorId: string,
-        readonly assetId: string,
-        readonly assetData: AssetData | null
-    ) {
+    private assetData: AssetData | null;
+
+    constructor(readonly creatorId: string, readonly assetId: string) {
         super();
+        this.assetData = assetCache.get(`${creatorId}/${assetId}`) || null;
     }
 
     eq(other: AssetWidget) {
@@ -69,11 +69,27 @@ class AssetWidget extends WidgetType {
                 img.className = "cm-asset-mention-img";
                 img.onerror = () => {
                     img.remove();
-                    wrap.appendChild(this.createFallback());
+                    const fallback = document.createElement("span");
+                    fallback.className = "cm-asset-mention-icon";
+                    fallback.textContent = "📎";
+                    wrap.insertBefore(fallback, wrap.firstChild);
                 };
                 wrap.appendChild(img);
+            } else if (this.assetData.contentType.startsWith("audio/")) {
+                const icon = document.createElement("span");
+                icon.className = "cm-asset-mention-icon";
+                icon.textContent = "🎵";
+                wrap.appendChild(icon);
+            } else if (this.assetData.contentType.startsWith("video/")) {
+                const icon = document.createElement("span");
+                icon.className = "cm-asset-mention-icon";
+                icon.textContent = "🎬";
+                wrap.appendChild(icon);
             } else {
-                wrap.appendChild(this.createFallback());
+                const icon = document.createElement("span");
+                icon.className = "cm-asset-mention-icon";
+                icon.textContent = "📎";
+                wrap.appendChild(icon);
             }
 
             const name = document.createElement("span");
@@ -82,21 +98,18 @@ class AssetWidget extends WidgetType {
             name.title = `${this.assetData.fileName} (${formatFileSize(this.assetData.sizeBytes)})`;
             wrap.appendChild(name);
         } else {
-            wrap.appendChild(this.createFallback());
-            const loading = document.createElement("span");
-            loading.className = "cm-asset-mention-name";
-            loading.textContent = "loading...";
-            wrap.appendChild(loading);
+            const icon = document.createElement("span");
+            icon.className = "cm-asset-mention-icon";
+            icon.textContent = "📎";
+            wrap.appendChild(icon);
+
+            const name = document.createElement("span");
+            name.className = "cm-asset-mention-name";
+            name.textContent = this.assetId.slice(0, 8) + "...";
+            wrap.appendChild(name);
         }
 
         return wrap;
-    }
-
-    private createFallback(): HTMLSpanElement {
-        const icon = document.createElement("span");
-        icon.className = "cm-asset-mention-icon";
-        icon.textContent = "📎";
-        return icon;
     }
 
     ignoreEvent() {
@@ -104,29 +117,12 @@ class AssetWidget extends WidgetType {
     }
 }
 
-function createAssetWidget(view: EditorView, creatorId: string, assetId: string, token: string) {
-    const assetData = assetCache.get(`${creatorId}/${assetId}`) || null;
-
-    // Fetch asset data in background if not cached
-    if (!assetData) {
-        fetchAndCacheAsset(creatorId, assetId, token).then(() => {
-            // Trigger a decoration update to re-render with the fetched data
-            view.dispatch({ effects: [] });
-        });
-    }
-
-    return Decoration.widget({
-        widget: new AssetWidget(creatorId, assetId, assetData),
-        side: 0,
-    });
-}
-
 class AssetMentionView {
     decorations: DecorationSet;
-    private token: string;
+    private creatorId: string;
 
-    constructor(view: EditorView, token: string) {
-        this.token = token;
+    constructor(view: EditorView, creatorId: string) {
+        this.creatorId = creatorId;
         this.decorations = this.buildDeco(view);
     }
 
@@ -150,7 +146,7 @@ class AssetMentionView {
                 const creatorId = match[1];
                 const assetId = match[2];
 
-                // Use widget for display, but keep the text in the document
+                // Hide the raw text
                 decorations.push(
                     Decoration.mark({
                         inclusive: true,
@@ -158,8 +154,12 @@ class AssetMentionView {
                     }).range(start, end)
                 );
 
+                // Add widget before the hidden text
                 decorations.push(
-                    createAssetWidget(view, creatorId, assetId, this.token).range(start)
+                    Decoration.widget({
+                        widget: new AssetWidget(creatorId, assetId),
+                        side: -1,
+                    }).range(start)
                 );
             }
         }
@@ -168,11 +168,14 @@ class AssetMentionView {
     }
 }
 
-export function createAssetMentionPlugin(token: string) {
+export function createAssetMentionPlugin(creatorId: string, token: string) {
+    // Fetch all assets upfront
+    fetchPromise = fetchAllAssets(creatorId, token);
+
     return ViewPlugin.fromClass(
         class extends AssetMentionView {
             constructor(view: EditorView) {
-                super(view, token);
+                super(view, creatorId);
             }
         },
         {
@@ -183,4 +186,5 @@ export function createAssetMentionPlugin(token: string) {
 
 export function clearAssetCache() {
     assetCache.clear();
+    fetchPromise = null;
 }
