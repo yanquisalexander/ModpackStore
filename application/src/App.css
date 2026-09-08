@@ -421,7 +421,7 @@ body,
     background: transparent;
 }
 
-/* @asset mention badge */
+/* @asset mention badge - Discord style */
 .cm-asset-mention-hidden {
     display: none !important;
 }
@@ -429,40 +429,43 @@ body,
 .cm-asset-mention {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
-    color: white !important;
-    padding: 4px 10px !important;
-    border-radius: 16px !important;
-    font-size: 12px !important;
+    gap: 4px;
+    background: rgba(99, 102, 241, 0.15) !important;
+    color: #a5b4fc !important;
+    padding: 1px 6px !important;
+    border-radius: 4px !important;
+    font-size: 14px !important;
     font-weight: 500 !important;
     white-space: nowrap !important;
     cursor: default !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3) !important;
-    vertical-align: middle;
-    line-height: 1;
-    max-width: 200px;
+    border: none !important;
+    box-shadow: none !important;
+    vertical-align: baseline;
+    line-height: 1.3;
+    max-width: 180px;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: background 0.1s ease;
 }
 
 .cm-asset-mention * {
-    color: white !important;
+    color: inherit !important;
     background: transparent !important;
 }
 
 .cm-asset-mention-img {
-    width: 20px;
-    height: 20px;
-    border-radius: 4px;
+    width: 18px;
+    height: 18px;
+    border-radius: 3px;
     object-fit: cover;
     flex-shrink: 0;
+    margin-left: -2px;
 }
 
 .cm-asset-mention-icon {
-    font-size: 14px;
+    font-size: 13px;
     flex-shrink: 0;
+    margin-left: -1px;
 }
 
 .cm-asset-mention-name {
@@ -472,6 +475,5 @@ body,
 }
 
 .cm-asset-mention:hover {
-    background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%) !important;
-    box-shadow: 0 3px 12px rgba(99, 102, 241, 0.5) !important;
+    background: rgba(99, 102, 241, 0.25) !important;
 }
