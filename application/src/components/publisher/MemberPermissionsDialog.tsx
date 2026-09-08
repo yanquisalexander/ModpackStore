@@ -454,7 +454,7 @@ export const MemberPermissionsDialog: React.FC<MemberPermissionsDialogProps> = (
                     ) : (
                         <Alert>
                             <LucideInfo className="h-4 w-4" />
-                            <AlertDescription>
+                            <AlertDescription className="block">
                                 Los usuarios con rol de <strong>{CreatorPermissionsAPI.getRoleDisplayName(member.role)}</strong> tienen
                                 acceso completo y no requieren configuración de permisos individuales.
                             </AlertDescription>
