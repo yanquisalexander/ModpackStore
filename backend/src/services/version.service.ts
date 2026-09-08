@@ -229,11 +229,11 @@ export async function getPreviousFiles(versionId: string, fileType: string) {
     return files;
 }
 
-export async function reuseFiles(versionId: string, fileType: string, fileRefs: { versionId: string; fileHash: string }[]) {
-    const refHashes = fileRefs.map((r) => r.fileHash);
+export async function reuseFiles(versionId: string, fileType: string, fileRefs: { versionId: string; fileHash: string; path: string }[]) {
+    const refHashes = [...new Set(fileRefs.map((r) => r.fileHash))];
     const refVersionIds = [...new Set(fileRefs.map((r) => r.versionId))];
 
-    // Look up original paths and sides from the referenced version files
+    // Look up original sides from the referenced version files
     const originalFiles = await db.select({
         fileHash: modpackVersionFilesTable.fileHash,
         path: modpackVersionFilesTable.path,
@@ -250,22 +250,25 @@ export async function reuseFiles(versionId: string, fileType: string, fileRefs: 
         );
 
     const lookup = new Map(
-        originalFiles.map((f) => [`${f.versionId}-${f.fileHash}`, f]),
+        originalFiles.map((f) => [`${f.versionId}-${f.fileHash}-${f.path}`, f]),
     );
 
     const rows = fileRefs.map((ref) => {
-        const orig = lookup.get(`${ref.versionId}-${ref.fileHash}`);
+        const orig = lookup.get(`${ref.versionId}-${ref.fileHash}-${ref.path}`);
         return {
             fileHash: ref.fileHash,
             modpackVersionId: versionId,
-            path: orig?.path ?? "",
+            path: ref.path || orig?.path || "",
             fileType,
             side: (orig?.side ?? "both") as "client" | "server" | "both",
         };
     }).filter((r) => r.path);
 
-    // Remove duplicates already linked to this version
-    const existing = await db.select({ fileHash: modpackVersionFilesTable.fileHash })
+    // Remove duplicates already linked to this version (by fileHash + path)
+    const existing = await db.select({
+        fileHash: modpackVersionFilesTable.fileHash,
+        path: modpackVersionFilesTable.path,
+    })
         .from(modpackVersionFilesTable)
         .where(
             and(
@@ -274,8 +277,8 @@ export async function reuseFiles(versionId: string, fileType: string, fileRefs: 
             ),
         );
 
-    const existingHashes = new Set(existing.map((e) => e.fileHash));
-    const toInsert = rows.filter((r) => !existingHashes.has(r.fileHash));
+    const existingSet = new Set(existing.map((e) => `${e.fileHash}::${e.path}`));
+    const toInsert = rows.filter((r) => !existingSet.has(`${r.fileHash}::${r.path}`));
 
     if (toInsert.length > 0) {
         await db.insert(modpackVersionFilesTable).values(toInsert).onConflictDoNothing();
