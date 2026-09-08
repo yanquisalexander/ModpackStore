@@ -20,7 +20,8 @@ import { CategorySelector } from '@/components/CategorySelector';
 import { ModpackStatusManager } from '@/components/creator/ModpackStatusManager';
 import { resizeImage } from '@/utils/imageResize';
 import { createAssetCompletionSource, resolveAssetReferences, clearAssetCache } from '@/lib/asset-completion';
-import { autocomplete } from '@codemirror/autocomplete';
+import { assetMentionPlugin } from '@/lib/asset-mention';
+import { autocompletion } from '@codemirror/autocomplete';
 
 interface Props {
     isOpen: boolean;
@@ -237,9 +238,9 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
 
             if (!isTomlValid) throw new Error("TOML de apariencia inválido");
             if (prelaunchToml.trim()) {
-                // Resolve @asset:ID references to actual URLs before saving
-                const resolvedToml = modpack?.creatorId && sessionTokens?.accessToken
-                    ? await resolveAssetReferences(prelaunchToml, modpack.creatorId, sessionTokens.accessToken)
+                // Resolve @asset:CREATOR_ID/ASSET_ID references to actual URLs before saving
+                const resolvedToml = sessionTokens?.accessToken
+                    ? await resolveAssetReferences(prelaunchToml, sessionTokens.accessToken)
                     : prelaunchToml;
                 const parsed = parseToml(resolvedToml);
                 submission.append('prelaunchAppearance', JSON.stringify(parsed));
@@ -421,7 +422,8 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                             extensions={[
                                                 basicSetup,
                                                 toml(),
-                                                autocomplete({
+                                                assetMentionPlugin,
+                                                autocompletion({
                                                     override: modpack?.creatorId && sessionTokens?.accessToken
                                                         ? [createAssetCompletionSource(modpack.creatorId, sessionTokens.accessToken)]
                                                         : [],

@@ -3,6 +3,7 @@ import { API_ENDPOINT } from "@/consts";
 
 interface CreatorAsset {
     id: string;
+    creatorId: string;
     fileName: string;
     contentType: string;
     sizeBytes: number;
@@ -149,7 +150,7 @@ function createAssetPreviewElement(asset: CreatorAsset): HTMLElement {
 
 export function createAssetCompletionSource(creatorId: string, token: string) {
     return async (ctx: CompletionContext): Promise<CompletionResult | null> => {
-        const word = ctx.matchBefore(/@\w*/);
+        const word = ctx.matchBefore(/@asset:\w*/);
 
         if (!word) return null;
 
@@ -160,8 +161,8 @@ export function createAssetCompletionSource(creatorId: string, token: string) {
         return {
             from: word.from,
             options: assets.map(asset => ({
-                label: `@${asset.fileName}`,
-                apply: `@asset:${asset.id}`,
+                label: `@asset:${asset.fileName}`,
+                apply: `@asset:${creatorId}/${asset.id}`,
                 type: 'keyword',
                 // Custom tooltip with preview
                 info: () => createAssetPreviewElement(asset),
@@ -176,23 +177,45 @@ export function clearAssetCache(): void {
 }
 
 /**
- * Translate @asset:ID references to actual URLs in TOML content
+ * Parse @asset:CREATOR_ID/ASSET_ID reference
+ */
+export function parseAssetReference(ref: string): { creatorId: string; assetId: string } | null {
+    const match = ref.match(/@asset:([a-f0-9-]{36})\/([a-f0-9-]{36})/);
+    if (!match) return null;
+    return { creatorId: match[1], assetId: match[2] };
+}
+
+/**
+ * Translate @asset:CREATOR_ID/ASSET_ID references to actual URLs in TOML content
  */
 export async function resolveAssetReferences(
     content: string,
-    creatorId: string,
     token: string
 ): Promise<string> {
-    const assets = await fetchAssets(creatorId, token);
-    const assetMap = new Map(assets.map(a => [a.id, a.url]));
+    // Find all unique creator IDs in the content
+    const creatorIds = new Set<string>();
+    const regex = /@asset:([a-f0-9-]{36})\/[a-f0-9-]{36}/g;
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+        creatorIds.add(match[1]);
+    }
 
-    return content.replace(/@asset:([a-f0-9-]+)/gi, (match, id) => {
-        return assetMap.get(id) || match;
+    // Fetch assets for each creator
+    const assetMaps = new Map<string, Map<string, string>>();
+    for (const cid of creatorIds) {
+        const assets = await fetchAssets(cid, token);
+        assetMaps.set(cid, new Map(assets.map(a => [a.id, a.url])));
+    }
+
+    // Replace references with URLs
+    return content.replace(/@asset:([a-f0-9-]{36})\/([a-f0-9-]{36})/g, (match, creatorId, assetId) => {
+        const assetMap = assetMaps.get(creatorId);
+        return assetMap?.get(assetId) || match;
     });
 }
 
 /**
- * Translate asset URLs back to @asset:ID references for display
+ * Translate asset URLs back to @asset:CREATOR_ID/ASSET_ID references for display
  */
 export function convertUrlsToAssetReferences(
     content: string,
@@ -203,7 +226,7 @@ export function convertUrlsToAssetReferences(
     for (const asset of assets) {
         const escapedUrl = asset.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(escapedUrl.replace(/\?t=\d+/, '\\?t=\\d+'), 'g');
-        result = result.replace(regex, `@asset:${asset.id}`);
+        result = result.replace(regex, `@asset:${asset.creatorId}/${asset.id}`);
     }
 
     return result;
