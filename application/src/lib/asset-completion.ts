@@ -1,7 +1,7 @@
 import { CompletionContext, CompletionResult } from "@codemirror/autocomplete";
 import { API_ENDPOINT } from "@/consts";
 
-interface CreatorAsset {
+export interface CreatorAsset {
     id: string;
     creatorId: string;
     fileName: string;
@@ -13,7 +13,7 @@ interface CreatorAsset {
 let cachedAssets: CreatorAsset[] | null = null;
 let cacheCreatorId: string | null = null;
 
-async function fetchAssets(creatorId: string, token: string): Promise<CreatorAsset[]> {
+export async function fetchAssets(creatorId: string, token: string): Promise<CreatorAsset[]> {
     if (cachedAssets && cacheCreatorId === creatorId) {
         return cachedAssets;
     }
@@ -164,7 +164,6 @@ export function createAssetCompletionSource(creatorId: string, token: string) {
                 label: `@asset:${asset.fileName}`,
                 apply: `@asset:${creatorId}/${asset.id}`,
                 type: 'keyword',
-                // Custom tooltip with preview
                 info: () => createAssetPreviewElement(asset),
             })),
         };
@@ -177,22 +176,12 @@ export function clearAssetCache(): void {
 }
 
 /**
- * Parse @asset:CREATOR_ID/ASSET_ID reference
- */
-export function parseAssetReference(ref: string): { creatorId: string; assetId: string } | null {
-    const match = ref.match(/@asset:([a-f0-9-]{36})\/([a-f0-9-]{36})/);
-    if (!match) return null;
-    return { creatorId: match[1], assetId: match[2] };
-}
-
-/**
  * Translate @asset:CREATOR_ID/ASSET_ID references to actual URLs in TOML content
  */
 export async function resolveAssetReferences(
     content: string,
     token: string
 ): Promise<string> {
-    // Find all unique creator IDs in the content
     const creatorIds = new Set<string>();
     const regex = /@asset:([a-f0-9-]{36})\/[a-f0-9-]{36}/g;
     let match;
@@ -200,14 +189,12 @@ export async function resolveAssetReferences(
         creatorIds.add(match[1]);
     }
 
-    // Fetch assets for each creator
     const assetMaps = new Map<string, Map<string, string>>();
     for (const cid of creatorIds) {
         const assets = await fetchAssets(cid, token);
         assetMaps.set(cid, new Map(assets.map(a => [a.id, a.url])));
     }
 
-    // Replace references with URLs
     return content.replace(/@asset:([a-f0-9-]{36})\/([a-f0-9-]{36})/g, (match, creatorId, assetId) => {
         const assetMap = assetMaps.get(creatorId);
         return assetMap?.get(assetId) || match;
@@ -217,17 +204,36 @@ export async function resolveAssetReferences(
 /**
  * Translate asset URLs back to @asset:CREATOR_ID/ASSET_ID references for display
  */
-export function convertUrlsToAssetReferences(
+export async function convertUrlsToAssetReferences(
     content: string,
-    assets: CreatorAsset[]
-): string {
-    let result = content;
+    token: string
+): Promise<string> {
+    // Match CDN URLs: https://cdn-mstore.saltouruguayserver.com/creator-assets/CREATOR_ID/FILENAME?t=...
+    const urlRegex = /https?:\/\/[^\/]+\/creator-assets\/([a-f0-9-]{36})\/([^?"\s]+)(?:\?t=\d+)?/g;
 
-    for (const asset of assets) {
-        const escapedUrl = asset.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(escapedUrl.replace(/\?t=\d+/, '\\?t=\\d+'), 'g');
-        result = result.replace(regex, `@asset:${asset.creatorId}/${asset.id}`);
+    // Collect unique creator IDs
+    const creatorIds = new Set<string>();
+    let m;
+    while ((m = urlRegex.exec(content)) !== null) {
+        creatorIds.add(m[1]);
     }
 
-    return result;
+    if (creatorIds.size === 0) return content;
+
+    // Fetch assets for each creator
+    const urlToRef = new Map<string, string>();
+    for (const cid of creatorIds) {
+        const assets = await fetchAssets(cid, token);
+        for (const asset of assets) {
+            // Match the URL without timestamp
+            const baseUrl = asset.url.split('?')[0];
+            urlToRef.set(baseUrl, `@asset:${asset.creatorId}/${asset.id}`);
+        }
+    }
+
+    // Replace URLs with references
+    return content.replace(/https?:\/\/[^\/]+\/creator-assets\/[a-f0-9-]{36}\/[^?"\s]+(?:\?t=\d+)?/g, (url) => {
+        const baseUrl = url.split('?')[0];
+        return urlToRef.get(baseUrl) || url;
+    });
 }

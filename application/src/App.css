@@ -422,7 +422,7 @@ body,
 }
 
 /* @asset mention badge - Discord style */
-.cm-asset-mention-hidden {
+.cm-asset-mention-text {
     display: none !important;
 }
 

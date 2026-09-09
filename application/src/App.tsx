@@ -1,4 +1,4 @@
-import { useEffect, useRef, lazy, Suspense, memo, Fragment } from "react";
+import { useEffect, useRef, lazy, Suspense, memo, Fragment, useState } from "react";
 import "./App.css";
 import { Routes, Route, useParams, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -28,14 +28,16 @@ import { AccountsSection } from "./views/AccountsSection";
 import { BannedScreen } from "./components/BannedScreen";
 import { OfflineMode } from "./views/OfflineMode";
 
+// Importaciones estáticas para creadores (a petición)
+import { CreatorsLayout } from "./components/layouts/CreatorsLayout";
+import { CreatorProfileView } from "./views/CreatorProfileView";
+
 // Rutas lazy (se cargan bajo demanda)
 const ModpackOverview = lazy(() => import("./views/ModpackOverview").then(m => ({ default: m.ModpackOverview })));
 const WhitelistInstancesView = lazy(() => import("./views/WhitelistInstancesView").then(m => ({ default: m.WhitelistInstancesView })));
 const TicketsSection = lazy(() => import("./components/TicketsSection").then(m => ({ default: m.TicketsSection })));
-const CreatorProfileView = lazy(() => import("./views/CreatorProfileView").then(m => ({ default: m.CreatorProfileView })));
 
 // Layouts lazy (solo para roles específicos)
-const CreatorsLayout = lazy(() => import("./components/layouts/CreatorsLayout").then(m => ({ default: m.CreatorsLayout })));
 const AdminLayout = lazy(() => import("./components/admin/AdminLayout").then(m => ({ default: m.AdminLayout })));
 
 // Dialogos lazy (solo se cargan al abrirse)
@@ -56,14 +58,35 @@ import CommandPalette from "./components/CommandPalette";
 import { ProfileView, ProfileInformation, IntegrationsSection, HelpSection } from "./views/ProfileView";
 import GlassCircleWrench from "./icons/GlassCircleWrench";
 
-// --- Componentes Helper para Rutas (Más limpios que los wrappers) ---
+// --- Componentes Helper para Rutas ---
 const LoadingScreen = () => (
   <div className="absolute inset-0 flex items-center justify-center min-h-full h-full w-full">
     <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
   </div>
 );
 
-// CAMBIO 3: Usar hooks directamente en el componente de la ruta
+// Helper para evitar el flash de NotFound dando un "grace period" de 500ms para que se hidraten los roles
+const ProtectedRoute = ({ isAllowed, children }: { isAllowed: boolean, children: React.ReactNode }) => {
+  const [showFallback, setShowFallback] = useState(false);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    if (!isAllowed) {
+      timer = setTimeout(() => setShowFallback(true), 500);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isAllowed]);
+
+  if (isAllowed) {
+    return <>{children}</>;
+  }
+
+  // Muestra pantalla de carga temporalmente, luego muestra el NotFound si se agota el tiempo
+  return showFallback ? <NotFound /> : <LoadingScreen />;
+};
+
 const PreLaunchPage = () => {
   return <PreLaunchInstance />;
 };
@@ -92,7 +115,7 @@ const SectionInMaintenance = ({ title }: { title: string }) => (
   </div>
 );
 
-// --- Componente de Rutas (memoizado, no se recrea en cada render de App) ---
+// --- Componente de Rutas (memoizado) ---
 interface AppRoutesProps {
   isConnected: boolean;
   isAuthenticated: boolean;
@@ -141,13 +164,25 @@ const AppRoutes = memo(function AppRoutes({ isConnected, isAuthenticated, sessio
           <Route path="help" element={<HelpSection />} />
         </Route>
 
-        {session?.creatorMemberships && session.creatorMemberships.length > 0 && (
-          <Route path="/creators/*" element={<CreatorsLayout />} />
-        )}
+        {/* Creadores: Usa ProtectedRoute para manejar el delay de los permisos */}
+        <Route
+          path="/creators/*"
+          element={
+            <ProtectedRoute isAllowed={!!(session?.creatorMemberships && session.creatorMemberships.length > 0)}>
+              <CreatorsLayout />
+            </ProtectedRoute>
+          }
+        />
 
-        {session?.isAdmin?.() && (
-          <Route path="/admin/*" element={<AdminLayout />} />
-        )}
+        {/* Admin: Usa ProtectedRoute para manejar el delay de los permisos */}
+        <Route
+          path="/admin/*"
+          element={
+            <ProtectedRoute isAllowed={!!session?.isAdmin?.()}>
+              <AdminLayout />
+            </ProtectedRoute>
+          }
+        />
 
         <Route path="/c/:creatorSlug" element={<CreatorProfileView />} />
 
@@ -168,17 +203,17 @@ function App() {
   const hasLaunched = useRef(false);
   const { setHasSidebar, hasSidebar } = useLayout();
 
-  const { requestPermission, permissionGranted } = useNotifications()
+  const { requestPermission, permissionGranted } = useNotifications();
 
   useEffect(() => {
     if (!permissionGranted) {
-      requestPermission()
+      requestPermission();
     }
-  }, [permissionGranted, requestPermission])
+  }, [permissionGranted, requestPermission]);
+
   // Use a ref to track if we've already tried to check connection
   const hasCheckedConnectionRef = useRef(false);
 
-  // CAMBIO 2: Lógica de toasts simplificada y reactiva
   useEffect(() => {
     const connectionToastId = "connection-status";
 
@@ -199,7 +234,6 @@ function App() {
     }
   }, [isConnected, hasInternetAccess, connectionLoading]);
 
-  // Efecto de inicialización (sin cambios, ya estaba bien)
   useEffect(() => {
     if (!hasLaunched.current) {
       initAnalytics();
@@ -215,8 +249,6 @@ function App() {
     return () => window.removeEventListener("navigate-to-instance", handler);
   }, [navigate]);
 
-  // Allow the app to continue even if connection check is taking too long
-  // Assume offline mode if connection check takes more than expected
   const shouldShowLoading = authLoading || onboardingLoading ||
     (connectionLoading && !hasCheckedConnectionRef.current);
 
@@ -228,24 +260,20 @@ function App() {
     }
   }, [connectionLoading]);
 
-  // Cambiar la clase del layout div dinámicamente
   useEffect(() => {
     const hasSidebar = (isAuthenticated || !isConnected) && !isFirstRun && !session?.isBanned;
     setHasSidebar(hasSidebar);
   }, [isAuthenticated, isConnected, isFirstRun, session?.isBanned, setHasSidebar]);
 
-  // Check if user is banned
   const isBanned = isAuthenticated && session?.isBanned;
 
   if (shouldShowLoading) {
     return <LoadingScreen />;
   }
 
-  // Show banned screen if user is banned
   if (isBanned) {
     return <BannedScreen />;
   }
-
 
   return (
     <>

@@ -1,4 +1,12 @@
-import { EditorView, Decoration, DecorationSet, WidgetType, ViewPlugin, ViewUpdate } from "@codemirror/view";
+import {
+    EditorView,
+    Decoration,
+    DecorationSet,
+    ViewPlugin,
+    ViewUpdate,
+    WidgetType,
+    MatchDecorator // <- Importante utilidad nativa
+} from "@codemirror/view";
 import { API_ENDPOINT } from "@/consts";
 
 interface AssetData {
@@ -12,28 +20,24 @@ interface AssetData {
 
 const assetCache = new Map<string, AssetData>();
 const fetchedCreators = new Set<string>();
-let pendingRebuild: (() => void) | null = null;
 
-async function fetchAllAssets(creatorId: string, token: string): Promise<void> {
-    if (fetchedCreators.has(creatorId)) return;
-
+// Modificado para que retorne true si trajo data nueva
+async function fetchAllAssets(creatorId: string, token: string): Promise<boolean> {
+    if (fetchedCreators.has(creatorId)) return false;
     try {
         const response = await fetch(`${API_ENDPOINT}/creators/${creatorId}/assets`, {
             headers: { 'Authorization': `Bearer ${token}` },
         });
-        if (!response.ok) return;
-
+        if (!response.ok) return false;
         const data = await response.json();
         const assets: AssetData[] = data.data || [];
         for (const asset of assets) {
             assetCache.set(`${asset.creatorId}/${asset.id}`, asset);
         }
         fetchedCreators.add(creatorId);
-
-        // Trigger rebuild
-        if (pendingRebuild) pendingRebuild();
+        return true;
     } catch {
-        // Ignore errors
+        return false;
     }
 }
 
@@ -45,150 +49,115 @@ function formatFileSize(bytes: number): string {
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
-class AssetWidget extends WidgetType {
-    private assetData: AssetData | null;
+function createMentionElement(creatorId: string, assetId: string): HTMLElement {
+    const el = document.createElement("span");
+    el.className = "cm-asset-mention";
+    el.dataset.assetId = `${creatorId}/${assetId}`;
 
-    constructor(readonly creatorId: string, readonly assetId: string) {
-        super();
-        this.assetData = assetCache.get(`${creatorId}/${assetId}`) || null;
-    }
+    const data = assetCache.get(`${creatorId}/${assetId}`);
 
-    eq(other: AssetWidget) {
-        return this.creatorId === other.creatorId && this.assetId === other.assetId;
-    }
-
-    toDOM() {
-        const wrap = document.createElement("span");
-        wrap.className = "cm-asset-mention";
-        wrap.contentEditable = "false";
-
-        const data = this.assetData;
-
-        if (data) {
-            const isImage = data.contentType.startsWith("image/");
-
-            if (isImage) {
-                const img = document.createElement("img");
-                img.src = data.url;
-                img.alt = data.fileName;
-                img.className = "cm-asset-mention-img";
-                img.onerror = () => {
-                    img.remove();
-                    const icon = document.createElement("span");
-                    icon.className = "cm-asset-mention-icon";
-                    icon.textContent = "📎";
-                    wrap.insertBefore(icon, wrap.firstChild);
-                };
-                wrap.appendChild(img);
-            } else {
-                const icon = document.createElement("span");
-                icon.className = "cm-asset-mention-icon";
-                icon.textContent = data.contentType.startsWith("audio/") ? "🎵" : "📎";
-                wrap.appendChild(icon);
-            }
-
-            const name = document.createElement("span");
-            name.className = "cm-asset-mention-name";
-            name.textContent = data.fileName;
-            name.title = `${data.fileName} (${formatFileSize(data.sizeBytes)})`;
-            wrap.appendChild(name);
+    if (data) {
+        if (data.contentType.startsWith("image/")) {
+            const img = document.createElement("img");
+            img.src = data.url;
+            img.alt = data.fileName;
+            img.className = "cm-asset-mention-img";
+            img.onerror = () => { img.remove(); };
+            el.appendChild(img);
         } else {
             const icon = document.createElement("span");
             icon.className = "cm-asset-mention-icon";
-            icon.textContent = "📎";
-            wrap.appendChild(icon);
-
-            const name = document.createElement("span");
-            name.className = "cm-asset-mention-name";
-            name.textContent = this.assetId.slice(0, 8) + "...";
-            wrap.appendChild(name);
+            icon.textContent = data.contentType.startsWith("audio/") ? "🎵" : "📎";
+            el.appendChild(icon);
         }
+        const name = document.createElement("span");
+        name.className = "cm-asset-mention-name";
+        name.textContent = data.fileName;
+        name.title = `${data.fileName} (${formatFileSize(data.sizeBytes)})`;
+        el.appendChild(name);
+    } else {
+        const icon = document.createElement("span");
+        icon.className = "cm-asset-mention-icon";
+        icon.textContent = "📎";
+        el.appendChild(icon);
+        const name = document.createElement("span");
+        name.className = "cm-asset-mention-name";
+        name.textContent = assetId.slice(0, 8) + "...";
+        el.appendChild(name);
+    }
 
-        return wrap;
+    return el;
+}
+
+class AssetMentionWidget extends WidgetType {
+    constructor(readonly creatorId: string, readonly assetId: string, readonly isLoaded: boolean) {
+        super();
+    }
+
+    eq(other: AssetMentionWidget) {
+        return this.creatorId === other.creatorId &&
+            this.assetId === other.assetId &&
+            this.isLoaded === other.isLoaded;
+    }
+
+    toDOM() {
+        return createMentionElement(this.creatorId, this.assetId);
     }
 
     ignoreEvent() {
         return true;
     }
+
+    // Previene el error específico "this.widget.destroy is not a function" 
+    // en caso de que alguna transacción intente limpiar el DOM de forma abrupta.
+    destroy(dom: HTMLElement) { }
 }
 
-class AssetMentionView {
-    decorations: DecorationSet;
-    private creatorId: string;
-    private view: EditorView;
-
-    constructor(view: EditorView, creatorId: string) {
-        this.view = view;
-        this.creatorId = creatorId;
-        this.decorations = this.buildDeco(view);
-        pendingRebuild = () => this.rebuild();
-    }
-
-    destroy() {
-        if (pendingRebuild === this.rebuild) {
-            pendingRebuild = null;
-        }
-    }
-
-    rebuild() {
-        this.decorations = this.buildDeco(this.view);
-        this.view.dispatch({ effects: [] });
-    }
-
-    update(update: ViewUpdate) {
-        if (update.docChanged || update.viewportChanged) {
-            this.decorations = this.buildDeco(update.view);
-        }
-    }
-
-    buildDeco(view: EditorView): DecorationSet {
-        const decorations: any[] = [];
-        const regex = /@asset:([a-f0-9-]{36})\/([a-f0-9-]{36})/g;
-
-        for (const { from, to } of view.visibleRanges) {
-            const text = view.state.doc.sliceString(from, to);
-            let match;
-
-            while ((match = regex.exec(text)) !== null) {
-                const start = from + match.index;
-                const end = start + match[0].length;
-                const creatorId = match[1];
-                const assetId = match[2];
-
-                // Hide the raw text
-                decorations.push(
-                    Decoration.mark({
-                        inclusive: true,
-                        attributes: { class: "cm-asset-mention-hidden" },
-                    }).range(start, end)
-                );
-
-                // Add widget
-                decorations.push(
-                    Decoration.widget({
-                        widget: new AssetWidget(creatorId, assetId),
-                        side: -1,
-                    }).range(start)
-                );
-            }
-        }
-
-        return Decoration.set(decorations, true);
-    }
-}
+// Usamos MatchDecorator que se encarga automáticamente de los rangos visibles
+// y de no corromper la memoria del editor.
+const mentionDecorator = new MatchDecorator({
+    regexp: /@asset:([a-f0-9-]{36})\/([a-f0-9-]{36})/g,
+    decoration: match => Decoration.replace({
+        widget: new AssetMentionWidget(
+            match[1],
+            match[2],
+            assetCache.has(`${match[1]}/${match[2]}`)
+        )
+    })
+});
 
 export function createAssetMentionPlugin(creatorId: string, token: string) {
-    // Fetch all assets upfront
-    fetchAllAssets(creatorId, token);
-
     return ViewPlugin.fromClass(
-        class extends AssetMentionView {
+        class {
+            decorations: DecorationSet;
+
             constructor(view: EditorView) {
-                super(view, creatorId);
+                this.decorations = mentionDecorator.createDeco(view);
+                this.loadAssets(view, creatorId, token);
+            }
+
+            async loadAssets(view: EditorView, creatorId: string, token: string) {
+                const isNewData = await fetchAllAssets(creatorId, token);
+                if (isNewData) {
+                    // Si se descargó data nueva, forzamos un re-escaneo
+                    this.decorations = mentionDecorator.createDeco(view);
+                    view.dispatch({});
+                }
+            }
+
+            update(update: ViewUpdate) {
+                if (update.docChanged || update.viewportChanged) {
+                    this.decorations = mentionDecorator.updateDeco(update, this.decorations);
+                }
             }
         },
         {
-            decorations: (value) => value.decorations,
+            decorations: (v) => v.decorations,
+            // AQUÍ ESTÁ LA MAGIA: Declaramos las decoraciones como "Bloques Atómicos".
+            // Si el cursor toca el widget y el usuario borra, se elimina completo.
+            provide: (plugin) => EditorView.atomicRanges.of((view) => {
+                return view.plugin(plugin)?.decorations || Decoration.none;
+            })
         }
     );
 }
@@ -196,5 +165,4 @@ export function createAssetMentionPlugin(creatorId: string, token: string) {
 export function clearAssetCache() {
     assetCache.clear();
     fetchedCreators.clear();
-    pendingRebuild = null;
 }

@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
@@ -19,7 +20,7 @@ import { parse as parseToml, stringify as stringifyToml } from 'smol-toml';
 import { CategorySelector } from '@/components/CategorySelector';
 import { ModpackStatusManager } from '@/components/creator/ModpackStatusManager';
 import { resizeImage } from '@/utils/imageResize';
-import { createAssetCompletionSource, resolveAssetReferences, clearAssetCache } from '@/lib/asset-completion';
+import { createAssetCompletionSource, resolveAssetReferences, convertUrlsToAssetReferences, clearAssetCache, fetchAssets } from '@/lib/asset-completion';
 import { createAssetMentionPlugin } from '@/lib/asset-mention';
 import { autocompletion } from '@codemirror/autocomplete';
 
@@ -120,6 +121,10 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
     const [prelaunchToml, setPrelaunchToml] = useState('');
     const [isTomlValid, setIsTomlValid] = useState(true);
 
+    const cmViewRef = useRef<any>(null);
+    const [assetPopoverOpen, setAssetPopoverOpen] = useState(false);
+    const [creatorAssets, setCreatorAssets] = useState<{ id: string; creatorId: string; fileName: string; contentType: string; url: string; sizeBytes: number }[]>([]);
+
     // Clear asset cache when dialog opens
     useEffect(() => {
         if (isOpen) {
@@ -155,14 +160,22 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
         setTwitchChannels(channels);
         setTwitchAccessEnabled(channels.length > 0);
 
-        try {
-            const jsonObj = typeof modpack.prelaunchAppearance === 'string'
-                ? JSON.parse(modpack.prelaunchAppearance || '{}')
-                : modpack.prelaunchAppearance || {};
-            setPrelaunchToml(jsonObj && Object.keys(jsonObj).length > 0 ? stringifyToml(jsonObj) : '');
-        } catch {
-            setPrelaunchToml('');
-        }
+        const loadToml = async () => {
+            try {
+                const jsonObj = typeof modpack.prelaunchAppearance === 'string'
+                    ? JSON.parse(modpack.prelaunchAppearance || '{}')
+                    : modpack.prelaunchAppearance || {};
+                let tomlStr = jsonObj && Object.keys(jsonObj).length > 0 ? stringifyToml(jsonObj) : '';
+                // Convert URLs back to @asset references for display
+                if (tomlStr && sessionTokens?.accessToken) {
+                    tomlStr = await convertUrlsToAssetReferences(tomlStr, sessionTokens.accessToken);
+                }
+                setPrelaunchToml(tomlStr);
+            } catch {
+                setPrelaunchToml('');
+            }
+        };
+        loadToml();
 
         setIconFile(null);
         setBannerFile(null);
@@ -186,6 +199,28 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
         } catch {
             toast.error('TOML inválido, no se puede formatear');
         }
+    };
+
+    const loadCreatorAssets = async () => {
+        if (!modpack?.creatorId || !sessionTokens?.accessToken) return;
+        const assets = await fetchAssets(modpack.creatorId, sessionTokens.accessToken);
+        setCreatorAssets(assets);
+    };
+
+    const insertAssetAtCursor = (asset: { creatorId: string; id: string }) => {
+        const view = cmViewRef.current;
+        if (!view) {
+            setPrelaunchToml(prev => prev + `\n@asset:${asset.creatorId}/${asset.id}`);
+            return;
+        }
+        const { from } = view.state.selection.main;
+        const ref = `@asset:${asset.creatorId}/${asset.id}`;
+        view.dispatch({
+            changes: { from, insert: ref },
+            selection: { anchor: from + ref.length },
+        });
+        view.focus();
+        setAssetPopoverOpen(false);
     };
 
     const searchTwitchChannel = async () => {
@@ -411,20 +446,70 @@ export const EditModpackDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess,
                                             <label className="text-sm font-medium text-zinc-300">Configuración Pre-Launch</label>
                                             <span className="text-xs text-zinc-500">Personalización avanzada de la ventana de carga (TOML).</span>
                                         </div>
-                                        <Button type="button" size="sm" variant="outline" onClick={formatToml} disabled={!isTomlValid}>
-                                            Formatear TOML
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            <Popover open={assetPopoverOpen} onOpenChange={(open) => {
+                                                setAssetPopoverOpen(open);
+                                                if (open) loadCreatorAssets();
+                                            }}>
+                                                <PopoverTrigger asChild>
+                                                    <Button type="button" size="sm" variant="outline">
+                                                        Insertar asset
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-80 p-0" side="bottom" align="end">
+                                                    <div className="p-2 text-xs text-zinc-400 border-b border-zinc-800">
+                                                        Selecciona un asset para insertar
+                                                    </div>
+                                                    <div className="max-h-64 overflow-y-auto">
+                                                        {creatorAssets.length === 0 ? (
+                                                            <div className="p-4 text-center text-xs text-zinc-500">
+                                                                No hay assets disponibles
+                                                            </div>
+                                                        ) : (
+                                                            creatorAssets.map(asset => (
+                                                                <button
+                                                                    key={asset.id}
+                                                                    type="button"
+                                                                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-800 transition-colors text-left"
+                                                                    onClick={() => insertAssetAtCursor(asset)}
+                                                                >
+                                                                    {asset.contentType.startsWith('image/') ? (
+                                                                        <img
+                                                                            src={asset.url}
+                                                                            alt={asset.fileName}
+                                                                            className="w-8 h-8 rounded object-cover flex-shrink-0"
+                                                                        />
+                                                                    ) : (
+                                                                        <span className="w-8 h-8 rounded bg-zinc-800 flex items-center justify-center flex-shrink-0 text-sm">
+                                                                            {asset.contentType.startsWith('audio/') ? '🎵' : '📎'}
+                                                                        </span>
+                                                                    )}
+                                                                    <div className="flex-1 min-w-0">
+                                                                        <div className="text-sm text-zinc-200 truncate">{asset.fileName}</div>
+                                                                        <div className="text-xs text-zinc-500">{(asset.sizeBytes / 1024).toFixed(1)} KB</div>
+                                                                    </div>
+                                                                </button>
+                                                            ))
+                                                        )}
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
+                                            <Button type="button" size="sm" variant="outline" onClick={formatToml} disabled={!isTomlValid}>
+                                                Formatear TOML
+                                            </Button>
+                                        </div>
                                     </div>
                                     <div className={`border rounded-md overflow-hidden ${!isTomlValid ? 'border-red-500' : 'border-zinc-800'}`}>
                                         <CodeMirror
                                             value={prelaunchToml}
                                             onChange={handleTomlChange}
+                                            onCreateEditor={(view) => { cmViewRef.current = view; }}
                                             extensions={[
                                                 basicSetup,
                                                 toml(),
-                                                modpack?.creatorId && sessionTokens?.accessToken
-                                                    ? createAssetMentionPlugin(modpack.creatorId, sessionTokens.accessToken)
-                                                    : [],
+                                                ...(modpack?.creatorId && sessionTokens?.accessToken
+                                                    ? [createAssetMentionPlugin(modpack.creatorId, sessionTokens.accessToken)]
+                                                    : []),
                                                 autocompletion({
                                                     override: modpack?.creatorId && sessionTokens?.accessToken
                                                         ? [createAssetCompletionSource(modpack.creatorId, sessionTokens.accessToken)]

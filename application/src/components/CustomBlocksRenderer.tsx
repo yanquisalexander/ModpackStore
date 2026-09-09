@@ -263,7 +263,7 @@ const useDynamicContent = (content: string, userSession?: any, instance?: Minecr
 
                 // Process $mcAccountName(DEFAULT_VALUE) patterns - get Minecraft account name
                 const mcAccountPattern = /\$mcAccountName\(([^)]+)?\)/g;
-                const mcAccountMatches = [...content.matchAll(mcAccountPattern)];
+                const mcAccountMatches = [...processed.matchAll(mcAccountPattern)];
 
                 for (const match of mcAccountMatches) {
                     const [fullMatch, defaultValue] = match;

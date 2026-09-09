@@ -13,6 +13,7 @@ import {
     LucideChevronRight,
     LucideClock,
     LucideXCircle,
+    LucideLoader,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,7 +23,7 @@ import { Separator } from "@/components/ui/separator";
 export const LoadingScreen = ({ message = "Cargando panel de creador..." }) => (
     <div className="flex items-center justify-center min-h-full h-full bg-background">
         <div className="text-center">
-            <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-muted-foreground mx-auto" />
+            <LucideLoader className="h-8 w-8 animate-spin text-primary mx-auto" />
             <p className="mt-2 text-sm text-muted-foreground">{message}</p>
         </div>
     </div>
@@ -190,7 +191,7 @@ function SidebarContent({ isOrgRoute, orgId, teams, currentPath, onClose }: {
 }
 
 export const CreatorsLayout = () => {
-    const { sessionTokens, loading: authLoading } = useAuthentication();
+    const { session, sessionTokens, loading: authLoading } = useAuthentication();
     const location = useLocation();
 
     const orgRouteMatch = useMatch("/creators/org/:orgId/*");
@@ -203,11 +204,34 @@ export const CreatorsLayout = () => {
     const { teams, isLoading, error } = useTeams(sessionTokens?.accessToken);
     useTitleBar(isOrgRoute, teams, orgId);
 
+    // Auth check: show loading while session loads
+    if (authLoading) {
+        return <LoadingScreen message="Verificando acceso..." />;
+    }
+
+    // Auth check: deny access if not a creator
+    if (!session?.creatorMemberships || session.creatorMemberships.length === 0) {
+        return (
+            <div className="flex items-center justify-center min-h-full h-full bg-background">
+                <Card className="max-w-md">
+                    <CardContent className="p-8 text-center">
+                        <LucidePencilRuler className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                        <h1 className="text-2xl font-bold mb-2">Acceso Denegado</h1>
+                        <p className="text-muted-foreground mb-4">
+                            No tienes permisos para acceder al panel de creadores.
+                        </p>
+                        <Link to="/" className="text-sm text-primary hover:underline">Volver al Inicio</Link>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    if (isLoading) return <LoadingScreen />;
+    if (error) return <ErrorScreen error={error} />;
+
     const currentTeam = orgId ? teams.find((t: any) => t.id === orgId) : null;
     const isPendingOrg = currentTeam && currentTeam.status !== "approved";
-
-    if (authLoading || isLoading) return <LoadingScreen />;
-    if (error) return <ErrorScreen error={error} />;
 
     if (isPendingOrg) {
         const isRejected = currentTeam.status === "rejected";

@@ -14,12 +14,13 @@ import {
     LucideWrench,
     LucideTicket,
     LucideTag,
-    LucideDollarSign
+    LucideDollarSign,
+    LucideLoader
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { ManageUsersView } from '@/views/admin/ManageUsersView';
 import { AuditLogsView } from '@/views/admin/AuditLogsView';
-import { ManagePublishersView } from '@/views/admin/ManagePublishersView';
+import { ManageCreatorsView } from '@/views/admin/ManageCreatorsView';
 import { MaintenanceView } from '@/views/admin/MaintenanceView';
 import { ManageTicketsView } from "@/views/admin/ManageTicketsView";
 import { ManageCategoriesView } from "@/views/admin/ManageCategoriesView";
@@ -39,10 +40,10 @@ const adminNavItems = [
         description: 'Administrar usuarios, roles y permisos'
     },
     {
-        path: '/admin/publishers',
-        label: 'Gestión de Publishers',
+        path: '/admin/creators',
+        label: 'Gestión de Creadores',
         icon: LucideBuilding2,
-        description: 'Administrar organizaciones y sus miembros'
+        description: 'Administrar creadores, aprobaciones y miembros'
     },
     {
         path: '/admin/categories',
@@ -170,7 +171,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
         return (
             <div className="flex items-center justify-center min-h-screen">
                 <div className="text-center">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    <LucideLoader className="h-8 w-8 animate-spin text-primary mx-auto" />
                     <p className="mt-2 text-muted-foreground">Cargando...</p>
                 </div>
             </div>
@@ -210,7 +211,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                     {children || (
                         <Routes>
                             <Route path="/users" element={<ManageUsersView />} />
-                            <Route path="/publishers" element={<ManagePublishersView />} />
+                            <Route path="/creators" element={<ManageCreatorsView />} />
                             <Route path="/categories" element={<ManageCategoriesView />} />
                             <Route path="/tickets" element={<ManageTicketsView />} />
                             <Route path="/beneficios-plus" element={<PatreonPlusManagementView />} />
