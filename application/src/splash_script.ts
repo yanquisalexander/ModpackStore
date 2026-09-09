@@ -127,9 +127,11 @@ async function runUpdateFlow() {
             error(`Error saving metadata: ${e}`);
         }
 
+        // Instalar ANTES de cerrar el splash
+        await update.install();
+
         // Respeta MIN_SPLASH antes de reiniciar
         await splashDone();
-        await update.install();
 
     } catch (err) {
         // Si falla, volvemos a mostrar los puntos
