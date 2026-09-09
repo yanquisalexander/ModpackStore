@@ -10,6 +10,12 @@ inputs:
   GITHUB_TOKEN:
     required: true
     description: 'GitHub token for authentication'
+  PFX_BASE64:
+    required: false
+    description: 'Base64-encoded PFX certificate for Windows signing'
+  PFX_PASSWORD:
+    required: false
+    description: 'Password for the PFX certificate'
 
 runs:
   using: "composite"
@@ -80,12 +86,12 @@ runs:
 
     - name: Import Windows cert
       shell: powershell
-      if: runner.os == 'Windows'
+      if: runner.os == 'Windows' && inputs.PFX_BASE64 != ''
       run: |
         $pfxPath = "$env:RUNNER_TEMP\cert.pfx"
-        $bytes = [System.Convert]::FromBase64String("${{ secrets.PFX_BASE64 }}")
+        $bytes = [System.Convert]::FromBase64String("${{ inputs.PFX_BASE64 }}")
         [IO.File]::WriteAllBytes($pfxPath, $bytes)
-        $pwd = ConvertTo-SecureString -String "${{ secrets.PFX_PASSWORD }}" -Force -AsPlainText
+        $pwd = ConvertTo-SecureString -String "${{ inputs.PFX_PASSWORD }}" -Force -AsPlainText
         Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $pwd
         
     - name: Build & Publish Canary Release
