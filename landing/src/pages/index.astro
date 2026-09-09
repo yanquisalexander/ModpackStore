@@ -52,33 +52,12 @@ try {
 
     const resolvedPlatforms: Record<string, ResolvedAsset> = {};
 
-    await Promise.all(
-      platformEntries.map(async ([key, asset]) => {
-        if (asset.browser_download_url) {
-          resolvedPlatforms[key] = {
-            browser_download_url: asset.browser_download_url,
-          };
-          return;
-        }
-
-        if (!asset.url) return;
-
-        try {
-          const assetResponse = await fetch(asset.url, {
-            headers: { accept: "application/vnd.github+json" },
-          });
-
-          if (assetResponse.ok) {
-            const assetData = (await assetResponse.json()) as ResolvedAsset;
-            if (assetData.browser_download_url) {
-              resolvedPlatforms[key] = assetData;
-            }
-          }
-        } catch {
-          // Skip this asset if fetch fails
-        }
-      }),
-    );
+    platformEntries.forEach(([key, asset]) => {
+      const downloadUrl = asset.browser_download_url ?? asset.url;
+      if (downloadUrl) {
+        resolvedPlatforms[key] = { browser_download_url: downloadUrl };
+      }
+    });
 
     release = {
       version: manifest.version,
