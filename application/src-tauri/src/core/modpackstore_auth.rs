@@ -61,8 +61,17 @@ impl ModpackStoreAuth {
 
     /// Detect Java version by running 'java -version'
     fn detect_java_version() -> Result<u32, String> {
-        let output = Command::new("java")
-            .arg("-version")
+        let mut command = Command::new("java");
+        command.arg("-version");
+
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+
+        let output = command
             .output()
             .map_err(|e| format!("Failed to run java -version: {}", e))?;
 
