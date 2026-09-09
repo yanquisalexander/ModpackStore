@@ -78,6 +78,16 @@ runs:
         echo "Eliminando release y assets antiguos de 'canary'..."
         gh release delete canary --repo ModpackStore/ModpackStore-Releases --yes --cleanup-tag || true
 
+    - name: Import Windows cert
+      shell: powershell
+      if: runner.os == 'Windows'
+      run: |
+        $pfxPath = "$env:RUNNER_TEMP\cert.pfx"
+        $bytes = [System.Convert]::FromBase64String("${{ secrets.PFX_BASE64 }}")
+        [IO.File]::WriteAllBytes($pfxPath, $bytes)
+        $pwd = ConvertTo-SecureString -String "${{ secrets.PFX_PASSWORD }}" -Force -AsPlainText
+        Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $pwd
+        
     - name: Build & Publish Canary Release
       uses: tauri-apps/tauri-action@v0
       env:

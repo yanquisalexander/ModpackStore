@@ -1,0 +1,84 @@
+@reference "../App.css";
+
+
+.loader {
+  --size: 20px;
+  @apply relative w-[var(--size)] h-[var(--size)] mt-[10px];
+}
+
+.loader .circle {
+  --size: 28px;
+  @apply absolute w-[var(--size)] h-[var(--size)] opacity-0 rotate-[225deg];
+  animation: orbit 5.5s infinite;
+}
+
+.loader .circle:after {
+  --size: 4px;
+  content: '';
+  @apply absolute w-[var(--size)] h-[var(--size)] rounded-[5px] bg-white;
+}
+
+/* Retrasos de animación específicos */
+.loader .circle:nth-child(1) { @apply [animation-delay:0ms]; }
+.loader .circle:nth-child(2) { @apply [animation-delay:240ms]; }
+.loader .circle:nth-child(3) { @apply [animation-delay:480ms]; }
+.loader .circle:nth-child(4) { @apply [animation-delay:720ms]; }
+.loader .circle:nth-child(5) { @apply [animation-delay:960ms]; }
+
+.splash-logo {
+  @apply block w-auto h-6 object-contain grayscale [transform:translateZ(0)];
+}
+
+.splash-text {
+  background: linear-gradient(90deg, transparent 0%, #fff 50%, transparent 100%);
+  @apply bg-[length:200%_100%] bg-[-200%_0%] bg-clip-text text-transparent;
+  -webkit-background-clip: text;
+  animation: shine 8s infinite;
+}
+
+/* Los keyframes se mantienen en CSS estándar por legibilidad y soporte nativo */
+@keyframes orbit {
+  0% {
+    transform: rotate(225deg);
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+  7% {
+    transform: rotate(345deg);
+    animation-timing-function: linear;
+  }
+  30% {
+    transform: rotate(455deg);
+    animation-timing-function: ease-in-out;
+  }
+  39% {
+    transform: rotate(690deg);
+    animation-timing-function: linear;
+  }
+  70% {
+    transform: rotate(815deg);
+    opacity: 1;
+    animation-timing-function: ease-out;
+  }
+  75% {
+    transform: rotate(945deg);
+    animation-timing-function: ease-out;
+  }
+  76% {
+    transform: rotate(945deg);
+    opacity: 0;
+  }
+  100% {
+    transform: rotate(945deg);
+    opacity: 0;
+  }
+}
+
+@keyframes shine {
+  0% {
+    background-position: -200% 0%;
+  }
+  100% {
+    background-position: 200% 0%;
+  }
+}
