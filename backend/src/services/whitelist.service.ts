@@ -206,6 +206,9 @@ export async function getUserWhitelistedModpacks(userId: string) {
         bannerUrl: modpacksTable.bannerUrl,
         creatorId: creatorsTable.id,
         creatorName: creatorsTable.displayName,
+        creatorSlug: creatorsTable.slug,
+        creatorVerified: creatorsTable.verified,
+        creatorPartner: creatorsTable.partner,
         creatorLogoUrl: creatorsTable.logoUrl,
     })
         .from(modpacksTable)
@@ -226,6 +229,9 @@ export async function getUserWhitelistedModpacks(userId: string) {
         creator: {
             id: mp.creatorId,
             name: mp.creatorName,
+            slug: mp.creatorSlug,
+            verified: mp.creatorVerified,
+            partner: mp.creatorPartner,
             logoUrl: mp.creatorLogoUrl,
         },
         latestVersion: null,

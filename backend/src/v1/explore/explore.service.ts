@@ -13,6 +13,7 @@ import {
 import { eq, and, or, desc, ilike, inArray, sql, type SQL, asc } from "drizzle-orm";
 import { NotFoundError } from "@/lib/errors/index.ts";
 import { hasAccess as checkWhitelistAccess } from "@/services/whitelist.service.ts";
+import { adsService } from "@/services/ads.service.ts";
 
 export async function getModpack(modpackId: string, userId?: string) {
     const [row] = await db.select({
@@ -211,7 +212,7 @@ export async function getModpackPassword(modpackId: string) {
     return result?.password ?? null;
 }
 
-export async function getExploreHomepage() {
+export async function getExploreHomepage(userId?: string) {
     const allCategories = await db.select()
         .from(categoriesTable)
         .where(eq(categoriesTable.isAdminOnly, false))
@@ -299,7 +300,9 @@ export async function getExploreHomepage() {
         }] : []),
     ];
 
-    return { categories, featured: [] };
+    const featured = await adsService.getFeaturedSlides(userId);
+
+    return { categories, featured };
 }
 
 export async function searchModpacks(query: string) {

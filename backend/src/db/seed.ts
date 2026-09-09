@@ -132,3 +132,9 @@ export async function seedDefaultCategories() {
         }
     }
 }
+
+export async function seedDefaultHouseAds() {
+    const { adsService } = await import("@/services/ads.service.ts");
+    await adsService.seedDefaultHouseAds();
+}
+

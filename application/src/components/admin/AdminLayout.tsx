@@ -15,6 +15,7 @@ import {
     LucideTicket,
     LucideTag,
     LucideDollarSign,
+    LucideMegaphone,
     LucideLoader
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
@@ -26,6 +27,7 @@ import { ManageTicketsView } from "@/views/admin/ManageTicketsView";
 import { ManageCategoriesView } from "@/views/admin/ManageCategoriesView";
 import { ManageTermsAndConditionsView } from "@/views/admin/ManageTermsAndConditionsView";
 import { PatreonPlusManagementView } from "@/views/admin/PatreonPlusManagementView";
+import { ManageAdsView } from "@/views/admin/ManageAdsView";
 
 interface AdminLayoutProps {
     children?: React.ReactNode;
@@ -62,6 +64,12 @@ const adminNavItems = [
         label: 'ModpackStore +',
         icon: LucideDollarSign,
         description: 'Configurar beneficios y sincronizar con Patreon'
+    },
+    {
+        path: '/admin/ads',
+        label: 'Publicidad & Sponsors',
+        icon: LucideMegaphone,
+        description: 'Gestionar House Ads, Modpacks Patrocinados y campañas'
     },
     {
         path: '/admin/audit',
@@ -215,6 +223,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                             <Route path="/categories" element={<ManageCategoriesView />} />
                             <Route path="/tickets" element={<ManageTicketsView />} />
                             <Route path="/beneficios-plus" element={<PatreonPlusManagementView />} />
+                            <Route path="/ads" element={<ManageAdsView />} />
                             <Route path="/audit" element={<AuditLogsView />} />
                             <Route path="/maintenance" element={<MaintenanceView />} />
                             <Route path="/settings" element={<ManageTermsAndConditionsView />} />

@@ -6,6 +6,7 @@ export interface UserFlags {
     max_instances_allowed: number;
 
     // Feature flags
+    ad_free: boolean;
     can_upload_cover_image: boolean;
     priority_support: boolean;
     early_access_features: boolean;
@@ -37,6 +38,13 @@ export const AVAILABLE_BENEFITS: BenefitDefinition[] = [
         description: 'Número máximo de instancias que el usuario puede crear',
         type: 'number',
         defaultValue: 10
+    },
+    {
+        id: 'ad_free',
+        name: 'Sin Publicidad (Ad-Free)',
+        description: 'Elimina todos los anuncios y contenidos patrocinados en la aplicación',
+        type: 'boolean',
+        defaultValue: false
     },
     {
         id: 'can_upload_cover_image',
@@ -101,6 +109,7 @@ export const AVAILABLE_BENEFITS: BenefitDefinition[] = [
  */
 export const DEFAULT_USER_FLAGS: UserFlags = {
     max_instances_allowed: 10,
+    ad_free: false,
     can_upload_cover_image: false,
     priority_support: false,
     early_access_features: false,

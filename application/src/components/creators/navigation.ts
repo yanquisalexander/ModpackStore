@@ -5,6 +5,7 @@ import {
     BarChart3,
     Cloud,
     Settings,
+    Megaphone,
     type LucideIcon,
 } from "lucide-react";
 
@@ -54,6 +55,12 @@ export const getOrgNavItems = (orgId: string): NavItem[] => [
         label: "Métricas",
         description: "Estadísticas y descargas",
         icon: BarChart3,
+    },
+    {
+        path: `/creators/org/${orgId}/promotions`,
+        label: "Patrocinios",
+        description: "Campañas y anuncios",
+        icon: Megaphone,
     },
     {
         path: `/creators/org/${orgId}/storage`,

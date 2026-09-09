@@ -78,7 +78,28 @@ export enum ProcessingJobStatus {
     FAILED = "failed",
 }
 
+export enum AdType {
+    HOUSE = "house",
+    CREATOR_MODPACK = "creator_modpack",
+    CREATOR_PROFILE = "creator_profile",
+    EXTERNAL_SPONSOR = "external_sponsor",
+}
 
+export enum AdPlacement {
+    HERO_CAROUSEL = "hero_carousel",
+    EXPLORE_BANNER = "explore_banner",
+    MODPACK_SIDEBAR = "modpack_sidebar",
+    SERVER_SPONSOR = "server_sponsor",
+}
+
+export enum AdStatus {
+    DRAFT = "draft",
+    PENDING_APPROVAL = "pending_approval",
+    ACTIVE = "active",
+    PAUSED = "paused",
+    COMPLETED = "completed",
+    REJECTED = "rejected",
+}
 
 export function enumToPgEnum<T extends Record<string, string>>(
     myEnum: T,
@@ -93,6 +114,9 @@ export const modpackVisibilityEnum = pgEnum('modpack_visibility', enumToPgEnum(M
 export const modpackStatusEnum = pgEnum('modpack_status', enumToPgEnum(ModpackStatus));
 export const modLoaderTypeEnum = pgEnum('mod_loader_type', enumToPgEnum(ModLoaderType));
 export const processingJobStatusEnum = pgEnum('processing_job_status', enumToPgEnum(ProcessingJobStatus));
+export const adTypeEnum = pgEnum('ad_type', enumToPgEnum(AdType));
+export const adPlacementEnum = pgEnum('ad_placement', enumToPgEnum(AdPlacement));
+export const adStatusEnum = pgEnum('ad_status', enumToPgEnum(AdStatus));
 
 export const users = pgTable("users", {
     id: uuid("id").primaryKey().notNull().defaultRandom(),
@@ -114,6 +138,8 @@ export const users = pgTable("users", {
     twitchDisplayName: text("twitch_display_name"),
     twitchAvatarUrl: text("twitch_avatar_url"),
     role: roleEnum("role").notNull().default(UserRole.USER),
+    isPlus: boolean("is_plus").notNull().default(false),
+    adFree: boolean("ad_free").notNull().default(false),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -474,3 +500,66 @@ export const creatorStorageConfigRelations = relations(creatorStorageConfigTable
         references: [creatorsTable.id],
     }),
 }));
+
+/* Ad & Sponsorship System */
+
+export const adCampaignsTable = pgTable("ad_campaigns", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    name: varchar("name", { length: 128 }).notNull(),
+    type: adTypeEnum("type").notNull().default(AdType.HOUSE),
+    placement: adPlacementEnum("placement").notNull().default(AdPlacement.EXPLORE_BANNER),
+    status: adStatusEnum("status").notNull().default(AdStatus.ACTIVE),
+    creatorId: uuid("creator_id").references(() => creatorsTable.id, { onDelete: "set null" }),
+    targetModpackId: uuid("target_modpack_id").references(() => modpacksTable.id, { onDelete: "set null" }),
+    targetUrl: text("target_url"),
+    title: varchar("title", { length: 128 }).notNull(),
+    subtitle: text("subtitle"),
+    badgeText: varchar("badge_text", { length: 32 }).notNull().default("Patrocinado"),
+    ctaText: varchar("cta_text", { length: 48 }).notNull().default("Ver más"),
+    mediaUrl: text("media_url").notNull(),
+    weight: integer("weight").notNull().default(1),
+    startAt: timestamp("start_at", { withTimezone: true }).notNull().defaultNow(),
+    endAt: timestamp("end_at", { withTimezone: true }),
+    maxImpressions: integer("max_impressions"),
+    maxClicks: integer("max_clicks"),
+    paymentMethod: text("payment_method"), // e.g. 'paypal' or 'house'
+    paymentNotes: text("payment_notes"), // admin notes e.g. transaction ID, invoice
+    createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const adAnalyticsDailyTable = pgTable("ad_analytics_daily", {
+    id: serial("id").primaryKey(),
+    campaignId: uuid("campaign_id").notNull().references(() => adCampaignsTable.id, { onDelete: "cascade" }),
+    date: text("date").notNull(), // YYYY-MM-DD
+    impressions: integer("impressions").notNull().default(0),
+    clicks: integer("clicks").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+    uniqueCampaignDate: uniqueIndex("uq_campaign_date").on(table.campaignId, table.date),
+}));
+
+export const adCampaignsRelations = relations(adCampaignsTable, ({ one, many }) => ({
+    creator: one(creatorsTable, {
+        fields: [adCampaignsTable.creatorId],
+        references: [creatorsTable.id],
+    }),
+    targetModpack: one(modpacksTable, {
+        fields: [adCampaignsTable.targetModpackId],
+        references: [modpacksTable.id],
+    }),
+    creatorUser: one(users, {
+        fields: [adCampaignsTable.createdBy],
+        references: [users.id],
+    }),
+    analytics: many(adAnalyticsDailyTable),
+}));
+
+export const adAnalyticsDailyRelations = relations(adAnalyticsDailyTable, ({ one }) => ({
+    campaign: one(adCampaignsTable, {
+        fields: [adAnalyticsDailyTable.campaignId],
+        references: [adCampaignsTable.id],
+    }),
+}));

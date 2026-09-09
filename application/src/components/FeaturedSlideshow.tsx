@@ -2,7 +2,10 @@ import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { getModpacks } from "@/services/getModpacks";
 import { Link } from "react-router-dom";
-import { LucideChevronLeft, LucideChevronRight, LucideGamepad2, LucideStar } from "lucide-react";
+import { LucideChevronLeft, LucideChevronRight, LucideGamepad2, LucideStar, LucideExternalLink, LucideSparkles } from "lucide-react";
+import { openUrl } from "@tauri-apps/plugin-opener";
+import { API_ENDPOINT } from "@/consts";
+import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
 export const FeaturedSlideshow: React.FC<{
     className?: string;
@@ -56,6 +59,21 @@ export const FeaturedSlideshow: React.FC<{
             }
             return stopTimer;
         }, [slides, activeIndex, isAutoPlaying]);
+
+        // Track impression on active slide if it's sponsored (> 1 second view)
+        useEffect(() => {
+            const current = slides[activeIndex];
+            if (current?.campaignId) {
+                const timer = setTimeout(() => {
+                    fetchWithAuth(`${API_ENDPOINT}/ads/track/impression`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ campaignId: current.campaignId }),
+                    }).catch(() => {});
+                }, 1000);
+                return () => clearTimeout(timer);
+            }
+        }, [activeIndex, slides]);
 
         const startTimer = () => {
             stopTimer();
@@ -158,30 +176,65 @@ export const FeaturedSlideshow: React.FC<{
                                 transition={{ duration: 0.5, delay: 0.7 }}
                                 className="absolute bottom-6 right-4 z-30"
                             >
-                                <Link
-                                    draggable={false}
-                                    to={`/modpack/${currentSlide.id}`}
-                                    className="group inline-flex items-center gap-2 bg-white hover:bg-white/90 text-black px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
-                                >
-                                    <LucideGamepad2 className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                                    Ver modpack
-                                </Link>
+                                {currentSlide.targetUrl ? (
+                                    <button
+                                        onClick={async () => {
+                                            if (currentSlide.campaignId) {
+                                                fetchWithAuth(`${API_ENDPOINT}/ads/track/click`, {
+                                                    method: "POST",
+                                                    headers: { "Content-Type": "application/json" },
+                                                    body: JSON.stringify({ campaignId: currentSlide.campaignId })
+                                                }).catch(() => {});
+                                            }
+                                            await openUrl(currentSlide.targetUrl);
+                                        }}
+                                        className="group inline-flex items-center gap-2 bg-[#bcfe47] hover:bg-[#a5e833] text-black px-6 py-3 rounded-full text-sm font-semibold transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
+                                    >
+                                        <LucideExternalLink className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
+                                        {currentSlide.ctaText || "Descubrir"}
+                                    </button>
+                                ) : (
+                                    <Link
+                                        draggable={false}
+                                        to={`/modpack/${currentSlide.targetModpackId || currentSlide.id}`}
+                                        onClick={() => {
+                                            if (currentSlide.campaignId) {
+                                                fetchWithAuth(`${API_ENDPOINT}/ads/track/click`, {
+                                                    method: "POST",
+                                                    headers: { "Content-Type": "application/json" },
+                                                    body: JSON.stringify({ campaignId: currentSlide.campaignId })
+                                                }).catch(() => {});
+                                            }
+                                        }}
+                                        className="group inline-flex items-center gap-2 bg-white hover:bg-white/90 text-black px-6 py-3 rounded-full text-sm font-medium transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
+                                    >
+                                        <LucideGamepad2 className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                        {currentSlide.ctaText || "Ver modpack"}
+                                    </Link>
+                                )}
                             </motion.div>
                         </motion.div>
                     </AnimatePresence>
                 </div>
 
-                {/* Featured badge - always visible */}
+                {/* Featured / Sponsored badge */}
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ duration: 0.5, delay: 0.3 }}
                     className="absolute top-6 left-6 z-40"
                 >
-                    <span className="inline-flex items-center gap-2 bg-black/30 backdrop-blur-md text-white/95 px-3 py-1.5 rounded-full text-xs font-semibold border border-white/15 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]">
-                        <LucideStar className="w-3.5 h-3.5" />
-                        Destacado
-                    </span>
+                    {currentSlide.isSponsored ? (
+                        <span className="inline-flex items-center gap-1.5 bg-[#bcfe47]/20 backdrop-blur-md text-[#bcfe47] px-3.5 py-1.5 rounded-full text-xs font-semibold border border-[#bcfe47]/30 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]">
+                            <LucideSparkles className="w-3.5 h-3.5" />
+                            {currentSlide.badgeText || "Patrocinado"}
+                        </span>
+                    ) : (
+                        <span className="inline-flex items-center gap-2 bg-black/30 backdrop-blur-md text-white/95 px-3 py-1.5 rounded-full text-xs font-semibold border border-white/15 [text-shadow:0_1px_3px_rgba(0,0,0,0.5)]">
+                            <LucideStar className="w-3.5 h-3.5" />
+                            Destacado
+                        </span>
+                    )}
                 </motion.div>
 
                 {/* Navigation buttons */}

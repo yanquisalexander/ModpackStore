@@ -9,6 +9,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import GlassLock from "@/icons/GlassLock";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const WhitelistInstancesView = () => {
     const { sessionTokens, isAuthenticated } = useAuthentication();
@@ -154,6 +155,11 @@ export const WhitelistInstancesView = () => {
                             Contacta con los creadores o únete a sus comunidades para solicitar acceso.
                         </p>
                     </motion.div>
+                )}
+
+                {/* Ad Banner */}
+                {!isLoading && !error && modpacks.length > 0 && (
+                    <AdSlot placement="explore_banner" className="mt-6" />
                 )}
             </div>
         </div>

@@ -10,6 +10,7 @@ import {
 } from "@/services/twitch.service.ts";
 import { ForbiddenError, NotFoundError } from "@/lib/errors/index.ts";
 import { log } from "@/lib/logger.ts";
+import { getUserFlags } from "@/services/userFlags.service.ts";
 
 const authRoutes = new Hono();
 
@@ -118,4 +119,17 @@ authRoutes.get(
     },
 );
 
+// ── Modpack Store+ / User Flags ─────────────────────────
+
+authRoutes.get(
+    "/flags",
+    requireAuth,
+    async (c: Context<{ Variables: AuthVariables }>) => {
+        const userId = c.get("userId");
+        const flags = await getUserFlags(userId);
+        return c.json({ data: flags }, 200);
+    },
+);
+
 export default authRoutes;
+

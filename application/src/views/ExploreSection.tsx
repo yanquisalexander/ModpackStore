@@ -19,6 +19,7 @@ import { RecommendedModpacks } from "@/components/modpack/RecommendedModpacks"
 import { RecentActivity } from "@/components/home/RecentActivity"
 import { useOnboarding } from "@/hooks/useOnboarding"
 import { useAuthentication } from "@/stores/AuthContext"
+import { AdSlot } from "@/components/ads/AdSlot"
 
 // ─── EMPTY STATE ──────────────────────────────────────────────────────────────
 
@@ -236,21 +237,27 @@ export const ExploreSection = () => {
                                         {modpackCategories
                                             .filter(c => c.modpacks?.length > 0)
                                             .map((category, i) => (
-                                                <motion.div
-                                                    key={category.id}
-                                                    variants={fadeUp}
-                                                    custom={i}
-                                                    initial="hidden"
-                                                    whileInView="visible"
-                                                    viewport={{ once: true, margin: "-80px" }}
-                                                >
-                                                    <CategoryHorizontalSection
-                                                        id={category.id}
-                                                        title={category.name}
-                                                        shortDescription={category.shortDescription}
-                                                        modpacks={category.modpacks}
-                                                    />
-                                                </motion.div>
+                                                <div key={category.id} className="space-y-8">
+                                                    <motion.div
+                                                        variants={fadeUp}
+                                                        custom={i}
+                                                        initial="hidden"
+                                                        whileInView="visible"
+                                                        viewport={{ once: true, margin: "-80px" }}
+                                                    >
+                                                        <CategoryHorizontalSection
+                                                            id={category.id}
+                                                            title={category.name}
+                                                            shortDescription={category.shortDescription}
+                                                            modpacks={category.modpacks}
+                                                        />
+                                                    </motion.div>
+
+                                                    {/* Native Ad Banner after first category */}
+                                                    {i === 0 && (
+                                                        <AdSlot placement="explore_banner" className="my-4" />
+                                                    )}
+                                                </div>
                                             ))}
                                     </div>
                                 </motion.div>

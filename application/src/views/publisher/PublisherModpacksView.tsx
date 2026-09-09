@@ -19,7 +19,8 @@ import {
     LucideHistory,
     LucideUsers,
     LucideSearch,
-    LucideRefreshCw
+    LucideRefreshCw,
+    LucideSparkles
 } from 'lucide-react';
 import {
     DropdownMenu,
@@ -35,6 +36,7 @@ import CreateModpackDialog from '@/components/creator/dialogs/CreateModpackDialo
 import EditModpackDialog from '@/components/creator/dialogs/EditModpackDialog';
 import ImportCurseForgeDialog from '@/components/creator/dialogs/ImportCurseForgeDialog';
 import { ManageWhitelistModal } from '@/components/publisher/ManageWhitelistModal';
+import { PromoteModpackDialog } from '@/components/creator/dialogs/PromoteModpackDialog';
 
 // Types
 interface Modpack {
@@ -148,6 +150,7 @@ export const PublisherModpacksView: React.FC = () => {
 
     // State
     const [modpacks, setModpacks] = useState<Modpack[]>([]);
+    const [activeCampaigns, setActiveCampaigns] = useState<Record<string, { status: string; id: string }>>({});
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
@@ -185,12 +188,46 @@ export const PublisherModpacksView: React.FC = () => {
         modpack: null
     });
 
+    // Dialog state for promote modpack
+    const [promoteDialog, setPromoteDialog] = useState<{
+        open: boolean;
+        modpack: Modpack | null;
+    }>({
+        open: false,
+        modpack: null
+    });
+
     // Get user role in this publisher
     const publisherMembership = session?.creatorMemberships?.find(
         membership => membership.creatorId === publisherId
     );
     const userRole = publisherMembership?.role || 'member';
     const canCreateModpacks = ['owner', 'admin'].includes(userRole);
+
+    // Load campaigns to know which modpacks already have active/pending promotions
+    const loadCampaigns = async () => {
+        if (!publisherId) return;
+        try {
+            const res = await fetch(`${API_ENDPOINT}/creators/${publisherId}/ads`, {
+                headers: {
+                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (res.ok) {
+                const json = await res.json();
+                const map: Record<string, { status: string; id: string }> = {};
+                (json.data || []).forEach((c: any) => {
+                    if (c.targetModpackId && (c.status === 'active' || c.status === 'pending_approval')) {
+                        map[c.targetModpackId] = { status: c.status, id: c.id };
+                    }
+                });
+                setActiveCampaigns(map);
+            }
+        } catch (e) {
+            console.error('Error fetching creator campaigns:', e);
+        }
+    };
 
     // Load modpacks
     const loadModpacks = async () => {
@@ -201,6 +238,7 @@ export const PublisherModpacksView: React.FC = () => {
             setError(null);
             const data = await PublisherModpacksAPI.getModpacks(publisherId, sessionTokens.accessToken);
             setModpacks(data);
+            await loadCampaigns();
         } catch (err: any) {
             console.error('Error loading modpacks:', err);
             setError(err.message || 'Error al cargar los modpacks');
@@ -480,7 +518,20 @@ export const PublisherModpacksView: React.FC = () => {
                                                     />
 
                                                     <div className="min-w-0">
-                                                        <p className="font-medium text-foreground truncate">{modpack.name}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="font-medium text-foreground truncate">{modpack.name}</p>
+                                                            {activeCampaigns[modpack.id]?.status === 'active' && (
+                                                                <Badge className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] py-0 px-1.5 flex items-center gap-1">
+                                                                    <LucideSparkles className="h-2.5 w-2.5" />
+                                                                    Patrocinado
+                                                                </Badge>
+                                                            )}
+                                                            {activeCampaigns[modpack.id]?.status === 'pending_approval' && (
+                                                                <Badge className="bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] py-0 px-1.5">
+                                                                    Promo en Revisión
+                                                                </Badge>
+                                                            )}
+                                                        </div>
                                                         <p className="text-xs text-muted-foreground truncate max-w-sm">
                                                             {modpack.shortDescription || 'Sin descripción'}
                                                         </p>
@@ -516,6 +567,23 @@ export const PublisherModpacksView: React.FC = () => {
                                                             <LucideEdit className="h-4 w-4 mr-2" />
                                                             Editar
                                                         </DropdownMenuItem>
+
+                                                        {modpack.status === 'published' && (
+                                                            activeCampaigns[modpack.id] ? (
+                                                                <DropdownMenuItem
+                                                                    onClick={() => navigate(`/creators/org/${publisherId}/promotions`)}
+                                                                    className="text-amber-400"
+                                                                >
+                                                                    <LucideSparkles className="h-4 w-4 mr-2 text-amber-400" />
+                                                                    Ver Campaña ({activeCampaigns[modpack.id].status === 'active' ? 'Activa' : 'En Revisión'})
+                                                                </DropdownMenuItem>
+                                                            ) : (
+                                                                <DropdownMenuItem onClick={() => setPromoteDialog({ open: true, modpack })}>
+                                                                    <LucideSparkles className="h-4 w-4 mr-2 text-amber-400" />
+                                                                    Promocionar Modpack
+                                                                </DropdownMenuItem>
+                                                            )
+                                                        )}
 
                                                         {modpack.visibility === 'whitelist' && (
                                                             <DropdownMenuItem onClick={() => setWhitelistDialog({ open: true, modpack })}>
@@ -553,6 +621,16 @@ export const PublisherModpacksView: React.FC = () => {
                     modpackId={whitelistDialog.modpack.id}
                     modpackName={whitelistDialog.modpack.name}
                     accessToken={sessionTokens.accessToken}
+                />
+            )}
+
+            {/* Promote Modpack Dialog */}
+            {promoteDialog.modpack && publisherId && (
+                <PromoteModpackDialog
+                    open={promoteDialog.open}
+                    onOpenChange={(open) => setPromoteDialog({ open, modpack: open ? promoteDialog.modpack : null })}
+                    modpack={promoteDialog.modpack}
+                    orgId={publisherId}
                 />
             )}
         </>

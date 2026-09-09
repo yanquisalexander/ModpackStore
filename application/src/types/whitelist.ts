@@ -70,6 +70,9 @@ export interface WhitelistedModpack {
     creator: {
         id: string;
         name: string;
+        slug?: string;
+        verified?: boolean;
+        partner?: boolean;
         logoUrl?: string;
     };
     latestVersion?: string | null;

@@ -28,7 +28,8 @@ const app = new Hono<{ Variables: AuthVariables }>();
 
 app.get("/", optionalAuth, async (c) => {
     try {
-        const result = await getExploreHomepage();
+        const userId = c.get("userId");
+        const result = await getExploreHomepage(userId);
         return c.json({ data: result });
     } catch (error) {
         log("[EXPLORE] Failed to fetch homepage:", error);

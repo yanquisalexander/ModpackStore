@@ -7,7 +7,8 @@ import {
     LucideShieldCheck,
     LucideSparkles,
     LucideLayoutDashboard,
-    LucideChevronDown
+    LucideChevronDown,
+    LucideCrown // <-- Añadimos un icono para los usuarios Plus
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
@@ -30,10 +31,13 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
     const containerRef = useRef<HTMLDivElement>(null);
 
-
     const isCreator = session?.creatorMemberships && session.creatorMemberships.length > 0;
     const isAdmin = session?.hasRole?.("admin") || session?.hasRole?.("super_admin");
     const isBanned = session?.isBanned;
+
+    // 👇 Define aquí cómo sabes si el usuario es Plus/Patreon. 
+    // Puede ser verificando un rol, una propiedad 'isPremium', etc.
+    const isModpackStorePlus = session?.isStaff && session.isStaff()
 
     const toggleMenu = (event: React.MouseEvent) => {
         const isOpening = !openMenu;
@@ -72,17 +76,26 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
 
             <button
                 onClick={toggleMenu}
-                className="cursor-pointer flex items-center gap-2 h-9 px-3 hover:bg-neutral-800"
+                className="cursor-pointer flex items-center gap-2 h-9 px-3 hover:bg-neutral-800 transition-colors"
                 title={t('user.currentUser')}
             >
-                <img
-                    draggable={false}
-                    src={session.avatarUrl}
-                    alt={session.username}
-                    className="size-5 rounded-sm object-cover flex-shrink-0"
-                />
-                <span className="text-sm font-medium text-white/80 max-w-[100px] truncate hidden sm:block">
+                <div className="relative">
+                    <img
+                        draggable={false}
+                        src={session.avatarUrl}
+                        alt={session.username}
+                        // 👇 Añadimos un borde dorado sutil al avatar si es Plus
+                        className={`size-5 rounded-sm object-cover flex-shrink-0`}
+                    />
+                </div>
+
+                {/* 👇 Cambiamos el color del nombre y añadimos un icono si es Plus */}
+                <span
+                    className={`text-sm font-medium max-w-[100px] truncate hidden sm:flex items-center gap-1.5 ${isModpackStorePlus ? "text-transparent bg-gradient-to-r from-sky-300 via-indigo-300 to-emerald-300 bg-clip-text" : "text-white/80"
+                        }`}
+                >
                     {session.username}
+                    {isModpackStorePlus && <LucideCrown size={12} strokeWidth={2.5} className="text-emerald-300" />}
                 </span>
             </button>
 
@@ -92,13 +105,24 @@ export const CurrentUser = ({ titleBarOpaque }: { titleBarOpaque?: boolean }) =>
                     bg-[#121214] border border-white/[0.06] rounded-lg
                     transition-all duration-150 ease-out
                     ${openMenu
-                        ? "opacity-100 translate-y-0 scale-100 visible"
+                        ? "opacity-100 translate-y-0 scale-100 visible shadow-xl"
                         : "opacity-0 -translate-y-2 scale-95 invisible pointer-events-none"
                     }
                 `}
             >
                 <div className="px-3 py-2.5 border-b border-white/[0.04]">
-                    <p className="text-sm font-semibold text-white/90 truncate">{session.username}</p>
+                    <div className="flex items-center gap-2">
+                        <p className={`text-sm font-semibold truncate ${isModpackStorePlus ? "text-amber-400" : "text-white/90"
+                            }`}>
+                            {session.username}
+                        </p>
+                        {/* 👇 Etiqueta destacada en el menú desplegable */}
+                        {isModpackStorePlus && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-400/10 text-amber-400 border border-amber-400/20 uppercase tracking-wider flex items-center gap-1">
+                                Plus
+                            </span>
+                        )}
+                    </div>
                     <p className="text-[11px] text-neutral-600 truncate mt-0.5">{session.email || "Usuario"}</p>
                 </div>
 

@@ -19,6 +19,7 @@ import { TwitchRequirements } from "@/components/TwitchRequirements";
 import { VoteButtons } from "@/components/modpack/VoteButtons";
 import { RelatedModpacks } from "@/components/modpack/RelatedModpacks";
 import { ExternalLinkHandler } from '@/components/ExternalLinkHandler';
+import { AdSlot } from "@/components/ads/AdSlot";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthentication } from "@/stores/AuthContext";
 import { getModpackById } from "@/services/getModpacks";
@@ -363,10 +364,13 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
 
                     {/* OVERVIEW */}
                     <TabsContent value="overview" className="focus-visible:outline-none">
-                        <div className="bg-[#121214] border border-white/[0.06] rounded-xl p-6">
-                            <ExternalLinkHandler className="prose prose-invert prose-purple max-w-none prose-p:text-neutral-400 prose-p:leading-relaxed">
-                                {modpack.description || "Sin descripción disponible."}
-                            </ExternalLinkHandler>
+                        <div className="space-y-6">
+                            <div className="bg-[#121214] border border-white/[0.06] rounded-xl p-6">
+                                <ExternalLinkHandler className="prose prose-invert prose-purple max-w-none prose-p:text-neutral-400 prose-p:leading-relaxed">
+                                    {modpack.description || "Sin descripción disponible."}
+                                </ExternalLinkHandler>
+                            </div>
+                            <AdSlot placement="modpack_sidebar" />
                         </div>
                     </TabsContent>
 
