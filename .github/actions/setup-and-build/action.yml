@@ -18,8 +18,9 @@ runs:
       if: runner.os == 'Linux'
       shell: bash
       run: |
-        sudo apt-get update -y
-        sudo apt-get install -y mold
+        if ! command -v mold &> /dev/null; then
+          sudo apt-get install -y --no-install-recommends mold
+        fi
 
     - name: Set up pnpm
       uses: pnpm/action-setup@v4
@@ -35,35 +36,40 @@ runs:
 
     - name: Install frontend dependencies
       working-directory: ./application
-      run: pnpm install --frozen-lockfile
       shell: bash
+      run: pnpm install --frozen-lockfile --prefer-offline
 
-    - name: Install Rust stable
-      uses: dtolnay/rust-toolchain@stable
-
-    - name: Configure sccache
-      uses: mozilla-actions/sccache-action@v0.0.10
-
-    - name: Set linker flags (Linux)
-      if: runner.os == 'Linux'
-      shell: bash
-      run: echo "RUSTFLAGS=-C link-arg=-fuse-ld=mold" >> "$GITHUB_ENV"
-
+    # --- FIX CRITICO: Variables ANTES de Rust y sccache ---
     - name: Set sccache env vars
       shell: bash
       run: |
         echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
         echo "RUSTC_WRAPPER=sccache" >> "$GITHUB_ENV"
+        echo "SCCACHE_CACHE_SIZE=2G" >> "$GITHUB_ENV"
+        echo "CARGO_INCREMENTAL=0" >> "$GITHUB_ENV"
+        echo "CARGO_TERM_COLOR=always" >> "$GITHUB_ENV"
+        echo "CARGO_NET_RETRY=3" >> "$GITHUB_ENV"
+
+    - name: Configure sccache
+      uses: mozilla-actions/sccache-action@v0.0.10
+
+    - name: Install Rust stable
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Set linker flags (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: echo "RUSTFLAGS=-C link-arg=-fuse-ld=mold -C debuginfo=0" >> "$GITHUB_ENV"
 
     - name: Rust cache
       uses: swatinem/rust-cache@v2
       with:
         workspaces: './application/src-tauri'
-        cache-on-failure: true
+        shared-key: "canary-${{ runner.os }}"
         cache-all-crates: true
-        save-if: ${{ github.ref == 'refs/heads/main' }}
+        cache-on-failure: false
+        save-if: true
 
-    # --- PASO DE LIMPIEZA AUTOMÁTICA ---
     - name: Purge old Canary release to free storage
       env:
         GH_TOKEN: ${{ inputs.GITHUB_TOKEN }}
@@ -71,15 +77,15 @@ runs:
       run: |
         echo "Eliminando release y assets antiguos de 'canary'..."
         gh release delete canary --repo ModpackStore/ModpackStore-Releases --yes --cleanup-tag || true
-        # Limpieza adicional por si quedan referencias remotas del tag
-        git push origin --delete tag canary 2>/dev/null || true
 
     - name: Build & Publish Canary Release
-      uses: tauri-apps/tauri-action@dev
+      uses: tauri-apps/tauri-action@v0
       env:
         TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.TAURI_SIGNING_PRIVATE_KEY }}
         GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
         GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
+        SCCACHE_GHA_ENABLED: true
+        RUSTC_WRAPPER: sccache
       with:
         projectPath: ./application
         tagName: canary
@@ -91,3 +97,7 @@ runs:
         includeUpdaterJson: true
         owner: ModpackStore
         repo: ModpackStore-Releases
+
+    - name: sccache stats
+      shell: bash
+      run: sccache --show-stats || true
