@@ -27,6 +27,7 @@
       "icons/icon.ico"
     ],
     "windows": {
+      "certificateThumbprint": "0C626B5E0DF38764045C938D54C6467E959EDD23",
       "nsis": {
         "installMode": "currentUser",
         "sidebarImage": "./resources/installer_bg.bmp"
