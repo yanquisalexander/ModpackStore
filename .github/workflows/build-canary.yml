@@ -22,12 +22,13 @@ jobs:
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev \
             libappindicator3-dev \
             librsvg2-dev \
             patchelf \
-            wget
+            wget \
+            mold
 
       # 🧩 Pin linuxdeploy version to avoid Tauri fetching outdated one
       - name: Pin linuxdeploy version
@@ -52,6 +53,14 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Disable Windows Defender
+        shell: pwsh
+        run: |
+          Set-MpPreference -DisableRealtimeMonitoring $true
+          Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE"
+          Add-MpPreference -ExclusionPath "$env:USERPROFILE\.cargo"
+          Add-MpPreference -ExclusionPath "$env:USERPROFILE\.rustup"
+
       - name: Checkout repository
         uses: actions/checkout@v4
       
