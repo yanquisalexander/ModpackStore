@@ -14,7 +14,7 @@ import { useLayout } from "./providers/LayoutProvider";
 import { initAnalytics } from "./lib/analytics";
 import { trackEvent } from "@aptabase/web";
 
-// Rutas eager (se cargan siempre - usadas por todos los usuarios)
+// Rutas eager
 import { ExploreSection } from "./views/ExploreSection";
 import { HomeView } from "./views/HomeView";
 import { ServersSection } from "./views/ServersSection";
@@ -28,25 +28,20 @@ import { AccountsSection } from "./views/AccountsSection";
 import { BannedScreen } from "./components/BannedScreen";
 import { OfflineMode } from "./views/OfflineMode";
 
-// Importaciones estáticas para creadores (a petición)
 import { CreatorsLayout } from "./components/layouts/CreatorsLayout";
 import { CreatorProfileView } from "./views/CreatorProfileView";
 
-// Rutas lazy (se cargan bajo demanda)
+// Rutas lazy
 const ModpackOverview = lazy(() => import("./views/ModpackOverview").then(m => ({ default: m.ModpackOverview })));
 const WhitelistInstancesView = lazy(() => import("./views/WhitelistInstancesView").then(m => ({ default: m.WhitelistInstancesView })));
 const TicketsSection = lazy(() => import("./components/TicketsSection").then(m => ({ default: m.TicketsSection })));
-
-// Layouts lazy (solo para roles específicos)
 const AdminLayout = lazy(() => import("./components/admin/AdminLayout").then(m => ({ default: m.AdminLayout })));
 
-// Dialogos lazy (solo se cargan al abrirse)
 const ConfigurationDialog = lazy(() => import("./components/ConfigurationDialog").then(m => ({ default: m.ConfigurationDialog })));
 const TermsAndConditionsDialog = lazy(() => import("./components/TermsAndConditionsDialog").then(m => ({ default: m.TermsAndConditionsDialog })));
 const OnboardingFlow = lazy(() => import("./components/onboarding").then(m => ({ default: m.OnboardingFlow })));
 const SessionExpiredDialog = lazy(() => import("./components/SessionExpiredDialog").then(m => ({ default: m.SessionExpiredDialog })));
 
-// Dialogos eager (siempre presentes, ligeros)
 import { Changelog } from "./components/Changelog";
 import { ReminderModal } from "./components/ReminderModal";
 import { PlusFeatureDialog } from "./components/PremiumFeatureDialog";
@@ -54,18 +49,16 @@ import NoticeTestBuild from "./components/NoticeTestBuild";
 import { KonamiCode } from "./components/KonamiCode";
 import CommandPalette from "./components/CommandPalette";
 
-// ProfileView - se mantiene eager porque sus sub-componentes se usan en rutas anidadas
 import { ProfileView, ProfileInformation, IntegrationsSection, HelpSection } from "./views/ProfileView";
 import GlassCircleWrench from "./icons/GlassCircleWrench";
 
-// --- Componentes Helper para Rutas ---
+// --- Helpers ---
 const LoadingScreen = () => (
   <div className="absolute inset-0 flex items-center justify-center min-h-full h-full w-full">
     <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
   </div>
 );
 
-// Helper para evitar el flash de NotFound dando un "grace period" de 500ms para que se hidraten los roles
 const ProtectedRoute = ({ isAllowed, children }: { isAllowed: boolean, children: React.ReactNode }) => {
   const [showFallback, setShowFallback] = useState(false);
 
@@ -79,18 +72,11 @@ const ProtectedRoute = ({ isAllowed, children }: { isAllowed: boolean, children:
     };
   }, [isAllowed]);
 
-  if (isAllowed) {
-    return <>{children}</>;
-  }
-
-  // Muestra pantalla de carga temporalmente, luego muestra el NotFound si se agota el tiempo
+  if (isAllowed) return <>{children}</>;
   return showFallback ? <NotFound /> : <LoadingScreen />;
 };
 
-const PreLaunchPage = () => {
-  return <PreLaunchInstance />;
-};
-
+const PreLaunchPage = () => <PreLaunchInstance />;
 const ModpackOverviewPage = () => {
   const { modpackId } = useParams<{ modpackId: string }>();
   return <ModpackOverview modpackId={modpackId!} />;
@@ -107,23 +93,26 @@ const SectionInMaintenance = ({ title }: { title: string }) => (
         <GlassCircleWrench className="size-6 text-[#534AB7]" />
       </div>
     </div>
-
     <h2 className="text-lg font-medium text-white">{title}</h2>
-    <p className="text-sm text-gray-400 mt-2 max-w-[280px] leading-relaxed">
-      Esta sección está en mantenimiento.
-    </p>
+    <p className="text-sm text-gray-400 mt-2 max-w- leading-relaxed">Esta sección está en mantenimiento.</p>
   </div>
 );
 
-// --- Componente de Rutas (memoizado) ---
+// --- Rutas memoizadas ---
 interface AppRoutesProps {
-  isConnected: boolean;
+  isConnected: boolean | null;
+  isConnectionLoading: boolean;
   isAuthenticated: boolean;
   session: any;
 }
 
-const AppRoutes = memo(function AppRoutes({ isConnected, isAuthenticated, session }: AppRoutesProps) {
-  if (!isConnected) {
+const AppRoutes = memo(function AppRoutes({ isConnected, isConnectionLoading, isAuthenticated, session }: AppRoutesProps) {
+  // FIX PRINCIPAL: si aún no sabemos el estado de la conexión, no decidas nada.
+  if (isConnectionLoading || isConnected === null) {
+    return <LoadingScreen />;
+  }
+
+  if (isConnected === false) {
     return (
       <Routes>
         <Route path="/" element={<OfflineMode />} />
@@ -164,7 +153,6 @@ const AppRoutes = memo(function AppRoutes({ isConnected, isAuthenticated, sessio
           <Route path="help" element={<HelpSection />} />
         </Route>
 
-        {/* Creadores: Usa ProtectedRoute para manejar el delay de los permisos */}
         <Route
           path="/creators/*"
           element={
@@ -174,7 +162,6 @@ const AppRoutes = memo(function AppRoutes({ isConnected, isAuthenticated, sessio
           }
         />
 
-        {/* Admin: Usa ProtectedRoute para manejar el delay de los permisos */}
         <Route
           path="/admin/*"
           element={
@@ -185,14 +172,13 @@ const AppRoutes = memo(function AppRoutes({ isConnected, isAuthenticated, sessio
         />
 
         <Route path="/c/:creatorSlug" element={<CreatorProfileView />} />
-
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>
   );
 });
 
-// --- Componente Principal ---
+// --- App Principal ---
 function App() {
   const { loading: authLoading, isAuthenticated, session, showSessionExpired, startDiscordAuth } = useAuthentication();
   const { isConnected, isLoading: connectionLoading, hasInternetAccess } = useConnection();
@@ -202,8 +188,9 @@ function App() {
   const navigate = useNavigate();
   const hasLaunched = useRef(false);
   const { setHasSidebar, hasSidebar } = useLayout();
-
   const { requestPermission, permissionGranted } = useNotifications();
+
+  const hasCheckedConnectionRef = useRef(false);
 
   useEffect(() => {
     if (!permissionGranted) {
@@ -211,28 +198,32 @@ function App() {
     }
   }, [permissionGranted, requestPermission]);
 
-  // Use a ref to track if we've already tried to check connection
-  const hasCheckedConnectionRef = useRef(false);
+  useEffect(() => {
+    if (!connectionLoading) {
+      hasCheckedConnectionRef.current = true;
+    }
+  }, [connectionLoading]);
+
+  // Estado efectivo: null hasta el primer check
+  const effectiveIsConnected = hasCheckedConnectionRef.current ? isConnected : null;
 
   useEffect(() => {
     const connectionToastId = "connection-status";
-
-    if (!isConnected && !connectionLoading) {
+    if (hasCheckedConnectionRef.current && effectiveIsConnected === false && !connectionLoading) {
       const message = hasInternetAccess ? "Servidor no disponible" : "Sin conexión a internet";
       const description = hasInternetAccess
         ? "No se ha podido conectar al servidor. Algunas funciones no están disponibles."
         : "No se detectó una conexión a internet activa. Estás en modo sin conexión.";
-
       toast.warning(message, {
         id: connectionToastId,
         duration: Infinity,
         richColors: true,
-        description: description,
+        description,
       });
     } else {
       toast.dismiss(connectionToastId);
     }
-  }, [isConnected, hasInternetAccess, connectionLoading]);
+  }, [effectiveIsConnected, hasInternetAccess, connectionLoading]);
 
   useEffect(() => {
     if (!hasLaunched.current) {
@@ -240,7 +231,6 @@ function App() {
       trackEvent("app_launch");
       hasLaunched.current = true;
     }
-
     const handler = (e: Event) => {
       const instanceId = (e as CustomEvent<string>).detail;
       navigate(`/prelaunch/${instanceId}`);
@@ -249,22 +239,16 @@ function App() {
     return () => window.removeEventListener("navigate-to-instance", handler);
   }, [navigate]);
 
-  const shouldShowLoading = authLoading || onboardingLoading ||
-    (connectionLoading && !hasCheckedConnectionRef.current);
-
-  const isShowingLogin = !isAuthenticated && isConnected && !isFirstRun;
-
   useEffect(() => {
-    if (!connectionLoading) {
-      hasCheckedConnectionRef.current = true;
-    }
-  }, [connectionLoading]);
-
-  useEffect(() => {
-    const hasSidebar = (isAuthenticated || !isConnected) && !isFirstRun && !session?.isBanned;
+    const hasSidebar = (isAuthenticated || effectiveIsConnected === false) && !isFirstRun && !session?.isBanned;
     setHasSidebar(hasSidebar);
-  }, [isAuthenticated, isConnected, isFirstRun, session?.isBanned, setHasSidebar]);
+  }, [isAuthenticated, effectiveIsConnected, isFirstRun, session?.isBanned, setHasSidebar]);
 
+  // FIX: no renderices nada hasta tener todo
+  const shouldShowLoading =
+    authLoading || onboardingLoading || connectionLoading || !hasCheckedConnectionRef.current;
+
+  const isShowingLogin = !isAuthenticated && effectiveIsConnected !== false && !isFirstRun && hasCheckedConnectionRef.current;
   const isBanned = isAuthenticated && session?.isBanned;
 
   if (shouldShowLoading) {
@@ -277,8 +261,12 @@ function App() {
 
   return (
     <>
-      {(isAuthenticated || !isConnected) && !isFirstRun && !isBanned && <AppSidebar />}
-      <main className={`overflow-y-auto h-full border-t p-0 m-0 ${isShowingLogin ? "border-transparent" : "relative bg-[var(--background)]"} ${hasSidebar ? 'rounded-tl-md border-l' : 'border-l-transparent'}`} style={{ gridArea: 'main' }}>
+      {(isAuthenticated || effectiveIsConnected === false) && !isFirstRun && !isBanned && <AppSidebar />}
+      <main
+        className={`overflow-y-auto h-full border-t p-0 m-0 ${isShowingLogin ? "border-transparent" : "relative bg-[var(--background)]"} ${hasSidebar ? "rounded-tl-md border-l" : "border-l-transparent"
+          }`}
+        style={{ gridArea: "main" }}
+      >
         <Fragment>
           {isFirstRun ? (
             <Suspense fallback={<LoadingScreen />}>
@@ -286,14 +274,14 @@ function App() {
             </Suspense>
           ) : (
             <AppRoutes
-              isConnected={isConnected}
+              isConnected={effectiveIsConnected}
+              isConnectionLoading={connectionLoading}
               isAuthenticated={isAuthenticated}
               session={session}
             />
           )}
         </Fragment>
 
-        {/* Componentes globales */}
         <CommandPalette />
         <ReminderModal />
         <PlusFeatureDialog />
@@ -304,21 +292,13 @@ function App() {
         )}
         {shouldShowToSDialog && (
           <Suspense fallback={null}>
-            <TermsAndConditionsDialog
-              open={shouldShowToSDialog}
-              content={tosContent}
-              onAccept={acceptTerms}
-              onReject={rejectTerms}
-            />
+            <TermsAndConditionsDialog open={shouldShowToSDialog} content={tosContent} onAccept={acceptTerms} onReject={rejectTerms} />
           </Suspense>
         )}
         <Changelog />
         {showSessionExpired && (
           <Suspense fallback={null}>
-            <SessionExpiredDialog
-              isOpen={showSessionExpired}
-              onLogin={startDiscordAuth}
-            />
+            <SessionExpiredDialog isOpen={showSessionExpired} onLogin={startDiscordAuth} />
           </Suspense>
         )}
         <KonamiCode />
