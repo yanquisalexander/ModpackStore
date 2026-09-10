@@ -266,7 +266,7 @@ impl AsyncMinecraftLauncher {
             .ok_or_else(|| "Failed to get Minecraft directory".to_string())?;
 
         // Download authlib-injector if necessary
-        let jar_path = ms_auth.get_authlib_injector_path(minecraft_dir).await?;
+        let jar_path = ms_auth.get_authlib_injector_path(minecraft_dir, Some(paths.java_path())).await?;
 
         // Build the JVM argument
         Ok(ms_auth.build_authlib_injector_arg(&jar_path))

@@ -62,8 +62,18 @@ impl ModpackStoreAuth {
     }
 
     /// Detect Java version by running 'java -version'
-    fn detect_java_version() -> Result<u32, String> {
-        let mut command = Command::new("java");
+    fn detect_java_version(java_path: Option<&Path>) -> Result<u32, String> {
+        let java_exe = if let Some(path) = java_path {
+            if cfg!(windows) {
+                path.with_file_name("java.exe")
+            } else {
+                path.to_path_buf()
+            }
+        } else {
+            PathBuf::from("java")
+        };
+
+        let mut command = Command::new(&java_exe);
         command.arg("-version");
 
         #[cfg(target_os = "windows")]
@@ -184,8 +194,9 @@ impl ModpackStoreAuth {
     pub async fn get_authlib_injector_path(
         &self,
         minecraft_path: &Path,
+        java_path: Option<&Path>,
     ) -> Result<PathBuf, String> {
-        let java_version = Self::detect_java_version()
+        let java_version = Self::detect_java_version(java_path)
             .map_err(|e| format!("Failed to detect Java version: {}", e))?;
         let authlib_version = Self::select_authlib_version(java_version);
 
