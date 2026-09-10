@@ -272,6 +272,7 @@ export const PreLaunchInstance = () => {
                     onOpenChange={setShowAccountSelection}
                     onAccountSelected={handleAccountSelected}
                     instanceId={instanceId}
+                    appearance={appearance}
                 />
             </div>
         </div>

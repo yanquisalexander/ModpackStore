@@ -279,9 +279,24 @@ pub struct CustomBlock {
     pub unknown_fields: HashMap<String, serde_json::Value>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PreLaunchDefaults {
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub use_modpack_store_auth: Option<bool>,
+
+    // Captura campos desconocidos
+    #[serde(flatten)]
+    #[serde(skip_serializing)]
+    pub unknown_fields: HashMap<String, serde_json::Value>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PreLaunchAppearance {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub defaults: Option<PreLaunchDefaults>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -413,6 +428,10 @@ pub async fn get_prelaunch_appearance(instance_id: String) -> Option<PreLaunchAp
     match result {
         Ok(data) => {
             log_unknown_fields("prelaunch_appearance", &data.unknown_fields);
+
+            if let Some(defaults) = &data.defaults {
+                log_unknown_fields("defaults", &defaults.unknown_fields);
+            }
 
             if let Some(logo) = &data.logo {
                 log_unknown_fields("logo", &logo.unknown_fields);

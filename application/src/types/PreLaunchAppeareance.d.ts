@@ -1,6 +1,11 @@
 import * as React from 'react';
 
+export interface PreLaunchDefaults {
+    useModpackStoreAuth?: boolean;
+}
+
 export interface PreLaunchAppearance {
+    defaults?: PreLaunchDefaults;
     title?: string;
     description?: string;
     logo?: Logo;

@@ -1597,20 +1597,80 @@ async fn create_modpack_instance_struct(
         .save()
         .map_err(|e| format!("Error guardando configuración: {}", e))?;
 
-    // Fetch and save prelaunch appearance in the background
+    // Fetch and save prelaunch appearance in the background, then apply defaults
     let modpack_id_clone = modpack_id;
     let instance_id_clone = instance_id.clone();
     tokio::spawn(async move {
-        if let Err(e) = crate::core::prelaunch_appearance::fetch_and_save_prelaunch_appearance(
+        match crate::core::prelaunch_appearance::fetch_and_save_prelaunch_appearance(
             modpack_id_clone,
-            instance_id_clone,
+            instance_id_clone.clone(),
         )
         .await
         {
-            log::warn!(
-                "Failed to fetch prelaunch appearance during instance creation: {}",
-                e
-            );
+            Ok(true) => {
+                // Prelaunch appearance was saved, now apply defaults to the instance
+                if let Some(appearance) =
+                    crate::core::prelaunch_appearance::get_prelaunch_appearance(
+                        instance_id_clone.clone(),
+                    )
+                    .await
+                {
+                    if let Some(defaults) = appearance.defaults {
+                        log::info!(
+                            "Applying prelaunch defaults for instance: {}",
+                            instance_id_clone
+                        );
+
+                        // Read current instance, apply defaults, and save
+                        match get_instance_by_id(instance_id_clone.clone()) {
+                            Ok(Some(mut inst)) => {
+                                let mut changed = false;
+
+                                if let Some(use_auth) = defaults.use_modpack_store_auth {
+                                    inst.useModpackStoreAuth = use_auth;
+                                    changed = true;
+                                    log::info!(
+                                        "Set useModpackStoreAuth={} from prelaunch defaults",
+                                        use_auth
+                                    );
+                                }
+
+                                if changed {
+                                    if let Err(e) = inst.save() {
+                                        log::warn!(
+                                            "Failed to save instance after applying defaults: {}",
+                                            e
+                                        );
+                                    } else {
+                                        invalidate_instance_cache();
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                log::warn!(
+                                    "Instance not found when applying defaults: {}",
+                                    instance_id_clone
+                                );
+                            }
+                            Err(e) => {
+                                log::warn!(
+                                    "Error reading instance for defaults: {}",
+                                    e
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(false) => {
+                log::info!("No prelaunch appearance available for instance (offline or not found)");
+            }
+            Err(e) => {
+                log::warn!(
+                    "Failed to fetch prelaunch appearance during instance creation: {}",
+                    e
+                );
+            }
         }
     });
 

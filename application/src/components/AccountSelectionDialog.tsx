@@ -17,12 +17,14 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 import { MicrosoftIcon } from '@/icons/MicrosoftIcon';
 import { cn } from '@/lib/utils';
+import { PreLaunchAppearance } from '@/types/PreLaunchAppeareance';
 
 interface AccountSelectionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAccountSelected: (data: { accountUuid: string | null; useModpackStoreAuth: boolean; ms_nickname: string | null }) => void;
   instanceId?: string;
+  appearance?: PreLaunchAppearance;
 }
 
 const STEVE_UUID = "8667ba71b85a4004af94457a5a5489f1";
@@ -31,7 +33,8 @@ export const AccountSelectionDialog: React.FC<AccountSelectionDialogProps> = ({
   open,
   onOpenChange,
   onAccountSelected,
-  instanceId
+  instanceId,
+  appearance
 }) => {
   const [accounts, setAccounts] = useState<TauriCommandReturns['get_all_accounts']>([]);
   const [loading, setLoading] = useState(true);
@@ -67,10 +70,13 @@ export const AccountSelectionDialog: React.FC<AccountSelectionDialogProps> = ({
 
         try {
           const currentInstance = await invoke<TauriCommandReturns['get_instance_by_id']>('get_instance_by_id', { instanceId });
-          setUseModpackStoreAuth(currentInstance?.useModpackStoreAuth ?? false);
+          // Use instance value, fallback to appearance defaults if not explicitly set
+          const instanceAuth = currentInstance?.useModpackStoreAuth;
+          const defaultAuth = appearance?.defaults?.useModpackStoreAuth;
+          setUseModpackStoreAuth(instanceAuth ?? defaultAuth ?? false);
         } catch (error) {
           console.error('Error loading instance auth mode:', error);
-          setUseModpackStoreAuth(false);
+          setUseModpackStoreAuth(appearance?.defaults?.useModpackStoreAuth ?? false);
         }
       };
 
