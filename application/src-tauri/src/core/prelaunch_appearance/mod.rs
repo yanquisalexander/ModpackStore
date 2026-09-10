@@ -353,6 +353,22 @@ pub struct LoadingIndicator {
     pub style: Option<serde_json::Value>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub position: Option<LoadingIndicatorPosition>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub show_progress_bar: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub progress_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bar_background_color: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bar_height: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bar_border_radius: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub show_percentage: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub show_spinner: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub spinner_color: Option<String>,
 
     // Captura campos desconocidos
     #[serde(flatten)]

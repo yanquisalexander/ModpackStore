@@ -129,6 +129,14 @@ export interface FooterStyle {
 export interface LoadingIndicator {
     style?: any;
     position?: LoadingIndicatorPosition;
+    showProgressBar?: boolean;
+    progressColor?: string;
+    barBackgroundColor?: string;
+    barHeight?: string;
+    barBorderRadius?: string;
+    showPercentage?: boolean;
+    showSpinner?: boolean;
+    spinnerColor?: string;
 }
 
 export interface LoadingIndicatorPosition {

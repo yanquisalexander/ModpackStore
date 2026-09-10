@@ -76,7 +76,7 @@ const Logo = memo(({ logo, onLoadError }: { logo: PreLaunchAppearance['logo'], o
 });
 
 // Memoized Loading Indicator Component
-const LoadingIndicator = memo(({ isLoading, message, loadingIndicator }: { isLoading: boolean, message: string, loadingIndicator?: PreLaunchAppearance['loadingIndicator'] }) => {
+const LoadingIndicator = memo(({ isLoading, message, stage, loadingIndicator }: { isLoading: boolean, message: string, stage?: any, loadingIndicator?: PreLaunchAppearance['loadingIndicator'] }) => {
     if (!isLoading) return null;
 
     const positionStyle: React.CSSProperties = loadingIndicator?.position ? {
@@ -87,9 +87,15 @@ const LoadingIndicator = memo(({ isLoading, message, loadingIndicator }: { isLoa
         transform: loadingIndicator.position.transform?.replace('!important', '').trim(),
     } : {};
 
-    const customStyle = loadingIndicator?.style || {};
-
     const hasCustomPosition = loadingIndicator?.position && Object.values(loadingIndicator.position).some(value => value != null);
+
+    // Calculate progress if stage has current/total
+    const progress = stage && 'current' in stage && 'total' in stage && stage.total > 0
+        ? Math.min(100, Math.round((stage.current / stage.total) * 100))
+        : null;
+
+    const showBar = loadingIndicator?.showProgressBar && progress !== null;
+    const showPct = loadingIndicator?.showPercentage && progress !== null;
 
     return (
         <div
@@ -97,11 +103,47 @@ const LoadingIndicator = memo(({ isLoading, message, loadingIndicator }: { isLoa
             style={hasCustomPosition ? positionStyle : {}}
         >
             <div
-                className={`flex gap-x-2 animate-fade-in-down tabular-nums animate-duration-400 ease-in-out bg-black/80 px-2 py-1 max-w-xs w-full text-white items-center`}
-                style={customStyle}
+                className="flex flex-col gap-2 animate-fade-in-down tabular-nums animate-duration-400 ease-in-out"
+                style={{
+                    background: '#000000cc',
+                    color: '#ffffff',
+                    padding: '8px 12px',
+                    borderRadius: '8px',
+                    maxWidth: '280px',
+                    width: '100%',
+                    ...loadingIndicator?.style,
+                }}
             >
-                <LucideLoaderCircle className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] text-white flex-shrink-0" />
-                {message}
+                <div className="flex gap-x-2 items-center">
+                    {loadingIndicator?.showSpinner !== false && (
+                        <LucideLoaderCircle
+                            className="animate-spin-clockwise animate-iteration-count-infinite animate-duration-[2500ms] flex-shrink-0"
+                            style={{ color: loadingIndicator?.spinnerColor || '#ffffff' }}
+                        />
+                    )}
+                    <span>{message}</span>
+                    {showPct && <span className="ml-auto opacity-70">{progress}%</span>}
+                </div>
+                {showBar && (
+                    <div
+                        style={{
+                            height: loadingIndicator?.barHeight || '4px',
+                            background: loadingIndicator?.barBackgroundColor || '#ffffff20',
+                            borderRadius: loadingIndicator?.barBorderRadius || '2px',
+                            overflow: 'hidden',
+                        }}
+                    >
+                        <div
+                            style={{
+                                height: '100%',
+                                width: `${progress}%`,
+                                background: loadingIndicator?.progressColor || '#22c55e',
+                                borderRadius: loadingIndicator?.barBorderRadius || '2px',
+                                transition: 'width 0.3s ease',
+                            }}
+                        />
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -232,6 +274,7 @@ export const PreLaunchInstance = () => {
                 <LoadingIndicator
                     isLoading={loadingStatus.isLoading}
                     message={loadingStatus.message}
+                    stage={loadingStatus.stage}
                     loadingIndicator={appearance?.loadingIndicator}
                 />
                 <Logo
