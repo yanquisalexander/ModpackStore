@@ -21,6 +21,7 @@ yggdrasilRoutes.post("/authenticate", async (c) => {
             body.password,
             body.clientToken,
             body.username,
+            body.minecraftUuid,
         );
         return c.json(result);
     } catch (err) {

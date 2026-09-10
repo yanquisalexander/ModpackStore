@@ -331,6 +331,7 @@ export const gameSessionsTable = pgTable("game_sessions", {
     serverId: text("server_id"),
     ipAddress: text("ip_address"),
     requestedUsername: varchar("requested_username", { length: 64 }),
+    minecraftUuid: text("minecraft_uuid"),
     lastActivity: timestamp("last_activity", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

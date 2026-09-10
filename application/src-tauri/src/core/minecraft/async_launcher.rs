@@ -170,7 +170,7 @@ impl AsyncMinecraftLauncher {
             let ms_auth = ModpackStoreAuth::new(api_endpoint);
 
             let auth_response = ms_auth
-                .authenticate(access_token, Some(username))
+                .authenticate(access_token, Some(username), Some(selected_account.uuid().to_string()))
                 .await
                 .map_err(|e| format!("Failed to authenticate with ModpackStore: {}", e))?;
 

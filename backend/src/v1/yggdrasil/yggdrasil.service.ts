@@ -38,6 +38,7 @@ export const yggdrasilService = {
         jwtToken: string,
         clientToken?: string,
         requestedUsername?: string,
+        minecraftUuid?: string,
     ): Promise<YggdrasilAuthResponse> {
         let decoded: any;
         try {
@@ -77,6 +78,7 @@ export const yggdrasilService = {
             accessToken,
             clientToken: generatedClientToken,
             requestedUsername: requestedUsername || null,
+            minecraftUuid: minecraftUuid || null,
             lastActivity: new Date(),
             expiresAt,
         });
@@ -134,7 +136,7 @@ export const yggdrasilService = {
             })
             .where(eq(gameSessionsTable.id, gs.id));
 
-        const profile = await buildProfile(user);
+        const profile = await buildProfile(user, undefined, false, gs.minecraftUuid);
 
         return {
             accessToken: newAccessToken,
@@ -297,7 +299,7 @@ export const yggdrasilService = {
             .set({ serverId: null, lastActivity: new Date() })
             .where(eq(gameSessionsTable.id, gs.id));
 
-        return await buildProfile(user);
+        return await buildProfile(user, undefined, false, gs.minecraftUuid);
     },
 
     async getProfile(
@@ -355,9 +357,10 @@ async function buildProfile(
     user: { id: string; username: string; avatarUrl: string | null },
     customUsername?: string,
     signed: boolean = false,
+    minecraftUuid?: string,
 ): Promise<YggdrasilProfile> {
     const profile: YggdrasilProfile = {
-        id: uuidWithDashes(user.id),
+        id: minecraftUuid ? uuidWithDashes(minecraftUuid) : uuidWithDashes(user.id),
         name: customUsername || user.username,
     };
 

@@ -298,7 +298,7 @@ impl GameLauncher for MinecraftLauncher {
                 }
             };
             let auth_response =
-                match rt.block_on(ms_auth.authenticate(access_token, Some(username))) {
+                match rt.block_on(ms_auth.authenticate(access_token, Some(username), Some(selected_account.uuid().to_string()))) {
                     Ok(response) => response,
                     Err(e) => {
                         let message = format!("Failed to authenticate with ModpackStore: {}", e);

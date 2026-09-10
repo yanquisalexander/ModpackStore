@@ -1,0 +1,1 @@
+ALTER TABLE "game_sessions" ADD COLUMN "minecraft_uuid" text;

@@ -48,6 +48,8 @@ pub struct YggdrasilAuthRequest {
     pub password: String, // This will be the JWT token
     #[serde(rename = "clientToken")]
     pub client_token: Option<String>,
+    #[serde(rename = "minecraftUuid", skip_serializing_if = "Option::is_none")]
+    pub minecraft_uuid: Option<String>,
 }
 
 pub struct ModpackStoreAuth {
@@ -126,6 +128,7 @@ impl ModpackStoreAuth {
         &self,
         jwt_token: String,
         username: Option<String>,
+        minecraft_uuid: Option<String>,
     ) -> Result<YggdrasilAuthResponse, String> {
         let client = &*HTTP_CLIENT;
 
@@ -133,6 +136,7 @@ impl ModpackStoreAuth {
             username,
             password: jwt_token,
             client_token: None,
+            minecraft_uuid,
         };
 
         let url = format!("{}/yggdrasil/authenticate", self.api_endpoint);

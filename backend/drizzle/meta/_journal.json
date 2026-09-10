@@ -106,6 +106,20 @@
       "when": 1788973411966,
       "tag": "0014_curved_adam_warlock",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1788974000000,
+      "tag": "0015_add_minecraft_uuid",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1789001069427,
+      "tag": "0016_wise_kitty_pryde",
+      "breakpoints": true
     }
   ]
 }
