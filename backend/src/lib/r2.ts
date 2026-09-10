@@ -197,26 +197,20 @@ export async function downloadObjectToFile(key: string, destinationPath: string)
  * Sube un archivo a R2 leyendo directamente desde un flujo de datos (Stream).
  * Permite subir archivos masivos sin necesidad de cargarlos enteros en un Uint8Array.
  */
-export async function uploadStreamObject(key: string, stream: ReadableStream, contentType?: string, contentLength?: number): Promise<void> {
+export async function uploadStreamObject(key: string, stream: ReadableStream, contentType?: string): Promise<void> {
     const command = new PutObjectCommand({
         Bucket: bucket,
         Key: key,
         Body: stream,
         ContentType: contentType,
-        ...(contentLength !== undefined ? { ContentLength: contentLength } : {}),
     });
 
     await getS3Client().send(command);
 }
 
 export async function uploadFileFromPath(key: string, filePath: string, contentType?: string): Promise<void> {
-    const file = await Deno.open(filePath, { read: true });
-    try {
-        const stat = await file.stat();
-        await uploadStreamObject(key, file.readable, contentType, stat.size);
-    } finally {
-        try { file.close(); } catch { /* already closed */ }
-    }
+    const body = await Deno.readFile(filePath);
+    await uploadObject(key, body, contentType);
 }
 
 export async function batchUploadFromPaths(uploadList: Array<{ key: string; filePath: string; contentType?: string }>, concurrency = 5): Promise<{ uploaded: number; skipped: number }> {
