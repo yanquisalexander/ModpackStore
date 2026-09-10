@@ -1,1 +1,1 @@
-ALTER TABLE "game_sessions" ADD COLUMN "minecraft_uuid" text;
+ALTER TABLE "game_sessions" ADD COLUMN IF NOT EXISTS "minecraft_uuid" text;
