@@ -62,6 +62,16 @@ export function getModpackImageUrl(modpackId: string, type: 'icon' | 'banner'): 
     return publicDomain ? `${publicDomain}/${key}?t=${ts}` : `${key}?t=${ts}`;
 }
 
+export function getModpackImageResizedKey(modpackId: string, type: 'icon' | 'banner'): string {
+    return `modpack-images/${modpackId}/${type}_resized`;
+}
+
+export function getModpackImageResizedUrl(modpackId: string, type: 'icon' | 'banner'): string {
+    const key = getModpackImageResizedKey(modpackId, type);
+    const ts = Date.now();
+    return publicDomain ? `${publicDomain}/${key}?t=${ts}` : `${key}?t=${ts}`;
+}
+
 export function getCreatorImageKey(creatorId: string, type: 'logo' | 'banner'): string {
     return `creator-images/${creatorId}/${type}`;
 }

@@ -21,7 +21,8 @@ import {
     LucideLoader,
     LucideAppWindowMac,
     LucideAlertCircle,
-    LucideFlaskConical
+    LucideFlaskConical,
+    LucideRocket
 } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -78,6 +79,11 @@ export default function ModpackCommandPalette() {
                 { id: 'simulate-ready', label: 'Ready to Install', icon: <LucidePackage size={16} />, badge: 'Preview' },
                 { id: 'simulate-error', label: 'Error', icon: <LucideAlertCircle size={16} />, badge: 'Preview' },
                 { id: 'simulate-reset', label: 'Resetear estado', icon: <LucideRefreshCw size={16} /> },
+            ]
+        }, {
+            name: 'DEV — Onboarding',
+            commands: [
+                { id: 'run-onboarding', label: 'Ejecutar Onboarding', icon: <LucideRocket size={16} />, badge: 'DEV' },
             ]
         }] : [])
     ];
@@ -267,6 +273,11 @@ export default function ModpackCommandPalette() {
                 break;
             case 'simulate-reset':
                 resetUpdate();
+                break;
+            case 'run-onboarding':
+                invoke('reset_onboarding').then(() => {
+                    showReloadDialog({ fromOffline: false });
+                });
                 break;
         }
         setIsOpen(false);

@@ -8,7 +8,8 @@ import { db } from "@/db/client.ts";
 import { modpacksTable } from "@/db/schema.ts";
 import { eq } from "drizzle-orm";
 import { NotFoundError } from "@/lib/errors/index.ts";
-import { uploadObject, getModpackImageKey, getModpackImageUrl } from "@/lib/r2.ts";
+import { uploadObject, getModpackImageKey, getModpackImageUrl, getModpackImageResizedKey, getModpackImageResizedUrl } from "@/lib/r2.ts";
+import { resizeImage } from "@/lib/image-resize.ts";
 import {
     createModpack,
     getModpacksByCreator,
@@ -110,11 +111,27 @@ app.patch("/:modpackId", requireAuth, requireCreatorRole(CreatorRole.OWNER, Crea
         const bytes = new Uint8Array(await body.icon.arrayBuffer());
         await uploadObject(getModpackImageKey(modpackId, 'icon'), bytes, body.icon.type);
         data.iconUrl = getModpackImageUrl(modpackId, 'icon');
+        
+        try {
+            const resized = await resizeImage(bytes, 256);
+            await uploadObject(getModpackImageResizedKey(modpackId, 'icon'), resized.bytes, resized.format);
+            data.iconUrlResized = getModpackImageResizedUrl(modpackId, 'icon');
+        } catch (e) {
+            console.log("Failed to resize icon:", e);
+        }
     }
     if (body.banner instanceof File) {
         const bytes = new Uint8Array(await body.banner.arrayBuffer());
         await uploadObject(getModpackImageKey(modpackId, 'banner'), bytes, body.banner.type);
         data.bannerUrl = getModpackImageUrl(modpackId, 'banner');
+        
+        try {
+            const resized = await resizeImage(bytes, 800);
+            await uploadObject(getModpackImageResizedKey(modpackId, 'banner'), resized.bytes, resized.format);
+            data.bannerUrlResized = getModpackImageResizedUrl(modpackId, 'banner');
+        } catch (e) {
+            console.log("Failed to resize banner:", e);
+        }
     }
 
     // Pass current modpack to avoid re-querying

@@ -146,6 +146,11 @@ impl ConfigManager {
         self.values.get(key)
     }
 
+    /// Elimina una clave de configuración directamente sin validación
+    pub fn remove(&mut self, key: &str) {
+        self.values.remove(key);
+    }
+
     /// Obtiene un valor de configuración con un tipo específico
     pub fn get_typed<T: for<'de> Deserialize<'de>>(&self, key: &str) -> Option<T> {
         self.values

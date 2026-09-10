@@ -26,7 +26,9 @@ export async function createModpack(
         description?: string;
         visibility?: ModpackVisibility;
         iconUrl?: string;
+        iconUrlResized?: string;
         bannerUrl?: string;
+        bannerUrlResized?: string;
         acquisitionMethod?: string;
         password?: string;
         requiresTwitchSubscription?: boolean;
@@ -74,16 +76,18 @@ export async function createModpack(
             description: data.description ?? null,
             slug,
             iconUrl: data.iconUrl ?? "",
+            iconUrlResized: data.iconUrlResized ?? null,
             bannerUrl: data.bannerUrl ?? "",
+            bannerUrlResized: data.bannerUrlResized ?? null,
             visibility,
             creatorId,
             creatorUserId: userId,
             status: ModpackStatus.DRAFT,
-            acquisitionMethod,
-            password: hashedPassword,
+            acquisitionMethod: data.acquisitionMethod ?? "free",
             requiresTwitchSubscription: data.requiresTwitchSubscription ?? false,
-            twitchCreatorIds: data.twitchCreatorIds ? JSON.stringify(data.twitchCreatorIds) : null,
-            twitchChannels: data.twitchChannels ? JSON.stringify(data.twitchChannels) : null,
+            twitchCreatorIds: data.twitchCreatorIds ?? null,
+            twitchChannels: data.twitchChannels ?? null,
+            password: hashedPassword,
         })
         .returning();
 
@@ -102,7 +106,9 @@ export async function getModpacksByCreator(creatorId: string) {
         description: modpacksTable.description,
         shortDescription: modpacksTable.shortDescription,
         iconUrl: modpacksTable.iconUrl,
+        iconUrlResized: modpacksTable.iconUrlResized,
         bannerUrl: modpacksTable.bannerUrl,
+        bannerUrlResized: modpacksTable.bannerUrlResized,
         visibility: modpacksTable.visibility,
         status: modpacksTable.status,
         creatorId: modpacksTable.creatorId,
@@ -140,7 +146,9 @@ export async function updateModpack(
         description: string;
         visibility: ModpackVisibility;
         iconUrl: string;
+        iconUrlResized: string;
         bannerUrl: string;
+        bannerUrlResized: string;
         status: ModpackStatus;
         acquisitionMethod: string;
         password: string;

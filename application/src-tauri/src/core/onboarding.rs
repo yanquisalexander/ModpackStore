@@ -124,6 +124,28 @@ pub fn skip_onboarding() -> Result<(), String> {
     complete_onboarding(system_memory.recommended_mb)
 }
 
+/// Resetea el onboarding para volver a ejecutarlo (solo DEV)
+#[tauri::command]
+pub fn reset_onboarding() -> Result<(), String> {
+    match get_config_manager().lock() {
+        Ok(mut config_result) => match &mut *config_result {
+            Ok(config) => {
+                // Eliminar firstRunAt para que isFirstRun sea true
+                config.remove("firstRunAt");
+
+                // Guardar la configuración
+                config
+                    .save()
+                    .map_err(|e| format!("Error al guardar configuración: {}", e))?;
+
+                Ok(())
+            }
+            Err(e) => Err(e.clone()),
+        },
+        Err(_) => Err("Error al obtener el bloqueo del gestor de configuración".to_string()),
+    }
+}
+
 /// Valida si Java está instalado en el sistema
 /// Prioriza la configuración interna, luego verifica el sistema
 #[tauri::command]

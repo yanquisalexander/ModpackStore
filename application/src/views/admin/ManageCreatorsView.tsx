@@ -28,13 +28,10 @@ import {
     LucideBan,
     LucideSearch,
     LucideEye,
-    LucidePalette,
-    LucideMail,
-    LucideExternalLink,
-    LucideMoreVertical,
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from "@/consts";
+import { Pagination } from '@/components/admin/Pagination';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -1455,17 +1452,15 @@ export const ManageCreatorsView: React.FC = () => {
 
                                     {/* Pagination */}
                                     {totalPages > 1 && (
-                                        <div className="flex justify-center items-center gap-2 py-4 border-t">
-                                            <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>
-                                                Anterior
-                                            </Button>
-                                            <span className="text-sm text-muted-foreground">
-                                                {currentPage} / {totalPages}
-                                            </span>
-                                            <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>
-                                                Siguiente
-                                            </Button>
-                                        </div>
+                                        <Pagination
+                                            currentPage={currentPage}
+                                            totalPages={totalPages}
+                                            total={creatorsData.total}
+                                            limit={20}
+                                            onPageChange={setCurrentPage}
+                                            onLimitChange={() => {}}
+                                            itemLabel="creadores"
+                                        />
                                     )}
                                 </>
                             )}

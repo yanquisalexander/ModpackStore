@@ -23,6 +23,7 @@ import { useAuthentication } from '@/stores/AuthContext';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { API_ENDPOINT } from "@/consts";
+import { Pagination } from '@/components/admin/Pagination';
 
 interface User {
     id: string;
@@ -152,14 +153,12 @@ class AdminUsersAPI {
         }
     }
 
-    static async getUserBanHistory(userId: string, accessToken: string): Promise<BanHistoryItem[]> {
-        const response = await fetch(`${API_ENDPOINT}/admin/bans/user/${userId}/history`, {
+    static async getUserBanHistory(userId: string, accessToken: string, page = 1, limit = 20): Promise<{ data: BanHistoryItem[]; meta: { total: number; page: number; totalPages: number } }> {
+        const response = await fetch(`${API_ENDPOINT}/admin/bans/user/${userId}/history?page=${page}&limit=${limit}`, {
             headers: { 'Authorization': `Bearer ${accessToken}` },
         });
         if (!response.ok) throw new Error('Failed to fetch ban history');
-
-        const data = await response.json();
-        return data.history;
+        return response.json();
     }
 
     static async checkBanStatus(userId: string, accessToken: string): Promise<{ isBanned: boolean; ban?: BanHistoryItem }> {
@@ -342,16 +341,22 @@ const BanHistoryDialog = ({ user, isOpen, onClose, accessToken }: {
 }) => {
     const [history, setHistory] = useState<BanHistoryItem[]>([]);
     const [isLoading, setIsLoading] = useState(false);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [totalPages, setTotalPages] = useState(0);
+    const [total, setTotal] = useState(0);
+    const limit = 10;
 
     useEffect(() => {
         if (isOpen && user) loadHistory();
-    }, [isOpen, user]);
+    }, [isOpen, user, currentPage]);
 
     const loadHistory = async () => {
         setIsLoading(true);
         try {
-            const data = await AdminUsersAPI.getUserBanHistory(user.id, accessToken);
-            setHistory(data);
+            const result = await AdminUsersAPI.getUserBanHistory(user.id, accessToken, currentPage, limit);
+            setHistory(result.data);
+            setTotalPages(result.meta.totalPages);
+            setTotal(result.meta.total);
         } catch (error) {
             console.error('Error loading ban history:', error);
         } finally {
@@ -406,6 +411,17 @@ const BanHistoryDialog = ({ user, isOpen, onClose, accessToken }: {
                         ))
                     )}
                 </div>
+                {totalPages > 1 && (
+                    <Pagination
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        total={total}
+                        limit={limit}
+                        onPageChange={setCurrentPage}
+                        onLimitChange={() => {}}
+                        itemLabel="bans"
+                    />
+                )}
             </DialogContent>
         </Dialog>
     );
@@ -419,6 +435,7 @@ export const ManageUsersView = () => {
     const [debouncedSearch, setDebouncedSearch] = useState('');
     const [roleFilter, setRoleFilter] = useState('all');
     const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(20);
     const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -441,7 +458,7 @@ export const ManageUsersView = () => {
         try {
             const data = await AdminUsersAPI.fetchUsers({
                 page: currentPage,
-                limit: 20,
+                limit: pageSize,
                 search: debouncedSearch || undefined,
                 role: roleFilter === 'all' ? undefined : roleFilter || undefined,
                 sortBy: 'createdAt',
@@ -458,7 +475,7 @@ export const ManageUsersView = () => {
 
     useEffect(() => {
         if (sessionTokens?.accessToken) loadUsers();
-    }, [currentPage, debouncedSearch, roleFilter, sessionTokens?.accessToken]);
+    }, [currentPage, pageSize, debouncedSearch, roleFilter, sessionTokens?.accessToken]);
 
     const handleCreateUser = async (userData: UserFormData) => {
         if (!sessionTokens?.accessToken) return;
@@ -700,23 +717,18 @@ export const ManageUsersView = () => {
                     </div>
 
                     {usersData.totalPages > 1 && (
-                        <div className="flex items-center justify-between mt-4">
-                            <p className="text-xs text-muted-foreground">
-                                Mostrando {((currentPage - 1) * 20) + 1}–{Math.min(currentPage * 20, usersData.total)} de {usersData.total} usuarios
-                            </p>
-                            <div className="flex gap-2">
-                                <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1} className="border-border bg-muted/30 hover:bg-muted/30 text-xs h-8">
-                                    Anterior
-                                </Button>
-                                <Button variant="outline" size="sm"
-                                    onClick={() => setCurrentPage(p => Math.min(usersData.totalPages, p + 1))}
-                                    disabled={currentPage === usersData.totalPages}
-                                    className="border-border bg-muted/30 hover:bg-muted/30 text-xs h-8">
-                                    Siguiente
-                                </Button>
-                            </div>
-                        </div>
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={usersData.totalPages}
+                            total={usersData.total}
+                            limit={pageSize}
+                            onPageChange={setCurrentPage}
+                            onLimitChange={(newLimit) => {
+                                setPageSize(newLimit);
+                                setCurrentPage(1);
+                            }}
+                            itemLabel="usuarios"
+                        />
                     )}
                 </div>
             </div>

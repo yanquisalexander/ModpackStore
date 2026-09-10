@@ -413,6 +413,7 @@ pub fn main() {
             core::onboarding::get_system_memory,
             core::onboarding::complete_onboarding,
             core::onboarding::skip_onboarding,
+            core::onboarding::reset_onboarding,
             core::onboarding::validate_java_installation,
             core::onboarding::install_java,
             core::onboarding::repair_java_installation,

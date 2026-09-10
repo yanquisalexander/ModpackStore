@@ -177,7 +177,9 @@ export const modpacksTable = pgTable("modpacks", {
     description: text("description"),
     slug: text('slug').notNull().unique(),
     iconUrl: text('icon_url').notNull(),
+    iconUrlResized: text('icon_url_resized'),
     bannerUrl: text('banner_url').notNull(),
+    bannerUrlResized: text('banner_url_resized'),
     trailerUrl: text('trailer_url'),
     password: text('password'), // nullable
     prelaunchAppearance: jsonb('prelaunch_appearance'),

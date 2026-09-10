@@ -1572,13 +1572,21 @@ async fn create_modpack_instance_struct(
 
     // Configurar banner
     if let Some(banner_url) = modpack_info["data"]["bannerUrl"].as_str() {
-        let base64_banner = download_image_as_base64(banner_url).await?;
+        let resized_url = modpack_info["data"]["bannerUrlResized"].as_str();
+        let base64_banner = download_image_as_base64(
+            resized_url.unwrap_or(banner_url),
+            Some(banner_url),
+        ).await?;
         instance.bannerUrl = Some(base64_banner);
     }
 
     // Configurar ícono
     if let Some(icon_url) = modpack_info["data"]["iconUrl"].as_str() {
-        let base64_icon = download_image_as_base64(icon_url).await?;
+        let resized_url = modpack_info["data"]["iconUrlResized"].as_str();
+        let base64_icon = download_image_as_base64(
+            resized_url.unwrap_or(icon_url),
+            Some(icon_url),
+        ).await?;
         instance.iconUrl = Some(base64_icon);
         instance.usesDefaultIcon = false;
     } else {
@@ -1763,7 +1771,7 @@ pub async fn fetch_modpack_manifest(
         .map_err(|e| format!("Failed to parse manifest: {}", e))
 }
 
-async fn download_image_as_base64(url: &str) -> Result<String, String> {
+async fn try_download_image(url: &str) -> Result<String, String> {
     let client = &*HTTP_CLIENT;
     let response = client
         .get(url)
@@ -1789,8 +1797,31 @@ async fn download_image_as_base64(url: &str) -> Result<String, String> {
     Ok(format!("data:{};base64,{}", mime_type, base64_data))
 }
 
+async fn download_image_as_base64(
+    primary_url: &str,
+    fallback_url: Option<&str>,
+) -> Result<String, String> {
+    if let Ok(data) = try_download_image(primary_url).await {
+        return Ok(data);
+    }
+    if let Some(fallback) = fallback_url {
+        return try_download_image(fallback).await;
+    }
+    try_download_image(primary_url).await
+}
+
 fn detect_image_mime_type(bytes: &[u8]) -> &'static str {
-    if bytes.len() >= 4 {
+    if bytes.len() >= 12 {
+        match &bytes[0..4] {
+            &[0x89, 0x50, 0x4E, 0x47] => "image/png",
+            &[0x47, 0x49, 0x46, 0x38] => "image/gif",
+            _ if &bytes[0..2] == &[0xFF, 0xD8] => "image/jpeg",
+            _ if &bytes[0..2] == &[0x42, 0x4D] => "image/bmp",
+            // WebP: starts with "RIFF" then "WEBP" at offset 8
+            &[0x52, 0x49, 0x46, 0x46] if &bytes[8..12] == &[0x57, 0x45, 0x42, 0x50] => "image/webp",
+            _ => "image/png", // fallback
+        }
+    } else if bytes.len() >= 4 {
         match &bytes[0..4] {
             &[0x89, 0x50, 0x4E, 0x47] => "image/png",
             &[0x47, 0x49, 0x46, 0x38] => "image/gif",

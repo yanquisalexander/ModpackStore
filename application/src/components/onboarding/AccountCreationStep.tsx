@@ -24,7 +24,6 @@ export const AccountCreationStep: React.FC<OnboardingStepProps> = ({ onNext }) =
 
       toast.success(`Bienvenido, ${username}`);
 
-      // Pequeño delay para la transición
       setTimeout(() => {
         onNext();
       }, 500);
@@ -38,7 +37,6 @@ export const AccountCreationStep: React.FC<OnboardingStepProps> = ({ onNext }) =
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Regex estricto para nicks de Minecraft (Alfanumérico + guion bajo)
     const value = e.target.value.replace(/[^a-zA-Z0-9_]/g, "");
     setUsername(value);
   };
@@ -46,29 +44,25 @@ export const AccountCreationStep: React.FC<OnboardingStepProps> = ({ onNext }) =
   const isValid = username.trim().length >= 3;
 
   return (
-    <div className="flex flex-col h-full justify-center max-w-xl mx-auto px-8 relative">
+    <div className="flex flex-col h-full justify-center max-w-2xl mx-auto px-8">
 
       {/* Header */}
-      <div className="mb-10">
-        <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mb-6 border border-white/10 shadow-2xl">
-          <LucideUser className="h-8 w-8 text-neutral-300" />
+      <div className="mb-8">
+        <div className="w-14 h-14 bg-muted/30 rounded-xl flex items-center justify-center mb-5 border border-border">
+          <LucideUser className="h-7 w-7 text-muted-foreground" />
         </div>
-
-        <h1 className="text-4xl font-bold text-white mb-3 tracking-tight">
-          Crea tu Perfil
-        </h1>
-
-        <p className="text-neutral-400 text-lg leading-relaxed">
-          Para terminar, elige un nombre de jugador. Esta será una cuenta local para empezar a jugar inmediatamente.
+        <h1 className="text-2xl font-bold text-white mb-2 tracking-tight">Crea tu Perfil</h1>
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          Elige un nombre de jugador. Esta será una cuenta local para empezar a jugar inmediatamente.
         </p>
       </div>
 
       {/* Form Area */}
-      <div className="space-y-8">
+      <div className="space-y-5">
 
         <div className="relative group">
           <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none">
-            <LucideGamepad2 className={cn("h-5 w-5 transition-colors", isValid ? "text-white" : "text-neutral-500")} />
+            <LucideGamepad2 className={cn("h-5 w-5 transition-colors", isValid ? "text-white" : "text-muted-foreground")} />
           </div>
 
           <Input
@@ -76,58 +70,54 @@ export const AccountCreationStep: React.FC<OnboardingStepProps> = ({ onNext }) =
             value={username}
             onChange={handleChange}
             placeholder="Nombre de usuario"
-            className="h-16 pl-12 text-lg bg-white/5 border-white/10 focus:border-white/30 rounded-xl transition-all placeholder:text-neutral-600"
+            className="h-12 pl-12 text-sm bg-muted/30 border-border focus:border-primary/50 rounded-lg transition-all placeholder:text-muted-foreground"
             maxLength={16}
             autoFocus
             onKeyDown={(e) => e.key === 'Enter' && isValid && handleCreateAccount()}
           />
 
-          {/* Validation Indicator */}
           <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
             {isValid && (
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                className="bg-green-500/20 p-1 rounded-full"
+                className="bg-emerald-500/10 p-1 rounded-full"
               >
-                <LucideCheck className="h-4 w-4 text-green-500" />
+                <LucideCheck className="h-4 w-4 text-emerald-400" />
               </motion.div>
             )}
           </div>
         </div>
 
         {/* Info Box */}
-        <div className="p-4 rounded-xl border border-white/5 bg-white/[0.02] flex gap-4 items-start">
-          <LucideInfo className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <h4 className="text-sm font-medium text-white">Nota sobre cuentas</h4>
-            <p className="text-sm text-neutral-500 leading-relaxed">
-              Esta es una cuenta <strong>Offline</strong>. Podrás añadir tu cuenta premium de Microsoft más tarde desde el menú de configuración si lo deseas.
-            </p>
-          </div>
+        <div className="p-4 rounded-lg border border-border bg-muted/20 flex gap-3 items-start">
+          <LucideInfo className="h-4 w-4 text-muted-foreground shrink-0 mt-0.5" />
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Esta es una cuenta <strong className="text-white">Offline</strong>. Podrás añadir tu cuenta premium de Microsoft más tarde.
+          </p>
         </div>
 
       </div>
 
-      {/* Action Buttons */}
-      <div className="mt-10">
+      {/* Action Button */}
+      <div className="mt-8">
         <Button
           onClick={handleCreateAccount}
           disabled={!isValid || isLoading}
           className={cn(
-            "w-full h-14 text-base font-medium rounded-xl transition-all shadow-lg",
+            "w-full h-12 text-sm font-medium rounded-lg transition-all",
             (!isValid || isLoading)
-              ? "bg-neutral-800 text-neutral-500 cursor-not-allowed"
-              : "bg-white text-black hover:bg-neutral-200 shadow-white/5"
+              ? "bg-muted/30 text-muted-foreground cursor-not-allowed"
+              : "bg-primary text-primary-foreground hover:bg-primary/90"
           )}
         >
           {isLoading ? (
             <span className="flex items-center gap-2">
-              <LucideLoader2 className="animate-spin h-5 w-5" /> Creando perfil...
+              <LucideLoader2 className="animate-spin h-4 w-4" /> Creando perfil...
             </span>
           ) : (
             <span className="flex items-center gap-2">
-              Crear y Finalizar <LucideArrowRight className="ml-2 h-5 w-5" />
+              Crear y Finalizar <LucideArrowRight className="ml-2 h-4 w-4" />
             </span>
           )}
         </Button>

@@ -106,8 +106,10 @@ app.delete("/:creatorId", requireAuth, requireAdmin, async (c: Context) => {
 // ── Members ───────────────────────────────────────
 
 app.get("/:creatorId/members", requireAuth, requireAdmin, async (c: Context) => {
-    const members = await adminService.getCreatorMembers(c.req.param("creatorId")!);
-    return c.json({ data: members });
+    const page = c.req.query("page") ? Number(c.req.query("page")) : 1;
+    const limit = c.req.query("limit") ? Number(c.req.query("limit")) : 20;
+    const result = await adminService.getCreatorMembersPaginated(c.req.param("creatorId")!, { page, limit });
+    return c.json(result);
 });
 
 app.post("/:creatorId/members", requireAuth, requireAdmin, async (c: Context) => {

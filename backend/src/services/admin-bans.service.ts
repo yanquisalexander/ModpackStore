@@ -76,13 +76,22 @@ export async function unbanUser(userId: string, unbanAdminId: string) {
     return ban;
 }
 
-export async function getUserBanHistory(userId: string) {
+interface PaginatedParams {
+    page?: number;
+    limit?: number;
+}
+
+export async function getUserBanHistory(userId: string, params: PaginatedParams = {}) {
+    const { page = 1, limit = 20 } = params;
+
     const [existingUser] = await db.select({ id: users.id })
         .from(users)
         .where(eq(users.id, userId))
         .limit(1);
 
     if (!existingUser) throw new NotFoundError("User not found", "USER_NOT_FOUND");
+
+    const offset = (page - 1) * limit;
 
     const rows = await db.select({
         id: bansTable.id,
@@ -101,7 +110,15 @@ export async function getUserBanHistory(userId: string) {
         .from(bansTable)
         .innerJoin(users, eq(users.id, bansTable.adminId))
         .where(eq(bansTable.userId, userId))
-        .orderBy(desc(bansTable.createdAt));
+        .orderBy(desc(bansTable.createdAt))
+        .limit(limit)
+        .offset(offset);
+
+    const [totalResult] = await db.select({ value: count() })
+        .from(bansTable)
+        .where(eq(bansTable.userId, userId));
+
+    const total = Number(totalResult.value);
 
     const mapped = rows.map((b) => ({
         id: b.id,
@@ -116,11 +133,21 @@ export async function getUserBanHistory(userId: string) {
         unbannedBy: undefined as { id: string; username: string; avatarUrl: string | null } | undefined,
     }));
 
-    return mapped;
+    return {
+        data: mapped,
+        meta: {
+            total,
+            page,
+            totalPages: Math.ceil(total / limit),
+        },
+    };
 }
 
-export async function getAllBans(includeInactive = false) {
+export async function getAllBans(includeInactive = false, params: PaginatedParams = {}) {
+    const { page = 1, limit = 20 } = params;
     const conditions = includeInactive ? undefined : eq(bansTable.isActive, true);
+
+    const offset = (page - 1) * limit;
 
     const rows = await db.select({
         id: bansTable.id,
@@ -138,9 +165,24 @@ export async function getAllBans(includeInactive = false) {
         .from(bansTable)
         .innerJoin(users, eq(users.id, bansTable.userId))
         .where(conditions)
-        .orderBy(desc(bansTable.createdAt));
+        .orderBy(desc(bansTable.createdAt))
+        .limit(limit)
+        .offset(offset);
 
-    return rows;
+    const [totalResult] = await db.select({ value: count() })
+        .from(bansTable)
+        .where(conditions);
+
+    const total = Number(totalResult.value);
+
+    return {
+        data: rows,
+        meta: {
+            total,
+            page,
+            totalPages: Math.ceil(total / limit),
+        },
+    };
 }
 
 export async function checkUserBanStatus(userId: string) {

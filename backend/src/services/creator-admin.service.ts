@@ -269,10 +269,48 @@ export async function deleteCreatorAdmin(creatorId: string) {
         .where(eq(creatorsTable.id, creatorId));
 }
 
-// ── Members (re-exported from creator.service for admin routes) ──
+// ── Members ────────────────────────────────────────
+
+interface PaginatedParams {
+    page?: number;
+    limit?: number;
+}
+
+export async function getCreatorMembersPaginated(creatorId: string, params: PaginatedParams = {}) {
+    const { page = 1, limit = 20 } = params;
+    const offset = (page - 1) * limit;
+
+    const rows = await db.select({
+        userId: creatorUsersTable.userId,
+        role: creatorUsersTable.role,
+        username: users.username,
+        email: users.email,
+        avatarUrl: users.avatarUrl,
+        joinedAt: creatorUsersTable.createdAt,
+    })
+        .from(creatorUsersTable)
+        .innerJoin(users, eq(users.id, creatorUsersTable.userId))
+        .where(eq(creatorUsersTable.creatorId, creatorId))
+        .limit(limit)
+        .offset(offset);
+
+    const [totalResult] = await db.select({ value: count() })
+        .from(creatorUsersTable)
+        .where(eq(creatorUsersTable.creatorId, creatorId));
+
+    const total = Number(totalResult.value);
+
+    return {
+        data: rows,
+        meta: {
+            total,
+            page,
+            totalPages: Math.ceil(total / limit),
+        },
+    };
+}
 
 export {
-    getCreatorMembers,
     addMember,
     updateMemberRole,
     removeMember,

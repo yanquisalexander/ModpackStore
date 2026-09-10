@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from "@/consts";
+import { Pagination } from '@/components/admin/Pagination';
 
 // Types
 interface AuditLog {
@@ -382,32 +383,15 @@ export const AuditLogsView: React.FC = () => {
 
                     {/* Pagination */}
                     {logsData.totalPages > 1 && (
-                        <div className="flex items-center justify-between">
-                            <p className="text-sm text-muted-foreground">
-                                Mostrando {((currentPage - 1) * 20) + 1} a {Math.min(currentPage * 20, logsData.total)} de {logsData.total} registros de auditoría
-                            </p>
-                            <div className="flex gap-2">
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                    disabled={currentPage === 1}
-                                >
-                                    Anterior
-                                </Button>
-                                <span className="flex items-center px-3 text-sm">
-                                    Página {currentPage} de {logsData.totalPages}
-                                </span>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => setCurrentPage(p => Math.min(logsData.totalPages, p + 1))}
-                                    disabled={currentPage === logsData.totalPages}
-                                >
-                                    Siguiente
-                                </Button>
-                            </div>
-                        </div>
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={logsData.totalPages}
+                            total={logsData.total}
+                            limit={20}
+                            onPageChange={setCurrentPage}
+                            onLimitChange={() => {}}
+                            itemLabel="registros de auditoría"
+                        />
                     )}
                 </CardContent>
             </Card>

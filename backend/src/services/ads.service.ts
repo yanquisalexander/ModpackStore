@@ -160,7 +160,9 @@ export const adsService = {
                     name: modpacksTable.name,
                     slug: modpacksTable.slug,
                     iconUrl: modpacksTable.iconUrl,
+                    iconUrlResized: modpacksTable.iconUrlResized,
                     bannerUrl: modpacksTable.bannerUrl,
+                    bannerUrlResized: modpacksTable.bannerUrlResized,
                 },
                 creator: {
                     id: creatorsTable.id,
@@ -291,6 +293,7 @@ export const adsService = {
                     name: modpacksTable.name,
                     slug: modpacksTable.slug,
                     iconUrl: modpacksTable.iconUrl,
+                    iconUrlResized: modpacksTable.iconUrlResized,
                 },
             })
             .from(adCampaignsTable)

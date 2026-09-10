@@ -5,14 +5,13 @@ import { cn } from '@/lib/utils';
 
 interface OnboardingStepWrapperProps {
   title: string;
-  description?: React.ReactNode; // ReactNode permite pasar JSX o strings
+  description?: React.ReactNode;
   children: React.ReactNode;
   onNext: () => void;
   onSkip?: () => void;
   nextButtonText?: string;
   skipButtonText?: string;
   nextDisabled?: boolean;
-  // Opcional: Para permitir un icono o elemento extra en la cabecera
   headerIcon?: React.ReactNode;
 }
 
@@ -28,30 +27,29 @@ export const OnboardingStepWrapper: React.FC<OnboardingStepWrapperProps> = ({
   headerIcon,
 }) => {
   return (
-    // Usamos h-full en lugar de min-h-screen para evitar el scroll innecesario dentro del layout principal
-    <div className="flex flex-col h-full justify-center max-w-xl mx-auto px-8 relative">
+    <div className="flex flex-col h-full justify-center max-w-2xl mx-auto px-8">
 
       {/* Header Section */}
       <div className="mb-10">
         {headerIcon && (
-          <div className="mb-6">
+          <div className="w-16 h-16 bg-muted/30 rounded-xl flex items-center justify-center mb-6 border border-border">
             {headerIcon}
           </div>
         )}
 
-        <h1 className="text-4xl font-bold text-white mb-3 tracking-tight">
+        <h1 className="text-3xl font-bold text-white mb-3 tracking-tight">
           {title}
         </h1>
 
         {description && (
-          <div className="text-neutral-400 text-lg leading-relaxed">
+          <div className="text-muted-foreground text-base leading-relaxed">
             {description}
           </div>
         )}
       </div>
 
       {/* Content Section (Flexible) */}
-      <div className="space-y-8 mb-8">
+      <div className="space-y-6 mb-8">
         {children}
       </div>
 
@@ -61,20 +59,20 @@ export const OnboardingStepWrapper: React.FC<OnboardingStepWrapperProps> = ({
           onClick={onNext}
           disabled={nextDisabled}
           className={cn(
-            "w-full h-14 text-base font-medium rounded-xl transition-all shadow-lg",
+            "w-full h-12 text-sm font-medium rounded-lg transition-all",
             nextDisabled
-              ? "bg-neutral-800 text-neutral-500 cursor-not-allowed"
-              : "bg-white text-black hover:bg-neutral-200 shadow-white/5"
+              ? "bg-muted/30 text-muted-foreground cursor-not-allowed"
+              : "bg-primary text-primary-foreground hover:bg-primary/90"
           )}
         >
           {nextButtonText}
-          {!nextDisabled && <LucideArrowRight className="ml-2 h-5 w-5" />}
+          {!nextDisabled && <LucideArrowRight className="ml-2 h-4 w-4" />}
         </Button>
 
         {onSkip && (
           <button
             onClick={onSkip}
-            className="text-sm text-neutral-600 hover:text-neutral-400 transition-colors py-2 text-center"
+            className="text-sm text-muted-foreground hover:text-white transition-colors py-2 text-center"
           >
             {skipButtonText}
           </button>

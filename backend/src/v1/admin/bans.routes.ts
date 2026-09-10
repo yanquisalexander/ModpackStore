@@ -7,8 +7,10 @@ const app = new Hono();
 
 app.get("/", requireAuth, requireAdmin, async (c: Context) => {
     const includeInactive = c.req.query("includeInactive") === "true";
-    const bans = await banService.getAllBans(includeInactive);
-    return c.json({ data: bans });
+    const page = c.req.query("page") ? Number(c.req.query("page")) : 1;
+    const limit = c.req.query("limit") ? Number(c.req.query("limit")) : 20;
+    const result = await banService.getAllBans(includeInactive, { page, limit });
+    return c.json(result);
 });
 
 app.post("/", requireAuth, requireAdmin, async (c: Context) => {
@@ -45,8 +47,10 @@ app.delete("/:userId", requireAuth, requireAdmin, async (c: Context) => {
 });
 
 app.get("/user/:userId/history", requireAuth, requireAdmin, async (c: Context) => {
-    const history = await banService.getUserBanHistory(c.req.param("userId")!);
-    return c.json({ history });
+    const page = c.req.query("page") ? Number(c.req.query("page")) : 1;
+    const limit = c.req.query("limit") ? Number(c.req.query("limit")) : 20;
+    const result = await banService.getUserBanHistory(c.req.param("userId")!, { page, limit });
+    return c.json(result);
 });
 
 app.get("/user/:userId/status", requireAuth, requireAdmin, async (c: Context) => {

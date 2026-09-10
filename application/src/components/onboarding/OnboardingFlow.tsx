@@ -13,57 +13,76 @@ import { AccountCreationStep } from "./AccountCreationStep";
 // Helper
 const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-// --- Welcome Step (Minimalista) ---
+// --- Welcome Step ---
 const WelcomeStep: React.FC<OnboardingStepProps> = ({ onNext }) => {
   return (
-    <div className="flex flex-col items-center text-center max-w-lg mx-auto">
-      {/* Icono Hero */}
-      <div className="mb-8 relative group">
-        <div className="absolute inset-0 bg-blue-500/20 blur-3xl rounded-full opacity-50 group-hover:opacity-80 transition-opacity duration-700" />
-        <div className="relative w-20 h-20 bg-[#111] rounded-3xl flex items-center justify-center border border-white/10 shadow-2xl">
-          <LucideLayers className="h-10 w-10 text-white" />
+    <div className="flex flex-col h-full justify-center max-w-2xl mx-auto px-8">
+
+      {/* Header */}
+      <div className="mb-10">
+        <div className="w-16 h-16 bg-muted/30 rounded-xl flex items-center justify-center mb-6 border border-border">
+          <LucideLayers className="h-8 w-8 text-muted-foreground" />
+        </div>
+
+        <h1 className="text-3xl font-bold text-white mb-3 tracking-tight">
+          Bienvenido a Modpack Store
+        </h1>
+
+        <p className="text-muted-foreground text-base leading-relaxed">
+          Vamos a preparar tu entorno de juego en unos segundos. Optimizaremos Java y la memoria para que solo te preocupes de jugar.
+        </p>
+      </div>
+
+      {/* Feature Cards */}
+      <div className="grid grid-cols-2 gap-4 mb-10">
+        <div className="p-4 rounded-lg bg-muted/20 border border-border">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-muted/30">
+              <LucideCpu className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-white">Java Check</h3>
+              <p className="text-xs text-muted-foreground">Verificamos tu instalación</p>
+            </div>
+          </div>
+        </div>
+        <div className="p-4 rounded-lg bg-muted/20 border border-border">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-muted/30">
+              <LucideZap className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-white">RAM Boost</h3>
+              <p className="text-xs text-muted-foreground">Optimizamos la memoria</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      <h1 className="text-4xl md:text-5xl font-bold text-white mb-6 tracking-tight">
-        Bienvenido a Modpack Store
-      </h1>
-
-      <p className="text-neutral-400 text-lg leading-relaxed mb-10">
-        Vamos a preparar tu entorno de juego en unos segundos. Optimizaremos Java y la memoria para que solo te preocupes de jugar.
-      </p>
-
-      {/* Feature Pills */}
-      <div className="flex gap-3 mb-12 flex-wrap justify-center">
-        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/5 text-sm text-neutral-300">
-          <LucideCpu size={14} /> Java Check
-        </span>
-        <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/5 text-sm text-neutral-300">
-          <LucideZap size={14} /> RAM Boost
-        </span>
+      {/* Action Button */}
+      <div>
+        <Button
+          onClick={() => onNext()}
+          className="w-full h-12 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-all rounded-lg"
+        >
+          Empezar Configuración
+          <LucideArrowRight className="ml-2 h-4 w-4" />
+        </Button>
       </div>
-
-      <Button
-        onClick={() => onNext()}
-        size="lg"
-        className="h-12 px-8 text-base bg-white text-black hover:bg-white/90 hover:scale-105 transition-all duration-300 rounded-full font-medium shadow-[0_0_20px_rgba(255,255,255,0.2)]"
-      >
-        Empezar Configuración
-      </Button>
     </div>
   );
 };
 
 // --- Loading Component ---
 const FinishingView = () => (
-  <div className="flex flex-col items-center justify-center text-center animate-in fade-in zoom-in duration-500">
-    <div className="w-16 h-16 border-4 border-white/10 border-t-white rounded-full animate-spin mb-6" />
+  <div className="flex flex-col items-center justify-center h-full animate-in fade-in zoom-in duration-500">
+    <div className="w-16 h-16 border-4 border-border border-t-white rounded-full animate-spin mb-6" />
     <h3 className="text-2xl font-bold text-white mb-2">Finalizando...</h3>
-    <p className="text-neutral-500">Aplicando tu configuración óptima.</p>
+    <p className="text-muted-foreground">Aplicando tu configuración óptima.</p>
   </div>
 );
 
-// --- Componente Principal ---
+// --- Main Component ---
 
 interface OnboardingFlowProps {
   onComplete: () => void;
@@ -126,13 +145,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
   const StepComponent = currentStep.component;
 
   return (
-    <div className="relative min-h-full w-full bg-[#050505] text-white overflow-hidden flex flex-col items-center justify-center selection:bg-white/20">
-
-      {/* Background Gradients (Subtle) */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-20%] left-[20%] w-[800px] h-[800px] bg-blue-900/5 blur-[150px] rounded-full" />
-        <div className="absolute bottom-[-10%] right-[20%] w-[600px] h-[600px] bg-purple-900/5 blur-[150px] rounded-full" />
-      </div>
+    <div className="relative h-full w-full bg-background text-white overflow-hidden flex flex-col items-center justify-center selection:bg-primary/20">
 
       {/* Header / Stepper */}
       <div className="absolute top-0 left-0 w-full p-8 flex justify-between items-center z-20">
@@ -147,7 +160,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
                   initial={false}
                   animate={{
                     width: isActive ? 32 : 8,
-                    backgroundColor: isActive || isCompleted ? "#ffffff" : "#333333"
+                    backgroundColor: isActive || isCompleted ? "#ffffff" : "oklch(0.269 0 0)"
                   }}
                   className="h-1.5 rounded-full"
                 />
@@ -160,7 +173,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
         {!isCompleting && currentStepIndex < steps.length - 1 && (
           <button
             onClick={handleSkip}
-            className="text-xs font-medium text-neutral-500 hover:text-white transition-colors uppercase tracking-widest"
+            className="text-xs font-medium text-muted-foreground hover:text-white transition-colors uppercase tracking-widest"
           >
             Saltar
           </button>
@@ -168,7 +181,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
       </div>
 
       {/* Main Content Area */}
-      <div className="w-full max-w-4xl px-6 relative z-10">
+      <div className="w-full max-w-2xl px-6 relative z-10">
         {isCompleting ? (
           <FinishingView />
         ) : (
@@ -190,7 +203,7 @@ export const OnboardingFlow: React.FC<OnboardingFlowProps> = ({ onComplete }) =>
       </div>
 
       {/* Footer Info */}
-      <div className="absolute bottom-8 text-neutral-600 text-xs font-medium tracking-wide">
+      <div className="absolute bottom-8 text-muted-foreground text-xs font-medium tracking-wide">
         PASO {currentStepIndex + 1} DE {steps.length}
       </div>
 
