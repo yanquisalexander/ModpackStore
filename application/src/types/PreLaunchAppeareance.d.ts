@@ -17,6 +17,7 @@ export interface PreLaunchAppearance {
     footerText?: string;
     customBlocks?: CustomBlock[];
     loadingIndicator?: LoadingIndicator;
+    disableBuiltInPresence?: boolean;
 }
 
 export interface CustomBlock {

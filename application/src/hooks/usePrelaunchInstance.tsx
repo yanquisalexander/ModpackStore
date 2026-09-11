@@ -17,7 +17,7 @@ import { MinecraftInstance, TauriCommandReturns } from "@/types/TauriCommandRetu
 import { InstallationStage } from "@/types/InstallationStage";
 import { formatStageMessage } from "@/utils/stageFormatter";
 import { info } from "@tauri-apps/plugin-log";
-import { setActivity } from "tauri-plugin-drpc";
+import { clearActivity, setActivity } from "tauri-plugin-drpc";
 
 // --- Constants and Types ---
 
@@ -293,6 +293,11 @@ export const usePrelaunchInstance = (instanceId: string) => {
     useEffect(() => {
         if (!state.instance) return;
 
+        if (state.appearance?.disableBuiltInPresence && isPlaying) {
+            clearActivity().catch((e: any) => console.error("DRPC Error:", e));
+            return;
+        }
+
         const activity = new Activity()
             .setActivity(ActivityType.Playing)
             .setState(isPlaying ? "Jugando" : "En el lanzador")
@@ -306,7 +311,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
             );
         setActivity(activity).catch((e: any) => console.error("DRPC Error:", e));
 
-    }, [isPlaying, state.instance]);
+    }, [isPlaying, state.instance, state.appearance?.disableBuiltInPresence]);
 
     // Crash handler effect
     useEffect(() => {

@@ -319,6 +319,8 @@ pub struct PreLaunchAppearance {
     pub custom_blocks: Option<Vec<CustomBlock>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loading_indicator: Option<LoadingIndicator>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_built_in_presence: Option<bool>,
 
     // Captura campos desconocidos
     #[serde(flatten)]

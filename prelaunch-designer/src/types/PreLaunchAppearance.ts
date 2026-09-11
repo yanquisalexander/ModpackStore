@@ -9,6 +9,7 @@ export interface PreLaunchAppearance {
   footerStyle?: FooterStyle;
   footerText?: string;
   customBlocks?: CustomBlock[];
+  disableBuiltInPresence?: boolean;
 }
 
 export interface CustomBlock {
