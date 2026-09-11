@@ -125,7 +125,7 @@ hotkeyOpenApp:
 
 hotkeyToggleOverlay:
   type: hotkey
-  default: "Ctrl+Shift+I"
+  default: "Ctrl+Alt+Shift+I"
   description: "Atajo para mostrar/ocultar el overlay de instancias"
   ui_section: hotkeys
 
