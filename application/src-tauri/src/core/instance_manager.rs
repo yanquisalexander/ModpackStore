@@ -345,6 +345,13 @@ async fn handle_latest_version_update(
         // Store the latest version as last known version
         set_instance_last_known_version(instance, &latest_version_id);
 
+        // Restore "latest" in modpackVersionId — update_modpack_instance resolves it
+        // to the concrete ID, but we want to keep "latest" so future launches still check for updates
+        if let Some(mut reloaded) = MinecraftInstance::from_instance_id(&instance.instanceId) {
+            reloaded.modpackVersionId = Some("latest".to_string());
+            let _ = reloaded.save();
+        }
+
         return Ok(true);
     }
 
