@@ -72,7 +72,7 @@ export async function getAllUsers(params: ListUsersParams = {}) {
         role: users.role,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
-        isBanned: sql<boolean>`EXISTS(SELECT 1 FROM ${bansTable} WHERE ${bansTable.userId} = ${users.id} AND ${bansTable.isActive} = ${sql.raw('true')})`,
+        isBanned: sql<boolean>`EXISTS(SELECT 1 FROM "bans" WHERE "bans"."user_id" = "users"."id" AND "bans"."is_active")`,
     })
         .from(users)
         .where(where)
