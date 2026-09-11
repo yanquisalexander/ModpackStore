@@ -101,6 +101,18 @@ export enum AdStatus {
     REJECTED = "rejected",
 }
 
+export enum BackupJobType {
+    EXPORT = "export",
+    RESTORE = "restore",
+}
+
+export enum BackupJobStatus {
+    PENDING = "pending",
+    PROCESSING = "processing",
+    COMPLETED = "completed",
+    FAILED = "failed",
+}
+
 export function enumToPgEnum<T extends Record<string, string>>(
     myEnum: T,
 ): [T[keyof T], ...T[keyof T][]] {
@@ -117,6 +129,8 @@ export const processingJobStatusEnum = pgEnum('processing_job_status', enumToPgE
 export const adTypeEnum = pgEnum('ad_type', enumToPgEnum(AdType));
 export const adPlacementEnum = pgEnum('ad_placement', enumToPgEnum(AdPlacement));
 export const adStatusEnum = pgEnum('ad_status', enumToPgEnum(AdStatus));
+export const backupJobTypeEnum = pgEnum('backup_job_type', enumToPgEnum(BackupJobType));
+export const backupJobStatusEnum = pgEnum('backup_job_status', enumToPgEnum(BackupJobStatus));
 
 export const users = pgTable("users", {
     id: uuid("id").primaryKey().notNull().defaultRandom(),
@@ -564,5 +578,47 @@ export const adAnalyticsDailyRelations = relations(adAnalyticsDailyTable, ({ one
     campaign: one(adCampaignsTable, {
         fields: [adAnalyticsDailyTable.campaignId],
         references: [adCampaignsTable.id],
+    }),
+}));
+
+/* Backup Jobs */
+
+export const backupJobsTable = pgTable("backup_jobs", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    type: backupJobTypeEnum("type").notNull(),
+    status: backupJobStatusEnum("status").notNull().default(BackupJobStatus.PENDING),
+
+    // Export fields
+    includedTables: jsonb("included_tables"),
+    r2Key: text("r2_key"),
+    fileName: text("file_name"),
+
+    // Restore fields
+    sourceBackupId: uuid("source_backup_id"),
+    restoreTables: jsonb("restore_tables"),
+
+    // Progress
+    progress: numeric("progress").notNull().default('0'),
+    totalTables: integer("total_tables"),
+    processedTables: integer("processed_tables").notNull().default(0),
+    tableCounts: jsonb("table_counts"),
+    totalRecords: integer("total_records"),
+
+    error: text("error"),
+    createdBy: uuid("created_by").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const backupJobsRelations = relations(backupJobsTable, ({ one }) => ({
+    createdByUser: one(users, {
+        fields: [backupJobsTable.createdBy],
+        references: [users.id],
+    }),
+    sourceBackup: one(backupJobsTable, {
+        fields: [backupJobsTable.sourceBackupId],
+        references: [backupJobsTable.id],
+        relationName: "sourceBackup",
     }),
 }));

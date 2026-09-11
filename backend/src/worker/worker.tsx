@@ -262,6 +262,48 @@ worker.on("error", (err) => {
     workerStatus = "error";
 });
 
+// --- Backup Worker ---
+const backupWorker = new Worker(
+    "backup-operations",
+    async (job) => {
+        const handler = getJobHandler(job.name);
+
+        if (!handler) {
+            log(`No handler registered for job type: ${job.name}`);
+            return;
+        }
+
+        log(`Processing backup job ${job.id} of type ${job.name} with data:`, job.data);
+        await handler(job);
+    },
+    {
+        connection: redisConnection,
+        concurrency: 1,
+        maxStalledCount: 1,
+        lockDuration: 300000, // 5 minutes for large backups
+    },
+);
+
+backupWorker.on("ready", () => {
+    log("Backup worker is ready and listening for jobs...");
+});
+
+backupWorker.on("active", (job) => {
+    log(`Backup job ${job.id} of type ${job.name} is now active.`);
+});
+
+backupWorker.on("completed", (job) => {
+    log(`Backup job ${job.id} of type ${job.name} has completed.`);
+});
+
+backupWorker.on("failed", (job, err) => {
+    log(`Backup job ${job?.id ?? "unknown"} has failed:`, err.message);
+});
+
+backupWorker.on("error", (err) => {
+    log("[BACKUP_WORKER_ERROR]", err);
+});
+
 // --- Graceful Shutdown ---
 let isShuttingDown = false;
 
@@ -280,8 +322,9 @@ async function gracefulShutdown(signal: string) {
         }
 
         // 2. Esperar a que el Worker termine su trabajo activo actual (si lo hay)
-        log("[SHUTDOWN] Closing BullMQ Worker (waiting for active jobs to finish)...");
+        log("[SHUTDOWN] Closing BullMQ Workers (waiting for active jobs to finish)...");
         await worker.close();
+        await backupWorker.close();
 
         // 3. Cerrar la conexión de Redis limpiamente
         log("[SHUTDOWN] Quitting Redis connection...");

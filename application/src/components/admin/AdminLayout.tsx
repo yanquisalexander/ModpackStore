@@ -16,7 +16,8 @@ import {
     LucideTag,
     LucideDollarSign,
     LucideMegaphone,
-    LucideLoader
+    LucideLoader,
+    LucideDatabase,
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { ManageUsersView } from '@/views/admin/ManageUsersView';
@@ -28,6 +29,7 @@ import { ManageCategoriesView } from "@/views/admin/ManageCategoriesView";
 import { ManageTermsAndConditionsView } from "@/views/admin/ManageTermsAndConditionsView";
 import { PatreonPlusManagementView } from "@/views/admin/PatreonPlusManagementView";
 import { ManageAdsView } from "@/views/admin/ManageAdsView";
+import { ManageBackupView } from "@/views/admin/ManageBackupView";
 
 interface AdminLayoutProps {
     children?: React.ReactNode;
@@ -76,6 +78,12 @@ const adminNavItems = [
         label: 'Registros de Auditoría',
         icon: LucideActivity,
         description: 'Ver actividad del sistema y registros de seguridad'
+    },
+    {
+        path: '/admin/backup',
+        label: 'Backup & Restore',
+        icon: LucideDatabase,
+        description: 'Exportar e importar la base de datos'
     },
     {
         path: '/admin/maintenance',
@@ -225,6 +233,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
                             <Route path="/beneficios-plus" element={<PatreonPlusManagementView />} />
                             <Route path="/ads" element={<ManageAdsView />} />
                             <Route path="/audit" element={<AuditLogsView />} />
+                            <Route path="/backup" element={<ManageBackupView />} />
                             <Route path="/maintenance" element={<MaintenanceView />} />
                             <Route path="/settings" element={<ManageTermsAndConditionsView />} />
                             <Route path="*" element={<ManageUsersView />} /> {/* Default to users */}

@@ -21,8 +21,19 @@ import {
     bansTable,
     creatorsTable,
     UserRole,
+    BackupJobStatus,
 } from "@/db/schema.ts";
 import { eq, ilike, or, sql, desc, count } from "drizzle-orm";
+import {
+    getAvailableTables,
+    getTableCounts,
+    createBackupJob,
+    listBackupJobs,
+    getBackupJob,
+    BackupJobType,
+    TABLE_REGISTRY,
+} from "@/services/backup.service.ts";
+import { BackupOperationsQueue } from "@/worker/queues.ts";
 
 // ── Variable Store ──────────────────────────────────
 
@@ -286,6 +297,12 @@ async function handleInput(input: string) {
         return;
     }
 
+    // ── backup commands ──
+    if (input.startsWith("backup")) {
+        await handleBackup(input.slice(6).trim());
+        return;
+    }
+
     // ── var.prop = value (assignment) ──
     const assignMatch = input.match(/^(\w+)\.(\w+)\s*=\s*(.+)$/);
     if (assignMatch) {
@@ -395,6 +412,217 @@ async function handleLoad(varName: string, className: string, query: string) {
     const label = row.username ?? row.displayName ?? row.name ?? row.id;
     console.log(`  ${varName} = ${className} "${label}"`);
     printObject(row);
+}
+
+async function handleBackup(args: string) {
+    const parts = args.split(/\s+/);
+    const subcommand = parts[0];
+
+    if (!subcommand || subcommand === "help") {
+        console.log(`
+  ── Backup Commands ──
+    backup list                          List available backups
+    backup tables                        List tables that can be backed up
+    backup export [table1,table2,...]     Export tables to R2 (default: all)
+    backup restore <backupId>            Restore from a backup
+    backup status <jobId>                Check backup job status
+    backup delete <jobId>                Delete a backup
+`);
+        return;
+    }
+
+    if (subcommand === "list") {
+        const jobs = await listBackupJobs(BackupJobType.EXPORT, 20);
+        if (jobs.length === 0) {
+            console.log("  No backups found.");
+            return;
+        }
+        console.log(`\n  Backups (${jobs.length})\n`);
+        printTable(jobs.map((j) => ({
+            id: j.id?.slice(0, 8),
+            status: j.status,
+            tables: Array.isArray(j.includedTables) ? j.includedTables.length : 0,
+            records: j.totalRecords ?? "-",
+            file: j.fileName ?? "-",
+            created: formatDate(j.createdAt),
+        })));
+        console.log();
+        return;
+    }
+
+    if (subcommand === "tables") {
+        const tables = getAvailableTables();
+        const counts = await getTableCounts(tables.map((t) => t.key));
+        console.log(`\n  Available Tables\n`);
+        printTable(tables.map((t) => ({
+            key: t.key,
+            table: t.tableName,
+            group: t.group,
+            records: counts[t.key] ?? 0,
+        })));
+        console.log();
+        return;
+    }
+
+    if (subcommand === "export") {
+        const tablesArg = parts.slice(1).join(",");
+        const tables = tablesArg
+            ? tablesArg.split(",").map((t) => t.trim()).filter(Boolean)
+            : getAvailableTables().map((t) => t.key);
+
+        const invalid = tables.filter((t) => !TABLE_REGISTRY[t]);
+        if (invalid.length > 0) {
+            console.log(`  Invalid tables: ${invalid.join(", ")}`);
+            return;
+        }
+
+        console.log(`  Exporting ${tables.length} tables...`);
+
+        // We need a system user ID for createdBy - use first super_admin
+        const [adminUser] = await db.select({ id: users.id })
+            .from(users)
+            .where(eq(users.role, UserRole.SUPER_ADMIN))
+            .limit(1);
+
+        if (!adminUser) {
+            console.log("  Error: No super_admin user found. Cannot create backup job.");
+            return;
+        }
+
+        const job = await createBackupJob(BackupJobType.EXPORT, adminUser.id, {
+            includedTables: tables,
+        });
+
+        await BackupOperationsQueue.add("backup-export", {
+            backupJobId: job.id,
+            tables,
+        }, { jobId: job.id! });
+
+        console.log(`  ✅ Backup job created: ${job.id}`);
+        console.log(`  Tables: ${tables.join(", ")}`);
+        console.log(`  Use "backup status ${job.id}" to check progress`);
+        return;
+    }
+
+    if (subcommand === "restore") {
+        const backupId = parts[1];
+        if (!backupId) {
+            console.log("  Usage: backup restore <backupId>");
+            return;
+        }
+
+        const sourceBackup = await getBackupJob(backupId);
+        if (!sourceBackup) {
+            console.log(`  Backup not found: ${backupId}`);
+            return;
+        }
+        if (sourceBackup.status !== BackupJobStatus.COMPLETED) {
+            console.log(`  Backup is not completed (status: ${sourceBackup.status})`);
+            return;
+        }
+
+        const confirm = prompt(`  ⚠️  This will TRUNCATE and restore tables from backup ${sourceBackup.fileName ?? backupId}. Continue? [y/N]`);
+        if (confirm?.toLowerCase() !== "y") {
+            console.log("  Cancelled.");
+            return;
+        }
+
+        const [adminUser] = await db.select({ id: users.id })
+            .from(users)
+            .where(eq(users.role, UserRole.SUPER_ADMIN))
+            .limit(1);
+
+        if (!adminUser) {
+            console.log("  Error: No super_admin user found.");
+            return;
+        }
+
+        const job = await createBackupJob(BackupJobType.RESTORE, adminUser.id, {
+            sourceBackupId: backupId,
+        });
+
+        await BackupOperationsQueue.add("backup-restore", {
+            backupJobId: job.id,
+            sourceBackupId: backupId,
+        }, { jobId: job.id! });
+
+        console.log(`  ✅ Restore job created: ${job.id}`);
+        console.log(`  Use "backup status ${job.id}" to check progress`);
+        return;
+    }
+
+    if (subcommand === "status") {
+        const jobId = parts[1];
+        if (!jobId) {
+            console.log("  Usage: backup status <jobId>");
+            return;
+        }
+
+        // Try to find job by full ID or prefix
+        let job = await getBackupJob(jobId);
+        if (!job) {
+            // Try searching by prefix
+            const allJobs = await listBackupJobs(undefined, 100);
+            job = allJobs.find((j) => j.id?.startsWith(jobId)) ?? null;
+        }
+
+        if (!job) {
+            console.log(`  Job not found: ${jobId}`);
+            return;
+        }
+
+        console.log(`\n  Backup Job Details\n`);
+        printObject({
+            id: job.id,
+            type: job.type,
+            status: job.status,
+            progress: `${job.progress}%`,
+            totalTables: job.totalTables,
+            processedTables: job.processedTables,
+            totalRecords: job.totalRecords,
+            error: job.error,
+            fileName: job.fileName,
+            createdAt: formatDate(job.createdAt),
+            completedAt: job.completedAt ? formatDate(job.completedAt) : "-",
+        });
+        console.log();
+        return;
+    }
+
+    if (subcommand === "delete") {
+        const jobId = parts[1];
+        if (!jobId) {
+            console.log("  Usage: backup delete <jobId>");
+            return;
+        }
+
+        const { deleteBackupFromR2, deleteBackupJob } = await import("@/services/backup.service.ts");
+        const job = await getBackupJob(jobId);
+        if (!job) {
+            console.log(`  Job not found: ${jobId}`);
+            return;
+        }
+
+        const confirm = prompt(`  Delete backup ${job.fileName ?? jobId}? [y/N]`);
+        if (confirm?.toLowerCase() !== "y") {
+            console.log("  Cancelled.");
+            return;
+        }
+
+        if (job.r2Key) {
+            try {
+                await deleteBackupFromR2(job.r2Key);
+            } catch (err) {
+                console.log(`  Warning: Failed to delete R2 file: ${err}`);
+            }
+        }
+
+        await deleteBackupJob(job.id!);
+        console.log(`  ✅ Backup deleted`);
+        return;
+    }
+
+    console.log(`  Unknown backup command: "${subcommand}". Type "backup help" for commands.`);
 }
 
 async function handleSave(varName: string) {
@@ -507,6 +735,14 @@ function printHelp() {
     modpacks [page]                 List modpacks
     creators [page]                 List creators
     users search <query>            Search users
+
+  ── Backup ──
+    backup list                     List available backups
+    backup tables                   List tables that can be backed up
+    backup export [tables...]       Export tables to R2
+    backup restore <backupId>       Restore from a backup
+    backup status <jobId>           Check backup job status
+    backup delete <jobId>           Delete a backup
 
   ── System ──
     sql <SELECT query>              Run raw SQL

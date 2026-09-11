@@ -28,6 +28,7 @@ import {
     LucideBan,
     LucideSearch,
     LucideEye,
+    LucidePalette,
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { API_ENDPOINT } from "@/consts";
@@ -1458,7 +1459,7 @@ export const ManageCreatorsView: React.FC = () => {
                                             total={creatorsData.total}
                                             limit={20}
                                             onPageChange={setCurrentPage}
-                                            onLimitChange={() => {}}
+                                            onLimitChange={() => { }}
                                             itemLabel="creadores"
                                         />
                                     )}
