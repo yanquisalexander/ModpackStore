@@ -107,12 +107,15 @@ interface AppRoutesProps {
 }
 
 const AppRoutes = memo(function AppRoutes({ isConnected, isConnectionLoading, isAuthenticated, session }: AppRoutesProps) {
-  // FIX PRINCIPAL: si aún no sabemos el estado de la conexión, no decidas nada.
-  if (isConnectionLoading || isConnected === null) {
+  // Solo bloqueamos por el loading del contexto, no por null
+  if (isConnectionLoading) {
     return <LoadingScreen />;
   }
 
-  if (isConnected === false) {
+  // Si por algún bug isConnected sigue null después del check, lo tratamos como offline para no colgar la app
+  const connected = isConnected ?? false;
+
+  if (connected === false) {
     return (
       <Routes>
         <Route path="/" element={<OfflineMode />} />
@@ -190,7 +193,8 @@ function App() {
   const { setHasSidebar, hasSidebar } = useLayout();
   const { requestPermission, permissionGranted } = useNotifications();
 
-  const hasCheckedConnectionRef = useRef(false);
+  // FIX: useState en lugar de useRef para forzar re-render
+  const [hasCheckedConnection, setHasCheckedConnection] = useState(false);
 
   useEffect(() => {
     if (!permissionGranted) {
@@ -200,16 +204,16 @@ function App() {
 
   useEffect(() => {
     if (!connectionLoading) {
-      hasCheckedConnectionRef.current = true;
+      setHasCheckedConnection(true);
     }
   }, [connectionLoading]);
 
-  // Estado efectivo: null hasta el primer check
-  const effectiveIsConnected = hasCheckedConnectionRef.current ? isConnected : null;
+  // Estado efectivo: null hasta el primer check, después boolean (nunca null para no colgar)
+  const effectiveIsConnected = hasCheckedConnection ? (isConnected ?? false) : null;
 
   useEffect(() => {
     const connectionToastId = "connection-status";
-    if (hasCheckedConnectionRef.current && effectiveIsConnected === false && !connectionLoading) {
+    if (hasCheckedConnection && effectiveIsConnected === false && !connectionLoading) {
       const message = hasInternetAccess ? "Servidor no disponible" : "Sin conexión a internet";
       const description = hasInternetAccess
         ? "No se ha podido conectar al servidor. Algunas funciones no están disponibles."
@@ -223,7 +227,7 @@ function App() {
     } else {
       toast.dismiss(connectionToastId);
     }
-  }, [effectiveIsConnected, hasInternetAccess, connectionLoading]);
+  }, [effectiveIsConnected, hasInternetAccess, connectionLoading, hasCheckedConnection]);
 
   useEffect(() => {
     if (!hasLaunched.current) {
@@ -240,15 +244,14 @@ function App() {
   }, [navigate]);
 
   useEffect(() => {
-    const hasSidebar = (isAuthenticated || effectiveIsConnected === false) && !isFirstRun && !session?.isBanned;
-    setHasSidebar(hasSidebar);
+    const showSidebar = (isAuthenticated || effectiveIsConnected === false) && !isFirstRun && !session?.isBanned;
+    setHasSidebar(showSidebar);
   }, [isAuthenticated, effectiveIsConnected, isFirstRun, session?.isBanned, setHasSidebar]);
 
-  // FIX: no renderices nada hasta tener todo
   const shouldShowLoading =
-    authLoading || onboardingLoading || connectionLoading || !hasCheckedConnectionRef.current;
+    authLoading || onboardingLoading || connectionLoading || !hasCheckedConnection;
 
-  const isShowingLogin = !isAuthenticated && effectiveIsConnected !== false && !isFirstRun && hasCheckedConnectionRef.current;
+  const isShowingLogin = !isAuthenticated && effectiveIsConnected !== false && !isFirstRun && hasCheckedConnection;
   const isBanned = isAuthenticated && session?.isBanned;
 
   if (shouldShowLoading) {
