@@ -95,6 +95,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const messageIntervalRef = useRef<number | null>(null);
+    const [isLaunching, setIsLaunching] = useState(false);
 
     const setTitleBarStateRef = useRef(setTitleBarState);
     setTitleBarStateRef.current = setTitleBarState;
@@ -194,6 +195,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
         try {
             trackEvent("play_instance_clicked", { name: "Play Minecraft Instance Clicked", modpackId: instance.modpackId ? instance.modpackId : "unknown" });
+            setIsLaunching(true);
             dispatch({ type: 'SET_LOADING_STATUS', payload: { message: 'Preparando instancia...' } });
             await invoke("launch_mc_instance", { instanceId });
         } catch (error) {
@@ -201,6 +203,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
             playSound('ERROR_NOTIFICATION');
             toast.error("Error al iniciar la instancia", { description: "Ocurrió un problema al lanzar Minecraft." });
             dispatch({ type: 'CLEAR_LOADING' });
+            setIsLaunching(false);
         }
     }, [isLaunchInProgress, isPlaying, isInstanceBootstraping, state.instance, isConnected, instanceId]);
 
@@ -289,6 +292,14 @@ export const usePrelaunchInstance = (instanceId: string) => {
         }
     }, [isLaunchInProgress, currentInstanceRunning, getRandomMessage]);
 
+    // Reset isLaunching when instance reaches a terminal state
+    useEffect(() => {
+        const status = currentInstanceRunning?.status;
+        if (status === "running" || status === "exited" || status === "error") {
+            setIsLaunching(false);
+        }
+    }, [currentInstanceRunning?.status]);
+
     // Discord RPC effect
     useEffect(() => {
         if (!state.instance) return;
@@ -348,7 +359,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
         },
         appearance: state.appearance,
         loadingStatus: {
-            isLoading: isLaunchInProgress,
+            isLoading: isLaunchInProgress || isLaunching,
             message: state.loadingMessage,
             stage: state.loadingStage,
         },

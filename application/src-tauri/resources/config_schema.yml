@@ -146,3 +146,9 @@ enableExtendedSidebar:
   default: false
   description: "Extiende el sidebar lateral con información adicional de instancias"
   ui_section: experimental
+
+forceShowAds:
+  type: boolean
+  default: false
+  description: "Forzar visualización de anuncios ignorando tier, staff y estado ad-free"
+  ui_section: experimental

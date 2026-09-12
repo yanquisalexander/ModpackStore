@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { API_ENDPOINT } from "@/consts";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 import { useUserFlags } from "@/hooks/useUserFlags";
@@ -33,14 +34,23 @@ export interface AdData {
 export function useAd(placement: string) {
     const { flags, loading: flagsLoading } = useUserFlags();
     const [ad, setAd] = useState<AdData | null>(null);
+    const [ads, setAds] = useState<AdData[]>([]);
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<Error | null>(null);
+    const [forceShowAds, setForceShowAds] = useState<boolean>(false);
 
-    const isAdFree = Boolean(flags?.ad_free);
+    useEffect(() => {
+        invoke<boolean>("get_config_value", { key: "forceShowAds" })
+            .then((val) => setForceShowAds(Boolean(val)))
+            .catch(() => {});
+    }, []);
+
+    const isAdFree = !forceShowAds && Boolean(flags?.ad_free);
 
     const fetchAd = useCallback(async () => {
         if (isAdFree) {
             setAd(null);
+            setAds([]);
             setLoading(false);
             return;
         }
@@ -55,11 +65,23 @@ export function useAd(placement: string) {
             }
 
             const json = await res.json();
-            setAd(json.data || null);
+            const data = json.data;
+
+            if (Array.isArray(data)) {
+                setAds(data);
+                setAd(data[0] || null);
+            } else if (data) {
+                setAds([data]);
+                setAd(data);
+            } else {
+                setAds([]);
+                setAd(null);
+            }
         } catch (err: any) {
             console.warn(`[useAd] Placement ${placement} load error:`, err);
             setError(err);
             setAd(null);
+            setAds([]);
         } finally {
             setLoading(false);
         }
@@ -96,6 +118,7 @@ export function useAd(placement: string) {
 
     return {
         ad,
+        ads,
         loading: loading || flagsLoading,
         error,
         isAdFree,

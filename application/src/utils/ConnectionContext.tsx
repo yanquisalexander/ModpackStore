@@ -35,7 +35,7 @@ type Action =
 const initialState: ConnectionState = {
     isConnected: false,
     hasInternetAccess: false,
-    isLoading: false,
+    isLoading: true,
 };
 
 function connectionReducer(state: ConnectionState, action: Action): ConnectionState {
@@ -99,6 +99,7 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
         } catch (error) {
             console.error("[refreshConnection] Unexpected error in connection checks:", error);
         } finally {
+            hasCheckedRef.current = true;
             dispatch({ type: 'SET_LOADING', payload: false });
         }
     }, []);
@@ -108,13 +109,15 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
             return;
         }
 
+        let timedOut = false;
+
         const performInitialChecks = async () => {
             const checkPromise = refreshConnection();
 
             const fallbackTimeout = setTimeout(() => {
                 console.warn("[ConnectionProvider] Connection check taking too long, assuming offline mode");
+                timedOut = true;
                 dispatch({ type: 'SET_OFFLINE' });
-                hasCheckedRef.current = true;
             }, 3000);
 
             try {
@@ -123,10 +126,10 @@ export const ConnectionProvider: React.FC<ConnectionProviderProps> = ({ children
             } catch (error) {
                 clearTimeout(fallbackTimeout);
                 console.error("[ConnectionProvider] Error during initial connection check:", error);
-                dispatch({ type: 'SET_OFFLINE' });
+                if (!timedOut) {
+                    dispatch({ type: 'SET_OFFLINE' });
+                }
             }
-
-            hasCheckedRef.current = true;
         };
 
         performInitialChecks();

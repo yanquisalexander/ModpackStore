@@ -602,7 +602,7 @@ impl InstanceLauncher {
             return Err(LaunchError::VersionNotSpecified);
         }
 
-        if !network_utilities::check_real_connection() {
+        if !network_utilities::check_real_connection_sync() {
             warn!(
                 "[Instance: {}] No internet connection. Skipping asset revalidation.",
                 self.instance.instanceId
