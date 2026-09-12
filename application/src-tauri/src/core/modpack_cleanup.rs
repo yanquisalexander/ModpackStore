@@ -206,10 +206,12 @@ pub fn cleanup_obsolete_files(
     let essential_paths = get_essential_minecraft_paths(&minecraft_dir, instance);
 
     // Get current manifest files for quick lookup
-    let current_files: HashSet<String> = manifest.files.iter().map(|f| f.path.clone()).collect();
+    // Use case-insensitive lookup: on Windows, mods/MyMod.jar and mods/mymod.jar
+    // are the same file, so we must compare paths case-insensitively
+    let current_files_lower: HashSet<String> = manifest.files.iter().map(|f| f.path.to_lowercase()).collect();
     log::info!(
         "[Cleanup] Current manifest has {} files",
-        current_files.len()
+        current_files_lower.len()
     );
 
     // Scan only controlled directories for existing files
@@ -221,9 +223,19 @@ pub fn cleanup_obsolete_files(
     );
 
     // Determine files to clean: any file in controlled directories that is NOT in current manifest
-    let files_to_clean: HashSet<String> = existing_controlled_files
-        .difference(&current_files)
+    // Build lowercase→original mapping once, then use O(1) set difference
+    let existing_lower_to_original: HashMap<String, String> = existing_controlled_files
+        .into_iter()
+        .map(|f| (f.to_lowercase(), f))
+        .collect();
+    let existing_controlled_files_lower: HashSet<String> = existing_lower_to_original.keys().cloned().collect();
+    let files_to_clean_lower: HashSet<String> = existing_controlled_files_lower
+        .difference(&current_files_lower)
         .cloned()
+        .collect();
+    let files_to_clean: Vec<String> = files_to_clean_lower
+        .iter()
+        .filter_map(|lower| existing_lower_to_original.get(lower).cloned())
         .collect();
 
     log::info!(

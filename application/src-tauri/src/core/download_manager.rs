@@ -76,6 +76,26 @@ pub async fn download_and_install_files(
 
         // Check if file already exists at the correct location with correct hash
         if file_exists_with_correct_hash(&target_path, &file_entry.fileHash).await {
+            // File exists with correct hash - but on Windows the filesystem is case-insensitive,
+            // so "mods/MyMod.jar" and "mods/mymod.jar" are the same file. If the manifest
+            // path has different casing than what's on disk, rename to match manifest.
+            if let Some(existing_relative_path) = hash_map.get(&file_entry.fileHash) {
+                let existing_full_path = minecraft_dir.join(existing_relative_path);
+                // Case-sensitive comparison: if paths differ only in case, rename
+                if existing_full_path != target_path {
+                    log::info!(
+                        "[FileManager] Renaming for case correction: {} -> {}",
+                        existing_relative_path.display(),
+                        file_entry.path
+                    );
+                    if let Err(e) = fs::rename(&existing_full_path, &target_path) {
+                        log::warn!(
+                            "[FileManager] Failed to rename for case correction: {}. File will still be used as-is.",
+                            e
+                        );
+                    }
+                }
+            }
             files_processed += 1;
             continue;
         }
@@ -85,7 +105,9 @@ pub async fn download_and_install_files(
             let existing_full_path = minecraft_dir.join(existing_relative_path);
 
             // Verify the existing file still has the correct hash (safety check)
-            if existing_full_path != target_path
+            // Use case-insensitive comparison: on Windows, mods/MyMod.jar and mods/mymod.jar
+            // are the same file, but Rust's Path comparison is case-sensitive
+            if !paths_eq_case_insensitive(&existing_full_path, &target_path)
                 && file_exists_with_correct_hash(&existing_full_path, &file_entry.fileHash).await
             {
                 // Move the file to the correct location
@@ -934,6 +956,13 @@ async fn file_exists_with_correct_hash(file_path: &Path, expected_hash: &str) ->
         Ok(computed_hash) => computed_hash == expected_hash,
         Err(_) => false,
     }
+}
+
+/// Case-insensitive path comparison.
+/// On Windows, the filesystem is case-insensitive, so `mods/MyMod.jar` and `mods/mymod.jar`
+/// refer to the same file. Rust's `Path` comparison is case-sensitive, so we need this helper.
+fn paths_eq_case_insensitive(a: &Path, b: &Path) -> bool {
+    a.to_string_lossy().eq_ignore_ascii_case(&b.to_string_lossy())
 }
 
 #[cfg(test)]
