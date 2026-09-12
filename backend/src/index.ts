@@ -3,8 +3,8 @@ import { cors } from "@hono/hono/cors";
 import { SERVER_START_TIME } from "@/constants.ts";
 import { APIError } from "@/lib/APIError.ts";
 import v1Router from "@/v1/index.ts";
-import { generateSystemUser, seedDefaultCategories, seedDefaultHouseAds } from "@/db/seed.ts";
-import { ProcessModpackFilesQueue } from "@/worker/queues.ts";
+
+const IS_SERVERLESS = Deno.env.get("SERVERLESS_ENVIRONMENT") === "true";
 
 const PORT = Number(Deno.env.get("PORT")) || 3000;
 const app = new Hono();
@@ -39,10 +39,13 @@ if (SHOULD_INIT_WORKER) {
 
     app.route("/v1", v1Router);
 
-    app.get("/job", async (c) => {
-        await ProcessModpackFilesQueue.add("process-modpack-files", {}, { jobId: `job-${Date.now()}` });
-        return c.json({ ok: true });
-    });
+    if (!IS_SERVERLESS) {
+        app.get("/job", async (c) => {
+            const { ProcessModpackFilesQueue } = await import("@/worker/queues.ts");
+            await ProcessModpackFilesQueue.add("process-modpack-files", {}, { jobId: `job-${Date.now()}` });
+            return c.json({ ok: true });
+        });
+    }
 
     app.get("/health", (c) =>
         c.json({
@@ -81,17 +84,21 @@ if (SHOULD_INIT_WORKER) {
         );
     });
 
-    await generateSystemUser().catch((error) => {
-        console.error("Error generating system user:", error);
-    });
+    if (!IS_SERVERLESS) {
+        const { generateSystemUser, seedDefaultCategories, seedDefaultHouseAds } = await import("@/db/seed.ts");
 
-    await seedDefaultCategories().catch((error) => {
-        console.error("Error seeding default categories:", error);
-    });
+        await generateSystemUser().catch((error) => {
+            console.error("Error generating system user:", error);
+        });
 
-    await seedDefaultHouseAds().catch((error) => {
-        console.error("Error seeding default house ads:", error);
-    });
+        await seedDefaultCategories().catch((error) => {
+            console.error("Error seeding default categories:", error);
+        });
+
+        await seedDefaultHouseAds().catch((error) => {
+            console.error("Error seeding default house ads:", error);
+        });
+    }
 
     Deno.serve({ port: PORT }, app.fetch);
 }

@@ -1,4 +1,4 @@
-import { kv } from "@/db/kv.ts";
+import { getKv } from "@/db/kv.ts";
 
 const SESSION_PREFIX = "sessions" as const;
 const SESSION_TTL_MS = 15 * 24 * 60 * 60 * 1000; // 15 days (matches refresh token expiry)
@@ -15,11 +15,13 @@ export interface SessionCache {
  */
 export const sessionKV = {
     async get(sessionId: string): Promise<SessionCache | null> {
+        const kv = await getKv();
         const result = await kv.get<SessionCache>([SESSION_PREFIX, sessionId]);
         return result.value;
     },
 
     async set(sessionId: string, userId: string): Promise<void> {
+        const kv = await getKv();
         await kv.set<SessionCache>(
             [SESSION_PREFIX, sessionId],
             { userId, createdAt: new Date().toISOString() },
@@ -28,6 +30,7 @@ export const sessionKV = {
     },
 
     async delete(sessionId: string): Promise<void> {
+        const kv = await getKv();
         await kv.delete([SESSION_PREFIX, sessionId]);
     },
 };
