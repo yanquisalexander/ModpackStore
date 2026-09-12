@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useMemo } from "react";
 import { LucideInfo } from "lucide-react";
 import { motion } from "motion/react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -10,50 +10,49 @@ interface ExternalAdRendererProps {
     className?: string;
 }
 
+function buildAdHtml(config: ExternalAdConfig): string {
+    const optionScript = config.options
+        ? `<script>window.atOptions = ${JSON.stringify(config.options)};</script>`
+        : "";
+
+    const containerStyle = config.native
+        ? `width:${config.width || "100%"};height:${config.height || "auto"};max-height:200px;overflow:hidden;`
+        : `width:${config.width || "100%"};height:${config.height || "auto"};`;
+
+    const containerHtml = config.native
+        ? `<div id="${config.containerId}" style="${containerStyle}"></div>`
+        : "";
+
+    return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{overflow:hidden;background:transparent}</style></head>
+<body>
+${containerHtml}
+${optionScript}
+<script src="${config.scriptSrc}" async></script>
+</body>
+</html>`;
+}
+
 export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
     config,
     variant = "banner",
     className = "",
 }) => {
-    const wrapperRef = useRef<HTMLDivElement>(null);
-    const scriptInjected = useRef(false);
+    const blobUrl = useMemo(() => {
+        const html = buildAdHtml(config);
+        const blob = new Blob([html], { type: "text/html" });
+        return URL.createObjectURL(blob);
+    }, [config.containerId, config.scriptSrc, config.width, config.height, config.options, config.native]);
 
     useEffect(() => {
-        if (scriptInjected.current || !wrapperRef.current) return;
-
-        const wrapper = wrapperRef.current;
-
-        if (config.native) {
-            const container = document.createElement("div");
-            container.id = config.containerId;
-            container.style.width = config.width || "100%";
-            container.style.height = config.height || "auto";
-            wrapper.appendChild(container);
-        }
-
-        if (config.options) {
-            const optionsScript = document.createElement("script");
-            optionsScript.textContent = `atOptions = ${JSON.stringify(config.options)};`;
-            wrapper.appendChild(optionsScript);
-        }
-
-        const script = document.createElement("script");
-        script.src = config.scriptSrc;
-        script.async = true;
-        wrapper.appendChild(script);
-
-        scriptInjected.current = true;
-
         return () => {
-            scriptInjected.current = false;
-            while (wrapper.firstChild) {
-                wrapper.removeChild(wrapper.firstChild);
-            }
+            URL.revokeObjectURL(blobUrl);
         };
-    }, [config.containerId, config.scriptSrc, config.width, config.height, config.options]);
+    }, [blobUrl]);
 
-    const isNative = config.native === true;
-    const nativeMaxHeight = isNative ? "200px" : undefined;
+    const iframeWidth = config.width || "100%";
+    const iframeHeight = config.height || "auto";
 
     if (variant === "sidebar") {
         return (
@@ -62,11 +61,15 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
                 animate={{ opacity: 1, scale: 1 }}
                 className={`relative rounded-xl overflow-hidden border border-white/[0.08] bg-[#141418] hover:border-white/[0.18] transition-all p-4 space-y-3 shadow-lg ${className}`}
             >
-                <div
-                    ref={wrapperRef}
-                    className="relative w-full flex items-center justify-center rounded-lg overflow-hidden bg-black/40"
-                    style={isNative ? { maxHeight: nativeMaxHeight, overflow: "hidden" } : undefined}
-                />
+                <div className="relative w-full flex items-center justify-center rounded-lg overflow-hidden bg-black/40 max-w-full">
+                    <iframe
+                        src={blobUrl}
+                        style={{ width: iframeWidth, height: iframeHeight, border: "none", maxWidth: "100%" }}
+                        sandbox="allow-scripts allow-popups"
+                        loading="lazy"
+                        title="Ad"
+                    />
+                </div>
 
                 <Tooltip>
                     <TooltipTrigger asChild>
@@ -90,11 +93,15 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
             transition={{ duration: 0.35 }}
             className={`relative rounded-2xl overflow-hidden border border-white/[0.08] bg-[#121215] hover:border-white/[0.18] transition-all duration-300 shadow-xl ${className}`}
         >
-            <div
-                ref={wrapperRef}
-                className="relative w-full flex items-center justify-center"
-                style={isNative ? { maxHeight: nativeMaxHeight, overflow: "hidden" } : undefined}
-            />
+            <div className="relative w-full flex items-center justify-center overflow-hidden max-w-full">
+                <iframe
+                    src={blobUrl}
+                    style={{ width: "100%", height: iframeHeight, border: "none", maxWidth: "100%" }}
+                    sandbox="allow-scripts allow-popups"
+                    loading="lazy"
+                    title="Ad"
+                />
+            </div>
 
             <Tooltip>
                 <TooltipTrigger asChild>

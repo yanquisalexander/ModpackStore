@@ -154,7 +154,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({
     if (isExternal && currentExternalConfig) {
         const variant = placement === "modpack_sidebar" ? "sidebar" : "banner";
         return (
-            <div ref={containerRef} className={className}>
+            <div ref={containerRef} data-slot="ad-slot" className={`overflow-hidden ${className}`}>
                 <ExternalAdRenderer config={currentExternalConfig} variant={variant} />
             </div>
         );
