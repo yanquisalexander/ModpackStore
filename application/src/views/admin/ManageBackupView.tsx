@@ -43,6 +43,7 @@ import {
     LucideArchive,
     LucideHardDrive,
     LucideTable,
+    LucideFileUp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuthentication } from '@/stores/AuthContext';
@@ -76,6 +77,7 @@ export const ManageBackupView: React.FC = () => {
     const [backups, setBackups] = useState<BackupJob[]>([]);
     const [loading, setLoading] = useState(true);
     const [exporting, setExporting] = useState(false);
+    const [importing, setImporting] = useState(false);
 
     // Selection
     const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
@@ -83,10 +85,16 @@ export const ManageBackupView: React.FC = () => {
 
     // Dialogs
     const [exportDialogOpen, setExportDialogOpen] = useState(false);
+    const [importDialogOpen, setImportDialogOpen] = useState(false);
     const [restoreDialogOpen, setRestoreDialogOpen] = useState(false);
     const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [restoringBackup, setRestoringBackup] = useState<BackupJob | null>(null);
     const [deletingBackup, setDeletingBackup] = useState<BackupJob | null>(null);
+
+    // Import
+    const [importFile, setImportFile] = useState<File | null>(null);
+    const [importRestoreAfter, setImportRestoreAfter] = useState(true);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Polling
     const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -187,6 +195,31 @@ export const ManageBackupView: React.FC = () => {
         }
     };
 
+    const handleImport = async () => {
+        if (!importFile) {
+            toast.error('Selecciona un archivo de backup');
+            return;
+        }
+
+        setImporting(true);
+        try {
+            const result = await AdminBackupService.importBackup(importFile, importRestoreAfter);
+            toast.success(
+                importRestoreAfter
+                    ? `Backup importado y restore iniciado (${result.totalRecords} registros)`
+                    : `Backup importado correctamente (${result.totalRecords} registros)`
+            );
+            setImportDialogOpen(false);
+            setImportFile(null);
+            await loadBackups();
+            if (importRestoreAfter) startPolling();
+        } catch (err) {
+            toast.error('Error al importar backup');
+        } finally {
+            setImporting(false);
+        }
+    };
+
     const handleRestore = async () => {
         if (!restoringBackup) return;
 
@@ -277,10 +310,16 @@ export const ManageBackupView: React.FC = () => {
                                 </p>
                             </div>
                         </div>
-                        <Button onClick={() => setExportDialogOpen(true)}>
-                            <LucideArchive className="h-4 w-4 mr-2" />
-                            Nuevo Backup
-                        </Button>
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+                                <LucideFileUp className="h-4 w-4 mr-2" />
+                                Importar
+                            </Button>
+                            <Button onClick={() => setExportDialogOpen(true)}>
+                                <LucideArchive className="h-4 w-4 mr-2" />
+                                Nuevo Backup
+                            </Button>
+                        </div>
                     </div>
                 </CardHeader>
             </Card>
@@ -516,6 +555,71 @@ export const ManageBackupView: React.FC = () => {
                                 <LucideArchive className="h-4 w-4 mr-2" />
                             )}
                             Crear Backup
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Import Dialog */}
+            <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Importar Backup</DialogTitle>
+                        <DialogDescription>
+                            Sube un archivo JSON de backup para importarlo al servidor.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <div className="space-y-4">
+                        <div>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept=".json"
+                                className="hidden"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) setImportFile(file);
+                                }}
+                            />
+                            <Button
+                                variant="outline"
+                                className="w-full justify-start"
+                                onClick={() => fileInputRef.current?.click()}
+                            >
+                                <LucideFileUp className="h-4 w-4 mr-2" />
+                                {importFile ? importFile.name : 'Seleccionar archivo JSON...'}
+                            </Button>
+                            {importFile && (
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    {(importFile.size / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                            )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="import-restore"
+                                checked={importRestoreAfter}
+                                onCheckedChange={(checked) => setImportRestoreAfter(checked === true)}
+                            />
+                            <label htmlFor="import-restore" className="text-sm cursor-pointer">
+                                Restaurar automáticamente después de importar
+                            </label>
+                        </div>
+                    </div>
+
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setImportDialogOpen(false)}>
+                            Cancelar
+                        </Button>
+                        <Button onClick={handleImport} disabled={importing || !importFile}>
+                            {importing ? (
+                                <LucideLoader className="h-4 w-4 mr-2 animate-spin" />
+                            ) : (
+                                <LucideFileUp className="h-4 w-4 mr-2" />
+                            )}
+                            Importar
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -115,4 +115,29 @@ export class AdminBackupService {
             method: "DELETE",
         });
     }
+
+    /**
+     * Import a local backup JSON file.
+     * If restore=true, immediately queues a restore job.
+     */
+    static async importBackup(
+        file: File,
+        restore = false
+    ): Promise<{ backupJobId: string; restoreJobId: string | null; fileName: string; tables: number; totalRecords: number }> {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const url = `${this.baseUrl}/import${restore ? "?restore=true" : ""}`;
+        const response = await fetchWithAuth(url, {
+            method: "POST",
+            body: formData,
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || `HTTP ${response.status}`);
+        }
+
+        return data.data;
+    }
 }

@@ -64,6 +64,92 @@ app.post("/export", requireAuth, requireAdmin, async (c: Context) => {
 });
 
 /**
+ * POST /import
+ * Import a backup file (multipart form upload).
+ * Body: file (JSON backup)
+ * Optional: restore=true to immediately queue a restore job
+ */
+app.post("/import", requireAuth, requireAdmin, async (c: Context) => {
+    const body = await c.req.parseBody();
+    const file = body["file"];
+
+    if (!file || !(file instanceof File)) {
+        return c.json({ success: false, error: "A 'file' field with a JSON backup is required" }, 400);
+    }
+
+    // Read and validate JSON
+    let payload: any;
+    try {
+        const text = await file.text();
+        payload = JSON.parse(text);
+    } catch {
+        return c.json({ success: false, error: "Invalid JSON file" }, 400);
+    }
+
+    if (!payload.tables || typeof payload.tables !== "object") {
+        return c.json({ success: false, error: "Invalid backup format: missing 'tables'" }, 400);
+    }
+
+    const tableNames = Object.keys(payload.tables);
+    const totalRecords = tableNames.reduce((sum: number, name: string) => {
+        return sum + (Array.isArray(payload.tables[name]) ? payload.tables[name].length : 0);
+    }, 0);
+
+    // Upload to R2
+    const r2Key = getBackupR2Key();
+    const fileName = file.name || `imported_${Date.now()}.json`;
+    await uploadBackupToR2(payload, r2Key);
+
+    // Create completed backup job record
+    const userId = (c as any).get("userId") as string;
+    const job = await createBackupJob(BackupJobType.EXPORT, userId, {
+        includedTables: tableNames,
+    });
+
+    await updateBackupJob(job.id!, {
+        status: BackupJobStatus.COMPLETED,
+        r2Key,
+        fileName,
+        tableCounts: payload.metadata?.tableCounts ?? {},
+        totalRecords,
+        progress: 100,
+        processedTables: tableNames.length,
+        completedAt: new Date(),
+    });
+
+    // Optionally auto-restore
+    const shouldRestore = c.req.query("restore") === "true";
+    let restoreJobId: string | null = null;
+
+    if (shouldRestore) {
+        const restoreJob = await createBackupJob(BackupJobType.RESTORE, userId, {
+            sourceBackupId: job.id,
+        });
+
+        await BackupOperationsQueue.add("backup-restore", {
+            backupJobId: restoreJob.id,
+            sourceBackupId: job.id,
+        }, { jobId: restoreJob.id! });
+
+        restoreJobId = restoreJob.id!;
+    }
+
+    return c.json({
+        success: true,
+        data: {
+            backupJobId: job.id,
+            restoreJobId,
+            fileName,
+            tables: tableNames.length,
+            totalRecords,
+        },
+        message: shouldRestore
+            ? "Backup imported and restore started"
+            : "Backup imported successfully",
+    }, 201);
+});
+
+/**
  * GET /
  * List backup jobs (exported backups).
  * Query: type=export|restore, limit=50

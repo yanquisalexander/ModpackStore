@@ -13,6 +13,29 @@ import { sql } from "drizzle-orm";
 
 const INSERT_CHUNK_SIZE = 500;
 
+/**
+ * Recursively convert ISO date strings back to Date objects.
+ * JSON.parse turns Date columns into strings, but Drizzle expects Date objects.
+ */
+function reviveDates(obj: any): any {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj === "string") {
+        // Match ISO 8601 date strings (with or without timezone)
+        if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(obj)) {
+            const d = new Date(obj);
+            if (!isNaN(d.getTime())) return d;
+        }
+        return obj;
+    }
+    if (Array.isArray(obj)) return obj.map(reviveDates);
+    if (typeof obj === "object") {
+        for (const key of Object.keys(obj)) {
+            obj[key] = reviveDates(obj[key]);
+        }
+    }
+    return obj;
+}
+
 export async function backupRestoreJob(job: Job) {
     const { backupJobId, sourceBackupId, tables } = job.data as {
         backupJobId: string;
@@ -75,7 +98,7 @@ export async function backupRestoreJob(job: Job) {
 
             // Insert in chunks
             for (let j = 0; j < rows.length; j += INSERT_CHUNK_SIZE) {
-                const chunk = rows.slice(j, j + INSERT_CHUNK_SIZE);
+                const chunk = rows.slice(j, j + INSERT_CHUNK_SIZE).map(reviveDates);
                 if (chunk.length > 0) {
                     await db.insert(entry.table).values(chunk).onConflictDoNothing();
                 }

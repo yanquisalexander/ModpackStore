@@ -22,6 +22,7 @@ import {
     creatorsTable,
     UserRole,
     BackupJobStatus,
+    BackupJobType,
 } from "@/db/schema.ts";
 import { eq, ilike, or, sql, desc, count } from "drizzle-orm";
 import {
@@ -30,7 +31,6 @@ import {
     createBackupJob,
     listBackupJobs,
     getBackupJob,
-    BackupJobType,
     TABLE_REGISTRY,
 } from "@/services/backup.service.ts";
 import { BackupOperationsQueue } from "@/worker/queues.ts";
@@ -424,7 +424,8 @@ async function handleBackup(args: string) {
     backup list                          List available backups
     backup tables                        List tables that can be backed up
     backup export [table1,table2,...]     Export tables to R2 (default: all)
-    backup restore <backupId>            Restore from a backup
+    backup import <file.json>            Import local backup file and restore
+    backup restore <backupId>            Restore from a backup in R2
     backup status <jobId>                Check backup job status
     backup delete <jobId>                Delete a backup
 `);
@@ -478,14 +479,36 @@ async function handleBackup(args: string) {
 
         console.log(`  Exporting ${tables.length} tables...`);
 
-        // We need a system user ID for createdBy - use first super_admin
+        // We need a user ID for createdBy - use super_admin or system user
         const [adminUser] = await db.select({ id: users.id })
             .from(users)
             .where(eq(users.role, UserRole.SUPER_ADMIN))
             .limit(1);
 
         if (!adminUser) {
-            console.log("  Error: No super_admin user found. Cannot create backup job.");
+            // Fallback to system user (for fresh installations)
+            const [systemUser] = await db.select({ id: users.id })
+                .from(users)
+                .where(eq(users.role, UserRole.SYSTEM))
+                .limit(1);
+
+            if (!systemUser) {
+                console.log("  Error: No admin or system user found. Run the server once to seed the system user.");
+                return;
+            }
+
+            const job = await createBackupJob(BackupJobType.EXPORT, systemUser.id, {
+                includedTables: tables,
+            });
+
+            await BackupOperationsQueue.add("backup-export", {
+                backupJobId: job.id,
+                tables,
+            }, { jobId: job.id! });
+
+            console.log(`  ✅ Backup job created: ${job.id}`);
+            console.log(`  Tables: ${tables.join(", ")}`);
+            console.log(`  Use "backup status ${job.id}" to check progress`);
             return;
         }
 
@@ -533,7 +556,26 @@ async function handleBackup(args: string) {
             .limit(1);
 
         if (!adminUser) {
-            console.log("  Error: No super_admin user found.");
+            const [systemUser] = await db.select({ id: users.id })
+                .from(users)
+                .where(eq(users.role, UserRole.SYSTEM))
+                .limit(1);
+            if (!systemUser) {
+                console.log("  Error: No admin or system user found. Run the server once to seed.");
+                return;
+            }
+
+            const job = await createBackupJob(BackupJobType.RESTORE, systemUser.id, {
+                sourceBackupId: backupId,
+            });
+
+            await BackupOperationsQueue.add("backup-restore", {
+                backupJobId: job.id,
+                sourceBackupId: backupId,
+            }, { jobId: job.id! });
+
+            console.log(`  ✅ Restore job created: ${job.id}`);
+            console.log(`  Use "backup status ${job.id}" to check progress`);
             return;
         }
 
@@ -548,6 +590,121 @@ async function handleBackup(args: string) {
 
         console.log(`  ✅ Restore job created: ${job.id}`);
         console.log(`  Use "backup status ${job.id}" to check progress`);
+        return;
+    }
+
+    if (subcommand === "import") {
+        const filePath = parts[1];
+        if (!filePath) {
+            console.log("  Usage: backup import <file.json>");
+            return;
+        }
+
+        const { uploadBackupToR2, getBackupR2Key } = await import("@/services/backup.service.ts");
+
+        // Read local file
+        let fileContent: string;
+        try {
+            fileContent = await Deno.readTextFile(filePath);
+        } catch (err) {
+            console.log(`  Error reading file: ${err}`);
+            return;
+        }
+
+        // Validate JSON
+        let payload: any;
+        try {
+            payload = JSON.parse(fileContent);
+        } catch {
+            console.log("  Error: Invalid JSON file");
+            return;
+        }
+
+        if (!payload.tables) {
+            console.log("  Error: Invalid backup format — missing 'tables' key");
+            return;
+        }
+
+        const tableNames = Object.keys(payload.tables);
+        const totalRecords = tableNames.reduce((sum: number, name: string) => {
+            return sum + (Array.isArray(payload.tables[name]) ? payload.tables[name].length : 0);
+        }, 0);
+
+        console.log(`  Backup file: ${filePath}`);
+        console.log(`  Tables: ${tableNames.length}`);
+        console.log(`  Total records: ${totalRecords}`);
+
+        const confirm = prompt(`  Upload and restore this backup? [y/N]`);
+        if (confirm?.toLowerCase() !== "y") {
+            console.log("  Cancelled.");
+            return;
+        }
+
+        // Upload to R2
+        const r2Key = getBackupR2Key();
+        const fileName = filePath.split(/[/\\]/).pop() || "imported-backup.json";
+
+        console.log(`  Uploading to R2 as ${r2Key}...`);
+        await uploadBackupToR2(payload, r2Key);
+
+        // Create backup job record
+        const [adminUser] = await db.select({ id: users.id })
+            .from(users)
+            .where(eq(users.role, UserRole.SUPER_ADMIN))
+            .limit(1);
+
+        let userId: string;
+        if (adminUser) {
+            userId = adminUser.id;
+        } else {
+            const [systemUser] = await db.select({ id: users.id })
+                .from(users)
+                .where(eq(users.role, UserRole.SYSTEM))
+                .limit(1);
+            if (!systemUser) {
+                console.log("  Error: No admin or system user found. Run the server once to seed.");
+                return;
+            }
+            userId = systemUser.id;
+        }
+
+        const backupJob = await createBackupJob(BackupJobType.EXPORT, userId, {
+            includedTables: tableNames,
+        });
+
+        // Mark as completed immediately (file already uploaded)
+        const { updateBackupJob } = await import("@/services/backup.service.ts");
+        await updateBackupJob(backupJob.id!, {
+            status: BackupJobStatus.COMPLETED,
+            r2Key,
+            fileName,
+            tableCounts: payload.metadata?.tableCounts ?? {},
+            totalRecords,
+            progress: 100,
+            processedTables: tableNames.length,
+            completedAt: new Date(),
+        });
+
+        console.log(`  ✅ Backup uploaded and registered: ${backupJob.id}`);
+
+        // Now create restore job
+        const restoreConfirm = prompt(`  Start restore now? [y/N]`);
+        if (restoreConfirm?.toLowerCase() !== "y") {
+            console.log(`  Done. Use "backup restore ${backupJob.id}" later to restore.`);
+            return;
+        }
+
+        const restoreJob = await createBackupJob(BackupJobType.RESTORE, userId, {
+            sourceBackupId: backupJob.id,
+        });
+
+        await BackupOperationsQueue.add("backup-restore", {
+            backupJobId: restoreJob.id,
+            sourceBackupId: backupJob.id,
+        }, { jobId: restoreJob.id! });
+
+        console.log(`  ✅ Restore job created: ${restoreJob.id}`);
+        console.log(`  Use "backup status ${restoreJob.id}" to check progress`);
         return;
     }
 
@@ -740,7 +897,8 @@ function printHelp() {
     backup list                     List available backups
     backup tables                   List tables that can be backed up
     backup export [tables...]       Export tables to R2
-    backup restore <backupId>       Restore from a backup
+    backup import <file.json>       Import local backup and restore
+    backup restore <backupId>       Restore from a backup in R2
     backup status <jobId>           Check backup job status
     backup delete <jobId>           Delete a backup
 
