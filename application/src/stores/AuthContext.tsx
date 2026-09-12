@@ -394,10 +394,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       // --- Initialization Logic ---
       try {
+        let hasCache = false;
+
         // SWR: Load cached session immediately so UI renders without blocking
         if (!cacheLoadedRef.current) {
           const cached = await readSessionCache();
           if (cached && isMounted) {
+            hasCache = true;
             setSession(enhanceSession(cached.session));
             const expiresAt = calculateTokenExpiration(cached.tokens.access_token, cached.tokens.expires_in);
             const tokensWithExpiry: SessionTokens = {
@@ -409,21 +412,28 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             };
             setSessionTokens(tokensWithExpiry);
             scheduleTokenRefresh(tokensWithExpiry);
-            setLoading(false); // Show cached data immediately
           }
           cacheLoadedRef.current = true;
         }
 
+        // No cache → resolve loading immediately so login screen shows right away
+        if (!hasCache && isMounted) {
+          setLoading(false);
+        }
+
         // Revalidate in background (init_session calls /auth/me)
+        // Fire-and-forget: the auth-status-changed event will update state if backend finds valid tokens
         invoke('init_session');
 
-        // Wait for auth-status-changed event, but with a safety timeout
-        // to prevent infinite loading if the backend fails to emit the event
-        const AUTH_INIT_TIMEOUT_MS = 15_000;
-        await Promise.race([
-          authStatusPromise,
-          new Promise((resolve) => setTimeout(resolve, AUTH_INIT_TIMEOUT_MS))
-        ]);
+        // Only wait for backend event if we had cache (revalidating).
+        // If no cache, loading is already false — the listener will update state async.
+        if (hasCache) {
+          const AUTH_INIT_TIMEOUT_MS = 15_000;
+          await Promise.race([
+            authStatusPromise,
+            new Promise((resolve) => setTimeout(resolve, AUTH_INIT_TIMEOUT_MS))
+          ]);
+        }
       } catch (err) {
         if (!isMounted) return;
         console.error("[AuthContext] Error during init_session:", err);

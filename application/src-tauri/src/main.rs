@@ -51,6 +51,19 @@ static API_ENDPOINT: once_cell::sync::Lazy<&'static str> = once_cell::sync::Lazy
     }
 });
 
+/// Check if a shared library is available on Linux via ldconfig
+#[cfg(target_os = "linux")]
+fn has_system_library(name: &str) -> bool {
+    std::process::Command::new("ldconfig")
+        .args(["-p"])
+        .output()
+        .map(|output| {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            stdout.contains(name)
+        })
+        .unwrap_or(false)
+}
+
 struct PendingInstance {
     id: Mutex<Option<String>>,
 }
@@ -283,7 +296,18 @@ pub fn main() {
                 return Err(Box::new(std::io::Error::new(std::io::ErrorKind::Other, e)));
             }
 
-            // --- Tray Icon Setup ---
+            // --- Tray Icon Setup (graceful fallback on Linux) ---
+            #[cfg(target_os = "linux")]
+            {
+                let has_appindicator = has_system_library("libappindicator")
+                    || has_system_library("libayatana-appindicator");
+                let has_gtk = has_system_library("libgtk-3") || has_system_library("libgtk-4");
+                log::info!(
+                    "Linux tray support check: libappindicator={}, gtk={}",
+                    has_appindicator, has_gtk
+                );
+            }
+
             let quit_i = MenuItem::with_id(app, "quit", "Salir", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Abrir Launcher", true, None::<&str>)?;
             let instances_i = MenuItem::with_id(
@@ -304,10 +328,16 @@ pub fn main() {
                 ],
             )?;
 
-            let _tray = TrayIconBuilder::new()
+            let tray_icon = app.default_window_icon().cloned();
+            let mut builder = TrayIconBuilder::new()
                 .menu(&menu)
-                .show_menu_on_left_click(false)
-                .icon(app.default_window_icon().unwrap().clone())
+                .show_menu_on_left_click(false);
+
+            if let Some(icon) = tray_icon {
+                builder = builder.icon(icon);
+            }
+
+            match builder
                 .on_menu_event(|app, event| {
                     match event.id().as_ref() {
                         "quit" => app.exit(0),
@@ -322,14 +352,13 @@ pub fn main() {
                             if let Some(window) =
                                 app.get_webview_window("instances-overlay")
                             {
-                                // Posicionamiento: Arriba a la derecha
                                 if let Some(monitor) = window.current_monitor().unwrap_or(None) {
                                     let monitor_size = monitor.size();
                                     let window_size =
                                         window.outer_size().unwrap_or(PhysicalSize::new(350, 500));
 
                                     let x = monitor_size.width - window_size.width - 20;
-                                    let y = 50; // Margen superior
+                                    let y = 50;
 
                                     let _ = window
                                         .set_position(PhysicalPosition::new(x as i32, y as i32));
@@ -356,7 +385,15 @@ pub fn main() {
                         }
                     }
                 })
-                .build(app)?;
+                .build(app)
+            {
+                Ok(_tray) => {
+                    log::info!("Tray icon created successfully");
+                }
+                Err(e) => {
+                    log::warn!("Failed to create tray icon ({}). App will continue without system tray.", e);
+                }
+            }
 
             let app_handle_clone = app.handle().clone();
             tauri::async_runtime::spawn(async move {

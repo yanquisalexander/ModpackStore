@@ -210,7 +210,7 @@ mod api {
         static CLIENT: OnceLock<Client> = OnceLock::new();
         CLIENT.get_or_init(|| {
             Client::builder()
-                .timeout(Duration::from_secs(60))
+                .timeout(Duration::from_secs(15))
                 .build()
                 .unwrap_or_else(|_| Client::new())
         })
@@ -231,7 +231,7 @@ mod api {
             let session_endpoint = format!("{}/auth/me", *API_ENDPOINT);
 
             let mut retries = 0;
-            let max_retries = 2; // Reintentos adicionales si el DB falla temporalmente
+            let max_retries = 1; // Max 1 retry to avoid long delays
 
             loop {
                 let response_result = self
@@ -291,7 +291,7 @@ mod api {
             let refresh_endpoint = format!("{}/auth/refresh", *API_ENDPOINT);
 
             let mut retries = 0;
-            let max_retries = 2;
+            let max_retries = 1;
 
             loop {
                 let response_result = self
