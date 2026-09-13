@@ -1,4 +1,5 @@
 import { check, type Update } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
 import { invoke } from '@tauri-apps/api/core';
 import { error, info } from "@tauri-apps/plugin-log";
 import { getVersion } from "@tauri-apps/api/app";
@@ -129,6 +130,7 @@ async function runUpdateFlow() {
 
         // Instalar ANTES de cerrar el splash
         await update.install();
+        await relaunch();
 
         // Respeta MIN_SPLASH antes de reiniciar
         await splashDone();

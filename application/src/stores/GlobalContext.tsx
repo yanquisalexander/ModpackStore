@@ -116,7 +116,8 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
             await invoke("set_config", { key: "lastUpdatedAt", value: new Date().toISOString() });
             await invoke("set_config", { key: "updatedFrom", value: currentVersion });
 
-            await update?.install(); // Instalar la actualización (This automatically restarts the app)
+            await update?.install();
+            await relaunch();
         } catch (err) {
             console.error("Error al aplicar la actualización:", err);
             setUpdateState("error");
