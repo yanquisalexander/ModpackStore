@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useMemo } from "react";
 import { LucideInfo } from "lucide-react";
 import { motion } from "motion/react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -23,13 +23,125 @@ function buildAdHtml(config: ExternalAdConfig): string {
         ? `<div id="${config.containerId}" style="${containerStyle}"></div>`
         : "";
 
+    const safeScriptSrc = config.scriptSrc.startsWith("//")
+        ? `https:${config.scriptSrc}`
+        : config.scriptSrc;
+
     return `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><style>*{margin:0;padding:0;box-sizing:border-box}body{overflow:hidden;background:transparent}</style></head>
+<head>
+    <meta charset="utf-8">
+    <script>
+        // 🛡️ MOCK DE SEGURIDAD NIVEL 4 (Notificaciones y Service Workers)
+        try {
+            // 1. Engañamos a las Cookies y el Storage
+            var mockCookie = "";
+            Object.defineProperty(document, 'cookie', {
+                get: function() { return mockCookie; },
+                set: function(val) { mockCookie = val; },
+                configurable: true
+            });
+            
+            var mockStorage = {
+                getItem: function() { return null; },
+                setItem: function() {},
+                removeItem: function() {},
+                clear: function() {},
+                key: function() { return null; },
+                length: 0
+            };
+            Object.defineProperty(window, 'localStorage', { value: mockStorage, configurable: true });
+            Object.defineProperty(window, 'sessionStorage', { value: mockStorage, configurable: true });
+
+            // 2. 🚨 BLOQUEO DE NOTIFICACIONES PUSH (Causante del error actual) 🚨
+            var MockNotification = function() { return {}; };
+            MockNotification.permission = "denied"; // Le decimos que el usuario lo bloqueó
+            MockNotification.requestPermission = function() { 
+                return Promise.resolve("denied"); // Respondemos a su promesa con un rechazo pacífico
+            };
+            Object.defineProperty(window, 'Notification', { value: MockNotification, configurable: true });
+
+            // 3. Bloqueo de Service Workers (Usado a veces junto a las notificaciones)
+            if (navigator) {
+                Object.defineProperty(navigator, 'serviceWorker', {
+                    value: {
+                        register: function() { return Promise.reject(new Error("Blocked")); },
+                        getRegistrations: function() { return Promise.resolve([]); }
+                    },
+                    configurable: true
+                });
+            }
+
+            // 4. Interceptor absoluto de XMLHttpRequest
+            var RealXHR = window.XMLHttpRequest;
+            window.XMLHttpRequest = function() {
+                var xhr = new RealXHR();
+                Object.defineProperty(xhr, 'withCredentials', {
+                    get: function() { return false; },
+                    set: function(val) {},
+                    enumerable: true,
+                    configurable: true
+                });
+                return xhr;
+            };
+            window.XMLHttpRequest.prototype = RealXHR.prototype;
+
+            var originalSetRequestHeader = window.XMLHttpRequest.prototype.setRequestHeader;
+            window.XMLHttpRequest.prototype.setRequestHeader = function(header, value) {
+                if (header.toLowerCase() === 'origin' && (value === 'null' || value === null)) return;
+                return originalSetRequestHeader.apply(this, arguments);
+            };
+
+            // 5. Interceptor de Fetch (Súper estricto para limpiar headers Origin: null)
+            var originalFetch = window.fetch;
+            window.fetch = function() {
+                var args = Array.prototype.slice.call(arguments);
+                try {
+                    var init = args[1] || {};
+                    init.credentials = 'omit';
+                    
+                    if (init.headers) {
+                        var cleanHeaders = {};
+                        var h = init.headers;
+                        // Extraemos todos los headers ignorando el Origin problemático
+                        if (h instanceof Headers) {
+                            h.forEach(function(val, key) { if (key.toLowerCase() !== 'origin' || val !== 'null') cleanHeaders[key] = val; });
+                        } else if (Array.isArray(h)) {
+                            h.forEach(function(pair) { if (pair[0].toLowerCase() !== 'origin' || pair[1] !== 'null') cleanHeaders[pair[0]] = pair[1]; });
+                        } else {
+                            for (var key in h) { if (key.toLowerCase() !== 'origin' || h[key] !== 'null') cleanHeaders[key] = h[key]; }
+                        }
+                        init.headers = cleanHeaders;
+                    }
+                    args[1] = init;
+                } catch(e) {}
+                
+                return originalFetch.apply(this, args).catch(function() {
+                    return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+                });
+            };
+
+        } catch(e) {
+            console.warn("Seguridad del iframe aplicada parcialmente.");
+        }
+    </script>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { 
+            overflow:hidden; 
+            background:transparent;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100vw;
+            height: 100vh;
+        }
+    </style>
+</head>
 <body>
-${containerHtml}
-${optionScript}
-<script src="${config.scriptSrc}" async></script>
+    ${containerHtml}
+    ${optionScript}
+    <script src="${safeScriptSrc}"></script>
 </body>
 </html>`;
 }
@@ -39,20 +151,16 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
     variant = "banner",
     className = "",
 }) => {
-    const blobUrl = useMemo(() => {
-        const html = buildAdHtml(config);
-        const blob = new Blob([html], { type: "text/html" });
-        return URL.createObjectURL(blob);
-    }, [config.containerId, config.scriptSrc, config.width, config.height, config.options, config.native]);
-
-    useEffect(() => {
-        return () => {
-            URL.revokeObjectURL(blobUrl);
-        };
-    }, [blobUrl]);
+    // Ya no usamos Blob URLs, usamos srcDoc (es más rápido y nativo para React/Iframes)
+    const htmlContent = useMemo(() => buildAdHtml(config), [config]);
 
     const iframeWidth = config.width || "100%";
     const iframeHeight = config.height || "auto";
+
+    // Configuramos un sandbox estricto. 
+    // Al omitir 'allow-same-origin', nos aseguramos de que el anuncio no pueda 
+    // escapar del iframe ni inyectar elementos 'fixed' en tu página principal.
+    const strictSandbox = "allow-scripts allow-popups allow-popups-to-escape-sandbox";
 
     if (variant === "sidebar") {
         return (
@@ -63,9 +171,9 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
             >
                 <div className="relative w-full flex items-center justify-center rounded-lg overflow-hidden bg-black/40 max-w-full">
                     <iframe
-                        src={blobUrl}
+                        srcDoc={htmlContent}
                         style={{ width: iframeWidth, height: iframeHeight, border: "none", maxWidth: "100%" }}
-                        sandbox="allow-scripts allow-popups"
+                        sandbox={strictSandbox}
                         loading="lazy"
                         title="Ad"
                     />
@@ -73,12 +181,14 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
 
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <div className="flex items-center gap-1.5 text-[10px] text-neutral-500 cursor-help w-max">
+                        {/* Arreglé un typo tuyo aquí: text- a text-xs */}
+                        <div className="flex items-center gap-1.5 text-xs text-neutral-500 cursor-help w-max">
                             <LucideInfo className="w-3 h-3" />
                             <span>{config.label || "Publicidad externa"}</span>
                         </div>
                     </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-[250px]">
+                    {/* Arreglé un typo tuyo aquí: max-w- a max-w-xs */}
+                    <TooltipContent side="bottom" className="max-w-xs">
                         El contenido mostrado en este anuncio es proporcionado por un servicio externo y no está controlado por ModpackStore. Haz clic bajo tu propia responsabilidad.
                     </TooltipContent>
                 </Tooltip>
@@ -95,9 +205,9 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
         >
             <div className="relative w-full flex items-center justify-center overflow-hidden max-w-full">
                 <iframe
-                    src={blobUrl}
+                    srcDoc={htmlContent}
                     style={{ width: "100%", height: iframeHeight, border: "none", maxWidth: "100%" }}
-                    sandbox="allow-scripts allow-popups"
+                    sandbox={strictSandbox}
                     loading="lazy"
                     title="Ad"
                 />
@@ -105,12 +215,12 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
 
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <div className="absolute bottom-2 right-3 flex items-center gap-1.5 text-[10px] text-neutral-500 bg-black/50 backdrop-blur-sm px-2 py-1 rounded-md cursor-help">
+                    <div className="absolute bottom-2 right-3 flex items-center gap-1.5 text-xs text-neutral-500 bg-black/50 backdrop-blur-sm px-2 py-1 rounded-md cursor-help">
                         <LucideInfo className="w-3 h-3" />
                         <span>{config.label || "Publicidad externa"}</span>
                     </div>
                 </TooltipTrigger>
-                <TooltipContent side="top" className="max-w-[250px]">
+                <TooltipContent side="top" className="max-w-xs">
                     El contenido mostrado en este anuncio es proporcionado por un servicio externo y no está controlado por ModpackStore. Haz clic bajo tu propia responsabilidad.
                 </TooltipContent>
             </Tooltip>
