@@ -1,7 +1,7 @@
 import { LucideLogOut, LucideMessageCircle, LucideShieldAlert } from "lucide-react";
 import { useAuthentication } from "@/stores/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { open } from "@tauri-apps/plugin-shell";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 export const BannedScreen: React.FC = () => {
     const { session, logout } = useAuthentication();
@@ -17,7 +17,7 @@ export const BannedScreen: React.FC = () => {
     };
 
     const handleOpenDiscord = () => {
-        open('https://discord.gg/XSRtDgJzzK').catch(console.error);
+        openUrl('https://discord.gg/XSRtDgJzzK').catch(console.error);
     };
 
     const banReason = session?.activeBan?.reason || session?.banReason;

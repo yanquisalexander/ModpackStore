@@ -11,7 +11,7 @@ use serde_json::json;
 use std::{convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
 use tauri::{Emitter, Listener, Manager, State};
 use tauri_plugin_http::reqwest::{Client, StatusCode};
-use tauri_plugin_opener;
+use tauri_plugin_opener::OpenerExt;
 use tauri_plugin_store::StoreExt;
 use tokio::sync::{oneshot, Mutex};
 
@@ -859,8 +859,9 @@ pub async fn start_discord_auth(
             CLIENT_ID, SCHEMA_REDIRECT_URI
         );
         log::info!("Opening auth URL: {}", discord_url);
+        let app_handle_clone = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(e) = tauri_plugin_opener::open_url(discord_url, None::<String>) {
+            if let Err(e) = app_handle_clone.opener().open_url(discord_url, None::<&str>) {
                 log::error!("Error opening URL: {}", e);
                 events::emit_auth_error("Error opening auth URL".to_string());
             }
@@ -895,8 +896,9 @@ pub async fn start_discord_auth(
             CLIENT_ID, REDIRECT_URI
         );
         log::info!("Opening auth URL: {}", discord_url);
+        let app_handle_clone = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(e) = tauri_plugin_opener::open_url(discord_url, None::<String>) {
+            if let Err(e) = app_handle_clone.opener().open_url(discord_url, None::<&str>) {
                 log::error!("Error opening URL: {}", e);
                 events::emit_auth_error("Error opening auth URL".to_string());
             }
@@ -956,8 +958,9 @@ pub async fn start_twitch_auth(
             TWITCH_CLIENT_ID, SCHEMA_REDIRECT_URI
         );
         log::info!("Opening Twitch authorization URL: {}", twitch_url);
+        let app_handle_clone = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(e) = tauri_plugin_opener::open_url(twitch_url, None::<String>) {
+            if let Err(e) = app_handle_clone.opener().open_url(twitch_url, None::<&str>) {
                 log::error!("Error opening Twitch URL: {}", e);
                 events::emit_auth_error("Error opening Twitch authorization URL".to_string());
             }
@@ -1001,8 +1004,9 @@ pub async fn start_twitch_auth(
             TWITCH_CLIENT_ID, TWITCH_REDIRECT_URI
         );
         log::info!("Opening Twitch authorization URL: {}", twitch_url);
+        let app_handle_clone = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(e) = tauri_plugin_opener::open_url(twitch_url, None::<String>) {
+            if let Err(e) = app_handle_clone.opener().open_url(twitch_url, None::<&str>) {
                 log::error!("Error opening Twitch URL: {}", e);
                 events::emit_auth_error("Error opening Twitch authorization URL".to_string());
             }
@@ -1062,8 +1066,9 @@ pub async fn start_patreon_auth(
             PATREON_CLIENT_ID, SCHEMA_REDIRECT_URI
         );
         log::info!("Opening Patreon authorization URL: {}", patreon_url);
+        let app_handle_clone = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(e) = tauri_plugin_opener::open_url(patreon_url, None::<String>) {
+            if let Err(e) = app_handle_clone.opener().open_url(patreon_url, None::<&str>) {
                 log::error!("Error opening Patreon URL: {}", e);
                 events::emit_auth_error("Error opening Patreon authorization URL".to_string());
             }
@@ -1107,8 +1112,9 @@ pub async fn start_patreon_auth(
             PATREON_CLIENT_ID, PATREON_REDIRECT_URI
         );
         log::info!("Opening Patreon authorization URL: {}", patreon_url);
+        let app_handle_clone = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(e) = tauri_plugin_opener::open_url(patreon_url, None::<String>) {
+            if let Err(e) = app_handle_clone.opener().open_url(patreon_url, None::<&str>) {
                 log::error!("Error opening Patreon URL: {}", e);
                 events::emit_auth_error("Error opening Patreon authorization URL".to_string());
             }

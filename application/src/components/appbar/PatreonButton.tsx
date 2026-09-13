@@ -1,11 +1,11 @@
 import PatreonIcon from "@/icons/PatreonIcon";
 import React from "react";
-import { open } from "@tauri-apps/plugin-shell";
+import { openUrl } from "@tauri-apps/plugin-opener";
 
 export const PatreonButton: React.FC = () => {
     const handlePatreonClick = async () => {
         try {
-            await open("https://www.patreon.com/AlexitooDEV");
+            await openUrl("https://www.patreon.com/AlexitooDEV");
         } catch (error) {
             console.error("Error opening Patreon link:", error);
         }

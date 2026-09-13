@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react"
 import { invoke } from "@tauri-apps/api/core"
 import { listen } from "@tauri-apps/api/event"
-import { open } from "@tauri-apps/plugin-shell" // <--- IMPORTANTE: Para abrir enlaces en Tauri
+import { openUrl } from "@tauri-apps/plugin-opener"
 import { LucideUser, Loader2, CheckCircle2, Copy, ExternalLink, ShieldCheck, Gamepad2, WifiOff, X } from "lucide-react"
 import { TauriCommandReturns } from "@/types/TauriCommandReturns"
 
@@ -95,7 +95,7 @@ export const AddAccountDialog = ({ onAccountAdded }: { onAccountAdded: () => voi
     // --- ACCIONES ---
     const handleOpenLink = async (url: string) => {
         try {
-            await open(url); // Usamos la API de Tauri
+            await openUrl(url);
         } catch (e) {
             console.error("Error abriendo link:", e);
             toast.error("No se pudo abrir el navegador. Copia el enlace manualmente.");

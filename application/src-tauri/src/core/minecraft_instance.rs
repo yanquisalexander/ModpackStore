@@ -7,6 +7,7 @@ use std::io::Result as IoResult;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
+use tauri_plugin_opener::OpenerExt;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -361,7 +362,7 @@ pub fn get_instances_by_modpack_id(modpack_id: String) -> Vec<MinecraftInstance>
 }
 
 #[tauri::command]
-pub fn open_game_dir(instance_id: String) -> Result<(), String> {
+pub fn open_game_dir(app_handle: tauri::AppHandle, instance_id: String) -> Result<(), String> {
     println!(
         "[Tauri Command] Opening game directory for instance ID: {}",
         instance_id
@@ -376,7 +377,7 @@ pub fn open_game_dir(instance_id: String) -> Result<(), String> {
         println!("[Tauri Command] Opening game directory: {}", path.display());
         if path.exists() {
             // Abre el directorio del juego con el programa predeterminado del sistema
-            if let Err(e) = tauri_plugin_opener::open_path(path, None::<&str>) {
+            if let Err(e) = app_handle.opener().open_path(path.to_string_lossy().to_string(), None::<&str>) {
                 return Err(format!("Error opening game directory: {}", e));
             }
             Ok(())
