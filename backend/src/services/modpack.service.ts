@@ -125,8 +125,13 @@ export async function getModpacksByCreator(creatorId: string) {
         .where(eq(modpacksTable.creatorId, creatorId))
         .orderBy(modpacksTable.updatedAt);
 
+    type ModpackWithCategories = (typeof modpacks)[number] & {
+        categories: Array<{ categoryId: string; isPrimary: boolean; name: string }>;
+    };
+    const result = modpacks as ModpackWithCategories[];
+
     // Fetch categories for all modpacks in a single query
-    const modpackIds = modpacks.map(m => m.id);
+    const modpackIds = result.map(m => m.id);
     if (modpackIds.length > 0) {
         const catRows = await db.select({
             modpackId: modpackCategoriesTable.modpackId,
@@ -138,18 +143,18 @@ export async function getModpacksByCreator(creatorId: string) {
             .innerJoin(categoriesTable, eq(modpackCategoriesTable.categoryId, categoriesTable.id))
             .where(inArray(modpackCategoriesTable.modpackId, modpackIds));
 
-        for (const modpack of modpacks) {
+        for (const modpack of result) {
             modpack.categories = catRows
                 .filter(c => c.modpackId === modpack.id)
                 .map(c => ({ categoryId: c.categoryId, isPrimary: c.isPrimary, name: c.name }));
         }
     } else {
-        for (const modpack of modpacks) {
+        for (const modpack of result) {
             modpack.categories = [];
         }
     }
 
-    return modpacks;
+    return result;
 }
 
 export async function getModpackById(modpackId: string) {
