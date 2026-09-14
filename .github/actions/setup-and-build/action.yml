@@ -85,7 +85,7 @@ runs:
         Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $pwd
         
     - name: Build & Publish Canary Release
-      uses: tauri-apps/tauri-action@v0
+      uses: tauri-apps/tauri-action@v1
       env:
         TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.TAURI_SIGNING_PRIVATE_KEY }}
         GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
