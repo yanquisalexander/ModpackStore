@@ -314,9 +314,21 @@ export const yggdrasilService = {
             .from(users)
             .where(eq(users.id, cleanUuid))
             .limit(1);
-        if (!user) return null;
+        if (user) {
+            return await buildProfile(user, undefined, !unsigned, cleanUuid);
+        }
 
-        return await buildProfile(user, undefined, !unsigned);
+        const [session] = await db
+            .select({ user: users })
+            .from(gameSessionsTable)
+            .innerJoin(users, eq(gameSessionsTable.userId, users.id))
+            .where(eq(gameSessionsTable.minecraftUuid, cleanUuid))
+            .limit(1);
+        if (session) {
+            return await buildProfile(session.user, undefined, !unsigned, cleanUuid);
+        }
+
+        return null;
     },
 
     async cleanupExpiredSessions(): Promise<void> {
