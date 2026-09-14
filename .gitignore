@@ -4,6 +4,7 @@ localazy.keys.json
 node_modules/
 .astro/
 dist/
+.vercel/
 
 # Redis dump files
 dump.rdb

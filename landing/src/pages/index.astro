@@ -52,12 +52,27 @@ try {
 
     const resolvedPlatforms: Record<string, ResolvedAsset> = {};
 
-    platformEntries.forEach(([key, asset]) => {
-      const downloadUrl = asset.browser_download_url ?? asset.url;
-      if (downloadUrl) {
-        resolvedPlatforms[key] = { browser_download_url: downloadUrl };
-      }
-    });
+    await Promise.all(
+      platformEntries.map(async ([key, asset]) => {
+        let downloadUrl = asset.browser_download_url ?? asset.url;
+
+        if (!asset.browser_download_url && downloadUrl?.includes("api.github.com")) {
+          try {
+            const assetRes = await fetch(downloadUrl);
+            if (assetRes.ok) {
+              const assetData = (await assetRes.json()) as { browser_download_url?: string };
+              if (assetData.browser_download_url) {
+                downloadUrl = assetData.browser_download_url;
+              }
+            }
+          } catch { /* keep original url */ }
+        }
+
+        if (downloadUrl) {
+          resolvedPlatforms[key] = { browser_download_url: downloadUrl };
+        }
+      }),
+    );
 
     release = {
       version: manifest.version,
