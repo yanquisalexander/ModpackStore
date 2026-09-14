@@ -140,6 +140,17 @@ yggdrasilRoutes.get("/session/minecraft/profile/:uuid", async (c) => {
     return c.json(profile);
 });
 
+yggdrasilRoutes.get("/sessionserver/session/minecraft/profile/:uuid", async (c) => {
+    const uuid = c.req.param("uuid");
+    const unsigned = c.req.query("unsigned") !== "false";
+
+    const profile = await yggdrasilService.getProfile(uuid, unsigned);
+    if (!profile) {
+        return c.body(null, 404);
+    }
+    return c.json(profile);
+});
+
 yggdrasilRoutes.post("/sessionserver/session/minecraft/join", async (c) => {
     try {
         const body = await c.req.json();
