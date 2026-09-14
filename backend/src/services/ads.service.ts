@@ -269,10 +269,6 @@ export const adsService = {
      * Get active featured ads for hero carousel
      */
     async getFeaturedSlides(userId?: string): Promise<any[]> {
-        if (userId && (await this.isUserAdFree(userId))) {
-            return [];
-        }
-
         const now = new Date();
         const rows = await db
             .select({
