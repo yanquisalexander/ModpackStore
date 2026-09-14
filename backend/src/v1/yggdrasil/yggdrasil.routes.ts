@@ -4,15 +4,21 @@ import { APIError } from "@/lib/errors/index.ts";
 
 const yggdrasilRoutes = new Hono();
 
-yggdrasilRoutes.get("/", (c) =>
-    c.json({
+yggdrasilRoutes.get("/", (c) => {
+    const r2PublicDomain = Deno.env.get("R2_PUBLIC_DOMAIN") ?? "";
+    const skinDomains = r2PublicDomain
+        ? [new URL(r2PublicDomain).hostname]
+        : [];
+
+    return c.json({
         meta: {
             serverName: "Modpack Store Auth",
             version: { name: "1.8", protocol: 47 },
         },
+        skinDomains,
         skinHosts: [],
-    })
-);
+    });
+});
 
 yggdrasilRoutes.post("/authenticate", async (c) => {
     try {

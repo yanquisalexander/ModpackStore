@@ -50,6 +50,7 @@ import { KonamiCode } from "./components/KonamiCode";
 import CommandPalette from "./components/CommandPalette";
 
 import { ProfileView, ProfileInformation, IntegrationsSection, HelpSection } from "./views/ProfileView";
+import { SkinsSection } from "./components/SkinsSection";
 import GlassCircleWrench from "./icons/GlassCircleWrench";
 
 // --- Helpers ---
@@ -151,6 +152,7 @@ const AppRoutes = memo(function AppRoutes({ isConnected, isConnectionLoading, is
         <Route path="/mc-accounts" element={<AccountsSection />} />
         <Route path="/profile" element={<ProfileView />}>
           <Route index element={<ProfileInformation />} />
+          <Route path="skins" element={<SkinsSection />} />
           <Route path="integrations" element={<IntegrationsSection />} />
           <Route path="tickets" element={<TicketsSection />} />
           <Route path="help" element={<HelpSection />} />

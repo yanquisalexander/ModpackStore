@@ -91,6 +91,24 @@ export function getCreatorAssetUrl(r2Key: string): string {
     return publicDomain ? `${publicDomain}/${r2Key}?t=${ts}` : `${r2Key}?t=${ts}`;
 }
 
+export function getUserSkinKey(userId: string, hash: string): string {
+    return `user-skins/${userId}/${hash}.png`;
+}
+
+export function getUserSkinUrl(userId: string, hash: string): string {
+    const key = getUserSkinKey(userId, hash);
+    return publicDomain ? `${publicDomain}/${key}` : key;
+}
+
+export function getUserCapeKey(userId: string, hash: string): string {
+    return `user-capes/${userId}/${hash}.png`;
+}
+
+export function getUserCapeUrl(userId: string, hash: string): string {
+    const key = getUserCapeKey(userId, hash);
+    return publicDomain ? `${publicDomain}/${key}` : key;
+}
+
 export async function generatePresignedUploadUrl(key: string, expiresIn = 3600): Promise<string> {
     const command = new PutObjectCommand({
         Bucket: bucket,
@@ -117,7 +135,15 @@ export async function uploadObject(key: string, body: Uint8Array, contentType?: 
 
 export async function deleteObject(key: string) {
     const command = new DeleteObjectCommand({ Bucket: bucket, Key: key });
-    await getS3Client().send(command);
+    try {
+        await getS3Client().send(command);
+    } catch (err: any) {
+        if (err?.name === "InternalError" || err?.message?.includes("stream")) {
+            log(`[R2] deleteObject stream error (non-fatal) for key: ${key}`);
+            return;
+        }
+        throw err;
+    }
 }
 
 export async function fileExists(key: string): Promise<boolean> {

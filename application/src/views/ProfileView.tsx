@@ -3,7 +3,8 @@ import { TwitchLinkingComponent } from "@/components/TwitchLinkingComponent";
 import { PatreonLinkingComponent } from "@/components/PatreonLinkingComponent";
 import {
   LucideUser, LucideMail, LucideCalendar, LucideShield, LucideSettings,
-  LucideTicket, LucideCopy, LucideCheck, LucideExternalLink, LucideLayoutGrid
+  LucideTicket, LucideCopy, LucideCheck, LucideExternalLink, LucideLayoutGrid,
+  LucideShirt
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useGlobalContext } from "@/stores/GlobalContext";
@@ -244,6 +245,16 @@ export const ProfileView = () => {
               Integraciones
             </Link>
             <Link
+              to="/profile/skins"
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs whitespace-nowrap transition-colors",
+                activeTab === 'skins' ? "bg-white/[0.06] text-white" : "text-neutral-500 hover:text-neutral-300"
+              )}
+            >
+              <LucideShirt className="w-3.5 h-3.5" />
+              Skins
+            </Link>
+            <Link
               to="/profile/tickets"
               className={cn(
                 "flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs whitespace-nowrap transition-colors",
@@ -266,6 +277,12 @@ export const ProfileView = () => {
                 icon={LucideUser}
                 label="Perfil"
                 isActive={activeTab === 'profile'}
+              />
+              <SidebarItem
+                to="/profile/skins"
+                icon={LucideShirt}
+                label="Skins"
+                isActive={activeTab === 'skins'}
               />
               <SidebarItem
                 to="/profile/integrations"

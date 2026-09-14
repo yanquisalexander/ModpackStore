@@ -7,6 +7,7 @@ import {
 import { eq, and, lt } from "drizzle-orm";
 import { APIError } from "@/lib/errors/index.ts";
 import { verify } from "@hono/hono/jwt";
+import { getActiveSkin, getActiveCape } from "@/services/skins.service.ts";
 
 const JWT_SECRET = Deno.env.get("JWT_SECRET")!;
 const YGGDRASIL_SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -136,7 +137,7 @@ export const yggdrasilService = {
             })
             .where(eq(gameSessionsTable.id, gs.id));
 
-        const profile = await buildProfile(user, undefined, false, gs.minecraftUuid);
+        const profile = await buildProfile(user, undefined, false, gs.minecraftUuid ?? undefined);
 
         return {
             accessToken: newAccessToken,
@@ -299,7 +300,7 @@ export const yggdrasilService = {
             .set({ serverId: null, lastActivity: new Date() })
             .where(eq(gameSessionsTable.id, gs.id));
 
-        return await buildProfile(user, undefined, false, gs.minecraftUuid);
+        return await buildProfile(user, undefined, false, gs.minecraftUuid ?? undefined);
     },
 
     async getProfile(
@@ -359,19 +360,36 @@ async function buildProfile(
     signed: boolean = false,
     minecraftUuid?: string,
 ): Promise<YggdrasilProfile> {
+    const profileId = minecraftUuid || user.id;
     const profile: YggdrasilProfile = {
-        id: minecraftUuid ? uuidWithDashes(minecraftUuid) : uuidWithDashes(user.id),
+        id: uuidWithDashes(profileId),
         name: customUsername || user.username,
     };
 
-    if (user.avatarUrl) {
+    const [activeSkin, activeCape] = await Promise.all([
+        getActiveSkin(user.id),
+        getActiveCape(user.id),
+    ]);
+
+    if (activeSkin || activeCape) {
+        const textures: Record<string, { url: string; metadata?: { model: string } }> = {};
+
+        if (activeSkin) {
+            textures.SKIN = { url: activeSkin.url };
+            if (activeSkin.model === "slim") {
+                textures.SKIN.metadata = { model: "slim" };
+            }
+        }
+
+        if (activeCape) {
+            textures.CAPE = { url: activeCape.url };
+        }
+
         const textureData = {
             timestamp: Date.now(),
-            profileId: user.id,
+            profileId: profileId.replace(/-/g, ""),
             profileName: profile.name,
-            textures: {
-                SKIN: { url: user.avatarUrl },
-            },
+            textures,
         };
 
         const encodedTextures = btoa(JSON.stringify(textureData));

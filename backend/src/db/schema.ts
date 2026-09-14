@@ -14,7 +14,7 @@ import {
     integer,
     bigint
 } from "drizzle-orm/pg-core"
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 
 
 export enum UserRole {
@@ -54,6 +54,11 @@ export enum ModLoaderType {
     FABRIC = 'fabric',
     NEOFORGE = 'neoforge',
     QUILT = 'quilt'
+}
+
+export enum SkinModel {
+    CLASSIC = 'classic',
+    SLIM = 'slim',
 }
 
 export type ModpackFileType = 'mods' | 'resourcepacks' | 'config' | 'shaderpacks' | 'datapacks' | 'extras';
@@ -131,6 +136,7 @@ export const adPlacementEnum = pgEnum('ad_placement', enumToPgEnum(AdPlacement))
 export const adStatusEnum = pgEnum('ad_status', enumToPgEnum(AdStatus));
 export const backupJobTypeEnum = pgEnum('backup_job_type', enumToPgEnum(BackupJobType));
 export const backupJobStatusEnum = pgEnum('backup_job_status', enumToPgEnum(BackupJobStatus));
+export const skinModelEnum = pgEnum('skin_model', enumToPgEnum(SkinModel));
 
 export const users = pgTable("users", {
     id: uuid("id").primaryKey().notNull().defaultRandom(),
@@ -406,6 +412,47 @@ export const bansRelations = relations(bansTable, ({ one }) => ({
     }),
 }));
 
+/* User Skins (Minecraft) */
+
+export const userSkinsTable = pgTable("user_skins", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 64 }),
+    r2Key: text("r2_key").notNull(),
+    model: skinModelEnum("model").notNull().default(SkinModel.CLASSIC),
+    isActive: boolean("is_active").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+    uniqueActiveSkin: uniqueIndex("uq_active_skin").on(table.userId).where(sql`is_active = true`),
+}));
+
+export const userCapesTable = pgTable("user_capes", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 64 }),
+    r2Key: text("r2_key").notNull(),
+    isActive: boolean("is_active").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+    uniqueActiveCape: uniqueIndex("uq_active_cape").on(table.userId).where(sql`is_active = true`),
+}));
+
+export const userSkinsRelations = relations(userSkinsTable, ({ one }) => ({
+    user: one(users, {
+        fields: [userSkinsTable.userId],
+        references: [users.id],
+    }),
+}));
+
+export const userCapesRelations = relations(userCapesTable, ({ one }) => ({
+    user: one(users, {
+        fields: [userCapesTable.userId],
+        references: [users.id],
+    }),
+}));
+
 /* Creator Storage */
 
 export const creatorAssetsTable = pgTable("creator_assets", {
@@ -446,6 +493,8 @@ export const usersRelations = relations(users, ({ many }) => ({
     adminBans: many(bansTable, { relationName: "admin_bans" }),
     unbanAdminBans: many(bansTable, { relationName: "unban_admin_bans" }),
     gameSessions: many(gameSessionsTable),
+    skins: many(userSkinsTable),
+    capes: many(userCapesTable),
 }));
 
 export const modpacksRelations = relations(modpacksTable, ({ one, many }) => ({
