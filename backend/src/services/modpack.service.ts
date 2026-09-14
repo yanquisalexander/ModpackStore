@@ -1,6 +1,6 @@
 import { db } from "@/db/client.ts";
-import { modpacksTable, ModpackStatus, ModpackVisibility, AcquisitionMethod } from "@/db/schema.ts";
-import { eq } from "drizzle-orm";
+import { modpacksTable, modpackCategoriesTable, categoriesTable, ModpackStatus, ModpackVisibility, AcquisitionMethod } from "@/db/schema.ts";
+import { eq, inArray } from "drizzle-orm";
 import { NotFoundError, ValidationError } from "@/lib/errors/index.ts";
 import * as bcrypt from "npm:bcryptjs";
 import { setModpackCategories } from "@/services/category.service.ts";
@@ -124,6 +124,30 @@ export async function getModpacksByCreator(creatorId: string) {
         .from(modpacksTable)
         .where(eq(modpacksTable.creatorId, creatorId))
         .orderBy(modpacksTable.updatedAt);
+
+    // Fetch categories for all modpacks in a single query
+    const modpackIds = modpacks.map(m => m.id);
+    if (modpackIds.length > 0) {
+        const catRows = await db.select({
+            modpackId: modpackCategoriesTable.modpackId,
+            categoryId: modpackCategoriesTable.categoryId,
+            isPrimary: modpackCategoriesTable.isPrimary,
+            name: categoriesTable.name,
+        })
+            .from(modpackCategoriesTable)
+            .innerJoin(categoriesTable, eq(modpackCategoriesTable.categoryId, categoriesTable.id))
+            .where(inArray(modpackCategoriesTable.modpackId, modpackIds));
+
+        for (const modpack of modpacks) {
+            modpack.categories = catRows
+                .filter(c => c.modpackId === modpack.id)
+                .map(c => ({ categoryId: c.categoryId, isPrimary: c.isPrimary, name: c.name }));
+        }
+    } else {
+        for (const modpack of modpacks) {
+            modpack.categories = [];
+        }
+    }
 
     return modpacks;
 }

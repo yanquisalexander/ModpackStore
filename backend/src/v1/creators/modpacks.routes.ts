@@ -76,7 +76,7 @@ app.post("/", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADM
     const userId = c.get("userId");
     const creatorId = c.req.param("creatorId")!;
     const body = await c.req.parseBody();
-    const categoryIds = body.categoryIds ? JSON.parse(body.categoryIds as string) : [];
+    const categoryIds = body.categories ? JSON.parse(body.categories as string) : [];
     const modpack = await createModpack(creatorId, userId, {
         name: (body.name as string) ?? "",
         shortDescription: (body.shortDescription as string) ?? "",
@@ -105,6 +105,12 @@ app.patch("/:modpackId", requireAuth, requireCreatorRole(CreatorRole.OWNER, Crea
     const data: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(body)) {
         if (typeof val === "string") data[key] = val;
+    }
+
+    // Parse categories from JSON string into array for the service layer
+    if (typeof data.categories === "string") {
+        data.categoryIds = JSON.parse(data.categories as string);
+        delete data.categories;
     }
 
     if (body.icon instanceof File) {
