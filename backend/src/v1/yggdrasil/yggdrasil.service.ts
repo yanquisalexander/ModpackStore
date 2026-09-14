@@ -4,7 +4,7 @@ import {
     users,
     bansTable,
 } from "@/db/schema.ts";
-import { eq, and, lt } from "drizzle-orm";
+import { eq, and, lt, or } from "drizzle-orm";
 import { APIError } from "@/lib/errors/index.ts";
 import { verify } from "@hono/hono/jwt";
 import { getActiveSkin, getActiveCape } from "@/services/skins.service.ts";
@@ -322,7 +322,10 @@ export const yggdrasilService = {
             .select({ user: users })
             .from(gameSessionsTable)
             .innerJoin(users, eq(gameSessionsTable.userId, users.id))
-            .where(eq(gameSessionsTable.minecraftUuid, cleanUuid))
+            .where(or(
+                eq(gameSessionsTable.minecraftUuid, cleanUuid),
+                eq(gameSessionsTable.minecraftUuid, uuid),
+            ))
             .limit(1);
         if (session) {
             return await buildProfile(session.user, undefined, !unsigned, cleanUuid);
