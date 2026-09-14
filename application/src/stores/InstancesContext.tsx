@@ -27,6 +27,34 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
     const instancesRef = useRef(instances);
     instancesRef.current = instances;
 
+    // Throttle map: last update timestamp per instance+event key
+    const lastUpdateRef = useRef<Map<string, number>>(new Map());
+    const pendingUpdateRef = useRef<Map<string, { updates: Partial<InstanceState>; timer: ReturnType<typeof setTimeout> }>>(new Map());
+    const THROTTLE_MS = 150;
+
+    const throttledUpdate = (id: string, eventKey: string, updates: Partial<InstanceState>) => {
+        const key = `${id}:${eventKey}`;
+        const now = Date.now();
+        const last = lastUpdateRef.current.get(key) ?? 0;
+
+        if (now - last >= THROTTLE_MS) {
+            lastUpdateRef.current.set(key, now);
+            updateInstance(id, updates);
+        } else {
+            // Replace any pending update for this key with the latest one
+            const existing = pendingUpdateRef.current.get(key);
+            if (existing) clearTimeout(existing.timer);
+
+            const timer = setTimeout(() => {
+                pendingUpdateRef.current.delete(key);
+                lastUpdateRef.current.set(key, Date.now());
+                updateInstance(id, updates);
+            }, THROTTLE_MS - (now - last));
+
+            pendingUpdateRef.current.set(key, { updates, timer });
+        }
+    };
+
     // Estas funciones son internas al provider y no se exponen
     const addInstance = (instance: InstanceState) => {
         setInstances(prev => {
@@ -208,9 +236,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             // New stage-based event listeners
             const downloadingLibrariesUnlisten = await listen("instance-downloading-libraries", (e: any) => {
                 const { id, message, stage } = e.payload as StageEventPayload;
-                console.log("Downloading libraries event:", { id, message, stage });
-
-                updateInstance(id, {
+                throttledUpdate(id, "downloading-libraries", {
                     status: "downloading-assets",
                     message: message || "Descargando librerías...",
                     stage
@@ -220,9 +246,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
 
             const extractingNativesUnlisten = await listen("instance-extracting-natives-progress", (e: any) => {
                 const { id, message, stage } = e.payload as StageEventPayload;
-                console.log("Extracting natives event:", { id, message, stage });
-
-                updateInstance(id, {
+                throttledUpdate(id, "extracting-natives", {
                     status: "downloading-assets",
                     message: message || "Extrayendo librerías...",
                     stage
@@ -245,9 +269,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             // Update the existing downloading assets listener to handle stages
             const downloadingAssetsStageUnlisten = await listen("instance-downloading-assets", (e: any) => {
                 const { id, message, stage } = e.payload as StageEventPayload;
-                console.log("Downloading assets with stage event:", { id, message, stage });
-
-                updateInstance(id, {
+                throttledUpdate(id, "downloading-assets", {
                     status: "downloading-assets",
                     message: message || "Validando assets...",
                     stage
@@ -258,9 +280,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             // Listener for downloading Forge libraries with stage information
             const downloadingForgeUnlisten = await listen("instance-downloading-forge", (e: any) => {
                 const { id, message, stage } = e.payload as StageEventPayload;
-                console.log("Downloading Forge event:", { id, message, stage });
-
-                updateInstance(id, {
+                throttledUpdate(id, "downloading-forge", {
                     status: "downloading-assets",
                     message: message || "Descargando librerías de Forge...",
                     stage
@@ -271,9 +291,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             // Listener for downloading modpack files with stage information
             const downloadingModpackFilesUnlisten = await listen("instance-downloading-modpack-files", (e: any) => {
                 const { id, message, stage } = e.payload as StageEventPayload;
-                console.log("Downloading modpack files event:", { id, message, stage });
-
-                updateInstance(id, {
+                throttledUpdate(id, "downloading-modpack-files", {
                     status: "downloading-assets",
                     message: message || "Descargando archivos del modpack...",
                     stage,
