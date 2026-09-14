@@ -308,27 +308,25 @@ export const yggdrasilService = {
         unsigned: boolean = true,
     ): Promise<YggdrasilProfile | null> {
         const cleanUuid = uuid.replace(/-/g, "");
+        const dashedUuid = uuidWithDashes(cleanUuid);
 
         const [user] = await db
             .select()
             .from(users)
-            .where(eq(users.id, cleanUuid))
+            .where(eq(users.id, dashedUuid))
             .limit(1);
         if (user) {
-            return await buildProfile(user, undefined, !unsigned, cleanUuid);
+            return await buildProfile(user, undefined, !unsigned, dashedUuid);
         }
 
         const [session] = await db
-            .select({ user: users })
+            .select({ user: users, session: gameSessionsTable })
             .from(gameSessionsTable)
             .innerJoin(users, eq(gameSessionsTable.userId, users.id))
-            .where(or(
-                eq(gameSessionsTable.minecraftUuid, cleanUuid),
-                eq(gameSessionsTable.minecraftUuid, uuid),
-            ))
+            .where(eq(gameSessionsTable.minecraftUuid, dashedUuid))
             .limit(1);
         if (session) {
-            return await buildProfile(session.user, undefined, !unsigned, cleanUuid);
+            return await buildProfile(session.user, session.session.requestedUsername ?? undefined, !unsigned, dashedUuid);
         }
 
         return null;
