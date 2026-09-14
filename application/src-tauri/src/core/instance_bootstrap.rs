@@ -530,9 +530,53 @@ impl InstanceBootstrap {
         );
 
         // Extraer bibliotecas nativas
-        if let Err(e) = extract_natives(&version_details, &libraries_dir, &natives_dir, instance) {
-            log::error!("Error extrayendo bibliotecas nativas: {}", e);
-            // No devolver error aquí, ya que es opcional
+        // Check if extraction was already completed successfully via marker file
+        let extraction_marker = natives_dir.join(".extraction_complete");
+        let needs_extraction = !extraction_marker.exists();
+
+        if needs_extraction {
+            let mut extraction_result = extract_natives(
+                &version_details,
+                &libraries_dir,
+                &natives_dir,
+                instance,
+            );
+
+            // Retry once on failure
+            if let Err(ref e) = extraction_result {
+                log::warn!(
+                    "Native extraction failed, retrying once: {}",
+                    e
+                );
+                extraction_result = extract_natives(
+                    &version_details,
+                    &libraries_dir,
+                    &natives_dir,
+                    instance,
+                );
+            }
+
+            if let Err(e) = extraction_result {
+                log::error!("Error extrayendo bibliotecas nativas after retry: {}", e);
+                if let Some(task_id) = &task_id {
+                    update_task(
+                        task_id,
+                        TaskStatus::Failed,
+                        0.0,
+                        &format!("Error extrayendo bibliotecas nativas: {}", e),
+                        Some(serde_json::json!({
+                            "instanceName": instance.instanceName.clone(),
+                            "instanceId": instance.instanceId.clone(),
+                            "errorType": "native_extraction"
+                        })),
+                    );
+                }
+                return Err(format!("Error extrayendo bibliotecas nativas: {}", e));
+            }
+        } else {
+            log::info!(
+                "Native libraries already extracted (marker found), skipping extraction"
+            );
         }
 
         // Update task status - 90%

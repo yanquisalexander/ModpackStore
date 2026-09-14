@@ -3,6 +3,7 @@
 
 use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
 use crate::core::minecraft_instance::MinecraftInstance;
+use sha1::{Digest, Sha1};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
@@ -873,7 +874,7 @@ fn extract_jar_file(
     Ok(())
 }
 
-/// Enhanced JAR extraction with duplicate detection and better logging
+/// Enhanced JAR extraction with atomic writes, SHA1 deduplication, and extraction marker
 fn extract_jar_file_enhanced(
     jar_path: &Path,
     target_dir: &Path,
@@ -936,42 +937,88 @@ fn extract_jar_file_enhanced(
         if let Some(file_name_only) = full_path_in_zip.file_name() {
             let output_path = target_dir.join(file_name_only);
 
-            // Check for duplicates
+            // Read file content into memory for hashing and atomic write
+            let mut file_content = Vec::new();
+            match std::io::Read::read_to_end(&mut file, &mut file_content) {
+                Ok(_) => {}
+                Err(e) => {
+                    error_count += 1;
+                    log::error!(
+                        "Error leyendo contenido de {}: {}",
+                        full_path_in_zip.display(),
+                        e
+                    );
+                    continue;
+                }
+            }
+
+            // Compute SHA1 of the new content
+            let new_hash = Sha1::digest(&file_content);
+            let new_hash_hex = bytes_to_hex(&new_hash);
+
+            // Check for duplicates using SHA1
             if output_path.exists() {
-                // Compare file sizes to determine if it's actually the same file
-                if let Ok(existing_metadata) = fs::metadata(&output_path) {
-                    if existing_metadata.len() == file.size() {
+                if let Ok(existing_bytes) = fs::read(&output_path) {
+                    let existing_hash = Sha1::digest(&existing_bytes);
+                    let existing_hash_hex = bytes_to_hex(&existing_hash);
+
+                    if existing_hash_hex == new_hash_hex {
                         log::debug!(
-                            "Archivo duplicado detectado (mismo tamaño), saltando: {}",
+                            "Archivo duplicado detectado (SHA1 coincide), saltando: {}",
                             file_name_only.to_string_lossy()
                         );
                         duplicate_count += 1;
                         continue;
                     } else {
-                        log::warn!("Archivo duplicado con diferente tamaño, sobrescribiendo: {} (existente: {} bytes, nuevo: {} bytes)", 
-                                 file_name_only.to_string_lossy(), existing_metadata.len(), file.size());
+                        log::warn!(
+                            "Archivo duplicado con contenido diferente, sobrescribiendo: {}",
+                            file_name_only.to_string_lossy()
+                        );
                     }
                 }
             }
 
-            // Extract the file
-            match fs::File::create(&output_path) {
-                Ok(mut output_file) => match io::copy(&mut file, &mut output_file) {
-                    Ok(bytes_copied) => {
-                        extracted_count += 1;
-                        log::debug!(
-                            "Extraído '{}': {} -> {} ({} bytes)",
-                            library_name,
-                            full_path_in_zip.display(),
-                            output_path.display(),
-                            bytes_copied
-                        );
+            // Atomic write: write to .tmp then rename
+            let tmp_path = output_path.with_extension("tmp");
+            match fs::File::create(&tmp_path) {
+                Ok(mut output_file) => {
+                    match std::io::Write::write_all(&mut output_file, &file_content) {
+                        Ok(_) => {
+                            // Atomic rename
+                            match fs::rename(&tmp_path, &output_path) {
+                                Ok(_) => {
+                                    extracted_count += 1;
+                                    log::debug!(
+                                        "Extraído '{}': {} -> {} ({} bytes, SHA1: {})",
+                                        library_name,
+                                        full_path_in_zip.display(),
+                                        output_path.display(),
+                                        file_content.len(),
+                                        &new_hash_hex[..8]
+                                    );
+                                }
+                                Err(e) => {
+                                    error_count += 1;
+                                    log::error!(
+                                        "Error renombrando archivo atómico {}: {}",
+                                        output_path.display(),
+                                        e
+                                    );
+                                    let _ = fs::remove_file(&tmp_path);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            error_count += 1;
+                            log::error!(
+                                "Error escribiendo archivo temporal {}: {}",
+                                tmp_path.display(),
+                                e
+                            );
+                            let _ = fs::remove_file(&tmp_path);
+                        }
                     }
-                    Err(e) => {
-                        error_count += 1;
-                        log::error!("Error escribiendo archivo {}: {}", output_path.display(), e);
-                    }
-                },
+                }
                 Err(e) => {
                     error_count += 1;
                     log::error!("Error creando archivo {}: {}", output_path.display(), e);
@@ -983,6 +1030,14 @@ fn extract_jar_file_enhanced(
                 "Saltado (sin nombre de archivo): {}",
                 full_path_in_zip.display()
             );
+        }
+    }
+
+    // Write extraction marker file on success (no errors)
+    if error_count == 0 {
+        let marker_path = target_dir.join(".extraction_complete");
+        if let Err(e) = fs::write(&marker_path, "") {
+            log::warn!("Failed to write extraction marker: {}", e);
         }
     }
 
@@ -1030,4 +1085,13 @@ pub fn create_asset_directories(minecraft_dir: &Path) -> Result<(PathBuf, PathBu
     fs::create_dir_all(&assets_objects_dir)?;
 
     Ok((assets_indexes_dir, assets_objects_dir))
+}
+
+/// Converts a byte slice to a lowercase hex string
+fn bytes_to_hex(bytes: &[u8]) -> String {
+    let mut s = String::with_capacity(bytes.len() * 2);
+    for b in bytes {
+        s.push_str(&format!("{:02x}", b));
+    }
+    s
 }

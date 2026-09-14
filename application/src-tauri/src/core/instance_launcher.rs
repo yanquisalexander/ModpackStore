@@ -638,6 +638,87 @@ impl InstanceLauncher {
         );
         self.emit_status(EVENT_LAUNCH_START, "Preparando lanzamiento...", None);
 
+        // Validate Java path before attempting launch
+        if self.instance.javaPath.is_none() {
+            warn!(
+                "[Launch Thread: {}] Instance has no javaPath set, attempting JavaManager fallback",
+                self.instance.instanceId
+            );
+            let mut instance_clone = (*self.instance).clone();
+            let java_manager_result = crate::core::java_manager::JavaManager::new();
+            if let Ok(java_manager) = java_manager_result {
+                let mc_version = instance_clone.minecraftVersion.clone();
+                // Determine required Java version from instance's MC version
+                let java_version = {
+                let client = &*crate::core::clients::BLOCKING_CLIENT;
+                let mut cache: Option<(serde_json::Value, u64)> = None;
+                crate::core::bootstrap::manifest::get_version_details(
+                    client,
+                    &mut cache,
+                    &mc_version,
+                )
+                .ok()
+                .and_then(|details| {
+                    crate::core::bootstrap::manifest::get_java_version_requirement(
+                        &details,
+                    )
+                    .ok()
+                })
+                .unwrap_or_else(|| "8".to_string())
+            };
+
+                match tokio::runtime::Runtime::new() {
+                    Ok(rt) => {
+                        match rt.block_on(java_manager.get_java_path(&java_version)) {
+                            Ok(java_path) => {
+                                instance_clone.set_java_path(java_path.clone());
+                                info!(
+                                    "[Launch Thread: {}] JavaManager fallback resolved: {}",
+                                    self.instance.instanceId,
+                                    java_path.display()
+                                );
+                                // Re-read instance with updated javaPath
+                                // We can't mutate self.instance (it's Arc), so we'll
+                                // update the saved instance. The next read will pick it up.
+                            }
+                            Err(e) => {
+                                error!(
+                                    "[Launch Thread: {}] JavaManager fallback failed: {}",
+                                    self.instance.instanceId, e
+                                );
+                                self.emit_error(
+                                    &format!("No se pudo resolver Java: {}", e),
+                                    None,
+                                );
+                                return;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        error!(
+                            "[Launch Thread: {}] Failed to create runtime for JavaManager: {}",
+                            self.instance.instanceId, e
+                        );
+                        self.emit_error(
+                            &format!("No se pudo crear runtime para resolver Java: {}", e),
+                            None,
+                        );
+                        return;
+                    }
+                }
+            } else {
+                error!(
+                    "[Launch Thread: {}] Failed to create JavaManager",
+                    self.instance.instanceId
+                );
+                self.emit_error(
+                    "No se pudo inicializar el gestor de Java. La instancia no tiene javaPath configurado.",
+                    None,
+                );
+                return;
+            }
+        }
+
         // This block contains the fallible part of the launch sequence.
         let launch_result = (|| -> Result<Child, LaunchError> {
             // 1. Revalidate Assets

@@ -264,6 +264,26 @@ pub fn get_all_tasks() -> Vec<TaskInfo> {
     }
 }
 
+/// Checks if there is an active (Running or Pending) task for the given instance ID.
+pub fn is_instance_task_running(instance_id: &str) -> bool {
+    match TASKS.lock() {
+        Ok(tasks) => tasks.values().any(|task| {
+            (task.status == TaskStatus::Running || task.status == TaskStatus::Pending)
+                && task
+                    .data
+                    .as_ref()
+                    .and_then(|d| d.get("instanceId"))
+                    .and_then(|v| v.as_str())
+                    .map(|id| id == instance_id)
+                    .unwrap_or(false)
+        }),
+        Err(e) => {
+            error!("Failed to lock TASKS mutex: {}", e);
+            false
+        }
+    }
+}
+
 pub fn remove_task(id: &str) -> bool {
     let removed = match TASKS.lock() {
         Ok(mut tasks) => match tasks.remove(id) {

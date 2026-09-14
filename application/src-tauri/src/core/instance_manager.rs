@@ -143,6 +143,25 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
         .find(|i| i.instanceId == instance_id)
         .ok_or_else(|| format!("Instance with ID {} not found", instance_id))?;
 
+    // Check if bootstrap is still in progress or failed
+    if !instance.bootstrap_complete {
+        let error_detail = instance
+            .bootstrap_error
+            .as_deref()
+            .unwrap_or("La instancia aún está siendo configurada");
+        return Err(format!(
+            "INSTANCE_NOT_READY: La instancia '{}' no está lista para iniciar. {}",
+            instance.instanceName, error_detail
+        ));
+    }
+
+    // Check if there's an active background task for this instance
+    if crate::core::tasks_manager::is_instance_task_running(&instance_id) {
+        return Err(format!(
+            "INSTANCE_BUSY: La instancia '{}' tiene una tarea en progreso. Espera a que termine.",
+            instance.instanceName
+        ));
+    }
     // Emit instance launching status
 
     if let Ok(guard) = crate::GLOBAL_APP_HANDLE.lock() {
@@ -1065,15 +1084,29 @@ fn spawn_instance_creation_task(instance: MinecraftInstance, task_id: String) {
 
         match result {
             Ok(java_path_option) => {
+                let mut instance_to_update = instance.clone();
+                let mut needs_save = false;
+
                 // Update instance with Java path if it was set
                 if let Some(java_path) = java_path_option {
-                    let mut instance_to_update = instance.clone();
                     instance_to_update.set_java_path(java_path);
+                    needs_save = true;
                     log::info!(
                         "Java path set for instance {}: {:?}",
                         instance_to_update.instanceName,
                         instance_to_update.javaPath
                     );
+                }
+
+                // Mark bootstrap as complete
+                instance_to_update.bootstrap_complete = true;
+                instance_to_update.bootstrap_error = None;
+                needs_save = true;
+
+                if needs_save {
+                    if let Err(e) = instance_to_update.save() {
+                        log::error!("Failed to save instance after bootstrap: {}", e);
+                    }
                 }
 
                 update_task(
@@ -1088,6 +1121,13 @@ fn spawn_instance_creation_task(instance: MinecraftInstance, task_id: String) {
                 );
             }
             Err(e) => {
+                // Persist bootstrap error on the instance
+                let mut instance_to_update = instance.clone();
+                instance_to_update.bootstrap_error = Some(e.clone());
+                if let Err(save_err) = instance_to_update.save() {
+                    log::error!("Failed to save instance with bootstrap error: {}", save_err);
+                }
+
                 // Check if this is a bootstrap error
                 if let Ok(bootstrap_error) = serde_json::from_str::<BootstrapError>(&e) {
                     update_task_with_bootstrap_error(&task_id, &bootstrap_error);
@@ -1148,6 +1188,13 @@ fn spawn_modpack_creation_task(
         let java_path_option = match bootstrap_result {
             Ok(java_path) => java_path,
             Err(e) => {
+                // Persist bootstrap error on the instance
+                let mut instance_to_update = instance.clone();
+                instance_to_update.bootstrap_error = Some(e.clone());
+                if let Err(save_err) = instance_to_update.save() {
+                    log::error!("Failed to save instance with bootstrap error: {}", save_err);
+                }
+
                 // Check if this is a bootstrap error
                 if let Ok(bootstrap_error) = serde_json::from_str::<BootstrapError>(&e) {
                     update_task_with_bootstrap_error(&task_id, &bootstrap_error);
@@ -1166,14 +1213,27 @@ fn spawn_modpack_creation_task(
         };
 
         // Update instance with Java path if it was set
+        let mut instance_to_update = instance.clone();
+        let mut needs_save = false;
         if let Some(java_path) = java_path_option {
-            let mut instance_to_update = instance.clone();
             instance_to_update.set_java_path(java_path);
+            needs_save = true;
             log::info!(
                 "Java path set for modpack instance {}: {:?}",
                 instance_to_update.instanceName,
                 instance_to_update.javaPath
             );
+        }
+
+        // Mark bootstrap as complete
+        instance_to_update.bootstrap_complete = true;
+        instance_to_update.bootstrap_error = None;
+        needs_save = true;
+
+        if needs_save {
+            if let Err(e) = instance_to_update.save() {
+                log::error!("Failed to save instance after modpack bootstrap: {}", e);
+            }
         }
 
         update_task(
@@ -1268,15 +1328,29 @@ fn spawn_mrpack_bootstrap_task(instance: MinecraftInstance, task_id: String) {
         // Handle bootstrap result and update Java path if needed
         match bootstrap_result {
             Ok(java_path_option) => {
+                let mut instance_to_update = instance.clone();
+                let mut needs_save = false;
+
                 // Update instance with Java path if it was set
                 if let Some(java_path) = java_path_option {
-                    let mut instance_to_update = instance.clone();
                     instance_to_update.set_java_path(java_path);
+                    needs_save = true;
                     log::info!(
                         "Java path set for .mrpack instance {}: {:?}",
                         instance_to_update.instanceName,
                         instance_to_update.javaPath
                     );
+                }
+
+                // Mark bootstrap as complete
+                instance_to_update.bootstrap_complete = true;
+                instance_to_update.bootstrap_error = None;
+                needs_save = true;
+
+                if needs_save {
+                    if let Err(e) = instance_to_update.save() {
+                        log::error!("Failed to save .mrpack instance after bootstrap: {}", e);
+                    }
                 }
 
                 update_task(
@@ -1291,6 +1365,13 @@ fn spawn_mrpack_bootstrap_task(instance: MinecraftInstance, task_id: String) {
                 );
             }
             Err(e) => {
+                // Persist bootstrap error on the instance
+                let mut instance_to_update = instance.clone();
+                instance_to_update.bootstrap_error = Some(e.clone());
+                if let Err(save_err) = instance_to_update.save() {
+                    log::error!("Failed to save .mrpack instance with bootstrap error: {}", save_err);
+                }
+
                 // Check if this is a bootstrap error
                 if let Ok(bootstrap_error) = serde_json::from_str::<BootstrapError>(&e) {
                     update_task_with_bootstrap_error(&task_id, &bootstrap_error);
@@ -2153,6 +2234,8 @@ pub async fn create_instance_from_mrpack(
         },
         loaderVersion: manifest.dependencies.forge.clone(),
         javaPath: None,
+        bootstrap_complete: false,
+        bootstrap_error: None,
         favorite: true,
         favorite_order: None,
         ms_nickname: None,

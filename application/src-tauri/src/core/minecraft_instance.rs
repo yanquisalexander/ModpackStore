@@ -59,6 +59,10 @@ pub struct MinecraftInstance {
     pub loaderVersion: Option<String>,
     pub javaPath: Option<String>, // In the future, we automatically download the correct Java version
     #[serde(default)]
+    pub bootstrap_complete: bool, // Whether the instance bootstrap has completed successfully
+    #[serde(default)]
+    pub bootstrap_error: Option<String>, // Error message if bootstrap failed
+    #[serde(default)]
     pub favorite: bool,
     #[serde(default)]
     pub favorite_order: Option<i32>,
@@ -122,6 +126,8 @@ impl MinecraftInstance {
             loaderType: ModLoaderType::Vanilla,
             loaderVersion: None,
             javaPath: None,
+            bootstrap_complete: false,
+            bootstrap_error: None,
             favorite: false,
             favorite_order: None,
             ms_nickname: None,
