@@ -4,7 +4,7 @@ import { Worker } from "bullmq";
 import { Hono } from "@hono/hono";
 import { redisConnection } from "@/services/redis.ts";
 import { getJobHandler } from "@/jobs/index.ts";
-import { ProcessModpackFilesQueue } from "@/worker/queues.ts";
+import { ProcessModpackFilesQueue, CurseForgeImportQueue } from "@/worker/queues.ts";
 import { db } from "@/db/client.ts";
 import { modpackVersionProcessingJobsTable, ProcessingJobStatus } from "@/db/schema.ts";
 import { eq, and, lt, or } from "drizzle-orm";
@@ -304,6 +304,48 @@ backupWorker.on("error", (err) => {
     log("[BACKUP_WORKER_ERROR]", err);
 });
 
+// --- CurseForge Import Worker ---
+const curseforgeWorker = new Worker(
+    "curseforge-import",
+    async (job) => {
+        const handler = getJobHandler(job.name);
+
+        if (!handler) {
+            log(`No handler registered for job type: ${job.name}`);
+            return;
+        }
+
+        log(`Processing CurseForge import job ${job.id} with data:`, job.data);
+        await handler(job);
+    },
+    {
+        connection: redisConnection,
+        concurrency: 1,
+        maxStalledCount: 1,
+        lockDuration: 60000, // 60s per mod download batch
+    },
+);
+
+curseforgeWorker.on("ready", () => {
+    log("CurseForge import worker is ready...");
+});
+
+curseforgeWorker.on("active", (job) => {
+    log(`CurseForge job ${job.id} is now active.`);
+});
+
+curseforgeWorker.on("completed", (job) => {
+    log(`CurseForge job ${job.id} has completed.`);
+});
+
+curseforgeWorker.on("failed", (job, err) => {
+    log(`CurseForge job ${job?.id ?? "unknown"} has failed:`, err.message);
+});
+
+curseforgeWorker.on("error", (err) => {
+    log("[CURSEFORGE_WORKER_ERROR]", err);
+});
+
 // --- Graceful Shutdown ---
 let isShuttingDown = false;
 
@@ -325,6 +367,7 @@ async function gracefulShutdown(signal: string) {
         log("[SHUTDOWN] Closing BullMQ Workers (waiting for active jobs to finish)...");
         await worker.close();
         await backupWorker.close();
+        await curseforgeWorker.close();
 
         // 3. Cerrar la conexión de Redis limpiamente
         log("[SHUTDOWN] Quitting Redis connection...");

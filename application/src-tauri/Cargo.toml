@@ -53,7 +53,7 @@ tauri-plugin-global-shortcut = "2.3.1"
 tauri-plugin-http = {version = "2", features = ["json", "blocking", "stream"] }
 tauri-plugin-log = "2"
 tauri-plugin-notification = "2"
-tauri-plugin-opener = "2"
+tauri-plugin-opener = "2.5"
 tauri-plugin-os = "2"
 tauri-plugin-process = "2"
 tauri-plugin-shell = "2"

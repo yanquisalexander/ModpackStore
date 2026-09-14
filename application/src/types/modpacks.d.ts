@@ -25,22 +25,9 @@ export interface Modpack {
 }
 
 export interface ModpackCategory {
-  id: number;
-  modpackId: string;
   categoryId: string;
   isPrimary: boolean;
-  category: {
-    id: string;
-    name: string;
-    shortDescription?: string;
-    description?: string;
-    iconUrl?: string;
-    displayOrder: number;
-    isAdminOnly: boolean;
-    isSelectable: boolean;
-    isAutomatic: boolean;
-    createdAt: string;
-  };
+  name: string;
 }
 
 export interface NewModpackData {

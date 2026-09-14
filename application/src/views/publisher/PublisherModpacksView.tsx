@@ -51,6 +51,7 @@ interface Modpack {
     updatedAt: string;
     acquisitionMethod?: string;
     password?: string;
+    categories?: Array<{ categoryId: string; isPrimary: boolean; name: string }>;
     creatorUser?: {
         username: string;
     };

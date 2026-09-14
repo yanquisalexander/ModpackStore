@@ -4,6 +4,7 @@ use crate::core::minecraft_instance::MinecraftInstance;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use tauri_plugin_opener::OpenerExt;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModFile {
@@ -174,34 +175,13 @@ pub async fn toggle_instance_mod(
 
 /// Open the mods folder in the file explorer
 #[tauri::command]
-pub async fn open_instance_mods_folder(instance_id: String) -> Result<(), String> {
+pub async fn open_instance_mods_folder(app_handle: tauri::AppHandle, instance_id: String) -> Result<(), String> {
     let instance = MinecraftInstance::from_instance_id(&instance_id).ok_or("Instance not found")?;
 
     let mods_dir = get_mods_directory(&instance)?;
 
-    #[cfg(target_os = "windows")]
-    {
-        std::process::Command::new("explorer")
-            .arg(&mods_dir)
-            .spawn()
-            .map_err(|e| format!("Failed to open folder: {}", e))?;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&mods_dir)
-            .spawn()
-            .map_err(|e| format!("Failed to open folder: {}", e))?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&mods_dir)
-            .spawn()
-            .map_err(|e| format!("Failed to open folder: {}", e))?;
-    }
+    app_handle.opener().open_path(mods_dir.to_string_lossy().to_string(), None::<&str>)
+        .map_err(|e| format!("Failed to open folder: {}", e))?;
 
     Ok(())
 }

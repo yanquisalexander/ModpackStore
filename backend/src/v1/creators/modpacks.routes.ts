@@ -8,7 +8,7 @@ import { db } from "@/db/client.ts";
 import { modpacksTable } from "@/db/schema.ts";
 import { eq } from "drizzle-orm";
 import { NotFoundError } from "@/lib/errors/index.ts";
-import { uploadObject, getModpackImageKey, getModpackImageUrl, getModpackImageResizedKey, getModpackImageResizedUrl } from "@/lib/r2.ts";
+import { uploadObject, getModpackImageKey, getModpackImageUrl, getModpackImageResizedKey, getModpackImageResizedUrl, generatePresignedUploadUrl } from "@/lib/r2.ts";
 import { resizeImage } from "@/lib/image-resize.ts";
 import {
     createModpack,
@@ -33,6 +33,9 @@ import {
     getProcessingJobs,
     retryProcessingJob,
 } from "@/services/version.service.ts";
+import { importCurseforge, validateManifest } from "@/services/curseforge-import.service.ts";
+import type { CurseForgeManifest } from "@/types/curseforge.ts";
+import { ValidationError } from "@/lib/errors/index.ts";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 
@@ -91,6 +94,44 @@ app.post("/", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADM
     });
     return c.json(modpack, 201);
 });
+
+// ── CurseForge Import ──────────────────────────────────
+
+// Step 1: Get presigned URL for client to upload the ZIP directly to R2
+app.post("/import/curseforge/upload-url", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN), async (c) => {
+    const creatorId = c.req.param("creatorId")!;
+    const tempId = `${creatorId}-${Date.now()}`;
+    const zipR2Key = `temp-zips/curseforge/${tempId}/curseforge-import.zip`;
+    const uploadUrl = await generatePresignedUploadUrl(zipR2Key, 3600);
+    return c.json({ uploadUrl, zipR2Key, expiresIn: 3600 });
+});
+
+// Step 2: Confirm import — client sends manifest + slug after uploading ZIP to R2
+app.post("/import/curseforge", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN), async (c) => {
+    const userId = c.get("userId");
+    const creatorId = c.req.param("creatorId")!;
+    const body = await c.req.json();
+
+    if (!body.zipR2Key || typeof body.zipR2Key !== "string") {
+        throw new ValidationError("zipR2Key is required", "MISSING_ZIP_R2_KEY");
+    }
+    if (!body.manifest || typeof body.manifest !== "object") {
+        throw new ValidationError("manifest object is required", "MISSING_MANIFEST");
+    }
+
+    const manifest = body.manifest as CurseForgeManifest;
+    const slug = body.slug ? String(body.slug) : undefined;
+
+    const result = await importCurseforge(creatorId, userId, body.zipR2Key, manifest, { slug });
+
+    return c.json({
+        success: true,
+        message: "CurseForge modpack import started",
+        data: result,
+    }, 201);
+});
+
+// ── Modpack by ID ─────────────────────────────────────
 
 app.get("/:modpackId", requireAuth, requireCreatorAccess, requireModpackAccess, async (c) => {
     // Reuse modpack from middleware context (already fetched and validated)
