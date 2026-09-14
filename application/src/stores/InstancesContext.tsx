@@ -55,6 +55,15 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
         }
     };
 
+    const cancelPendingUpdates = (id: string) => {
+        for (const [key, pending] of pendingUpdateRef.current.entries()) {
+            if (key.startsWith(`${id}:`)) {
+                clearTimeout(pending.timer);
+                pendingUpdateRef.current.delete(key);
+            }
+        }
+    };
+
     // Estas funciones son internas al provider y no se exponen
     const addInstance = (instance: InstanceState) => {
         setInstances(prev => {
@@ -93,7 +102,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             // Evento para cuando se inicia la preparación de una instancia
             const launchStartUnlisten = await listen("instance-launch-start", (e: any) => {
                 const { id, name, message } = e.payload;
-                console.log("Launch start event:", { id, name, message });
+                cancelPendingUpdates(id);
 
                 addInstance({
                     id,
@@ -118,8 +127,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
 
             const finishAssetsDownloadUnlisten = await listen("instance-finish-assets-download", (e: any) => {
                 const { id, message } = e.payload;
-                console.log("Finish assets download event:", { id, message });
-
+                cancelPendingUpdates(id);
                 updateInstance(id, {
                     status: "idle",
                     message: message || "Descarga completada",
@@ -131,7 +139,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             // Evento para cuando la instancia ha sido lanzada
             const launchedUnlisten = await listen("instance-launched", (e: any) => {
                 const { id, message, data } = e.payload;
-                console.log("Instance launched event:", { id, message, data });
+                cancelPendingUpdates(id);
                 trackEvent("instance_launched", {
                     instanceId: id,
                     message: message || "Minecraft se está ejecutando"
@@ -153,7 +161,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             const exitedUnlisten = await listen("instance-exited", (e: any) => {
                 const { id, message, data, name: instanceName } = e.payload;
                 const { exitCode, possibleErrorCode } = data || { exitCode: "desconocido" };
-                console.log(e.payload);
+                cancelPendingUpdates(id);
 
                 trackEvent("instance_exited", {
                     instanceId: id,
@@ -206,7 +214,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             // Evento para cuando hay un error en la instancia
             const errorUnlisten = await listen("instance-error", (e: any) => {
                 const { id, message } = e.payload;
-                console.log("Instance error event:", { id, message });
+                cancelPendingUpdates(id);
                 trackEvent("instance_error", {
                     instanceId: id,
                     message: message || "Error al iniciar la instancia"
@@ -304,8 +312,7 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
 
             const instanceBootstrappedUnlisten = await listen("instance-bootstrapped", (e: any) => {
                 const { id, message } = e.payload;
-                console.log("Instance bootstrapped event:", { id, message });
-
+                cancelPendingUpdates(id);
                 updateInstance(id, {
                     status: "idle",
                     message: message || "Instancia instalada correctamente",

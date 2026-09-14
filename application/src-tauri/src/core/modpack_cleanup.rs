@@ -738,7 +738,7 @@ pub fn audit_user_data_protection(
         loaderType: ModLoaderType::Vanilla,
         loaderVersion: None,
         javaPath: None,
-        bootstrap_complete: false,
+        bootstrap_complete: Some(false),
         bootstrap_error: None,
         favorite: false,
         favorite_order: None,

@@ -59,7 +59,7 @@ pub struct MinecraftInstance {
     pub loaderVersion: Option<String>,
     pub javaPath: Option<String>, // In the future, we automatically download the correct Java version
     #[serde(default)]
-    pub bootstrap_complete: bool, // Whether the instance bootstrap has completed successfully
+    pub bootstrap_complete: Option<bool>, // Whether the instance bootstrap has completed successfully
     #[serde(default)]
     pub bootstrap_error: Option<String>, // Error message if bootstrap failed
     #[serde(default)]
@@ -126,7 +126,7 @@ impl MinecraftInstance {
             loaderType: ModLoaderType::Vanilla,
             loaderVersion: None,
             javaPath: None,
-            bootstrap_complete: false,
+            bootstrap_complete: None,
             bootstrap_error: None,
             favorite: false,
             favorite_order: None,
@@ -281,6 +281,19 @@ impl MinecraftInstance {
         if self.loaderType == ModLoaderType::Vanilla && self.forgeVersion.is_some() {
             self.loaderType = ModLoaderType::Forge;
             self.loaderVersion = self.forgeVersion.clone();
+        }
+
+        // Migrate: instances created before bootstrap_complete was added.
+        // If bootstrap_complete is None (field absent from JSON), the instance predates
+        // this field. If the minecraft/libraries directory exists, it was bootstrapped.
+        if self.bootstrap_complete.is_none() && self.bootstrap_error.is_none() {
+            if let Some(ref dir) = self.instanceDirectory {
+                let libs_dir = Path::new(dir).join("minecraft").join("libraries");
+                if libs_dir.exists() {
+                    self.bootstrap_complete = Some(true);
+                    let _ = self.save();
+                }
+            }
         }
     }
 

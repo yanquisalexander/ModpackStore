@@ -144,7 +144,7 @@ pub async fn launch_mc_instance(instance_id: String) -> Result<(), String> {
         .ok_or_else(|| format!("Instance with ID {} not found", instance_id))?;
 
     // Check if bootstrap is still in progress or failed
-    if !instance.bootstrap_complete {
+    if instance.bootstrap_complete != Some(true) {
         let error_detail = instance
             .bootstrap_error
             .as_deref()
@@ -1099,7 +1099,7 @@ fn spawn_instance_creation_task(instance: MinecraftInstance, task_id: String) {
                 }
 
                 // Mark bootstrap as complete
-                instance_to_update.bootstrap_complete = true;
+                instance_to_update.bootstrap_complete = Some(true);
                 instance_to_update.bootstrap_error = None;
                 needs_save = true;
 
@@ -1226,7 +1226,7 @@ fn spawn_modpack_creation_task(
         }
 
         // Mark bootstrap as complete
-        instance_to_update.bootstrap_complete = true;
+        instance_to_update.bootstrap_complete = Some(true);
         instance_to_update.bootstrap_error = None;
         needs_save = true;
 
@@ -1343,7 +1343,7 @@ fn spawn_mrpack_bootstrap_task(instance: MinecraftInstance, task_id: String) {
                 }
 
                 // Mark bootstrap as complete
-                instance_to_update.bootstrap_complete = true;
+                instance_to_update.bootstrap_complete = Some(true);
                 instance_to_update.bootstrap_error = None;
                 needs_save = true;
 
@@ -2234,7 +2234,7 @@ pub async fn create_instance_from_mrpack(
         },
         loaderVersion: manifest.dependencies.forge.clone(),
         javaPath: None,
-        bootstrap_complete: false,
+        bootstrap_complete: Some(false),
         bootstrap_error: None,
         favorite: true,
         favorite_order: None,
