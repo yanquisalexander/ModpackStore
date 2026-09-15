@@ -3,12 +3,13 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { invoke } from '@tauri-apps/api/core';
 import ReactMarkdown from 'react-markdown';
+import remarkBreaks from 'remark-breaks';
 
 // Versión actual del changelog
-const CHANGELOG_ID = 8;
+const CHANGELOG_ID = 9;
 
 // DIA MES AÑO (DD/MM/YYYY)
-const PATCH_NOTES_RELEASE_DATE = '03/11/2025';
+const PATCH_NOTES_RELEASE_DATE = '15/09/2026';
 
 const PATCH_NOTES_DATE_STRING = (() => {
   const [day, month, year] = PATCH_NOTES_RELEASE_DATE.split('/').map(Number);
@@ -21,58 +22,118 @@ const PATCH_NOTES_DATE_STRING = (() => {
   }).format(date);
 })();
 
-const CHANGELOG_CONTENT = `## 🚀 ¡Modpack Store 1.0 ya está aquí! — Fin de la Beta 🎉
+const CHANGELOG_CONTENT = `## 🚀 Modpack Store — La actualización donde literalmente soportamos todo
 
-Después de meses en beta (y muchas tazas de café), **Modpack Store** alcanza su **primera versión oficial**.  
-Y sí, esto viene cargado de mejoras, estabilidad y un toque de magia ✨
-
----
-
-### 🧵 Soporte estable para Fabric  
-Ya podés disfrutar de tus modpacks favoritos con **Fabric** sin miedo a crasheos raros.  
-Más compatibilidad, más estabilidad, más diversión.
+Bueno, aparentemente nos aburrimos y decidimos actualizar medio universo 😀.
+Trae más modloaders, optimizaciones, anuncios (sí, tenemos que comer), herramientas para creadores y una buena dosis de cosas nuevas.
 
 ---
 
-### 💚 Recomendaciones y modpacks similares  
-¿Te gustó un modpack? Ahora te sugerimos otros que podrían encantarte 💫  
-El sistema aprende de tus likes y te muestra lo mejor del universo Modpack Store.
+### 🧩 Vanilla, Fabric, Quilt, NeoForge, Forge... hasta tu abuela
+
+¿Usás **Fabric**? Sí.
+¿Forge? También.
+¿NeoForge? Obvio.
+¿Quilt? De una.
+¿Vanilla? Técnicamente ni siquiera es un modloader, pero **nosotros igual lo bancamos**.
+
+En resumen: **ya soportamos todos los modloaders importantes.**
+
+Si tu modpack usa Java y no necesita invocar a Satanás para arrancar, probablemente estamos good. 👍
 
 ---
 
-### ⚡ Más rápido que nunca  
-Actualizamos la infraestructura para que **todo cargue más fluido**.  
-Desde el inicio hasta las descargas, cada clic ahora se siente instantáneo. ⚙️💨
+### 💸 Anuncios... porque necesito comer
+
+Sí, llegó el momento.
+
+Los usuarios gratuitos podrán ver **publicidad en algunas secciones de la aplicación**.
+
+No vamos a poner un anuncio entre cada click ni hacer que tengas que ver un video de 30 segundos para abrir un modpack. La publicidad estará limitada a determinadas partes de la app.
+
+Porque los servidores, la infraestructura y el café no se pagan solos. 🗿
 
 ---
 
-### 💬 Tickets en tiempo real  
-El sistema de soporte ahora **te notifica en vivo** cuando hay nuevas respuestas o mensajes.  
-Y sí, también hay un **contador de notificaciones no leídas** — porque a quién no le gusta ver numeritos rojos.
+### ⚡ Optimizaciones + Java dejó de hacer Java
+
+Hicimos un poco de magia negra en el rendimiento de la aplicación.
+
+La app ahora debería sentirse **más rápida, fluida y menos como si estuviera corriendo en una calculadora Casio**.
+
+También corregimos varios bugs relacionados con **Java** que, en circunstancias muy específicas, podían hacer que el juego simplemente decidiera:
+
+> "nah"
+
+Y se negara a ejecutar.
+
+Ahora debería ser bastante menos dramático. ☕💀
 
 ---
 
-### 🌐 Próximamente: funciones sociales  
-Durante las próximas semanas iremos activando gradualmente:
-- 🕹️ **Play Together** — conectate con tus amigos directamente desde el launcher.  
-- 🤝 **Instance Sharing** — compartí tus instancias personalizadas con un clic.  
+### 📢 Creadores: llegó la hora de hacer spam (legalmente)
 
-El multijugador nunca se sintió tan fácil. 👀
+Los creadores ahora pueden **promocionar sus modpacks directamente dentro de Modpack Store**.
+
+Pero eso no es todo 👀
+
+También permitimos promocionar **servicios externos**.
+
+Sí, **vos, proveedor de hosting**.
+
+Estamos mirando específicamente a vos.
+
+¿Querés promocionar un modpack? ¿Un servidor? ¿Tu hosting?
+Ahora tenés herramientas para hacerlo.
 
 ---
 
-### 🧑‍💻 Creadores, esto es para ustedes  
-- Ahora pueden usar **Markdown** en sus changelogs y descripciones.  
-  ¡Sí! **Imágenes, gifs de gatos, memes y todo lo demás** 🐱✨  
-- Si usás **Prelaunch Appearance**, ahora podés aprovechar **variables dinámicas**, como:  
-  \`Hola $mcAccountName\` 👋  
-  Hacelo sentir personal, único y especial.
+### 🛠️ Organizaciones: menos sufrimiento administrativo
+
+Rediseñamos completamente la interfaz de administración para creadores.
+
+Las organizaciones ahora tienen una interfaz **más limpia, sencilla y usable**, para que administrar tus proyectos no se sienta como configurar un router del 2007.
+
+Menos clicks.
+
+Menos menús escondidos.
+
+Menos:
+
+> "¿Dónde estaba esta opción?"
+
+Más crear cosas. 🗿
 
 ---
 
-Gracias por acompañarnos hasta acá 💚  
-Esto recién empieza, y lo mejor aún está por venir.  
-**— El equipo de Modpack Store**`;
+### 👤 Perfil público de creador
+
+Ahora los creadores pueden tener su propio **perfil público**.
+
+Podés poner:
+
+* 🖼️ Tu foto de perfil
+* 🌄 Una portada
+* 📦 Todos tus modpacks públicos agrupados en un solo lugar
+
+Básicamente, tu pequeño rincón del universo Modpack Store.
+
+Mandale tu fotito, poné una portada fachera y hacé como que sabés diseñar. ✨
+
+---
+
+### 💚 Y esto recién empieza...
+
+Cada actualización nos acerca un poco más a convertir Modpack Store en **el lugar donde encontrás, instalás y compartís tus modpacks sin tener que pelearte con Java a las 3 de la mañana**.
+
+Gracias por seguir bancando el proyecto. ❤️
+
+Ahora sí...
+
+**disfrutad de esta versión.**
+
+— El equipo de Modpack Store
+`;
 
 export const Changelog: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -134,7 +195,7 @@ export const Changelog: React.FC = () => {
             prose-h2:text-sm prose-h2:uppercase prose-h2:font-bold prose-h2:text-indigo-400
             prose-hr:border-gray-700
             prose-p:text-gray-200 prose-li:text-gray-200">
-            <ReactMarkdown>{CHANGELOG_CONTENT}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkBreaks]}>{CHANGELOG_CONTENT}</ReactMarkdown>
           </div>
         </div>
 

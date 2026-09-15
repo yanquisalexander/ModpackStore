@@ -6,17 +6,14 @@ import {
   Home,
   Sparkles,
   Users,
-  HelpCircle,
 } from "lucide-preact";
 
 const links = [
-  { label: "Inicio", url: "/", icon: Home },
-  { label: "Características", url: "#features", icon: Sparkles },
+  { label: "Inicio", url: "#", icon: Home },
   { label: "Creadores", url: "#creators", icon: Users },
-  { label: "FAQ", url: "#faq", icon: HelpCircle },
+  { label: "Características", url: "#features", icon: Sparkles },
+  { label: "Descargas", url: "#download", icon: Download },
 ];
-
-const currentPath = Astro.url.pathname;
 ---
 
 <header
@@ -30,7 +27,7 @@ const currentPath = Astro.url.pathname;
     <!-- Brand -->
     <div class="relative z-10 flex items-center gap-3 pl-1">
       <a
-        href="/"
+        href="#"
         class="flex items-center gap-2.5 group transition-transform hover:scale-[1.02]"
       >
         <div class="size-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center p-1 overflow-hidden">
@@ -47,27 +44,22 @@ const currentPath = Astro.url.pathname;
       </a>
     </div>
 
-    <!-- Center Navigation Tabs (Google TV Pills) -->
+    <!-- Center Navigation Tabs (Google TV Pills pintados con active) -->
     <nav
+      id="main-nav-tabs"
       class="hidden md:flex items-center gap-1 bg-white/[0.04] p-1 rounded-full border border-white/5"
     >
       {
-        links.map((link) => {
-          const isActive = currentPath === link.url;
-          return (
-            <a
-              href={link.url}
-              class={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
-                isActive
-                  ? "bg-white text-zinc-950 font-semibold shadow-sm"
-                  : "text-zinc-400 hover:text-white hover:bg-white/10"
-              }`}
-            >
-              <link.icon size={14} class={isActive ? "text-zinc-950" : "text-zinc-400"} />
-              <span>{link.label}</span>
-            </a>
-          );
-        })
+        links.map((link, index) => (
+          <a
+            href={link.url}
+            data-nav-hash={link.url}
+            class={`nav-tab-pill flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${index === 0 ? "is-active" : ""}`}
+          >
+            <link.icon size={14} class="nav-tab-icon transition-colors" />
+            <span>{link.label}</span>
+          </a>
+        ))
       }
     </nav>
 
@@ -118,17 +110,18 @@ const currentPath = Astro.url.pathname;
       </button>
     </div>
 
-    <div class="flex-1 overflow-y-auto space-y-1.5">
+    <div id="drawer-links" class="flex-1 overflow-y-auto space-y-1.5">
       {
-        links.map((link) => (
+        links.map((link, index) => (
           <a
             href={link.url}
-            class="flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-all text-zinc-300 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/5"
+            data-drawer-hash={link.url}
+            class={`drawer-tab-pill flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm transition-all border ${index === 0 ? "is-active" : ""}`}
           >
-            <div class="p-2 rounded-lg bg-white/5 text-zinc-400">
+            <div class="drawer-icon-box p-2 rounded-lg transition-colors">
               <link.icon size={18} />
             </div>
-            {link.label}
+            <span>{link.label}</span>
           </a>
         ))
       }
@@ -146,15 +139,63 @@ const currentPath = Astro.url.pathname;
   </nav>
 </div>
 
+<style>
+  /* Selected Nav Pill (Estilo Admin/Creators con bg-primary pintado y glow) */
+  .nav-tab-pill.is-active {
+    background-color: var(--color-primary, #6366f1) !important;
+    color: #ffffff !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.35) !important;
+  }
+  .nav-tab-pill.is-active .nav-tab-icon {
+    color: #ffffff !important;
+  }
+
+  /* Unselected Nav Pill */
+  .nav-tab-pill:not(.is-active) {
+    color: #a1a1aa !important;
+  }
+  .nav-tab-pill:not(.is-active) .nav-tab-icon {
+    color: #a1a1aa !important;
+  }
+  .nav-tab-pill:not(.is-active):hover {
+    color: #ffffff !important;
+    background-color: rgba(255, 255, 255, 0.08) !important;
+  }
+  .nav-tab-pill:not(.is-active):hover .nav-tab-icon {
+    color: #ffffff !important;
+  }
+
+  /* Mobile Drawer Active Link */
+  .drawer-tab-pill.is-active {
+    background-color: rgba(99, 102, 241, 0.15) !important;
+    color: #818cf8 !important;
+    border-color: rgba(99, 102, 241, 0.3) !important;
+    font-weight: 600 !important;
+  }
+  .drawer-tab-pill.is-active .drawer-icon-box {
+    background-color: rgba(99, 102, 241, 0.25) !important;
+    color: #818cf8 !important;
+  }
+  .drawer-tab-pill:not(.is-active) {
+    color: #d4d4d8 !important;
+    border-color: transparent !important;
+  }
+  .drawer-tab-pill:not(.is-active) .drawer-icon-box {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: #a1a1aa !important;
+  }
+  .drawer-tab-pill:not(.is-active):hover {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    color: #ffffff !important;
+  }
+</style>
+
 <script>
   import { gsap } from "gsap";
 
-  // Inicialización y Animaciones
-  document.addEventListener("astro:page-load", () => {
-    initHeader();
-  });
+  document.addEventListener("astro:page-load", initHeader);
 
-  // Fallback para primera carga si no usas ViewTransitions
   if (
     document.readyState === "complete" ||
     document.readyState === "interactive"
@@ -184,12 +225,11 @@ const currentPath = Astro.url.pathname;
       ease: "power4.out",
     });
 
-    // 2. Lógica de Scroll (Liquid Transform)
+    // 2. Lógica de Scroll Navbar (Compacto / Expandido)
     const handleScroll = () => {
       const isScrolled = window.scrollY > 20;
 
       if (isScrolled) {
-        // Estado Scrolleado: Más compacto y nítido
         navIsland?.classList.remove("w-[95%]", "bg-[#121216]/85");
         navIsland?.classList.add(
           "w-[90%]",
@@ -197,7 +237,6 @@ const currentPath = Astro.url.pathname;
           "shadow-[0_16px_40px_rgba(0,0,0,0.6)]",
         );
       } else {
-        // Estado Inicial
         navIsland?.classList.add("w-[95%]", "bg-[#121216]/85");
         navIsland?.classList.remove(
           "w-[90%]",
@@ -208,7 +247,6 @@ const currentPath = Astro.url.pathname;
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
-    // Ejecutar una vez al inicio
     handleScroll();
 
     // 3. Menú Móvil
@@ -234,9 +272,148 @@ const currentPath = Astro.url.pathname;
     closeBtn?.addEventListener("click", closeMenu);
     drawerBg?.addEventListener("click", closeMenu);
 
-    // Cerrar al clickear enlaces
     drawerPanel?.querySelectorAll("a").forEach((link) => {
       link.addEventListener("click", closeMenu);
     });
+
+    // 4. Lógica de Nav Tracker que se mueve con el Hash Path y el Scroll
+    initNavTracker();
+  }
+
+  function initNavTracker() {
+    const navTabs = document.querySelectorAll<HTMLAnchorElement>(".nav-tab-pill");
+    const drawerTabs = document.querySelectorAll<HTMLAnchorElement>(".drawer-tab-pill");
+
+    const sections = [
+      { id: "hero-section", hash: "#" },
+      { id: "creators", hash: "#creators" },
+      { id: "features", hash: "#features" },
+      { id: "download", hash: "#download" },
+    ];
+
+    let currentActive = "";
+    let isManualNavigating = false;
+    let manualNavTimer: any = null;
+
+    function applyActive(targetHash: string) {
+      const normalized =
+        !targetHash || targetHash === "#" || targetHash === "/" || targetHash === "#hero-section"
+          ? "#"
+          : targetHash;
+
+      if (currentActive === normalized) return;
+      currentActive = normalized;
+
+      // Actualizar pestañas de escritorio
+      navTabs.forEach((tab) => {
+        const href = tab.getAttribute("data-nav-hash") || tab.getAttribute("href");
+        const isMatch =
+          (normalized === "#" && (href === "#" || href === "/" || href === "#hero-section")) ||
+          href === normalized;
+
+        tab.classList.toggle("is-active", isMatch);
+      });
+
+      // Actualizar pestañas del drawer móvil
+      drawerTabs.forEach((tab) => {
+        const href = tab.getAttribute("data-drawer-hash") || tab.getAttribute("href");
+        const isMatch =
+          (normalized === "#" && (href === "#" || href === "/" || href === "#hero-section")) ||
+          href === normalized;
+
+        tab.classList.toggle("is-active", isMatch);
+      });
+    }
+
+    // Determina qué sección está actualmente en pantalla mediante offset
+    function calculateActiveFromScroll(): string {
+      // Si está cerca del fondo, activar descargas
+      if (
+        window.innerHeight + window.scrollY >=
+        document.documentElement.scrollHeight - 150
+      ) {
+        return "#download";
+      }
+
+      // Si está arriba de todo, activar inicio
+      if (window.scrollY < 180) {
+        return "#";
+      }
+
+      // Offset para la barra fija
+      const scrollPosition = window.scrollY + 250;
+
+      for (let i = sections.length - 1; i >= 0; i--) {
+        const item = sections[i];
+        const el = document.getElementById(item.id);
+        if (el) {
+          const top = el.offsetTop;
+          if (scrollPosition >= top) {
+            return item.hash;
+          }
+        }
+      }
+
+      return "#";
+    }
+
+    // Scroll listener continuo (cuando no hay navegación manual activa)
+    window.addEventListener(
+      "scroll",
+      () => {
+        if (isManualNavigating) return;
+        const activeHash = calculateActiveFromScroll();
+        applyActive(activeHash);
+      },
+      { passive: true }
+    );
+
+    // Hash change event (botones atrás/adelante del navegador o cambios manuales de URL)
+    window.addEventListener("hashchange", () => {
+      const hash = window.location.hash || "#";
+      applyActive(hash);
+    });
+
+    window.addEventListener("popstate", () => {
+      const hash = window.location.hash || "#";
+      applyActive(hash);
+    });
+
+    // Clicks en los enlaces del navbar y anchors con hash
+    document.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((anchor) => {
+      anchor.addEventListener("click", (e) => {
+        const href = anchor.getAttribute("href");
+        if (!href) return;
+
+        // Bloquear temporalmente el scroll listener para que la transición sea limpia
+        isManualNavigating = true;
+        clearTimeout(manualNavTimer);
+        manualNavTimer = setTimeout(() => {
+          isManualNavigating = false;
+        }, 800);
+
+        if (href === "#" || href === "#hero-section") {
+          e.preventDefault();
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          history.pushState(null, "", window.location.pathname);
+          applyActive("#");
+        } else {
+          const targetEl = document.querySelector(href);
+          if (targetEl) {
+            e.preventDefault();
+            targetEl.scrollIntoView({ behavior: "smooth" });
+            history.pushState(null, "", href);
+            applyActive(href);
+          }
+        }
+      });
+    });
+
+    // Aplicar estado inicial
+    if (window.location.hash && window.location.hash !== "#") {
+      applyActive(window.location.hash);
+    } else {
+      applyActive(calculateActiveFromScroll());
+    }
   }
 </script>

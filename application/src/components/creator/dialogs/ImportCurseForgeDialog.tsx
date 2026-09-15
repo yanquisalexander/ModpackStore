@@ -3,12 +3,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Progress } from '@/components/ui/progress';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { LucideUpload, LucideFile, LucideTrash2, LucidePackage, LucideCheck, LucideX, LucideLoader2 } from 'lucide-react';
 import { useAuthentication } from "@/stores/AuthContext";
 import { API_ENDPOINT } from "@/consts";
-import { uploadFileWithUppy } from '@/utils/uppyUpload';
+import { fetchWithAuth } from '@/lib/fetchWithAuth';
+import JSZip from 'jszip';
 
 interface Props {
     isOpen: boolean;
@@ -18,7 +18,7 @@ interface Props {
 }
 
 interface ImportProgress {
-    stage: 'uploading' | 'processing' | 'completed' | 'error';
+    stage: 'reading' | 'uploading' | 'confirming' | 'completed' | 'error';
     uploadProgress: number;
     message: string;
 }
@@ -27,27 +27,22 @@ interface ImportResult {
     modpack: {
         id: string;
         name: string;
-        version: string;
         slug: string;
     };
-    stats: {
-        totalMods: number;
-        downloadedMods: number;
-        failedMods: number;
-        overrideFiles: number;
+    version: {
+        id: string;
+        version: string;
+        mcVersion: string;
     };
-    errors: string[];
-    isNewModpack: boolean;
+    jobId: string;
 }
 
 const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, publisherId }) => {
     const { sessionTokens } = useAuthentication();
     const [file, setFile] = useState<File | null>(null);
     const [slug, setSlug] = useState<string>('');
-    const [visibility, setVisibility] = useState<string>('public');
-    const [parallelDownloads, setParallelDownloads] = useState<number>(5);
     const [progress, setProgress] = useState<ImportProgress>({
-        stage: 'uploading',
+        stage: 'reading',
         uploadProgress: 0,
         message: ''
     });
@@ -56,21 +51,19 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = e.target.files?.[0] || null;
-        
+
         if (selectedFile) {
-            // Validate file type
             if (!selectedFile.name.toLowerCase().endsWith('.zip')) {
                 toast.error('Solo se permiten archivos ZIP de CurseForge');
                 return;
             }
-            
-            // Validate file size (100MB limit)
+
             if (selectedFile.size > 100 * 1024 * 1024) {
                 toast.error('El archivo es demasiado grande. Límite: 100MB');
                 return;
             }
         }
-        
+
         setFile(selectedFile);
         setResult(null);
     };
@@ -86,10 +79,8 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
     const resetForm = () => {
         setFile(null);
         setSlug('');
-        setVisibility('public');
-        setParallelDownloads(5);
         setProgress({
-            stage: 'uploading',
+            stage: 'reading',
             uploadProgress: 0,
             message: ''
         });
@@ -104,93 +95,130 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
         }
 
         setImporting(true);
-        setProgress({
-            stage: 'uploading',
-            uploadProgress: 0,
-            message: 'Subiendo archivo ZIP...'
-        });
 
         try {
-            // Prepare form data for Uppy
-            const formDataFields: Record<string, string> = {
-                visibility,
-                parallelDownloads: parallelDownloads.toString(),
-            };
-            
-            if (slug.trim()) {
-                formDataFields.slug = slug.trim();
-            }
-
-            // Use Uppy for upload
-            const response = await uploadFileWithUppy({
-                file,
-                endpoint: `${API_ENDPOINT}/creators/${publisherId}/modpacks/import/curseforge`,
-                headers: {
-                    'Authorization': `Bearer ${sessionTokens?.accessToken}`,
-                },
-                fieldName: 'zipFile',
-                formData: formDataFields,
-                onProgress: (progressPercent) => {
-                    setProgress(prev => ({
-                        ...prev,
-                        uploadProgress: progressPercent,
-                        message: `Subiendo archivo... ${progressPercent}%`
-                    }));
-                },
-                onSuccess: (response) => {
-                    try {
-                        const responseData = response.body || response;
-                        setProgress({
-                            stage: 'completed',
-                            uploadProgress: 100,
-                            message: 'Importación completada exitosamente'
-                        });
-                        
-                        setResult({
-                            ...responseData.data,
-                            isNewModpack: !responseData.data.modpack.existingModpack
-                        });
-                        
-                        toast.success('Modpack importado exitosamente desde CurseForge');
-                        onSuccess?.(responseData.data);
-                    } catch (parseError) {
-                        console.error('Error parsing response:', parseError);
-                        setProgress({
-                            stage: 'error',
-                            uploadProgress: 0,
-                            message: 'Error al procesar la respuesta del servidor'
-                        });
-                        toast.error('Error al procesar la respuesta del servidor');
-                    }
-                },
-                onError: (error) => {
-                    const errorMessage = error.message || 'Error desconocido';
-                    setProgress({
-                        stage: 'error',
-                        uploadProgress: 0,
-                        message: errorMessage
-                    });
-                    toast.error('Error al importar modpack', { description: errorMessage });
-                }
+            // Step 0: Read manifest.json from inside the ZIP
+            setProgress({
+                stage: 'reading',
+                uploadProgress: 0,
+                message: 'Leyendo manifest.json del ZIP...'
             });
 
-            setProgress(prev => ({
-                ...prev,
-                stage: 'processing',
-                message: 'Procesando importación...'
-            }));
+            const zip = await JSZip.loadAsync(file);
+            const manifestFile = zip.file('manifest.json');
+            if (!manifestFile) {
+                throw new Error('No se encontró manifest.json en el archivo ZIP. Asegúrese de que es un modpack CurseForge válido.');
+            }
+            const manifestText = await manifestFile.async('text');
+            let manifest: any;
+            try {
+                manifest = JSON.parse(manifestText);
+            } catch {
+                throw new Error('El manifest.json no contiene JSON válido.');
+            }
 
-        } catch (error) {
+            // Step 1: Get presigned upload URL
+            setProgress({
+                stage: 'uploading',
+                uploadProgress: 0,
+                message: 'Obteniendo URL de subida...'
+            });
+
+            const uploadUrlResponse = await fetchWithAuth(
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/import/curseforge/upload-url`
+            );
+            if (!uploadUrlResponse.ok) {
+                const errorData = await uploadUrlResponse.json().catch(() => ({ message: 'Error al obtener URL de subida' }));
+                throw new Error(errorData.message || `HTTP ${uploadUrlResponse.status}`);
+            }
+            const { uploadUrl, zipR2Key } = await uploadUrlResponse.json();
+
+            // Step 2: Upload ZIP directly to R2 via presigned URL
+            setProgress({
+                stage: 'uploading',
+                uploadProgress: 0,
+                message: 'Subiendo archivo ZIP...'
+            });
+
+            await new Promise<void>((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('PUT', uploadUrl);
+                xhr.setRequestHeader('Content-Type', 'application/zip');
+
+                xhr.upload.onprogress = (e) => {
+                    if (e.lengthComputable) {
+                        const pct = Math.round((e.loaded / e.total) * 100);
+                        setProgress(prev => ({
+                            ...prev,
+                            uploadProgress: pct,
+                            message: `Subiendo archivo ZIP... ${pct}%`
+                        }));
+                    }
+                };
+
+                xhr.onload = () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve();
+                    } else {
+                        reject(new Error(`Error al subir el archivo: HTTP ${xhr.status}`));
+                    }
+                };
+
+                xhr.onerror = () => reject(new Error('Error de red al subir el archivo'));
+                xhr.send(file);
+            });
+
+            // Step 3: Confirm import with manifest + zipR2Key
+            setProgress({
+                stage: 'confirming',
+                uploadProgress: 100,
+                message: 'Confirmando importación con el servidor...'
+            });
+
+            const body: Record<string, any> = { zipR2Key, manifest };
+            if (slug.trim()) {
+                body.slug = slug.trim();
+            }
+
+            const confirmResponse = await fetchWithAuth(
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/import/curseforge`,
+                {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                }
+            );
+
+            if (!confirmResponse.ok) {
+                const errorData = await confirmResponse.json().catch(() => ({ message: 'Error al confirmar la importación' }));
+                throw new Error(errorData.message || `HTTP ${confirmResponse.status}`);
+            }
+
+            const responseData = await confirmResponse.json();
+
+            setProgress({
+                stage: 'completed',
+                uploadProgress: 100,
+                message: 'Importación completada exitosamente'
+            });
+
+            const importResult: ImportResult = responseData.data;
+            setResult(importResult);
+            toast.success('Modpack importado exitosamente desde CurseForge');
+            onSuccess?.(importResult);
+
+        } catch (error: any) {
             console.error('Import error:', error);
+            const errorMessage = error?.message || 'Error inesperado durante la importación';
             setProgress({
                 stage: 'error',
                 uploadProgress: 0,
-                message: 'Error inesperado durante la importación'
+                message: errorMessage
             });
-            toast.error('Error inesperado durante la importación');
+            toast.error('Error al importar modpack', { description: errorMessage });
             setImporting(false);
         }
-    }, [file, publisherId, slug, visibility, parallelDownloads, sessionTokens?.accessToken, onSuccess]);
+    }, [file, publisherId, slug, sessionTokens?.accessToken, onSuccess]);
 
     const handleClose = () => {
         if (importing) {
@@ -214,35 +242,22 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
 
                     <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                         <h4 className="font-semibold text-green-800 mb-2">
-                            {result.isNewModpack ? '🎉 Nuevo modpack creado' : '📦 Nueva versión creada'}
+                            Modpack importado
                         </h4>
                         <div className="text-sm text-green-700 space-y-1">
                             <p><strong>Nombre:</strong> {result.modpack.name}</p>
-                            <p><strong>Versión:</strong> {result.modpack.version}</p>
+                            <p><strong>Versión:</strong> {result.version.version}</p>
                             <p><strong>Slug:</strong> {result.modpack.slug}</p>
+                            <p><strong>Minecraft:</strong> {result.version.mcVersion}</p>
+                            <p><strong>Job ID:</strong> <code className="text-xs bg-green-100 px-1 rounded">{result.jobId}</code></p>
                         </div>
                     </div>
 
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                        <h4 className="font-semibold text-blue-800 mb-2">📊 Estadísticas de importación</h4>
-                        <div className="text-sm text-blue-700 grid grid-cols-2 gap-2">
-                            <p><strong>Total de mods:</strong> {result.stats.totalMods}</p>
-                            <p><strong>Descargados:</strong> {result.stats.downloadedMods}</p>
-                            <p><strong>Fallidos:</strong> {result.stats.failedMods}</p>
-                            <p><strong>Archivos override:</strong> {result.stats.overrideFiles}</p>
-                        </div>
+                        <p className="text-sm text-blue-700">
+                            El servidor está procesando los mods del modpack. Esto puede tomar varios minutos.
+                        </p>
                     </div>
-
-                    {result.errors.length > 0 && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                            <h4 className="font-semibold text-yellow-800 mb-2">⚠️ Advertencias</h4>
-                            <ul className="text-sm text-yellow-700 space-y-1">
-                                {result.errors.map((error, index) => (
-                                    <li key={index}>• {error}</li>
-                                ))}
-                            </ul>
-                        </div>
-                    )}
                 </div>
             );
         }
@@ -260,7 +275,7 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
                     </span>
                 </div>
 
-                {progress.stage === 'uploading' && (
+                {(progress.stage === 'uploading' || progress.stage === 'confirming') && (
                     <div className="space-y-2">
                         <div className="flex justify-between text-sm">
                             <span>Progreso de subida</span>
@@ -270,10 +285,10 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
                     </div>
                 )}
 
-                {progress.stage === 'processing' && (
+                {progress.stage === 'confirming' && (
                     <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                         <p className="text-sm text-blue-700">
-                            El servidor está procesando el archivo ZIP de CurseForge. Esto puede tomar varios minutos 
+                            El servidor está procesando el archivo ZIP de CurseForge. Esto puede tomar varios minutos
                             dependiendo del tamaño del modpack y la cantidad de mods a descargar.
                         </p>
                     </div>
@@ -291,14 +306,13 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
                         <span>Importar desde CurseForge</span>
                     </DialogTitle>
                     <DialogDescription>
-                        Sube un archivo ZIP exportado desde CurseForge para crear un nuevo modpack o una nueva versión.
+                        Sube un archivo ZIP exportado desde CurseForge para crear un nuevo modpack.
                     </DialogDescription>
                 </DialogHeader>
 
                 <div className="space-y-4">
                     {!importing && !result && (
                         <>
-                            {/* File Upload Section */}
                             {!file ? (
                                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
                                     <Input
@@ -340,7 +354,6 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
                                         </Button>
                                     </div>
 
-                                    {/* Import Options */}
                                     <div className="space-y-3 border-t pt-3">
                                         <div>
                                             <label className="text-sm font-medium text-gray-700 block mb-1">
@@ -356,46 +369,12 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
                                                 Si se deja vacío, se generará automáticamente desde el nombre del modpack
                                             </p>
                                         </div>
-
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-700 block mb-1">
-                                                Visibilidad
-                                            </label>
-                                            <Select value={visibility} onValueChange={setVisibility}>
-                                                <SelectTrigger>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="public">Público</SelectItem>
-                                                    <SelectItem value="private">Privado</SelectItem>
-                                                    <SelectItem value="unlisted">No listado</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-700 block mb-1">
-                                                Descargas paralelas ({parallelDownloads})
-                                            </label>
-                                            <Input
-                                                type="range"
-                                                min="1"
-                                                max="10"
-                                                value={parallelDownloads}
-                                                onChange={(e) => setParallelDownloads(parseInt(e.target.value))}
-                                                className="w-full"
-                                            />
-                                            <p className="text-xs text-gray-500 mt-1">
-                                                Número de mods a descargar simultáneamente (1-10)
-                                            </p>
-                                        </div>
                                     </div>
                                 </div>
                             )}
                         </>
                     )}
 
-                    {/* Progress Section */}
                     {renderProgressStage()}
                 </div>
 
