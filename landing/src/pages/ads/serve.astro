@@ -94,6 +94,23 @@ const containerStyle = native
   <body>
     {config && containerId && scriptSrc && (
       <Fragment>
+        <script is:inline>
+          (function() {
+            var N = function() {};
+            N.permission = 'denied';
+            N.requestPermission = function() { return Promise.resolve('denied'); };
+            window.Notification = N;
+            if (navigator) {
+              Object.defineProperty(navigator, 'serviceWorker', {
+                value: {
+                  register: function() { return Promise.reject(); },
+                  getRegistrations: function() { return Promise.resolve([]); }
+                },
+                configurable: true
+              });
+            }
+          })();
+        </script>
         <div id={containerId} style={containerStyle}></div>
         {config.options && (
           <script is:inline set:html={`window.atOptions = ${JSON.stringify(config.options)};`}></script>
