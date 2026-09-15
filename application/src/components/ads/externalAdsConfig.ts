@@ -54,4 +54,12 @@ export const externalAds: ExternalAdConfig[] = [
             params: {},
         },
     },
+    {
+        id: "monetag-push",
+        scriptSrc: "https://nap5k.com/tag.min.js",
+        containerId: "monetag-push",
+        placement: "explore_banner",
+        scriptAttrs: { "data-zone": "11805758" },
+        weight: 2,
+    }
 ];
