@@ -8,6 +8,7 @@ import { eq, and, lt, or } from "drizzle-orm";
 import { APIError } from "@/lib/errors/index.ts";
 import { verify } from "@hono/hono/jwt";
 import { getActiveSkin, getActiveCape } from "@/services/skins.service.ts";
+import { getProfileFromMojang, getUuidFromMojang } from "@/v1/mojang/mojang.service.ts";
 
 const JWT_SECRET = Deno.env.get("JWT_SECRET")!;
 const YGGDRASIL_SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -310,6 +311,13 @@ export const yggdrasilService = {
         const cleanUuid = uuid.replace(/-/g, "");
         const dashedUuid = uuidWithDashes(cleanUuid);
 
+        // 1. Try Mojang first (with signature preservation)
+        const mojangProfile = await getProfileFromMojang(cleanUuid, unsigned);
+        if (mojangProfile) {
+            return mojangProfile;
+        }
+
+        // 2. Fallback to local database
         const [user] = await db
             .select()
             .from(users)
