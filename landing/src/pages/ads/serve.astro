@@ -57,7 +57,8 @@ if (payload) {
     if (
       (parsed.width === undefined || (typeof parsed.width === "string" && isReasonableSize(parsed.width))) &&
       (parsed.height === undefined || (typeof parsed.height === "string" && isReasonableSize(parsed.height))) &&
-      (parsed.options === undefined || (typeof parsed.options === "object" && parsed.options !== null && !Array.isArray(parsed.options)))
+      (parsed.options === undefined || (typeof parsed.options === "object" && parsed.options !== null && !Array.isArray(parsed.options))) &&
+      (parsed.scriptAttrs === undefined || (typeof parsed.scriptAttrs === "object" && parsed.scriptAttrs !== null && !Array.isArray(parsed.scriptAttrs)))
     ) {
       config = parsed;
     }
@@ -83,13 +84,23 @@ if (config) {
     ? `<script>window.atOptions=${JSON.stringify(config.options)};</script>`
     : "";
 
+  let scriptAttrsStr = "";
+  const scriptAttrs = config.scriptAttrs as Record<string, string> | undefined;
+  if (scriptAttrs) {
+    for (const [key, value] of Object.entries(scriptAttrs)) {
+      if (/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(key) && typeof value === "string") {
+        scriptAttrsStr += ` ${escapeHtml(key)}="${escapeHtml(value)}"`;
+      }
+    }
+  }
+
   let containerHtml = "";
   if (native) {
     const containerStyle = `width:${width};height:${height};max-height:200px;overflow:hidden;`;
     containerHtml = `<div id="${escapeHtml(containerId)}" style="${escapeHtml(containerStyle)}"></div>`;
   }
 
-  bodyHtml = `${stub}${containerHtml}${optionsScript}<script src="${escapeHtml(scriptSrc)}"></script>`;
+  bodyHtml = `${stub}${containerHtml}${optionsScript}<script${scriptAttrsStr} src="${escapeHtml(scriptSrc)}"></script>`;
 }
 ---
 

@@ -9,6 +9,7 @@ export interface ExternalAdConfig {
     native?: boolean;
     options?: Record<string, unknown>;
     weight?: number;
+    scriptAttrs?: Record<string, string>;
 }
 
 export const externalAds: ExternalAdConfig[] = [

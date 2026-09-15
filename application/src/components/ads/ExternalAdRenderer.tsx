@@ -36,6 +36,7 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
         if (config.height) payload.height = config.height;
         if (config.native) payload.native = true;
         if (config.options) payload.options = config.options;
+        if (config.scriptAttrs) payload.scriptAttrs = config.scriptAttrs;
 
         return `${ADS_BASE_URL}/ads/serve?payload=${encodeURIComponent(encodeBase64Url(payload))}`;
     }, [config]);
