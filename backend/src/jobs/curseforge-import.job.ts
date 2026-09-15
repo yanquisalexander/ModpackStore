@@ -233,9 +233,20 @@ export async function curseforgeImportJob(job: Job) {
                         return null;
                     }
 
-                    const fileBytes = await Deno.readFile(tempPath);
-                    const sha1 = createHash("sha1").update(fileBytes).digest("hex");
-                    await Deno.writeFile(tempPath, fileBytes); // keep for upload
+                    // Stream-hash the file instead of reading it all into memory
+                    const hash = createHash("sha1");
+                    const f = await Deno.open(tempPath, { read: true });
+                    try {
+                        const buf = new Uint8Array(64 * 1024);
+                        while (true) {
+                            const n = await f.read(buf);
+                            if (n === null) break;
+                            hash.update(buf.subarray(0, n));
+                        }
+                    } finally {
+                        f.close();
+                    }
+                    const sha1 = hash.digest("hex");
 
                     const modPath = `mods/${fileInfo.fileName}`;
                     return {
@@ -326,6 +337,16 @@ export async function curseforgeImportJob(job: Job) {
             throw new Error(`${uploadResult.skipped} of ${uploadList.length} files failed to upload to R2`);
         }
 
+        // Clean up temp files immediately after upload — no longer needed
+        for (const p of modTempFiles.values()) {
+            try { await Deno.remove(p); } catch { }
+        }
+        modTempFiles.clear();
+        for (const p of overrideTempFiles.values()) {
+            try { await Deno.remove(p); } catch { }
+        }
+        overrideTempFiles.clear();
+
         await updateProcessingJob(jobId, { progress: 80 });
 
         // ── Step 7: Insert DB records ──
@@ -363,15 +384,7 @@ export async function curseforgeImportJob(job: Job) {
             await db.insert(modpackVersionFilesTable).values(chunk).onConflictDoNothing();
         }
 
-        // ── Step 8: Cleanup ──
-        log(`  Cleaning up temp files...`);
-        for (const p of modTempFiles.values()) {
-            try { await Deno.remove(p); } catch { }
-        }
-        for (const p of overrideTempFiles.values()) {
-            try { await Deno.remove(p); } catch { }
-        }
-
+        // ── Step 8: Cleanup temp ZIP ──
         try { await deleteObject(zipR2Key); } catch { /* best effort */ }
 
         const elapsed = ((Date.now() - start) / 1000).toFixed(1);
