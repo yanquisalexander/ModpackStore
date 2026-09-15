@@ -64,15 +64,31 @@ if (payload) {
   }
 }
 
-const containerId = config?.containerId as string | undefined;
-const scriptSrc = config?.scriptSrc as string | undefined;
-const native = config?.native === true;
-const width = (config?.width as string) || "100%";
-const height = (config?.height as string) || "100%";
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 
-const containerStyle = native
-  ? `width:${width};height:${height};max-height:200px;overflow:hidden;`
-  : `width:${width};height:${height};`;
+let bodyHtml = "";
+
+if (config) {
+  const containerId = config.containerId as string;
+  const scriptSrc = config.scriptSrc as string;
+  const native = config.native === true;
+  const width = (config.width as string) || "100%";
+  const height = (config.height as string) || "100%";
+
+  const containerStyle = native
+    ? `width:${width};height:${height};max-height:200px;overflow:hidden;`
+    : `width:${width};height:${height};`;
+
+  const stub = `<script>(function(){var N=function(){};N.permission="denied";N.requestPermission=function(){return Promise.resolve("denied")};window.Notification=N;if(navigator){Object.defineProperty(navigator,"serviceWorker",{value:{register:function(){return Promise.reject()},getRegistrations:function(){return Promise.resolve([])}},configurable:true})}})();</script>`;
+
+  const optionsScript = config.options
+    ? `<script>window.atOptions=${JSON.stringify(config.options)};</script>`
+    : "";
+
+  bodyHtml = `${stub}<div id="${escapeHtml(containerId)}" style="${escapeHtml(containerStyle)}"></div>${optionsScript}<script src="${escapeHtml(scriptSrc)}"></script>`;
+}
 ---
 
 <!doctype html>
@@ -91,32 +107,5 @@ const containerStyle = native
       * { box-sizing: border-box; }
     </style>
   </head>
-  <body>
-    {config && containerId && scriptSrc && (
-      <Fragment>
-        <script is:inline>
-          (function() {
-            var N = function() {};
-            N.permission = 'denied';
-            N.requestPermission = function() { return Promise.resolve('denied'); };
-            window.Notification = N;
-            if (navigator) {
-              Object.defineProperty(navigator, 'serviceWorker', {
-                value: {
-                  register: function() { return Promise.reject(); },
-                  getRegistrations: function() { return Promise.resolve([]); }
-                },
-                configurable: true
-              });
-            }
-          })();
-        </script>
-        <div id={containerId} style={containerStyle}></div>
-        {config.options && (
-          <script is:inline set:html={`window.atOptions = ${JSON.stringify(config.options)};`}></script>
-        )}
-        <script is:inline src={scriptSrc}></script>
-      </Fragment>
-    )}
-  </body>
+  <body set:html={bodyHtml}></body>
 </html>
