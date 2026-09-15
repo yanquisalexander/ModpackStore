@@ -1,0 +1,105 @@
+---
+function decodeBase64Url(input: string): Uint8Array {
+  let base64 = input.replace(/-/g, "+").replace(/_/g, "/");
+  const pad = base64.length % 4;
+  if (pad === 2) base64 += "==";
+  else if (pad === 3) base64 += "=";
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
+function decodePayload(raw: string): Record<string, unknown> | null {
+  try {
+    const bytes = decodeBase64Url(raw);
+    const json = new TextDecoder("utf-8").decode(bytes);
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    if (url.startsWith("//")) return true;
+    return false;
+  }
+}
+
+function isSafeId(id: string): boolean {
+  return /^[a-zA-Z0-9_-]+$/.test(id);
+}
+
+function isReasonableSize(value: string): boolean {
+  if (/^\d+(\.\d+)?(px|rem|em|%)$/.test(value)) return true;
+  const n = parseInt(value, 10);
+  return !isNaN(n) && n > 0 && n < 10000;
+}
+
+const payload = Astro.url.searchParams.get("payload");
+
+let config: Record<string, unknown> | null = null;
+
+if (payload) {
+  const parsed = decodePayload(payload);
+
+  if (
+    parsed &&
+    typeof parsed.scriptSrc === "string" &&
+    isSafeUrl(parsed.scriptSrc) &&
+    typeof parsed.containerId === "string" &&
+    isSafeId(parsed.containerId)
+  ) {
+    if (
+      (parsed.width === undefined || (typeof parsed.width === "string" && isReasonableSize(parsed.width))) &&
+      (parsed.height === undefined || (typeof parsed.height === "string" && isReasonableSize(parsed.height))) &&
+      (parsed.options === undefined || (typeof parsed.options === "object" && parsed.options !== null && !Array.isArray(parsed.options)))
+    ) {
+      config = parsed;
+    }
+  }
+}
+
+const containerId = config?.containerId as string | undefined;
+const scriptSrc = config?.scriptSrc as string | undefined;
+const native = config?.native === true;
+const width = (config?.width as string) || "100%";
+const height = (config?.height as string) || "100%";
+
+const containerStyle = native
+  ? `width:${width};height:${height};max-height:200px;overflow:hidden;`
+  : `width:${width};height:${height};`;
+---
+
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: transparent;
+      }
+      * { box-sizing: border-box; }
+    </style>
+  </head>
+  <body>
+    {config && containerId && scriptSrc && (
+      <Fragment>
+        <div id={containerId} style={containerStyle}></div>
+        {config.options && (
+          <script is:inline set:html={`window.atOptions = ${JSON.stringify(config.options)};`}></script>
+        )}
+        <script is:inline src={scriptSrc}></script>
+      </Fragment>
+    )}
+  </body>
+</html>
