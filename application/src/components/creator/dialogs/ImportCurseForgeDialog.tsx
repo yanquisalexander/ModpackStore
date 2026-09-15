@@ -125,7 +125,8 @@ const ImportCurseForgeDialog: React.FC<Props> = ({ isOpen, onClose, onSuccess, p
             });
 
             const uploadUrlResponse = await fetchWithAuth(
-                `${API_ENDPOINT}/creators/${publisherId}/modpacks/import/curseforge/upload-url`
+                `${API_ENDPOINT}/creators/${publisherId}/modpacks/import/curseforge/upload-url`,
+                { method: 'POST' }
             );
             if (!uploadUrlResponse.ok) {
                 const errorData = await uploadUrlResponse.json().catch(() => ({ message: 'Error al obtener URL de subida' }));
