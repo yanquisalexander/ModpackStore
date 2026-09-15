@@ -8,6 +8,7 @@ export interface ExternalAdConfig {
     label?: string;
     native?: boolean;
     options?: Record<string, unknown>;
+    weight?: number;
 }
 
 export const externalAds: ExternalAdConfig[] = [
@@ -18,6 +19,7 @@ export const externalAds: ExternalAdConfig[] = [
         placement: "explore_banner",
         height: "100px",
         native: true,
+        weight: 1,
     },
     {
         id: "adsterra-728x90",
@@ -26,6 +28,7 @@ export const externalAds: ExternalAdConfig[] = [
         placement: "explore_banner",
         width: "728px",
         height: "90px",
+        weight: 2,
         options: {
             key: "3b96dc390e386e1b4cdcd2313dfa0570",
             format: "iframe",
@@ -41,6 +44,7 @@ export const externalAds: ExternalAdConfig[] = [
         placement: "modpack_sidebar",
         width: "300px",
         height: "250px",
+        weight: 2,
         options: {
             key: "b537ccdc5ec66b9f28e4de33ebb0e2a4",
             format: "iframe",
