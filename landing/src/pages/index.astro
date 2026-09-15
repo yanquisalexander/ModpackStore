@@ -90,23 +90,23 @@ try {
   title={`Modpack Store - Canary ${release.version}`}
   description={`Modpack Store canary ${release.version}: ${release.notes}`}
 >
-  <div class="fixed inset-0 z-[-1] pointer-events-none bg-[#020202]">
+  <!-- Google TV Cinematic Ambient Light Background -->
+  <div class="fixed inset-0 z-[-1] pointer-events-none overflow-hidden bg-[#09090b]">
     <div
-      class="absolute left-1/4 top-0 h-96 w-96 rounded-full bg-ms-primary/15 blur-[110px] animate-pulse-slow mix-blend-screen"
+      class="absolute left-1/2 -translate-x-1/2 -top-24 h-[500px] w-[850px] rounded-full bg-primary/10 blur-[140px] animate-pulse-slow"
     >
     </div>
     <div
-      class="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-ms-secondary/15 blur-[110px] animate-pulse-slow mix-blend-screen"
-      style="animation-delay: 2s;"
+      class="absolute right-[-10%] top-[40%] h-[400px] w-[500px] rounded-full bg-purple-600/5 blur-[150px]"
     >
     </div>
     <div
-      class="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')]"
+      class="absolute left-[-10%] bottom-[20%] h-[400px] w-[500px] rounded-full bg-blue-600/5 blur-[150px]"
     >
     </div>
   </div>
 
-  <main class="relative z-10 flex flex-col gap-24 pb-20 pt-10">
+  <main class="relative z-10 flex flex-col gap-16 sm:gap-20 pb-16 pt-8">
     <Hero release={release} />
     <TrustedCommunities />
     <Features />

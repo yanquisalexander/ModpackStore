@@ -21,47 +21,35 @@ const currentPath = Astro.url.pathname;
 
 <header
   id="site-header"
-  class="fixed top-0 left-0 right-0 z-50 w-full py-6 transition-all duration-500 opacity-0 -translate-y-10"
+  class="fixed top-0 left-0 right-0 z-50 w-full py-4 transition-all duration-500 opacity-0 -translate-y-10"
 >
   <div
     id="nav-island"
-    class="relative mx-auto flex items-center justify-between px-2 py-2 pr-2 md:px-6 md:py-3 transition-all duration-500 ease-out w-[95%] max-w-6xl rounded-full border border-white/10 bg-black/20 backdrop-blur-xl backdrop-saturate-150 shadow-[0_8px_32px_0_rgba(0,0,0,0.36),inset_0_0_0_1px_rgba(255,255,255,0.05)]"
+    class="relative mx-auto flex items-center justify-between px-3 py-2 md:px-4 md:py-2 transition-all duration-300 ease-out w-[95%] max-w-5xl rounded-full border border-white/10 bg-[#121216]/85 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
   >
-    <div
-      class="absolute inset-x-4 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent opacity-70"
-    >
-    </div>
-    <div
-      class="absolute inset-x-10 bottom-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-50"
-    >
-    </div>
-
-    <div class="relative z-10 flex items-center gap-4 pl-2">
+    <!-- Brand -->
+    <div class="relative z-10 flex items-center gap-3 pl-1">
       <a
         href="/"
-        class="flex items-center gap-3 group transition-transform hover:scale-105"
+        class="flex items-center gap-2.5 group transition-transform hover:scale-[1.02]"
       >
-        <div class="relative w-10 h-10 flex items-center justify-center">
-          <div
-            class="absolute inset-0 bg-ms-primary blur-[20px] opacity-20 group-hover:opacity-50 transition-opacity duration-500 rounded-full"
-          >
-          </div>
+        <div class="size-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center p-1 overflow-hidden">
           <img
             src="/icon.png"
-            class="relative w-8 h-8 rounded-lg shadow-lg"
-            alt="Logo"
+            class="size-6 object-contain"
+            alt="ModpackStore Logo"
           />
         </div>
-        <span
-          class="hidden md:block font-lexend font-bold text-lg tracking-tight text-white drop-shadow-md"
-        >
-          Modpack<span class="text-ms-primary">Store</span>
+        <span class="font-lexend font-bold text-base tracking-tight text-white flex items-center gap-1.5">
+          Modpack<span class="text-primary">Store</span>
+          <span class="hidden lg:inline-flex items-center text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-zinc-400">Canary</span>
         </span>
       </a>
     </div>
 
+    <!-- Center Navigation Tabs (Google TV Pills) -->
     <nav
-      class="hidden md:flex items-center gap-1 absolute left-1/2 -translate-x-1/2"
+      class="hidden md:flex items-center gap-1 bg-white/[0.04] p-1 rounded-full border border-white/5"
     >
       {
         links.map((link) => {
@@ -69,68 +57,36 @@ const currentPath = Astro.url.pathname;
           return (
             <a
               href={link.url}
-              class="relative px-5 py-2 group rounded-full transition-all duration-300 overflow-hidden"
+              class={`flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
+                isActive
+                  ? "bg-white text-zinc-950 font-semibold shadow-sm"
+                  : "text-zinc-400 hover:text-white hover:bg-white/10"
+              }`}
             >
-              {/* Fondo Hover Sutil */}
-              <div class="absolute inset-0 bg-white/0 group-hover:bg-white/5 transition-colors duration-300 rounded-full" />
-
-              {/* Texto */}
-              <span
-                class={`relative z-10 text-sm font-medium tracking-wide transition-colors duration-300 flex items-center gap-2 ${
-                  isActive
-                    ? "text-white drop-shadow-[0_0_10px_rgba(255,255,255,0.5)]"
-                    : "text-neutral-400 group-hover:text-white"
-                }`}
-              >
-                {isActive && (
-                  <span class="w-1.5 h-1.5 rounded-full bg-ms-primary shadow-[0_0_10px_currentColor]" />
-                )}
-                {link.label}
-              </span>
-
-              {/* Luz activa inferior (Laser style) */}
-              <span
-                class={`absolute bottom-0 left-1/2 -translate-x-1/2 h-[2px] bg-gradient-to-r from-transparent via-ms-primary to-transparent rounded-full blur-[1px] transition-all duration-500 ease-out ${
-                  isActive
-                    ? "w-3/4 opacity-100 shadow-[0_0_15px_rgba(99,102,241,0.8)]"
-                    : "w-0 opacity-0 group-hover:w-1/2 group-hover:opacity-50"
-                }`}
-              />
+              <link.icon size={14} class={isActive ? "text-zinc-950" : "text-zinc-400"} />
+              <span>{link.label}</span>
             </a>
           );
         })
       }
     </nav>
 
-    <div class="relative z-10 flex items-center gap-3">
+    <!-- Actions -->
+    <div class="relative z-10 flex items-center gap-2">
       <a
         href="#download"
-        class="hidden md:flex relative items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm text-white overflow-hidden group transition-all hover:scale-105 active:scale-95 shadow-[0_10px_20px_-10px_rgba(99,102,241,0.5)]"
+        class="hidden md:flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-primary text-white font-semibold text-xs transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 shadow-md shadow-primary/20"
       >
-        <div
-          class="absolute inset-0 bg-ms-primary transition-colors group-hover:bg-ms-primary-light"
-        >
-        </div>
-
-        <div
-          class="absolute inset-0 bg-gradient-to-b from-white/20 to-transparent pointer-events-none"
-        >
-        </div>
-        <div
-          class="absolute inset-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4),inset_0_-2px_4px_rgba(0,0,0,0.2)] rounded-full pointer-events-none"
-        >
-        </div>
-
-        <Download size={16} class="relative z-10" />
-        <span class="relative z-10">Descargar</span>
+        <Download size={14} />
+        <span>Descargar</span>
       </a>
 
       <button
         id="mobile-menu-btn"
-        class="md:hidden p-3 text-neutral-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/5 rounded-full transition-all backdrop-blur-md shadow-inner"
+        class="md:hidden p-2 text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all"
         aria-label="Menu"
       >
-        <Menu size={20} />
+        <Menu size={18} />
       </button>
     </div>
   </div>
@@ -139,68 +95,53 @@ const currentPath = Astro.url.pathname;
 <div id="mobile-drawer" class="fixed inset-0 z-[60] hidden pointer-events-none">
   <div
     id="drawer-bg"
-    class="absolute inset-0 bg-black/60 backdrop-blur-sm opacity-0 transition-opacity duration-300 pointer-events-auto"
+    class="absolute inset-0 bg-black/70 backdrop-blur-sm opacity-0 transition-opacity duration-300 pointer-events-auto"
   >
   </div>
 
   <nav
     id="drawer-panel"
-    class="absolute top-0 right-0 h-full w-[85%] max-w-sm bg-[#050505]/90 backdrop-blur-2xl border-l border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.5)] transform translate-x-full transition-transform duration-500 ease-[cubic-bezier(0.32,0.725,0,1)] pointer-events-auto flex flex-col"
+    class="absolute top-0 right-0 h-full w-[85%] max-w-sm bg-[#111116] border-l border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.7)] transform translate-x-full transition-transform duration-300 ease-out pointer-events-auto flex flex-col p-6"
   >
-    <div
-      class="absolute inset-0 opacity-[0.03] bg-[url('https://grainy-gradients.vercel.app/noise.svg')] pointer-events-none"
-    >
-    </div>
-
-    <div
-      class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"
-    >
-    </div>
-
-    <div class="relative px-6 py-8 flex justify-between items-center mb-4">
-      <span
-        class="font-lexend font-bold text-xl text-white tracking-tight flex items-center gap-2"
-      >
-        <div
-          class="w-2 h-2 rounded-full bg-ms-primary shadow-[0_0_10px_currentColor]"
-        >
+    <div class="flex justify-between items-center mb-6 pb-4 border-b border-white/10">
+      <div class="flex items-center gap-2.5">
+        <div class="size-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center p-1">
+          <img src="/icon.png" class="size-6 object-contain" alt="Logo" />
         </div>
-        Navegación
-      </span>
+        <span class="font-lexend font-bold text-base text-white">ModpackStore</span>
+      </div>
       <button
         id="close-drawer"
-        class="text-neutral-400 hover:text-white p-2 hover:bg-white/10 rounded-full transition-colors"
+        class="text-zinc-400 hover:text-white p-1.5 hover:bg-white/10 rounded-full transition-colors"
       >
-        <X size={24} />
+        <X size={20} />
       </button>
     </div>
 
-    <div class="relative flex-1 overflow-y-auto px-4 space-y-2">
+    <div class="flex-1 overflow-y-auto space-y-1.5">
       {
         links.map((link) => (
           <a
             href={link.url}
-            class={`flex items-center gap-4 px-4 py-4 rounded-2xl font-medium text-lg transition-all border border-transparent ${
-              currentPath === link.url
-                ? "bg-ms-primary/10 text-ms-primary border-ms-primary/20 shadow-[0_0_20px_rgba(99,102,241,0.1)]"
-                : "text-neutral-400 hover:bg-white/5 hover:text-white hover:border-white/5"
-            }`}
+            class="flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm font-medium transition-all text-zinc-300 hover:text-white hover:bg-white/5 border border-transparent hover:border-white/5"
           >
-            <link.icon size={22} strokeWidth={1.5} />
+            <div class="p-2 rounded-lg bg-white/5 text-zinc-400">
+              <link.icon size={18} />
+            </div>
             {link.label}
           </a>
         ))
       }
+    </div>
 
-      <div class="mt-8 pt-8 border-t border-white/10 px-2">
-        <a
-          href="#download"
-          class="flex items-center justify-center gap-2 w-full px-5 py-4 bg-ms-primary text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-ms-primary/30 hover:scale-[1.02] active:scale-[0.98]"
-        >
-          <Download size={20} />
-          Descargar App
-        </a>
-      </div>
+    <div class="pt-6 border-t border-white/10">
+      <a
+        href="#download"
+        class="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary text-white font-semibold text-sm rounded-xl transition-all shadow-md hover:bg-primary/90"
+      >
+        <Download size={16} />
+        Descargar Launcher
+      </a>
     </div>
   </nav>
 </div>
@@ -248,22 +189,20 @@ const currentPath = Astro.url.pathname;
       const isScrolled = window.scrollY > 20;
 
       if (isScrolled) {
-        // Estado Scrolleado: Más compacto, más oscuro/sólido
-        navIsland?.classList.remove("w-[95%]", "md:py-3", "bg-black/20");
+        // Estado Scrolleado: Más compacto y nítido
+        navIsland?.classList.remove("w-[95%]", "bg-[#121216]/85");
         navIsland?.classList.add(
           "w-[90%]",
-          "md:py-2",
-          "bg-black/60",
-          "shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]",
+          "bg-[#121216]/95",
+          "shadow-[0_16px_40px_rgba(0,0,0,0.6)]",
         );
       } else {
-        // Estado Inicial: Más ancho, más transparente
-        navIsland?.classList.add("w-[95%]", "md:py-3", "bg-black/20");
+        // Estado Inicial
+        navIsland?.classList.add("w-[95%]", "bg-[#121216]/85");
         navIsland?.classList.remove(
           "w-[90%]",
-          "md:py-2",
-          "bg-black/60",
-          "shadow-[0_10px_40px_-10px_rgba(0,0,0,0.5)]",
+          "bg-[#121216]/95",
+          "shadow-[0_16px_40px_rgba(0,0,0,0.6)]",
         );
       }
     };

@@ -1,22 +1,35 @@
 @import "tailwindcss";
 @import "@fontsource-variable/jost";
 @import "@fontsource-variable/lexend";
+@import "@fontsource-variable/albert-sans";
 
 @theme {
-  /* Colors - Base Dark Theme */
-  --color-background: #050505;
-  --color-foreground: #ffffff;
+  /* Colors - Base Theme */
+  --color-background: #09090b;
+  --color-foreground: #fafafa;
+
+  /* Surfaces & Borders (Alineados con shadcn / App) */
+  --color-card: #111116;
+  --color-card-foreground: #fafafa;
+  --color-muted: #18181b;
+  --color-muted-foreground: #a1a1aa;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-subtle: rgba(255, 255, 255, 0.05);
+  --color-border-hover: rgba(255, 255, 255, 0.18);
   
-  /* Brand Colors - Blue/Purple Theme */
+  /* Brand Colors */
+  --color-primary: #6366f1;
+  --color-primary-foreground: #ffffff;
   --color-ms-primary: #6366f1;
   --color-ms-primary-light: #818cf8;
   --color-ms-primary-dark: #4338ca;
   --color-ms-secondary: #a855f7;
-  --color-brand-glow: rgba(99, 102, 241, 0.5);
+  --color-brand-glow: rgba(99, 102, 241, 0.25);
 
   /* Fonts */
   --font-jost: "Jost Variable", sans-serif;
   --font-lexend: "Lexend Variable", sans-serif;
+  --font-albert-sans: "Albert Sans Variable", sans-serif;
   
   /* Animations */
   --animate-float: float 6s ease-in-out infinite;
@@ -24,34 +37,55 @@
 
   @keyframes float {
     0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-20px); }
+    50% { transform: translateY(-10px); }
   }
   
   @keyframes pulse-slow {
-    0%, 100% { opacity: 0.3; }
-    50% { opacity: 0.6; }
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 0.45; }
   }
 }
 
 /* Global Styles */
-body {
-  @apply bg-background text-foreground font-jost overflow-x-hidden antialiased;
+html {
+  color-scheme: dark;
 }
 
-/* Utilities copiadas y adaptadas de tu componente */
-.glass-panel {
-  @apply bg-[#121212] border border-white/5 shadow-2xl backdrop-blur-md;
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-jost);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Google TV / Dashboard Utility Classes */
+.tv-card {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.tv-card:hover {
+  border-color: var(--color-border-hover);
+}
+
+.tv-pill {
+  border-radius: 9999px;
+  border: 1px solid var(--color-border);
+  background-color: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+  transition: all 0.2s ease-in-out;
+}
+
+.tv-pill:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  border-color: var(--color-border-hover);
 }
 
 .text-gradient-ms {
-  @apply bg-clip-text text-transparent bg-gradient-to-b from-ms-primary-light to-ms-primary;
-}
-
-.glow-orb-ms {
-  position: absolute;
-  background: rgba(99, 102, 241, 0.15);
-  filter: blur(120px);
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: -1;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  background-image: linear-gradient(135deg, #ffffff 0%, #cbd5e1 50%, #818cf8 100%);
 }

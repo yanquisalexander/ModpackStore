@@ -78,10 +78,13 @@ if (config) {
   const width = (config.width as string) || "100%";
   const height = (config.height as string) || "100%";
 
-  const stub = `<script>(function(){var N=function(){};N.permission="denied";N.requestPermission=function(){return Promise.resolve("denied")};window.Notification=N;if(navigator){Object.defineProperty(navigator,"serviceWorker",{value:{register:function(){return Promise.reject()},getRegistrations:function(){return Promise.resolve([])}},configurable:true})}})();</script>`;
+  const S_TAG = "<" + "script";
+  const S_END = "<" + "/script>";
+
+  const stub = `${S_TAG}>(function(){var N=function(){};N.permission="denied";N.requestPermission=function(){return Promise.resolve("denied")};window.Notification=N;if(navigator){Object.defineProperty(navigator,"serviceWorker",{value:{register:function(){return Promise.reject()},getRegistrations:function(){return Promise.resolve([])}},configurable:true})}})();${S_END}`;
 
   const optionsScript = config.options
-    ? `<script>window.atOptions=${JSON.stringify(config.options)};</script>`
+    ? `${S_TAG}>window.atOptions=${JSON.stringify(config.options)};${S_END}`
     : "";
 
   let scriptAttrsStr = "";
@@ -100,7 +103,7 @@ if (config) {
     containerHtml = `<div id="${escapeHtml(containerId)}" style="${escapeHtml(containerStyle)}"></div>`;
   }
 
-  bodyHtml = `${stub}${containerHtml}${optionsScript}<script${scriptAttrsStr} src="${escapeHtml(scriptSrc)}"></script>`;
+  bodyHtml = `${stub}${containerHtml}${optionsScript}${S_TAG}${scriptAttrsStr} src="${escapeHtml(scriptSrc)}">${S_END}`;
 }
 ---
 
