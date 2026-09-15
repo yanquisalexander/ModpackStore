@@ -42,7 +42,7 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
 
     const iframeHeight = config.height || "auto";
 
-    const strictSandbox = "allow-scripts allow-popups allow-popups-to-escape-sandbox";
+    const strictSandbox = "allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox";
 
     if (variant === "sidebar") {
         return (
