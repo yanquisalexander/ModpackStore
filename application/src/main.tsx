@@ -8,7 +8,7 @@ import { Toaster } from "sonner";
 import { UpdateStatus } from "./components/UpdateStatus";
 import { start as startDiscordRpc } from "tauri-plugin-drpc";
 import { AppProviders } from "./providers/AppProviders"; // Importas el nuevo componente
-import { info, debug, error, warn } from "@tauri-apps/plugin-log";
+import { warn, debug, trace, info, error } from '@tauri-apps/plugin-log';
 import { preloadSounds } from '@/utils/sounds';
 import { useLayout } from './providers/LayoutProvider';
 import { initApiEndpoint } from './consts';
@@ -28,37 +28,23 @@ if (!$root) {
   throw new Error("Root element not found");
 }
 
-/* 
-  Monkey Patch Console Log
-
-   .log => Use original, and redirect to info method
-   .debug => Use original, and redirect to debug method
-   .error => Use original, and redirect to error method
-   .warn => Use original, and redirect to warn method
-*/
-
-// Función helper para patch un método de console
-const patchConsoleMethod = (method: keyof Console, logger: (...args: any[]) => void) => {
-  const original = (console as any)[method];
-  (console as any)[method] = (...args: any[]) => {
-    original(...args);
-    // Convertir args a string para el logger de Tauri
-    const message = args.map(arg => {
-      if (typeof arg === 'object') {
-        try {
-          return JSON.stringify(arg);
-        } catch {
-          try { return String(arg); } catch { return '[Object]'; }
-        }
-      }
-      try { return String(arg); } catch { return String(arg?.toString?.() ?? arg); }
-    }).join(' ');
+function forwardConsole(
+  fnName: 'log' | 'debug' | 'info' | 'warn' | 'error',
+  logger: (message: string) => Promise<void>
+) {
+  const original = console[fnName];
+  console[fnName] = (message) => {
+    original(message);
     logger(message);
   };
-};
+}
 
-//patchConsoleMethod('error', error);
-patchConsoleMethod('warn', warn);
+forwardConsole('log', trace);
+forwardConsole('debug', debug);
+forwardConsole('info', info);
+forwardConsole('warn', warn);
+forwardConsole('error', error);
+
 
 // Componente wrapper para usar el contexto
 const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
