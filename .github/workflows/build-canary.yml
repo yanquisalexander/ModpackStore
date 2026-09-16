@@ -87,9 +87,9 @@ jobs:
       matrix:
         include:
           - target: aarch64-apple-darwin
-            args: '--bundles dmg --target aarch64-apple-darwin'
+            args: '--bundles dmg,app --target aarch64-apple-darwin'
           - target: x86_64-apple-darwin
-            args: '--bundles dmg --target x86_64-apple-darwin'
+            args: '--bundles dmg,app --target x86_64-apple-darwin'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
