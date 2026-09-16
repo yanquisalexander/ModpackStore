@@ -113,6 +113,7 @@ runs:
         releaseDraft: false
         releaseCommitish: main
         prerelease: false
-        includeUpdaterJson: true
+        uploadUpdaterJson: true
+        uploadUpdaterSignatures: true
         owner: ModpackStore
         repo: ModpackStore-Releases
