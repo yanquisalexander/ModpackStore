@@ -55,8 +55,11 @@ import GlassCircleWrench from "./icons/GlassCircleWrench";
 
 // --- Helpers ---
 const LoadingScreen = () => (
-  <div className="absolute inset-0 flex items-center justify-center min-h-full h-full w-full">
-    <LucideLoader className="size-10 -mt-12 animate-spin-clockwise animate-iteration-count-infinite animate-duration-1000 text-white" />
+  <div
+    style={{ gridArea: "main" }}
+    className="relative flex items-center justify-center min-h-full h-full w-full bg-[#121214] bg-[var(--background)]"
+  >
+    <LucideLoader className="size-10 -mt-12 animate-spin text-white" />
   </div>
 );
 

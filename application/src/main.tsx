@@ -33,9 +33,16 @@ function forwardConsole(
   logger: (message: string) => Promise<void>
 ) {
   const original = console[fnName];
-  console[fnName] = (message) => {
-    original(message);
-    logger(message);
+  console[fnName] = (...args: any[]) => {
+    original(...args);
+    const message = args.map(arg => {
+      if (arg instanceof Error) return `${arg.name}: ${arg.message}\n${arg.stack || ''}`;
+      if (typeof arg === 'object') {
+        try { return JSON.stringify(arg); } catch { return String(arg); }
+      }
+      return String(arg);
+    }).join(' ');
+    logger(message).catch(() => {});
   };
 }
 
@@ -44,6 +51,18 @@ forwardConsole('debug', debug);
 forwardConsole('info', info);
 forwardConsole('warn', warn);
 forwardConsole('error', error);
+
+window.addEventListener('error', (event) => {
+  const message = `[Unhandled Error] ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`;
+  error(message).catch(() => {});
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason instanceof Error
+    ? `${event.reason.name}: ${event.reason.message}\n${event.reason.stack || ''}`
+    : String(event.reason);
+  error(`[Unhandled Rejection] ${reason}`).catch(() => {});
+});
 
 
 // Componente wrapper para usar el contexto

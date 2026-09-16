@@ -26,6 +26,8 @@ export default defineConfig(async () => ({
     },
   },
   build: {
+    target: ['es2020', 'safari15', 'chrome89', 'edge89', 'firefox89'],
+    cssTarget: ['safari15', 'chrome89', 'firefox89'],
     rollupOptions: {
       input: {
         main: path.resolve(__dirname, "index.html"),
