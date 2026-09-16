@@ -50,7 +50,7 @@ runs:
     - name: Install macOS universal target
       if: runner.os == 'macOS'
       shell: bash
-      run: rustup target add aarch64-apple-darwin
+      run: rustup target add aarch64-apple-darwin x86_64-apple-darwin
 
     - name: Set linker flags (Linux)
       if: runner.os == 'Linux'
