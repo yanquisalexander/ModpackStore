@@ -26,6 +26,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "macOS": {
+      "dmg": {},
+      "hardenedRuntime": true,
+      "minimumSystemVersion": "10.13"
+    },
     "windows": {
       "certificateThumbprint": "866B364F275CAE7112E9A62322469A6B4FDFE8DE",
       "nsis": {
