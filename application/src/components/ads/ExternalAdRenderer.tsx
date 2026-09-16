@@ -10,7 +10,7 @@ interface ExternalAdRendererProps {
     className?: string;
 }
 
-const ADS_BASE_URL = "http://modpackstore.vercel.app";
+const ADS_BASE_URL = "https://modpackstore.vercel.app";
 
 function encodeBase64Url(data: Record<string, unknown>): string {
     const json = JSON.stringify(data);
@@ -43,7 +43,7 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
 
     const iframeHeight = config.height || "auto";
 
-    const strictSandbox = "allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox";
+    const strictSandbox = "allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox allow-top-navigation";
 
     if (variant === "sidebar") {
         return (
@@ -57,7 +57,6 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
                         src={iframeSrc}
                         style={{ width: "100%", height: iframeHeight, border: "none", maxWidth: "100%" }}
                         sandbox={strictSandbox}
-                        loading="lazy"
                         title="Ad"
                     />
                 </div>
@@ -89,7 +88,6 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
                     src={iframeSrc}
                     style={{ width: "100%", height: iframeHeight, border: "none", maxWidth: "100%" }}
                     sandbox={strictSandbox}
-                    loading="lazy"
                     title="Ad"
                 />
             </div>
