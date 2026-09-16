@@ -47,6 +47,11 @@ runs:
     - name: Install Rust stable
       uses: dtolnay/rust-toolchain@stable
 
+    - name: Install macOS universal target
+      if: runner.os == 'macOS'
+      shell: bash
+      run: rustup target add aarch64-apple-darwin
+
     - name: Set linker flags (Linux)
       if: runner.os == 'Linux'
       shell: bash
@@ -97,7 +102,7 @@ runs:
         GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
       with:
         projectPath: ./application
-        args: ${{ runner.os == 'Linux' && '--bundles appimage' || (runner.os == 'macOS' && '--bundles dmg' || '--bundles msi') }}
+        args: ${{ runner.os == 'Linux' && '--bundles appimage' || (runner.os == 'macOS' && '--bundles dmg --target universal-apple-darwin' || '--bundles msi') }}
         tagName: canary
         releaseName: Canary Build canary
         releaseBody: Automated canary build for testing
