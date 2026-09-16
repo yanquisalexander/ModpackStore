@@ -14,8 +14,11 @@
       "msi",
       "appimage",
       "rpm",
-      "deb"
+      "deb",
+      "dmg",
+      "app"
     ],
+    
     "resources": [
       "resources/i18n/*.yml"
     ],
@@ -27,9 +30,7 @@
       "icons/icon.ico"
     ],
     "macOS": {
-      "dmg": {},
-      "hardenedRuntime": true,
-      "minimumSystemVersion": "10.13"
+      "signingIdentity": "-"
     },
     "windows": {
       "certificateThumbprint": "866B364F275CAE7112E9A62322469A6B4FDFE8DE",
@@ -39,12 +40,14 @@
       },
       "wix": {}
     },
+
     "linux": {
       "appimage": {
         "bundleMediaFramework": true
       }
     }
   },
+
   "productName": "Modpack Store",
   "mainBinaryName": "ModpackStore",
   "version": "1.0.179",
@@ -75,6 +78,7 @@
         "overlay-capability"
       ]
     },
+
     "windows": [
       {
         "label": "main",
