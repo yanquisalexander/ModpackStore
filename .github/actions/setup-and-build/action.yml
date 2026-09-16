@@ -16,6 +16,10 @@ inputs:
   PFX_PASSWORD:
     required: false
     description: 'Password for the PFX certificate'
+  args:
+    required: false
+    default: ''
+    description: 'Extra args to pass to tauri build'
 
 runs:
   using: "composite"
@@ -95,14 +99,14 @@ runs:
         Import-PfxCertificate -FilePath $pfxPath -CertStoreLocation Cert:\CurrentUser\My -Password $pwd
         
     - name: Build & Publish Canary Release
-      uses: tauri-apps/tauri-action@v0
+      uses: tauri-apps/tauri-action@v1
       env:
         TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.TAURI_SIGNING_PRIVATE_KEY }}
         GITHUB_TOKEN: ${{ inputs.GITHUB_TOKEN }}
         GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
       with:
         projectPath: ./application
-        args: ${{ runner.os == 'Linux' && '--bundles appimage' || (runner.os == 'macOS' && '--bundles dmg --target universal-apple-darwin' || '--bundles msi') }}
+        args: ${{ inputs.args }}
         tagName: canary
         releaseName: Canary Build canary
         releaseBody: Automated canary build for testing

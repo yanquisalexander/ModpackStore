@@ -29,7 +29,8 @@ const downloadDefinitions = [
   { key: "linux-x86_64-appimage", label: "Linux (AppImage)", icon: "linux" },
   { key: "linux-x86_64-deb", label: "Ubuntu / Debian", icon: "linux" },
   { key: "linux-x86_64-rpm", label: "Fedora", icon: "linux" },
-  { key: "macos-universal-dmg", label: "macOS", icon: "macos" },
+  { key: "darwin-aarch64", label: "macOS (Apple Silicon)", icon: "macos" },
+  { key: "darwin-x86_64", label: "macOS (Intel)", icon: "macos" },
 ];
 
 const downloads = downloadDefinitions
@@ -216,7 +217,10 @@ const publishedDate = new Intl.DateTimeFormat("es-ES", {
   function detectPlatform(): string | null {
     const ua = navigator.userAgent.toLowerCase();
     if (ua.includes("win")) return "windows-x86_64-msi";
-    if (ua.includes("mac")) return "macos-universal-dmg";
+    if (ua.includes("mac")) {
+      const isAppleSilicon = ua.includes("arm") || ua.includes("aarch64");
+      return isAppleSilicon ? "darwin-aarch64" : "darwin-x86_64";
+    }
     if (ua.includes("linux")) return "linux-x86_64-appimage";
     return null;
   }
@@ -227,7 +231,8 @@ const publishedDate = new Intl.DateTimeFormat("es-ES", {
       "linux-x86_64-appimage": "Linux (AppImage)",
       "linux-x86_64-deb": "Ubuntu / Debian",
       "linux-x86_64-rpm": "Fedora",
-      "macos-universal-dmg": "macOS",
+      "darwin-aarch64": "macOS (Apple Silicon)",
+      "darwin-x86_64": "macOS (Intel)",
     };
     return labels[key] ?? key;
   }

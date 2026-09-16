@@ -49,6 +49,7 @@ jobs:
         with:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          args: '--bundles appimage'
 
   publish-canary-windows:
     name: Build & Publish for Windows
@@ -74,12 +75,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
           PFX_BASE64: ${{ secrets.PFX_BASE64 }}
           PFX_PASSWORD: ${{ secrets.PFX_PASSWORD }}
+          args: '--bundles msi'
 
   publish-canary-macos:
-    name: Build & Publish for macOS
+    name: Build & Publish for macOS (${{ matrix.target }})
     runs-on: macos-latest
     permissions:
       contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            args: '--bundles dmg --target aarch64-apple-darwin'
+          - target: x86_64-apple-darwin
+            args: '--bundles dmg --target x86_64-apple-darwin'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -89,3 +99,4 @@ jobs:
         with:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           GITHUB_TOKEN: ${{ secrets.PUBLIC_REPO_TOKEN }}
+          args: ${{ matrix.args }}
