@@ -239,53 +239,40 @@ pub async fn install_java() -> Result<String, String> {
     }
 }
 
-/// Repara la instalación de Java con lógica inteligente
-/// Primero busca localmente, luego descarga si es necesario
+/// Repara la instalación de Java
+/// Siempre prioriza el Java interno de la app (_java_versions).
+/// Solo descarga si no hay ninguno disponible.
 #[tauri::command]
 pub async fn repair_java_installation() -> Result<String, String> {
     let java_manager =
         JavaManager::new().map_err(|e| format!("Error al inicializar JavaManager: {}", e))?;
 
-    // Paso 1: Buscar instalaciones locales de Java
-    match java_manager.scan_local_java_installations() {
-        Ok(Some(local_java_path)) => {
-            println!("Java encontrado localmente en: {}", local_java_path);
-
-            // Guardar la ruta encontrada en la configuración
-            match get_config_manager().lock() {
-                Ok(mut config_result) => match &mut *config_result {
-                    Ok(config) => {
-                        config
-                            .set("javaDir", &local_java_path)
-                            .map_err(|e| format!("Error al establecer javaDir: {}", e))?;
-
-                        config
-                            .save()
-                            .map_err(|e| format!("Error al guardar configuración: {}", e))?;
-
-                        return Ok(local_java_path);
-                    }
-                    Err(e) => return Err(e.clone()),
-                },
-                Err(_) => {
-                    return Err(
-                        "Error al obtener el bloqueo del gestor de configuración".to_string()
-                    )
+    // Paso 1: Si ya hay un Java de la app funcionando, reutilizarlo
+    if let Some(app_java) = java_manager.find_existing_app_java() {
+        println!("Reutilizando Java de la app en: {}", app_java);
+        match get_config_manager().lock() {
+            Ok(mut config_result) => match &mut *config_result {
+                Ok(config) => {
+                    config
+                        .set("javaDir", &app_java)
+                        .map_err(|e| format!("Error al establecer javaDir: {}", e))?;
+                    config
+                        .save()
+                        .map_err(|e| format!("Error al guardar configuración: {}", e))?;
+                    return Ok(app_java);
                 }
+                Err(e) => return Err(e.clone()),
+            },
+            Err(_) => {
+                return Err(
+                    "Error al obtener el bloqueo del gestor de configuración".to_string()
+                )
             }
-        }
-        Ok(None) => {
-            println!("No se encontró Java localmente, procediendo con descarga");
-        }
-        Err(e) => {
-            println!(
-                "Error al buscar Java localmente: {}, procediendo con descarga",
-                e
-            );
         }
     }
 
-    // Paso 2: Si no se encontró Java localmente, descargar Java 8
+    // Paso 2: No hay Java de la app — descargar uno nuevo
+    println!("No hay Java de la app, procediendo con descarga");
     install_java().await
 }
 

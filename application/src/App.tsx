@@ -38,6 +38,7 @@ const TicketsSection = lazy(() => import("./components/TicketsSection").then(m =
 const AdminLayout = lazy(() => import("./components/admin/AdminLayout").then(m => ({ default: m.AdminLayout })));
 
 const ConfigurationDialog = lazy(() => import("./components/ConfigurationDialog").then(m => ({ default: m.ConfigurationDialog })));
+const TroubleshooterView = lazy(() => import("./views/TroubleshooterView").then(m => ({ default: m.TroubleshooterView })));
 const TermsAndConditionsDialog = lazy(() => import("./components/TermsAndConditionsDialog").then(m => ({ default: m.TermsAndConditionsDialog })));
 const OnboardingFlow = lazy(() => import("./components/onboarding").then(m => ({ default: m.OnboardingFlow })));
 const SessionExpiredDialog = lazy(() => import("./components/SessionExpiredDialog").then(m => ({ default: m.SessionExpiredDialog })));
@@ -180,6 +181,7 @@ const AppRoutes = memo(function AppRoutes({ isConnected, isConnectionLoading, is
         />
 
         <Route path="/c/:creatorSlug" element={<CreatorProfileView />} />
+        <Route path="/troubleshooter" element={<TroubleshooterView />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </Suspense>

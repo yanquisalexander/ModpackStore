@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 
 // Iconos
-import { LucideLibrary, LucideServer, LucideUsers, LucideTrash2, LucideShield, LucideLayoutGrid, LucideGamepad2, PanelLeftOpen, PanelLeftClose } from "lucide-react";
+import { LucideLibrary, LucideServer, LucideUsers, LucideTrash2, LucideShield, LucideLayoutGrid, LucideGamepad2, PanelLeftOpen, PanelLeftClose, LucideStethoscope } from "lucide-react";
 import GridIcon from "@/icons/GridIcon";
 import { MdiHalloween } from "@/icons/MdiHalloween";
 import { isHalloween } from "@/utils/SPECIAL_DATES";
@@ -24,6 +24,7 @@ import GlassUsers from "@/icons/GlassUsers";
 import GlassGridPlus from "@/icons/GlassGridPlus";
 import GlassMagnifier from "@/icons/GlassMagnifier";
 import GlassLock from "@/icons/GlassLock";
+import IconCircleWrench from "@/icons/GlassRepair";
 
 // --- SUBCOMPONENTES ---
 
@@ -341,6 +342,7 @@ export const AppSidebar: React.FC = memo(() => {
             { name: "Instancias", icon: GlassGamingButtons, path: (!isConnected && !isLoadingConnectionCheck) ? "/" : "/my-instances", requiresConnection: false },
             /*    { name: "Servidores", icon: LucideServer, path: "/servers", requiresConnection: true }, */
             { name: "Cuentas", icon: GlassUsers, path: "/mc-accounts", requiresConnection: false },
+            { name: "Diagnóstico", icon: IconCircleWrench, path: "/troubleshooter", requiresConnection: false },
         ];
 
 

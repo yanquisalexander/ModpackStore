@@ -70,6 +70,24 @@ impl JavaManager {
         java_exec.ok().filter(|p| p.exists()).is_some()
     }
 
+    /// Busca en _java_versions la primera versión de Java que funcione
+    /// Retorna la ruta al directorio de la versión encontrada (ej: _java_versions/java17)
+    pub fn find_existing_app_java(&self) -> Option<String> {
+        // Buscar versiones en orden de preferencia: 17, 21, 8
+        for version in &["17", "21", "8"] {
+            let version_dir = self.base_path.join(format!("java{}", version));
+            if self.is_java_installed(&version_dir) {
+                // Verificar que realmente funciona ejecutando java -version
+                let java_exe = self.get_java_executable(&version_dir).ok()?;
+                if let Ok(version_str) = self.get_java_version(&java_exe) {
+                    log::info!("Java {} found at {} (version {})", version, version_dir.display(), version_str);
+                    return Some(version_dir.to_string_lossy().to_string());
+                }
+            }
+        }
+        None
+    }
+
     fn get_java_directory(&self, version: &str) -> PathBuf {
         self.base_path.join(format!("java{}", version))
     }
@@ -399,17 +417,52 @@ impl JavaManager {
         // Si encontramos un subdirectorio, mover todos sus contenidos al directorio principal
         if let Some(src_dir) = jdk_dir {
             let temp_dir = target_dir.join("temp_move");
-            fs::rename(&src_dir, &temp_dir).context("No se pudo mover el directorio JDK")?;
 
+            // Eliminar directorio residual de un intento previo fallido
+            if temp_dir.exists() {
+                let _ = fs::remove_dir_all(&temp_dir);
+            }
+
+            // Intentar rename directo; si falla, copiar recursivamente como fallback
+            if fs::rename(&src_dir, &temp_dir).is_err() {
+                create_dir_all(&temp_dir)
+                    .context("No se pudo crear directorio temporal para mover JDK")?;
+
+                for entry in fs::read_dir(&src_dir)? {
+                    let entry = entry?;
+                    let dest = temp_dir.join(entry.file_name());
+                    Self::copy_dir_recursive(&entry.path(), &dest)?;
+                }
+
+                fs::remove_dir_all(&src_dir)
+                    .context("No se pudo eliminar directorio JDK original tras copia")?;
+            }
+
+            // Mover contenido de temp_move al directorio principal
             for entry in fs::read_dir(&temp_dir)? {
                 let entry = entry?;
                 let dest_path = target_dir.join(entry.file_name());
-                fs::rename(entry.path(), dest_path)?;
+                Self::copy_dir_recursive(&entry.path(), &dest_path)?;
             }
 
             fs::remove_dir_all(&temp_dir).context("No se pudo eliminar el directorio temporal")?;
         }
 
+        Ok(())
+    }
+
+    /// Copia un directorio de forma recursiva (fallback para fs::rename cross-volume)
+    fn copy_dir_recursive(src: &PathBuf, dest: &PathBuf) -> Result<()> {
+        if src.is_dir() {
+            create_dir_all(dest)?;
+            for entry in fs::read_dir(src)? {
+                let entry = entry?;
+                let dest_child = dest.join(entry.file_name());
+                Self::copy_dir_recursive(&entry.path(), &dest_child)?;
+            }
+        } else {
+            fs::copy(src, dest)?;
+        }
         Ok(())
     }
 

@@ -28,8 +28,17 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 
 pub fn register_hotkeys<R: Runtime>(app: &AppHandle<R>) {
+    #[cfg(target_os = "macos")]
+    let mut open_app = "Cmd+Alt+M".to_string();
+    #[cfg(target_os = "macos")]
+    let mut toggle_overlay = "Cmd+Shift+I".to_string();
+    #[cfg(target_os = "macos")]
+    let mut kill_instance = "Cmd+Alt+Shift+X".to_string();
+    #[cfg(not(target_os = "macos"))]
     let mut open_app = "Ctrl+Alt+M".to_string();
+    #[cfg(not(target_os = "macos"))]
     let mut toggle_overlay = "Ctrl+Shift+I".to_string();
+    #[cfg(not(target_os = "macos"))]
     let mut kill_instance = "Ctrl+Alt+Shift+X".to_string();
     let mut enabled = true;
 

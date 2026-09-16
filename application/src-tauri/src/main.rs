@@ -546,6 +546,8 @@ pub fn main() {
             tunnel::commands::stop_tunnel,
             tunnel::commands::get_tunnel_status,
             config::system_overrides::get_api_endpoint,
+            core::troubleshooter::run_troubleshooter,
+            core::troubleshooter::apply_troubleshooter_fix,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -28,4 +28,5 @@ pub mod play_history;
 pub mod prelaunch_appearance;
 pub mod tasks_manager;
 pub mod theme_manager;
+pub mod troubleshooter;
 pub mod world_manager;
