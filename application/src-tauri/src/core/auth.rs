@@ -11,7 +11,7 @@ use serde_json::json;
 use std::{convert::Infallible, net::SocketAddr, sync::Arc, time::Duration};
 use tauri::{Emitter, Listener, Manager, State};
 use tauri_plugin_http::reqwest::{Client, StatusCode};
-use tauri_plugin_opener::OpenerExt;
+use crate::utils::url_opener;
 use tauri_plugin_store::StoreExt;
 use tokio::sync::{oneshot, Mutex};
 
@@ -861,7 +861,7 @@ pub async fn start_discord_auth(
         log::info!("Opening auth URL: {}", discord_url);
         let app_handle_clone = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(e) = app_handle_clone.opener().open_url(discord_url, None::<&str>) {
+            if let Err(e) = url_opener::open_url(&app_handle_clone, &discord_url) {
                 log::error!("Error opening URL: {}", e);
                 events::emit_auth_error("Error opening auth URL".to_string());
             }
@@ -898,7 +898,7 @@ pub async fn start_discord_auth(
         log::info!("Opening auth URL: {}", discord_url);
         let app_handle_clone = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(e) = app_handle_clone.opener().open_url(discord_url, None::<&str>) {
+            if let Err(e) = url_opener::open_url(&app_handle_clone, &discord_url) {
                 log::error!("Error opening URL: {}", e);
                 events::emit_auth_error("Error opening auth URL".to_string());
             }
@@ -960,7 +960,7 @@ pub async fn start_twitch_auth(
         log::info!("Opening Twitch authorization URL: {}", twitch_url);
         let app_handle_clone = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(e) = app_handle_clone.opener().open_url(twitch_url, None::<&str>) {
+            if let Err(e) = url_opener::open_url(&app_handle_clone, &twitch_url) {
                 log::error!("Error opening Twitch URL: {}", e);
                 events::emit_auth_error("Error opening Twitch authorization URL".to_string());
             }
@@ -1006,7 +1006,7 @@ pub async fn start_twitch_auth(
         log::info!("Opening Twitch authorization URL: {}", twitch_url);
         let app_handle_clone = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(e) = app_handle_clone.opener().open_url(twitch_url, None::<&str>) {
+            if let Err(e) = url_opener::open_url(&app_handle_clone, &twitch_url) {
                 log::error!("Error opening Twitch URL: {}", e);
                 events::emit_auth_error("Error opening Twitch authorization URL".to_string());
             }
@@ -1068,7 +1068,7 @@ pub async fn start_patreon_auth(
         log::info!("Opening Patreon authorization URL: {}", patreon_url);
         let app_handle_clone = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(e) = app_handle_clone.opener().open_url(patreon_url, None::<&str>) {
+            if let Err(e) = url_opener::open_url(&app_handle_clone, &patreon_url) {
                 log::error!("Error opening Patreon URL: {}", e);
                 events::emit_auth_error("Error opening Patreon authorization URL".to_string());
             }
@@ -1114,7 +1114,7 @@ pub async fn start_patreon_auth(
         log::info!("Opening Patreon authorization URL: {}", patreon_url);
         let app_handle_clone = app_handle.clone();
         std::thread::spawn(move || {
-            if let Err(e) = app_handle_clone.opener().open_url(patreon_url, None::<&str>) {
+            if let Err(e) = url_opener::open_url(&app_handle_clone, &patreon_url) {
                 log::error!("Error opening Patreon URL: {}", e);
                 events::emit_auth_error("Error opening Patreon authorization URL".to_string());
             }

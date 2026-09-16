@@ -4,7 +4,7 @@ use crate::core::minecraft_instance::MinecraftInstance;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri_plugin_opener::OpenerExt;
+use crate::utils::url_opener;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ModFile {
@@ -180,7 +180,7 @@ pub async fn open_instance_mods_folder(app_handle: tauri::AppHandle, instance_id
 
     let mods_dir = get_mods_directory(&instance)?;
 
-    app_handle.opener().open_path(mods_dir.to_string_lossy().to_string(), None::<&str>)
+    url_opener::open_path(&app_handle, &mods_dir.to_string_lossy())
         .map_err(|e| format!("Failed to open folder: {}", e))?;
 
     Ok(())

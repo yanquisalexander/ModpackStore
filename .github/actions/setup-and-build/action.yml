@@ -57,6 +57,11 @@ runs:
       shell: bash
       run: echo "RUSTFLAGS=-C link-arg=-fuse-ld=lld -C debuginfo=0" >> "$GITHUB_ENV"
 
+    - name: Set linker flags (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: echo "RUSTFLAGS=-C debuginfo=0" >> "$GITHUB_ENV"
+
     - name: Rust cache
       uses: swatinem/rust-cache@v2
       with:
@@ -92,7 +97,7 @@ runs:
         GITHUB_REPOSITORY: ModpackStore/ModpackStore-Releases
       with:
         projectPath: ./application
-        args: ${{ runner.os == 'Linux' && '--bundles appimage' || '--bundles msi' }}
+        args: ${{ runner.os == 'Linux' && '--bundles appimage' || (runner.os == 'macOS' && '--bundles dmg' || '--bundles msi') }}
         tagName: canary
         releaseName: Canary Build canary
         releaseBody: Automated canary build for testing

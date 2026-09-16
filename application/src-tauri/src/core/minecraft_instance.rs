@@ -7,7 +7,7 @@ use std::io::Result as IoResult;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::thread;
-use tauri_plugin_opener::OpenerExt;
+use crate::utils::url_opener;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -396,7 +396,7 @@ pub fn open_game_dir(app_handle: tauri::AppHandle, instance_id: String) -> Resul
         println!("[Tauri Command] Opening game directory: {}", path.display());
         if path.exists() {
             // Abre el directorio del juego con el programa predeterminado del sistema
-            if let Err(e) = app_handle.opener().open_path(path.to_string_lossy().to_string(), None::<&str>) {
+            if let Err(e) = url_opener::open_path(&app_handle, &path.to_string_lossy()) {
                 return Err(format!("Error opening game directory: {}", e));
             }
             Ok(())
