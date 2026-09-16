@@ -313,17 +313,23 @@ export async function curseforgeImportJob(job: Job) {
             .where(inArray(modpackFilesTable.hash, allHashes));
         const existingHashes = new Set(existingFiles.map((f) => f.hash));
 
-        // ── Step 5: Build upload list ──
-        const uploadList: Array<{ key: string; filePath: string; contentType?: string }> = [];
-
-        for (const meta of modMetas) {
-            if (!existingHashes.has(meta.hash) && modTempFiles.has(meta.hash)) {
-                uploadList.push({ key: getFileKey(meta.hash), filePath: modTempFiles.get(meta.hash)!, contentType: "application/octet-stream" });
+        // ── Step 5: Build upload list (deduplicated by hash) ──
+        // modMetas/overrideMetas contain duplicate hash entries (kept for version associations).
+        // Build from the temp-file maps instead to avoid redundant uploads that OOM.
+        const allTempFiles = new Map<string, string>(); // hash -> tempPath
+        for (const [hash, path] of modTempFiles) {
+            allTempFiles.set(hash, path);
+        }
+        for (const [hash, path] of overrideTempFiles) {
+            if (!allTempFiles.has(hash)) {
+                allTempFiles.set(hash, path);
             }
         }
-        for (const meta of overrideMetas) {
-            if (!existingHashes.has(meta.hash) && overrideTempFiles.has(meta.hash)) {
-                uploadList.push({ key: getFileKey(meta.hash), filePath: overrideTempFiles.get(meta.hash)!, contentType: "application/octet-stream" });
+
+        const uploadList: Array<{ key: string; filePath: string; contentType?: string }> = [];
+        for (const [hash, filePath] of allTempFiles) {
+            if (!existingHashes.has(hash)) {
+                uploadList.push({ key: getFileKey(hash), filePath, contentType: "application/octet-stream" });
             }
         }
 
