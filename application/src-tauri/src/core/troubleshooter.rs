@@ -66,6 +66,15 @@ pub async fn run_troubleshooter() -> Result<TroubleshooterResult, String> {
     checks.push(c);
     tokio::time::sleep(std::time::Duration::from_millis(80)).await;
 
+    // macOS-specific: Check Java permissions
+    #[cfg(target_os = "macos")]
+    {
+        let c = check_macos_java_permissions();
+        emit_check_update(&c);
+        checks.push(c);
+        tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+    }
+
     let c = check_instances_dir();
     emit_check_update(&c);
     checks.push(c);
@@ -198,6 +207,13 @@ pub async fn apply_troubleshooter_fix(fix_id: String) -> Result<String, String> 
             } else {
                 Err("Sin conexión a internet".to_string())
             }
+        }
+        #[cfg(target_os = "macos")]
+        "fix_macos_java_permissions" => {
+            crate::core::macos_permissions::check_and_fix_java_permissions()
+                .await
+                .map(|_| "Permisos de Java reparados correctamente".to_string())
+                .map_err(|e| format!("Error al reparar permisos: {}", e))
         }
         _ => Err(format!("Fix desconocido: {}", fix_id)),
     }
@@ -500,28 +516,59 @@ fn check_broken_bootstrap() -> CheckResult {
         }
     };
 
-    let broken: Vec<&str> = instances
+    // A modpack is considered "broken" only if:
+    // 1. bootstrap_complete == Some(false) AND bootstrap_error is non-empty
+    //    (bootstrap was attempted but failed with an error)
+    //
+    // We do NOT consider it broken if:
+    // - bootstrap_complete is None (old instance, not tracked)
+    // - bootstrap_complete is Some(true) (bootstrap succeeded)
+    // - bootstrap_error is empty or None (no error recorded)
+    let broken: Vec<(&str, Option<&str>)> = instances
         .iter()
         .filter(|i| {
             i.bootstrap_complete == Some(false)
-                || i.bootstrap_error.as_ref().map_or(false, |e| !e.is_empty())
+                && i.bootstrap_error.as_ref().map_or(false, |e| !e.is_empty())
+        })
+        .map(|i| (i.instanceName.as_str(), i.bootstrap_error.as_deref()))
+        .collect();
+
+    // Also count "in progress" instances (bootstrap started but no error yet)
+    let in_progress: Vec<&str> = instances
+        .iter()
+        .filter(|i| {
+            i.bootstrap_complete == Some(false) && i.bootstrap_error.as_ref().map_or(true, |e| e.is_empty())
         })
         .map(|i| i.instanceName.as_str())
         .collect();
 
     result.technical = Some(format!(
-        "total={}\nbroken={}\ninstances=[{}]",
+        "total={}\nbroken={}\nin_progress={}\nbroken_list=[{}]\nin_progress_list=[{}]",
         instances.len(),
         broken.len(),
-        broken.join(", ")
+        in_progress.len(),
+        broken.iter().map(|(name, _)| *name).collect::<Vec<_>>().join(", "),
+        in_progress.join(", ")
     ));
 
-    if broken.is_empty() {
+    if broken.is_empty() && in_progress.is_empty() {
         result.status = CheckStatus::Pass;
         result.detail = Some("Todos los modpacks están instalados correctamente".to_string());
-    } else {
+    } else if broken.is_empty() && !in_progress.is_empty() {
+        result.status = CheckStatus::Warn;
+        result.detail = Some(format!("{} modpack(s) en proceso de instalación", in_progress.len()));
+    } else if !broken.is_empty() {
         result.status = CheckStatus::Fail;
-        result.detail = Some(format!("{} modpack(s) con problemas", broken.len()));
+        let error_summary = broken.first().and_then(|(_, err)| *err).unwrap_or("Error desconocido");
+        result.detail = Some(format!(
+            "{} modpack(s) con errores (ej: {})",
+            broken.len(),
+            if error_summary.len() > 50 {
+                format!("{}...", &error_summary[..47])
+            } else {
+                error_summary.to_string()
+            }
+        ));
     }
 
     result
@@ -604,6 +651,93 @@ async fn check_connectivity() -> CheckResult {
     } else {
         result.status = CheckStatus::Fail;
         result.detail = Some("Sin conexión a internet".to_string());
+    }
+
+    result
+}
+
+/// macOS-specific: Check Java permissions (quarantine attributes, execute permissions)
+#[cfg(target_os = "macos")]
+fn check_macos_java_permissions() -> CheckResult {
+    let mut result = CheckResult {
+        id: "macos_java_permissions".to_string(),
+        name: "Permisos de Java (macOS)".to_string(),
+        description: "Verifica que los binarios de Java tengan los permisos correctos en macOS.".to_string(),
+        status: CheckStatus::Running,
+        detail: None,
+        technical: None,
+        fixable: true,
+    };
+
+    let java_manager = match JavaManager::new() {
+        Ok(jm) => jm,
+        Err(e) => {
+            result.status = CheckStatus::Warn;
+            result.detail = Some("No se pudo verificar Java".to_string());
+            result.technical = Some(format!("JavaManager init failed: {}", e));
+            return result;
+        }
+    };
+
+    let base_path = java_manager.base_path();
+    if !base_path.exists() {
+        result.status = CheckStatus::Pass;
+        result.detail = Some("No hay Java instalado por la app".to_string());
+        result.technical = Some("base_path=not_exists".to_string());
+        return result;
+    }
+
+    let mut issues: Vec<String> = Vec::new();
+    let mut checked = 0;
+
+    for version in &["8", "17", "21"] {
+        let version_dir = base_path.join(format!("java{}", version));
+        if !version_dir.exists() {
+            continue;
+        }
+        checked += 1;
+
+        let java_exe = version_dir.join("bin").join("java");
+        if !java_exe.exists() {
+            issues.push(format!("Java {}: ejecutable no encontrado", version));
+            continue;
+        }
+
+        // Check for quarantine attribute
+        if let Ok(output) = std::process::Command::new("xattr")
+            .args(["-l", "com.apple.quarantine"])
+            .arg(&java_exe)
+            .output()
+        {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            if stdout.contains("com.apple.quarantine") {
+                issues.push(format!("Java {}: tiene attribute de cuarentena", version));
+            }
+        }
+
+        // Check execute permissions
+        if let Ok(metadata) = std::fs::metadata(&java_exe) {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = metadata.permissions().mode();
+            if mode & 0o100 == 0 {
+                issues.push(format!("Java {}: sin permisos de ejecución", version));
+            }
+        }
+    }
+
+    result.technical = Some(format!(
+        "checked_versions={}\nissues={}\n[{}]",
+        checked,
+        issues.len(),
+        issues.join(", ")
+    ));
+
+    if issues.is_empty() {
+        result.status = CheckStatus::Pass;
+        result.detail = Some(format!("{} instalación(es) verificada(s)", checked));
+    } else {
+        result.status = CheckStatus::Fail;
+        result.detail = Some(format!("{} problema(s) encontrado(s) en permisos de Java", issues.len()));
     }
 
     result

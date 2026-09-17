@@ -34,6 +34,7 @@ const fixIdMap: Record<string, string> = {
     instances_dir: "fix_instances_dir",
     orphan_accounts: "fix_orphan_accounts",
     connectivity: "recheck_connection",
+    macos_java_permissions: "fix_macos_java_permissions",
 };
 
 export const CheckCard = memo(({ check, onFixApplied }: CheckCardProps) => {
