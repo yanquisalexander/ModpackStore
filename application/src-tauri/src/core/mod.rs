@@ -10,6 +10,8 @@ pub mod instance_bootstrap;
 pub mod instance_launcher;
 pub mod instance_manager;
 pub mod java_manager;
+#[cfg(target_os = "macos")]
+pub mod macos_permissions;
 pub mod microsoft_auth;
 pub mod minecraft;
 pub mod minecraft_account;

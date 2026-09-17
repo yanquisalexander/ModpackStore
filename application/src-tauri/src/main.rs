@@ -283,6 +283,20 @@ pub fn main() {
             // Register hotkeys
             crate::core::hotkeys::register_hotkeys(app.handle());
 
+            // macOS-specific: Run Java permission repair at startup
+            #[cfg(target_os = "macos")]
+            {
+                let app_handle_clone = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    log::info!("[macos_permissions] Running startup Java permission check...");
+                    if let Err(e) = crate::core::macos_permissions::check_and_fix_java_permissions().await {
+                        log::warn!("[macos_permissions] Startup permission check failed: {}", e);
+                    } else {
+                        log::info!("[macos_permissions] Startup permission check completed successfully");
+                    }
+                });
+            }
+
             // Store the AppHandle in the static variable
             let mut app_handle = GLOBAL_APP_HANDLE.lock().unwrap();
             *app_handle = Some(app.handle().clone());
@@ -452,6 +466,7 @@ pub fn main() {
             core::onboarding::skip_onboarding,
             core::onboarding::reset_onboarding,
             core::onboarding::validate_java_installation,
+            core::onboarding::validate_and_repair_java,
             core::onboarding::install_java,
             core::onboarding::repair_java_installation,
             core::network_utilities::check_connection,

@@ -1,4 +1,4 @@
-import { LucideArrowLeft, LucideWifiOff } from "lucide-react";
+import { LucideArrowLeft, LucideFlaskConical, LucideWifiOff } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { getCurrentWindow, Window } from '@tauri-apps/api/window';
 import { useGlobalContext } from "../stores/GlobalContext";
@@ -8,6 +8,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { CurrentUser } from "./CurrentUser";
 import { RunningInstances } from "./RunningInstances";
 import { RunningTasks } from "./RunningTasks";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -24,6 +25,8 @@ import { WindowControls } from "./appbar/WindowControls";
 import { UpdateButton } from "./appbar/UpdateButton";
 import { PatreonButton } from "./appbar/PatreonButton";
 import { NativeContextMenu } from "./appbar/ContextMenu";
+import { isMac } from "@/lib/utils";
+import { TwemojiTestTube } from "@/icons/TwemojiTestTube";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState<Window | null>(null);
@@ -34,6 +37,7 @@ export const AppTitleBar = () => {
     const { showReloadDialog } = useReloadApp();
     const contextMenuTriggerRef = useRef<HTMLDivElement>(null);
     const navigateRouter = useNavigate();
+
 
     useEffect(() => {
         const initWindow = async () => {
@@ -260,6 +264,26 @@ export const AppTitleBar = () => {
                                 </button>
                             )
                         }
+
+                        {
+                            isMac && (
+
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <div className="inline-flex self-center-safe h-5 items-center gap-1 rounded-full bg-[var(--sidebar-primary)]/10 px-1.5 text-[10px] font-medium leading-none text-[var(--sidebar-primary)] cursor-default">
+                                            <TwemojiTestTube className="size-3" />
+                                            <span>Experimental</span>
+                                        </div>
+                                    </TooltipTrigger>
+
+                                    <TooltipContent side="bottom" className="max-w-xs mt-2">
+                                        Modpack Store para macOS es una versión experimental y puede contener
+                                        errores. Se recomienda precaución al usarla.
+                                    </TooltipContent>
+                                </Tooltip>
+
+                            )}
+
 
                         <UpdateButton updateState={updateState} applyUpdate={applyUpdate} />
                         <RunningTasks />

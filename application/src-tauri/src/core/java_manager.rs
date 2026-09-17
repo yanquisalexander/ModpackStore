@@ -42,6 +42,11 @@ impl JavaManager {
         })
     }
 
+    /// Returns a reference to the base path where Java versions are stored
+    pub fn base_path(&self) -> &PathBuf {
+        &self.base_path
+    }
+
     /// Obtiene la ruta al ejecutable de Java para una versión específica
     /// Si la versión no está instalada, la descarga
     pub async fn get_java_path(&self, major_version: &str) -> Result<PathBuf> {
@@ -186,6 +191,18 @@ impl JavaManager {
 
         // Eliminar el archivo temporal
         fs::remove_file(&temp_file).context("No se pudo eliminar el archivo temporal")?;
+
+        // macOS-specific: Fix permissions after extraction
+        #[cfg(target_os = "macos")]
+        {
+            if let Err(e) = crate::core::macos_permissions::repair_java_path_permissions(target_dir)
+            {
+                log::warn!(
+                    "[java_manager] Failed to repair macOS permissions after download: {}",
+                    e
+                );
+            }
+        }
 
         // Verificar que la instalación fue correcta
         if !self.is_java_installed(target_dir) {
@@ -501,7 +518,37 @@ impl JavaManager {
                     Ok(false)
                 }
             }
-            Err(_) => Ok(false), // Ejecutable corrupto o no funcional
+            Err(_) => {
+                // On macOS, try to repair permissions before giving up
+                #[cfg(target_os = "macos")]
+                {
+                    log::info!(
+                        "[java_manager] Java validation failed, attempting macOS permission repair for: {}",
+                        java_path
+                    );
+                    if let Err(e) = crate::core::macos_permissions::repair_java_path_permissions(&java_dir)
+                    {
+                        log::warn!("[java_manager] Permission repair failed: {}", e);
+                    }
+
+                    // Retry validation after repair
+                    match self.get_java_version(&java_exe) {
+                        Ok(version) => {
+                            if self.is_java_version_supported(&version) {
+                                log::info!(
+                                    "[java_manager] Java validation succeeded after permission repair"
+                                );
+                                Ok(true)
+                            } else {
+                                Ok(false)
+                            }
+                        }
+                        Err(_) => Ok(false),
+                    }
+                }
+                #[cfg(not(target_os = "macos"))]
+                Ok(false)
+            }
         }
     }
 
@@ -715,6 +762,45 @@ impl JavaManager {
             Ok(version_num) => version_num >= 8,
             Err(_) => false,
         }
+    }
+
+    /// Repairs permissions for all Java installations on macOS.
+    /// This is useful when encountering "Permission denied" errors.
+    #[cfg(target_os = "macos")]
+    pub fn repair_all_permissions(&self) -> Result<(), String> {
+        // Synchronous version - just call the synchronous parts
+        let base_path = &self.base_path;
+        if !base_path.exists() {
+            return Ok(());
+        }
+
+        for version in &["8", "17", "21"] {
+            let version_dir = base_path.join(format!("java{}", version));
+            if version_dir.exists() {
+                if let Err(e) = crate::core::macos_permissions::repair_java_path_permissions(&version_dir) {
+                    log::warn!(
+                        "[java_manager] Failed to repair Java {} permissions: {}",
+                        version,
+                        e
+                    );
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Attempts to repair permissions and re-validate a Java installation.
+    /// Returns true if the Java is now working, false otherwise.
+    #[cfg(target_os = "macos")]
+    pub fn try_repair_and_validate(&self, version_dir: &PathBuf) -> Result<bool, String> {
+        // First, try to repair permissions
+        crate::core::macos_permissions::repair_java_path_permissions(version_dir)?;
+
+        // Then validate again
+        self.is_java_installed(version_dir)
+            .then_some(true)
+            .ok_or_else(|| "Java still not working after permission repair".to_string())
     }
 }
 

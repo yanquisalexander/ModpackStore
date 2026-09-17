@@ -31,6 +31,29 @@ export const useJavaValidation = () => {
     }
   }, []);
 
+  const validateAndRepairJava = useCallback(async () => {
+    // Prevent multiple simultaneous validations
+    if (isValidatingRef.current) return;
+
+    isValidatingRef.current = true;
+    setLoading(true);
+    setError(null);
+
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      // Use validate_and_repair_java which includes macOS permission repair
+      const result = await invoke<JavaValidationResult>('validate_and_repair_java');
+      setJavaValidation(result);
+    } catch (err) {
+      console.error('Error validating and repairing Java:', err);
+      setError(err as string);
+      setJavaValidation({ is_installed: false });
+    } finally {
+      setLoading(false);
+      isValidatingRef.current = false;
+    }
+  }, []);
+
   const installJava = useCallback(async () => {
     setIsInstalling(true);
     setError(null);
@@ -75,10 +98,11 @@ export const useJavaValidation = () => {
     }
   }, [validateJava]);
 
-  // Validate Java on hook initialization (lightweight check)
+  // Validate and repair Java on hook initialization
+  // This includes macOS permission repair to prevent "Permission denied" errors
   useEffect(() => {
-    validateJava();
-  }, [validateJava]);
+    validateAndRepairJava();
+  }, [validateAndRepairJava]);
 
   return {
     javaValidation,
@@ -87,6 +111,7 @@ export const useJavaValidation = () => {
     isInstalling,
     repairStatus,
     validateJava,
+    validateAndRepairJava,
     installJava,
     repairJava,
   };

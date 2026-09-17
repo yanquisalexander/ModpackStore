@@ -278,8 +278,19 @@ pub async fn repair_java_installation() -> Result<String, String> {
 
 /// Valida si Java está instalado y repara automáticamente si no lo está
 /// Usado en el onboarding para configuración automática
+/// También repara permisos en macOS para evitar errores "Permission denied"
 #[tauri::command]
 pub async fn validate_and_repair_java() -> Result<JavaValidationResult, String> {
+    // macOS-specific: Repair permissions before validation
+    #[cfg(target_os = "macos")]
+    {
+        log::info!("[onboarding] Running macOS permission repair before Java validation");
+        if let Err(e) = crate::core::macos_permissions::check_and_fix_java_permissions().await {
+            log::warn!("[onboarding] macOS permission repair failed: {}", e);
+            // Don't fail the whole operation, just log the warning
+        }
+    }
+
     // Primero validar la instalación actual
     let validation_result = validate_java_installation()?;
 
