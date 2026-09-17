@@ -1,3 +1,4 @@
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::process::Command;
 
@@ -85,8 +86,6 @@ fn remove_quarantine_attributes(path: &Path) -> Result<(), String> {
 
 /// Ensures Java executables in the bin directory have proper execute permissions.
 fn ensure_executable_permissions(version_dir: &Path) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt;
-
     let bin_dir = version_dir.join("bin");
     if !bin_dir.exists() {
         return Ok(());
