@@ -7,6 +7,13 @@
   <meta name="color-scheme" content="dark" />
   <title>Splash</title>
 
+  <!-- Legacy CSS fallback for browsers without @layer support -->
+  <link rel="stylesheet" href="/app.legacy.css" />
+  <script>
+    if (typeof CSSLayerBlockRule !== "undefined") {
+      document.querySelectorAll('link[href*="app.legacy.css"]').forEach(function(l) { l.disabled = true; });
+    }
+  </script>
   <link rel="stylesheet" href="/src/App.css" />
   <link rel="stylesheet" href="/src/splash/splash_style.css" />
 

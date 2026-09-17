@@ -488,8 +488,8 @@ impl InstanceLauncher {
                             if let Some(path) = latest {
                                 if let Ok(meta) = fs::metadata(&path) {
                                     if let Ok(modified) = meta.modified() {
-                                        // Solo si es reciente (< 1 min)
-                                        if modified.elapsed().unwrap_or_default().as_secs() < 60 {
+                                        // Solo si es reciente (< 5 min)
+                                        if modified.elapsed().unwrap_or_default().as_secs() < 300 {
                                             crash_report_content = fs::read_to_string(path).ok();
                                             crash_source = "CRASH_REPORT";
                                         }
@@ -519,7 +519,7 @@ impl InstanceLauncher {
                                             .elapsed()
                                             .unwrap_or_default()
                                             .as_secs()
-                                            < 60
+                                            < 300
                                         {
                                             let content =
                                                 fs::read_to_string(path).unwrap_or_default();
@@ -564,6 +564,41 @@ impl InstanceLauncher {
                             }
                         }
                     }
+
+                    // --- Log persistence + crash details logging ---
+                    let inst_id = instance.instanceId.clone();
+                    let inst_path = instance.minecraftPath.clone();
+                    let log_tail_for_persist = log_tail.clone();
+                    let crash_source_for_log = crash_source.to_string();
+                    let detected_error_for_log = detected_error_details.clone();
+                    let crash_report_for_log = crash_report_content.clone();
+
+                    // Persist logs to disk and log crash details in a background thread (non-blocking)
+                    thread::spawn(move || {
+                        // Write full log to {instancePath}/logs/latest.log
+                        let logs_dir = PathBuf::from(&inst_path).join("logs");
+                        let _ = fs::create_dir_all(&logs_dir);
+                        let log_path = logs_dir.join("latest.log");
+                        if let Err(e) = fs::write(&log_path, &log_tail_for_persist) {
+                            error!("[Monitor: {}] Failed to persist logs to {}: {}", inst_id, log_path.display(), e);
+                        }
+
+                        // Log crash details to app log for debugging
+                        if crash_source_for_log != "NORMAL_EXIT" {
+                            info!(
+                                "[Monitor: {}] CRASH DETECTED — source={}, error={}, report_len={}",
+                                inst_id,
+                                crash_source_for_log,
+                                detected_error_for_log,
+                                crash_report_for_log.as_ref().map(|r| r.len()).unwrap_or(0)
+                            );
+                            if let Some(ref report) = crash_report_for_log {
+                                // Log first 50 lines of crash report to app log
+                                let preview: String = report.lines().take(50).collect::<Vec<_>>().join("\n");
+                                info!("[Monitor: {}] Crash report preview:\n{}", inst_id, preview);
+                            }
+                        }
+                    });
 
                     // Emitir evento final
                     emitter_launcher.emit_status(
@@ -716,6 +751,42 @@ impl InstanceLauncher {
                     None,
                 );
                 return;
+            }
+        }
+
+        // Pre-launch connectivity check: verify auth server is reachable before spawning Minecraft.
+        // This avoids a silent 60+ second timeout inside authlib-injector if the server is unreachable.
+        if self.instance.useModpackStoreAuth {
+            let ping_url = format!("{}/ping", *crate::API_ENDPOINT);
+            let check_client = reqwest::blocking::Client::builder()
+                .timeout(std::time::Duration::from_secs(10))
+                .build();
+            if let Ok(client) = check_client {
+                match client.get(&ping_url).send() {
+                    Ok(resp) if resp.status().is_success() => {
+                        info!(
+                            "[Launch Thread: {}] Auth server reachable at {}",
+                            self.instance.instanceId, ping_url
+                        );
+                    }
+                    Ok(resp) => {
+                        warn!(
+                            "[Launch Thread: {}] Auth server returned HTTP {} at {}",
+                            self.instance.instanceId, resp.status(), ping_url
+                        );
+                    }
+                    Err(e) => {
+                        error!(
+                            "[Launch Thread: {}] Auth server unreachable at {}: {}",
+                            self.instance.instanceId, ping_url, e
+                        );
+                        self.emit_error(
+                            &format!("No se pudo conectar al servidor de autenticación ({}). Verifica tu conexión a internet.", e),
+                            Some(json!({ "code": "AUTH_SERVER_UNREACHABLE", "url": ping_url })),
+                        );
+                        return;
+                    }
+                }
             }
         }
 

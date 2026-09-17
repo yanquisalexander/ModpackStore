@@ -6,6 +6,13 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Modpack Store - Running Instances</title>
+    <!-- Legacy CSS fallback for browsers without @layer support -->
+    <link rel="stylesheet" href="/app.legacy.css" />
+    <script>
+      if (typeof CSSLayerBlockRule !== "undefined") {
+        document.querySelectorAll('link[href*="app.legacy.css"]').forEach(function(l) { l.disabled = true; });
+      }
+    </script>
     <style>
         body {
             margin: 0;

@@ -6,6 +6,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Modpack Store</title>
   <!-- 
+    Fallback CSS for legacy browsers (no @layer support)
+    This loads a flattened version of the Tailwind CSS without @layer declarations.
+    Modern browsers will disable this at runtime.
+  -->
+  <link rel="stylesheet" href="/app.legacy.css" />
+  <script>
+    // If browser supports CSS @layer, disable the legacy fallback
+    // The modern Tailwind CSS (loaded via Vite) will provide full styling
+    if (typeof CSSLayerBlockRule !== "undefined") {
+      document.querySelectorAll('link[href*="app.legacy.css"]').forEach(function(l) { l.disabled = true; });
+    }
+  </script>
+  <!-- 
     Cloudflare Polyfill for better browser compatibility
   -->
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?version=4.8.0"></script>

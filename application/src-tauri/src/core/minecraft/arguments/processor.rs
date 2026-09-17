@@ -231,6 +231,13 @@ impl<'a> ArgumentProcessor<'a> {
             }
         }
 
+        // Network properties: force IPv4 to avoid connection timeouts on macOS
+        // where IPv6 is preferred but may not work reliably with some servers
+        jvm_args.push("-Djava.net.preferIPv4Stack=true".to_string());
+        // Connection/read timeouts for authlib-injector and other network calls inside JVM
+        jvm_args.push("-Dsun.net.client.defaultConnectTimeout=15000".to_string());
+        jvm_args.push("-Dsun.net.client.defaultReadTimeout=30000".to_string());
+
         // Ensure classpath is always added if not present
         if !jvm_args
             .iter()

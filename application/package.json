@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/build-legacy-css.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },
@@ -104,6 +104,7 @@
     "@types/react": "^19.1.12",
     "@types/react-dom": "^19.1.9",
     "@vitejs/plugin-react": "^5.0.2",
+    "lightningcss": "^1.33.0",
     "postcss-preset-env": "^10.1.4",
     "typescript": "~5.9.2",
     "vite": "^7.1.4"

@@ -66,10 +66,13 @@ export const InstanceCrashDialog = ({
                         }
 
                         {
-                            data?.stderr && (
-                                <code className="block text-left !font-mono bg-neutral-800 text-sm p-2 rounded mt-2 max-w-[60ch] mx-auto overflow-x-auto max-h-[20rem]">
-                                    {data.stderr}
-                                </code>
+                            data?.crashReport && (
+                                <div className="mt-2 max-w-[60ch] mx-auto">
+                                    <p className="text-xs text-zinc-400 mb-1 text-left">Log del crash:</p>
+                                    <code className="block text-left !font-mono bg-neutral-800 text-xs text-zinc-300 p-3 rounded overflow-x-auto max-h-[16rem] overflow-y-auto whitespace-pre-wrap">
+                                        {data.crashReport}
+                                    </code>
+                                </div>
                             )
                         }
 
