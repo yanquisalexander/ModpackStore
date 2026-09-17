@@ -12,42 +12,51 @@ pub async fn check_and_fix_java_permissions() -> Result<(), String> {
     // Check all Java versions in _java_versions directory
     let base_path = java_manager.base_path();
 
-    if !base_path.exists() {
-        return Ok(());
-    }
+    if base_path.exists() {
+        let mut repaired_count = 0;
 
-    let mut repaired_count = 0;
-
-    for version in &["8", "17", "21"] {
-        let version_dir = base_path.join(format!("java{}", version));
-        if version_dir.exists() {
-            match repair_java_permissions(&version_dir) {
-                Ok(true) => {
-                    log::info!(
-                        "[macos_permissions] Repaired permissions for Java {}",
-                        version
-                    );
-                    repaired_count += 1;
-                }
-                Ok(false) => {
-                    // Permissions were already correct
-                }
-                Err(e) => {
-                    log::warn!(
-                        "[macos_permissions] Failed to repair Java {} permissions: {}",
-                        version,
-                        e
-                    );
+        for version in &["8", "17", "21"] {
+            let version_dir = base_path.join(format!("java{}", version));
+            if version_dir.exists() {
+                match repair_java_permissions(&version_dir) {
+                    Ok(true) => {
+                        log::info!(
+                            "[macos_permissions] Repaired permissions and structure for Java {}",
+                            version
+                        );
+                        repaired_count += 1;
+                    }
+                    Ok(false) => {
+                        // Permissions were already correct
+                    }
+                    Err(e) => {
+                        log::warn!(
+                            "[macos_permissions] Failed to repair Java {} permissions: {}",
+                            version,
+                            e
+                        );
+                    }
                 }
             }
         }
+
+        if repaired_count > 0 {
+            log::info!(
+                "[macos_permissions] Repaired permissions for {} Java installation(s)",
+                repaired_count
+            );
+        }
     }
 
-    if repaired_count > 0 {
-        log::info!(
-            "[macos_permissions] Repaired permissions for {} Java installation(s)",
-            repaired_count
-        );
+    // Also repair permissions for currently configured javaDir if it exists
+    if let Ok(config_guard) = crate::config::get_config_manager().lock() {
+        if let Ok(config) = config_guard.as_ref() {
+            if let Some(java_dir) = config.get_java_dir() {
+                if java_dir.exists() {
+                    let _ = repair_java_path_permissions(&java_dir);
+                }
+            }
+        }
     }
 
     Ok(())
@@ -84,92 +93,99 @@ fn remove_quarantine_attributes(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Ensures Java executables in the bin directory have proper execute permissions.
+/// Ensures Java executables and binaries in the bin directory have proper execute permissions.
 fn ensure_executable_permissions(version_dir: &Path) -> Result<(), String> {
-    let bin_dir = version_dir.join("bin");
-    if !bin_dir.exists() {
+    let bin_dir = if version_dir.join("bin").exists() {
+        version_dir.join("bin")
+    } else if version_dir.join("Contents").join("Home").join("bin").exists() {
+        version_dir.join("Contents").join("Home").join("bin")
+    } else {
         return Ok(());
+    };
+
+    if let Ok(entries) = std::fs::read_dir(&bin_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                if let Ok(metadata) = std::fs::metadata(&path) {
+                    let current_mode = metadata.permissions().mode();
+                    if current_mode & 0o111 == 0 {
+                        let mut perms = metadata.permissions();
+                        perms.set_mode(0o755);
+                        let _ = std::fs::set_permissions(&path, perms);
+                        log::info!(
+                            "[macos_permissions] Set execute permissions on: {}",
+                            path.display()
+                        );
+                    }
+                }
+            }
+        }
     }
 
-    let java_executable = bin_dir.join("java");
-    if !java_executable.exists() {
+    // Also ensure libjli.dylib and other libraries have readable/executable permissions
+    let lib_dir = if version_dir.join("lib").exists() {
+        version_dir.join("lib")
+    } else if version_dir.join("Contents").join("Home").join("lib").exists() {
+        version_dir.join("Contents").join("Home").join("lib")
+    } else {
         return Ok(());
+    };
+
+    if let Ok(entries) = std::fs::read_dir(&lib_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("dylib") {
+                if let Ok(metadata) = std::fs::metadata(&path) {
+                    let current_mode = metadata.permissions().mode();
+                    if current_mode & 0o111 == 0 {
+                        let mut perms = metadata.permissions();
+                        perms.set_mode(0o755);
+                        let _ = std::fs::set_permissions(&path, perms);
+                    }
+                }
+            }
+        }
     }
-
-    // Check current permissions
-    let metadata = std::fs::metadata(&java_executable)
-        .map_err(|e| format!("Failed to read Java executable metadata: {}", e))?;
-
-    let current_mode = metadata.permissions().mode();
-
-    // Check if execute permission is already set for owner (0o100)
-    if current_mode & 0o100 != 0 {
-        return Ok(());
-    }
-
-    // Set execute permissions (0o755 = rwxr-xr-x)
-    let mut perms = metadata.permissions();
-    perms.set_mode(0o755);
-
-    std::fs::set_permissions(&java_executable, perms)
-        .map_err(|e| format!("Failed to set permissions on Java executable: {}", e))?;
-
-    log::info!(
-        "[macos_permissions] Set execute permissions on: {}",
-        java_executable.display()
-    );
 
     Ok(())
 }
 
 /// Validates that the Java directory structure is correct.
 fn validate_java_directory_structure(version_dir: &Path) -> Result<bool, String> {
-    let bin_dir = version_dir.join("bin");
-    if !bin_dir.exists() {
-        return Ok(false);
-    }
-
-    let java_executable = if cfg!(target_os = "windows") {
-        bin_dir.join("java.exe")
-    } else {
-        bin_dir.join("java")
-    };
-
-    Ok(java_executable.exists())
+    let has_direct = version_dir.join("bin").join("java").exists();
+    let has_bundle = version_dir.join("Contents").join("Home").join("bin").join("java").exists();
+    Ok(has_direct || has_bundle)
 }
 
 /// Repairs permissions for a specific Java version directory.
 /// Returns Ok(true) if repairs were made, Ok(false) if already correct.
 fn repair_java_permissions(version_dir: &Path) -> Result<bool, String> {
-    let mut repaired = false;
+    // Step 1: Auto-heal structure (flatten Contents/Home or nested jdk, or clean corrupt)
+    let structure_healed = crate::core::java_manager::JavaManager::heal_java_directory(version_dir)
+        .map_err(|e| format!("Error al sanar directorio Java: {}", e))?;
 
-    // Step 1: Remove quarantine attributes
+    if !version_dir.exists() {
+        return Ok(structure_healed);
+    }
+
+    // Step 2: Remove quarantine attributes
     remove_quarantine_attributes(version_dir)?;
 
-    // Step 2: Ensure executable permissions
-    let before_metadata = std::fs::metadata(version_dir.join("bin").join("java"))
+    // Step 3: Ensure executable permissions
+    let before_mode = std::fs::metadata(version_dir.join("bin").join("java"))
         .ok()
         .map(|m| m.permissions().mode());
 
     ensure_executable_permissions(version_dir)?;
 
-    let after_metadata = std::fs::metadata(version_dir.join("bin").join("java"))
+    let after_mode = std::fs::metadata(version_dir.join("bin").join("java"))
         .ok()
         .map(|m| m.permissions().mode());
 
-    if before_metadata != after_metadata {
-        repaired = true;
-    }
+    let permissions_changed = before_mode != after_mode;
 
-    // Step 3: Validate directory structure
-    if !validate_java_directory_structure(version_dir)? {
-        log::warn!(
-            "[macos_permissions] Java directory structure invalid at: {}",
-            version_dir.display()
-        );
-    }
-
-    Ok(repaired)
+    Ok(structure_healed || permissions_changed)
 }
 
 /// Repairs permissions for a specific Java path.

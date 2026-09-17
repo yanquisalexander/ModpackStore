@@ -38,9 +38,25 @@ impl MinecraftPaths {
             })
             .unwrap_or_else(|| "default_java".to_string());
 
-        let java_path = expand_path(&java_path_str)
-            .join("bin")
-            .join(if cfg!(windows) { "javaw.exe" } else { "java" });
+        let base_java = expand_path(&java_path_str);
+        let java_path = if !cfg!(windows)
+            && base_java
+                .join("Contents")
+                .join("Home")
+                .join("bin")
+                .join("java")
+                .exists()
+        {
+            base_java
+                .join("Contents")
+                .join("Home")
+                .join("bin")
+                .join("java")
+        } else {
+            base_java
+                .join("bin")
+                .join(if cfg!(windows) { "javaw.exe" } else { "java" })
+        };
 
         let game_dir = instance
             .instanceDirectory

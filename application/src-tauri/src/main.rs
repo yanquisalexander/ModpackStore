@@ -122,6 +122,102 @@ async fn kill_mc_instance(instance_id: String) -> Result<(), String> {
     crate::core::instance_launcher::kill_instance(instance_id)
 }
 
+async fn startup_java_environment_check_and_repair() {
+    log::info!("[java_startup] Running startup Java environment check and auto-repair...");
+
+    // 1. En macOS: auto-sanar carpetas de _java_versions y reparar permisos/cuarentena
+    #[cfg(target_os = "macos")]
+    {
+        if let Err(e) = crate::core::macos_permissions::check_and_fix_java_permissions().await {
+            log::warn!("[java_startup] macOS permission check failed: {}", e);
+        } else {
+            log::info!("[java_startup] macOS permission check completed successfully");
+        }
+    }
+
+    // 2. Validar si el javaDir actualmente configurado existe y es funcional
+    let java_manager = match crate::core::java_manager::JavaManager::new() {
+        Ok(jm) => jm,
+        Err(e) => {
+            log::warn!("[java_startup] Could not initialize JavaManager: {}", e);
+            return;
+        }
+    };
+
+    let (current_java_dir, is_valid) = {
+        if let Ok(config_guard) = crate::config::get_config_manager().lock() {
+            if let Ok(config) = config_guard.as_ref() {
+                match config.get_java_dir() {
+                    Some(dir) => {
+                        let path_str = dir.to_string_lossy().to_string();
+                        let valid = java_manager.validate_configured_java(&path_str).unwrap_or(false);
+                        (Some(path_str), valid)
+                    }
+                    None => (None, false),
+                }
+            } else {
+                (None, false)
+            }
+        } else {
+            (None, false)
+        }
+    };
+
+    if is_valid {
+        log::info!("[java_startup] Configured javaDir is valid: {:?}", current_java_dir);
+        return;
+    }
+
+    log::warn!(
+        "[java_startup] Configured javaDir ({:?}) is invalid or missing executable. Attempting auto-repair...",
+        current_java_dir
+    );
+
+    // 3. Buscar si ya existe un Java de la app en _java_versions (con auto-sanación incluida)
+    let mut resolved_java: Option<String> = java_manager.find_existing_app_java();
+
+    // 4. Si no se encontró en la app, buscar Java del sistema
+    if resolved_java.is_none() {
+        if let Ok(Some(sys_java)) = java_manager.scan_local_java_installations() {
+            log::info!("[java_startup] Found system Java at: {}", sys_java);
+            resolved_java = Some(sys_java);
+        } else if let Ok(Some(sys_java)) = java_manager.validate_system_java() {
+            log::info!("[java_startup] Found PATH/JAVA_HOME Java at: {}", sys_java);
+            resolved_java = Some(sys_java);
+        }
+    }
+
+    // 5. Si aún no hay ninguno disponible en el equipo, descargar Java 17 automáticamente
+    if resolved_java.is_none() {
+        log::info!("[java_startup] No working Java found on system. Downloading Java 17 automatically...");
+        match java_manager.get_java_path("17").await {
+            Ok(downloaded_path) => {
+                let path_str = downloaded_path.to_string_lossy().to_string();
+                log::info!("[java_startup] Java 17 downloaded successfully to: {}", path_str);
+                resolved_java = Some(path_str);
+            }
+            Err(e) => {
+                log::warn!("[java_startup] Failed to auto-download Java 17: {}", e);
+            }
+        }
+    }
+
+    // 6. Actualizar y guardar la configuración con el Java funcional
+    if let Some(valid_java) = resolved_java {
+        if let Ok(mut config_guard) = crate::config::get_config_manager().lock() {
+            if let Ok(config) = config_guard.as_mut() {
+                if let Err(e) = config.set("javaDir", &valid_java) {
+                    log::warn!("[java_startup] Failed to set javaDir in config: {}", e);
+                } else if let Err(e) = config.save() {
+                    log::warn!("[java_startup] Failed to save config: {}", e);
+                } else {
+                    log::info!("[java_startup] Automatically corrected javaDir to: {}", valid_java);
+                }
+            }
+        }
+    }
+}
+
 pub fn main() {
     let _ = fix_path_env::fix();
 
@@ -283,19 +379,10 @@ pub fn main() {
             // Register hotkeys
             crate::core::hotkeys::register_hotkeys(app.handle());
 
-            // macOS-specific: Run Java permission repair at startup
-            #[cfg(target_os = "macos")]
-            {
-                let app_handle_clone = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    log::info!("[macos_permissions] Running startup Java permission check...");
-                    if let Err(e) = crate::core::macos_permissions::check_and_fix_java_permissions().await {
-                        log::warn!("[macos_permissions] Startup permission check failed: {}", e);
-                    } else {
-                        log::info!("[macos_permissions] Startup permission check completed successfully");
-                    }
-                });
-            }
+            // Run Java environment check, structure healing and auto-repair at startup
+            tauri::async_runtime::spawn(async move {
+                startup_java_environment_check_and_repair().await;
+            });
 
             // Store the AppHandle in the static variable
             let mut app_handle = GLOBAL_APP_HANDLE.lock().unwrap();

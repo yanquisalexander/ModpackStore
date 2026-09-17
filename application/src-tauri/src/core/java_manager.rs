@@ -5,7 +5,7 @@ use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
 use std::fs::{self, create_dir_all, File};
 use std::io::{self, copy, Cursor, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tar::Archive;
 use tauri_plugin_http::reqwest;
 use zip::ZipArchive;
@@ -70,6 +70,15 @@ impl JavaManager {
             return false;
         }
 
+        // Si no es una raíz directa de JDK, intentar auto-sanar (ej. Contents/Home de macOS)
+        if !Self::is_jdk_root(version_dir) {
+            let _ = Self::heal_java_directory(version_dir);
+        }
+
+        if !version_dir.exists() {
+            return false;
+        }
+
         // Verificar que el ejecutable de Java existe
         let java_exec = self.get_java_executable(version_dir);
         java_exec.ok().filter(|p| p.exists()).is_some()
@@ -78,6 +87,14 @@ impl JavaManager {
     /// Busca en _java_versions la primera versión de Java que funcione
     /// Retorna la ruta al directorio de la versión encontrada (ej: _java_versions/java17)
     pub fn find_existing_app_java(&self) -> Option<String> {
+        // Auto-sanar versiones existentes primero
+        for version in &["17", "21", "8"] {
+            let version_dir = self.base_path.join(format!("java{}", version));
+            if version_dir.exists() {
+                let _ = Self::heal_java_directory(&version_dir);
+            }
+        }
+
         // Buscar versiones en orden de preferencia: 17, 21, 8
         for version in &["17", "21", "8"] {
             let version_dir = self.base_path.join(format!("java{}", version));
@@ -110,6 +127,16 @@ impl JavaManager {
         if java_exe.exists() {
             Ok(java_exe)
         } else {
+            // Fallback para bundles de macOS (Contents/Home/bin/java)
+            let bundle_exe = version_dir
+                .join("Contents")
+                .join("Home")
+                .join("bin")
+                .join(if cfg!(target_os = "windows") { "javaw.exe" } else { "java" });
+            if bundle_exe.exists() {
+                return Ok(bundle_exe);
+            }
+
             Err(anyhow!(
                 "El ejecutable de Java no existe en {}",
                 bin_dir.display()
@@ -387,11 +414,24 @@ impl JavaManager {
     /// Restaura permisos de ejecución para archivos en el directorio bin
     #[cfg(unix)]
     fn fix_permissions(&self, dir: &PathBuf) -> Result<()> {
+        Self::fix_unix_permissions(dir)
+    }
+
+    /// Restaura permisos de ejecución para archivos en el directorio bin
+    #[cfg(unix)]
+    pub fn fix_unix_permissions(dir: &Path) -> Result<()> {
         use std::os::unix::fs::PermissionsExt;
 
-        let bin_dir = dir.join("bin");
+        let bin_dir = if dir.join("bin").exists() {
+            dir.join("bin")
+        } else if dir.join("Contents").join("Home").join("bin").exists() {
+            dir.join("Contents").join("Home").join("bin")
+        } else {
+            return Ok(());
+        };
+
         if bin_dir.exists() {
-            for entry in fs::read_dir(bin_dir)? {
+            for entry in fs::read_dir(&bin_dir)? {
                 let entry = entry?;
                 let path = entry.path();
 
@@ -406,66 +446,175 @@ impl JavaManager {
         Ok(())
     }
 
-    /// Corrige la estructura de directorios después de la extracción
-    /// ya que OpenJDK suele extraerse a un subdirectorio
-    fn fix_extracted_directory(&self, target_dir: &PathBuf) -> Result<()> {
-        // Buscar el subdirectorio creado durante la extracción
-        let entries =
-            fs::read_dir(target_dir).context("No se pudo leer el directorio de destino")?;
+    /// Determina si un directorio contiene directamente bin/java o bin/java.exe
+    pub fn is_jdk_root(path: &Path) -> bool {
+        let bin_dir = path.join("bin");
+        if !bin_dir.is_dir() {
+            return false;
+        }
+        bin_dir.join("java").exists()
+            || bin_dir.join("java.exe").exists()
+            || bin_dir.join("javaw.exe").exists()
+    }
 
-        let mut jdk_dir = None;
+    /// Busca recursivamente el directorio raíz real del JDK dentro de un directorio
+    pub fn locate_jdk_root(dir: &Path, max_depth: usize) -> Option<PathBuf> {
+        if Self::is_jdk_root(dir) {
+            return Some(dir.to_path_buf());
+        }
+        // Verificar Contents/Home (típico de bundles en macOS)
+        let contents_home = dir.join("Contents").join("Home");
+        if Self::is_jdk_root(&contents_home) {
+            return Some(contents_home);
+        }
 
-        for entry in entries {
+        if max_depth == 0 {
+            return None;
+        }
+
+        if let Ok(entries) = fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                    // Evitar descender a carpetas temporales
+                    if name.contains("temp_") {
+                        continue;
+                    }
+                    if let Some(found) = Self::locate_jdk_root(&path, max_depth - 1) {
+                        return Some(found);
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Aplana el contenido de real_root directamente en target_dir
+    pub fn flatten_to_target(real_root: &Path, target_dir: &Path) -> Result<()> {
+        if real_root == target_dir {
+            return Ok(());
+        }
+
+        let parent_dir = target_dir.parent().unwrap_or(target_dir);
+        let temp_dir = parent_dir.join(format!(
+            "{}_temp_flatten_{}",
+            target_dir.file_name().and_then(|n| n.to_str()).unwrap_or("java"),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis()
+        ));
+
+        if temp_dir.exists() {
+            let _ = fs::remove_dir_all(&temp_dir);
+        }
+        create_dir_all(&temp_dir).context("No se pudo crear directorio temporal para aplanar JDK")?;
+
+        // Mover o copiar todo de real_root a temp_dir
+        for entry in fs::read_dir(real_root)? {
             let entry = entry?;
-            let path = entry.path();
+            let dest = temp_dir.join(entry.file_name());
+            Self::copy_dir_recursive(&entry.path(), &dest)?;
+        }
 
-            if path.is_dir()
-                && path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .map(|name| name.contains("jdk") || name.contains("openjdk"))
-                    .unwrap_or(false)
-            {
-                jdk_dir = Some(path);
-                break;
+        // Limpiar target_dir completamente
+        if let Ok(entries) = fs::read_dir(target_dir) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.is_dir() {
+                    let _ = fs::remove_dir_all(&p);
+                } else {
+                    let _ = fs::remove_file(&p);
+                }
             }
         }
 
-        // Si encontramos un subdirectorio, mover todos sus contenidos al directorio principal
-        if let Some(src_dir) = jdk_dir {
-            let temp_dir = target_dir.join("temp_move");
+        // Mover desde temp_dir a target_dir
+        for entry in fs::read_dir(&temp_dir)? {
+            let entry = entry?;
+            let dest = target_dir.join(entry.file_name());
+            Self::copy_dir_recursive(&entry.path(), &dest)?;
+        }
 
-            // Eliminar directorio residual de un intento previo fallido
-            if temp_dir.exists() {
-                let _ = fs::remove_dir_all(&temp_dir);
+        let _ = fs::remove_dir_all(&temp_dir);
+        Ok(())
+    }
+
+    /// Corrige la estructura de directorios después de la extracción
+    /// ya que OpenJDK suele extraerse a un subdirectorio o bundle (macOS)
+    fn fix_extracted_directory(&self, target_dir: &PathBuf) -> Result<()> {
+        if let Some(real_root) = Self::locate_jdk_root(target_dir, 3) {
+            if real_root != *target_dir {
+                log::info!(
+                    "[java_manager] JDK extraído en subdirectorio {}. Aplanando a {}",
+                    real_root.display(),
+                    target_dir.display()
+                );
+                Self::flatten_to_target(&real_root, target_dir)?;
             }
-
-            // Intentar rename directo; si falla, copiar recursivamente como fallback
-            if fs::rename(&src_dir, &temp_dir).is_err() {
-                create_dir_all(&temp_dir)
-                    .context("No se pudo crear directorio temporal para mover JDK")?;
-
-                for entry in fs::read_dir(&src_dir)? {
-                    let entry = entry?;
-                    let dest = temp_dir.join(entry.file_name());
-                    Self::copy_dir_recursive(&entry.path(), &dest)?;
-                }
-
-                fs::remove_dir_all(&src_dir)
-                    .context("No se pudo eliminar directorio JDK original tras copia")?;
-            }
-
-            // Mover contenido de temp_move al directorio principal
-            for entry in fs::read_dir(&temp_dir)? {
-                let entry = entry?;
-                let dest_path = target_dir.join(entry.file_name());
-                Self::copy_dir_recursive(&entry.path(), &dest_path)?;
-            }
-
-            fs::remove_dir_all(&temp_dir).context("No se pudo eliminar el directorio temporal")?;
+        } else {
+            log::warn!(
+                "[java_manager] No se encontró la raíz del JDK dentro de {}",
+                target_dir.display()
+            );
         }
 
         Ok(())
+    }
+
+    /// Auto-sana una instalación existente de Java en _java_versions.
+    /// Si tiene estructura Contents/Home o carpetas anidadas, las aplana.
+    /// Si está corrupta o vacía, la limpia para no bloquear futuras descargas.
+    pub fn heal_java_directory(version_dir: &Path) -> Result<bool> {
+        if !version_dir.exists() {
+            return Ok(false);
+        }
+
+        // Limpiar archivos o carpetas temporales residuales
+        for temp_name in &["temp_move", "java_temp_archive.zip", "java_temp_archive.tar.gz"] {
+            let temp_path = version_dir.join(temp_name);
+            if temp_path.exists() {
+                if temp_path.is_dir() {
+                    let _ = fs::remove_dir_all(&temp_path);
+                } else {
+                    let _ = fs::remove_file(&temp_path);
+                }
+            }
+        }
+
+        // Si no tiene bin/java directamente, buscar si está anidado
+        if !Self::is_jdk_root(version_dir) {
+            if let Some(real_root) = Self::locate_jdk_root(version_dir, 3) {
+                log::info!(
+                    "[java_manager] Auto-sanando directorio Java anidado: {} -> {}",
+                    real_root.display(),
+                    version_dir.display()
+                );
+                let _ = Self::flatten_to_target(&real_root, version_dir);
+            }
+        }
+
+        // Si ahora es una raíz válida
+        if Self::is_jdk_root(version_dir) {
+            #[cfg(unix)]
+            {
+                let _ = Self::fix_unix_permissions(version_dir);
+            }
+            #[cfg(target_os = "macos")]
+            {
+                let _ = crate::core::macos_permissions::repair_java_path_permissions(version_dir);
+            }
+            return Ok(true);
+        }
+
+        // Si tras intentar sanar sigue sin tener ejecutable, verificar si está corrupto o vacío
+        log::warn!(
+            "[java_manager] Carpeta {} corrupta o sin ejecutable válido. Limpiando para permitir nueva instalación.",
+            version_dir.display()
+        );
+        let _ = fs::remove_dir_all(version_dir);
+        Ok(false)
     }
 
     /// Copia un directorio de forma recursiva (fallback para fs::rename cross-volume)
@@ -500,9 +649,19 @@ impl JavaManager {
 
         // Verificación 2: El ejecutable debe existir y funcionar
         let java_exe = if cfg!(target_os = "windows") {
-            java_dir.join("bin").join("java.exe")
+            let exe = java_dir.join("bin").join("java.exe");
+            if exe.exists() {
+                exe
+            } else {
+                java_dir.join("bin").join("javaw.exe")
+            }
         } else {
-            java_dir.join("bin").join("java")
+            let exe = java_dir.join("bin").join("java");
+            if exe.exists() {
+                exe
+            } else {
+                java_dir.join("Contents").join("Home").join("bin").join("java")
+            }
         };
 
         if !java_exe.exists() {

@@ -116,21 +116,48 @@ pub async fn apply_troubleshooter_fix(fix_id: String) -> Result<String, String> 
         "fix_java" => {
             let java_manager = JavaManager::new()
                 .map_err(|e| format!("Error al inicializar JavaManager: {}", e))?;
-            match java_manager.scan_local_java_installations() {
-                Ok(Some(local_java_path)) => {
-                    let mut config = get_config_manager()
-                        .lock()
-                        .map_err(|_| "Failed to lock config manager".to_string())?;
-                    let cfg = config.as_mut().map_err(|e| e.clone())?;
-                    cfg.set("javaDir", &local_java_path)
-                        .map_err(|e| format!("Error al establecer javaDir: {}", e))?;
-                    cfg.save()
-                        .map_err(|e| format!("Error al guardar configuración: {}", e))?;
-                    Ok(local_java_path)
-                }
-                Ok(None) => Err("No se encontró Java localmente. Intenta instalarlo desde Configuración.".to_string()),
-                Err(e) => Err(format!("Error al buscar Java: {}", e)),
+
+            // Primero: reutilizar Java de la app si ya existe (con auto-sanación)
+            if let Some(app_java) = java_manager.find_existing_app_java() {
+                let mut config = get_config_manager()
+                    .lock()
+                    .map_err(|_| "Failed to lock config manager".to_string())?;
+                let cfg = config.as_mut().map_err(|e| e.clone())?;
+                cfg.set("javaDir", &app_java)
+                    .map_err(|e| format!("Error al establecer javaDir: {}", e))?;
+                cfg.save()
+                    .map_err(|e| format!("Error al guardar configuración: {}", e))?;
+                return Ok(app_java);
             }
+
+            // Segundo: buscar Java del sistema
+            if let Ok(Some(local_java_path)) = java_manager.scan_local_java_installations() {
+                let mut config = get_config_manager()
+                    .lock()
+                    .map_err(|_| "Failed to lock config manager".to_string())?;
+                let cfg = config.as_mut().map_err(|e| e.clone())?;
+                cfg.set("javaDir", &local_java_path)
+                    .map_err(|e| format!("Error al establecer javaDir: {}", e))?;
+                cfg.save()
+                    .map_err(|e| format!("Error al guardar configuración: {}", e))?;
+                return Ok(local_java_path);
+            }
+
+            // Tercero: descargar Java 17 automáticamente
+            let java_path = java_manager
+                .get_java_path("17")
+                .await
+                .map_err(|e| format!("Error al descargar Java 17: {}", e))?;
+            let java_path_str = java_path.to_string_lossy().to_string();
+            let mut config = get_config_manager()
+                .lock()
+                .map_err(|_| "Failed to lock config manager".to_string())?;
+            let cfg = config.as_mut().map_err(|e| e.clone())?;
+            cfg.set("javaDir", &java_path_str)
+                .map_err(|e| format!("Error al establecer javaDir: {}", e))?;
+            cfg.save()
+                .map_err(|e| format!("Error al guardar configuración: {}", e))?;
+            Ok(java_path_str)
         }
         "fix_java_config" => {
             let java_manager = JavaManager::new()
@@ -695,9 +722,17 @@ fn check_macos_java_permissions() -> CheckResult {
         if !version_dir.exists() {
             continue;
         }
+
+        // Auto-sanar directorio si tiene estructura anidada o Contents/Home
+        let _ = JavaManager::heal_java_directory(&version_dir);
+
+        if !version_dir.exists() {
+            continue;
+        }
+
         checked += 1;
 
-        let java_exe = version_dir.join("bin").join("java");
+        let java_exe = get_java_executable(&version_dir);
         if !java_exe.exists() {
             issues.push(format!("Java {}: ejecutable no encontrado", version));
             continue;
@@ -747,9 +782,25 @@ fn check_macos_java_permissions() -> CheckResult {
 
 fn get_java_executable(java_dir: &Path) -> PathBuf {
     if cfg!(target_os = "windows") {
-        java_dir.join("bin").join("java.exe")
+        let exe = java_dir.join("bin").join("java.exe");
+        if exe.exists() {
+            return exe;
+        }
+        let exe2 = java_dir.join("bin").join("javaw.exe");
+        if exe2.exists() {
+            return exe2;
+        }
+        exe
     } else {
-        java_dir.join("bin").join("java")
+        let exe = java_dir.join("bin").join("java");
+        if exe.exists() {
+            return exe;
+        }
+        let bundle_exe = java_dir.join("Contents").join("Home").join("bin").join("java");
+        if bundle_exe.exists() {
+            return bundle_exe;
+        }
+        exe
     }
 }
 
