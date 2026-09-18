@@ -63,6 +63,7 @@ pub async fn check_and_fix_java_permissions() -> Result<(), String> {
 }
 
 /// Repairs permissions and removes quarantine for native libraries in natives_dir.
+/// Recursively processes all subdirectories to ensure nested .dylib files are fixed.
 pub fn repair_native_permissions(natives_dir: &Path) -> Result<(), String> {
     if !natives_dir.exists() {
         return Ok(());
@@ -71,8 +72,19 @@ pub fn repair_native_permissions(natives_dir: &Path) -> Result<(), String> {
     // Remove quarantine attribute recursively
     remove_quarantine_attributes(natives_dir)?;
 
-    // Ensure all dynamic libraries in natives_dir have 0o755 executable permissions
-    if let Ok(entries) = std::fs::read_dir(natives_dir) {
+    // Ensure all dynamic libraries have 0o755 executable permissions (recursive)
+    repair_executable_permissions_recursive(natives_dir)?;
+
+    Ok(())
+}
+
+/// Recursively sets 0o755 on all .dylib/.so/.jnilib files in a directory tree.
+fn repair_executable_permissions_recursive(dir: &Path) -> Result<(), String> {
+    if !dir.exists() {
+        return Ok(());
+    }
+
+    if let Ok(entries) = std::fs::read_dir(dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_file() {
@@ -81,9 +93,18 @@ pub fn repair_native_permissions(natives_dir: &Path) -> Result<(), String> {
                     if let Ok(metadata) = std::fs::metadata(&path) {
                         let mut perms = metadata.permissions();
                         perms.set_mode(0o755);
-                        let _ = std::fs::set_permissions(&path, perms);
+                        if let Err(e) = std::fs::set_permissions(&path, perms) {
+                            log::warn!(
+                                "[macos_permissions] Failed to set permissions on {}: {}",
+                                path.display(),
+                                e
+                            );
+                        }
                     }
                 }
+            } else if path.is_dir() {
+                // Recurse into subdirectories (e.g. natives/linux/, natives/osx/)
+                let _ = repair_executable_permissions_recursive(&path);
             }
         }
     }

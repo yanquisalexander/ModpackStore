@@ -183,7 +183,17 @@ impl<'a> ArgumentProcessor<'a> {
         &self,
         placeholders: &HashMap<String, String>,
     ) -> Result<Vec<String>, String> {
-        let mut jvm_args = vec![format!("-Xms512M"), format!("-Xmx{}M", self.memory)];
+        let mut jvm_args = Vec::new();
+
+        // macOS-specific: -XstartOnFirstThread MUST be the first JVM argument
+        // for Cocoa/AWT GUI thread to work. Without this, Minecraft crashes
+        // immediately on macOS without showing any window.
+        if cfg!(target_os = "macos") {
+            jvm_args.push("-XstartOnFirstThread".to_string());
+        }
+
+        jvm_args.push(format!("-Xms512M"));
+        jvm_args.push(format!("-Xmx{}M", self.memory));
 
         log::debug!("Processing JVM arguments with {}MB memory", self.memory);
 
@@ -195,7 +205,7 @@ impl<'a> ArgumentProcessor<'a> {
             // Filter out any memory arguments that conflict with ours
             let filtered_args: Vec<String> = manifest_args
                 .into_iter()
-                .filter(|arg| !arg.starts_with("-Xms") && !arg.starts_with("-Xmx"))
+                .filter(|arg| !arg.starts_with("-Xms") && !arg.starts_with("-Xmx") && arg != "-XstartOnFirstThread")
                 .collect();
 
             jvm_args.extend(filtered_args);
@@ -223,13 +233,6 @@ impl<'a> ArgumentProcessor<'a> {
 
             if cfg!(target_arch = "x86") {
                 jvm_args.push("-Xss1M".to_string());
-            }
-        }
-
-        // macOS-specific: ensure -XstartOnFirstThread is present for Cocoa GUI thread
-        if cfg!(target_os = "macos") {
-            if !jvm_args.iter().any(|arg| arg == "-XstartOnFirstThread") {
-                jvm_args.push("-XstartOnFirstThread".to_string());
             }
         }
 

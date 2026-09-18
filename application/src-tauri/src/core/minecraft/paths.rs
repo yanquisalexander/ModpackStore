@@ -39,24 +39,71 @@ impl MinecraftPaths {
             .unwrap_or_else(|| "default_java".to_string());
 
         let base_java = expand_path(&java_path_str);
-        let java_path = if !cfg!(windows)
+
+        // Resolve the actual Java executable path, handling multiple layout formats.
+        // On macOS, Java can be in:
+        //   - /path/to/jdk/bin/java           (direct)
+        //   - /path/to/jdk/Contents/Home/bin/java  (bundle layout)
+        //   - /path/to/jdk                    (user pointed to the executable itself)
+        let java_exe_name = if cfg!(windows) { "javaw.exe" } else { "java" };
+
+        let java_path = if base_java.is_file() {
+            // User already pointed to the executable (e.g. /path/to/jdk/bin/java)
+            base_java
+        } else if !cfg!(windows)
             && base_java
                 .join("Contents")
                 .join("Home")
                 .join("bin")
-                .join("java")
+                .join(java_exe_name)
                 .exists()
         {
             base_java
                 .join("Contents")
                 .join("Home")
                 .join("bin")
-                .join("java")
+                .join(java_exe_name)
         } else {
-            base_java
-                .join("bin")
-                .join(if cfg!(windows) { "javaw.exe" } else { "java" })
+            base_java.join("bin").join(java_exe_name)
         };
+
+        // Validate that the resolved path is actually an executable file
+        if !java_path.exists() {
+            log::error!(
+                "[MinecraftPaths] Resolved Java path does not exist: {}",
+                java_path.display()
+            );
+        } else if java_path.is_dir() {
+            log::error!(
+                "[MinecraftPaths] Resolved Java path is a directory, not an executable: {}",
+                java_path.display()
+            );
+        }
+
+        // On Unix, ensure the executable has proper permissions
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if java_path.exists() && java_path.is_file() {
+                if let Ok(metadata) = std::fs::metadata(&java_path) {
+                    let mode = metadata.permissions().mode();
+                    if mode & 0o111 == 0 {
+                        log::warn!(
+                            "[MinecraftPaths] Java executable lacks execute permission, fixing: {}",
+                            java_path.display()
+                        );
+                        let mut perms = metadata.permissions();
+                        perms.set_mode(0o755);
+                        if let Err(e) = std::fs::set_permissions(&java_path, perms) {
+                            log::error!(
+                                "[MinecraftPaths] Failed to fix Java permissions: {}",
+                                e
+                            );
+                        }
+                    }
+                }
+            }
+        }
 
         let game_dir = instance
             .instanceDirectory
