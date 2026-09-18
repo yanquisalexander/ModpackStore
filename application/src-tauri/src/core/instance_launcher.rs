@@ -799,6 +799,19 @@ impl InstanceLauncher {
                 self.instance.instanceId
             );
 
+            #[cfg(target_os = "macos")]
+            {
+                let natives_dir = PathBuf::from(&self.instance.minecraftPath)
+                    .join("natives")
+                    .join(&self.instance.minecraftVersion);
+                if let Err(e) = crate::core::macos_permissions::repair_native_permissions(&natives_dir) {
+                    warn!(
+                        "[Launch Thread: {}] Failed to repair macOS native permissions: {}",
+                        self.instance.instanceId, e
+                    );
+                }
+            }
+
             // 2. Launch Minecraft
             let minecraft_launcher = CoreMinecraftLauncher::new((*self.instance).clone());
 

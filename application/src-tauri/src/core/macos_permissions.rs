@@ -62,6 +62,35 @@ pub async fn check_and_fix_java_permissions() -> Result<(), String> {
     Ok(())
 }
 
+/// Repairs permissions and removes quarantine for native libraries in natives_dir.
+pub fn repair_native_permissions(natives_dir: &Path) -> Result<(), String> {
+    if !natives_dir.exists() {
+        return Ok(());
+    }
+
+    // Remove quarantine attribute recursively
+    remove_quarantine_attributes(natives_dir)?;
+
+    // Ensure all dynamic libraries in natives_dir have 0o755 executable permissions
+    if let Ok(entries) = std::fs::read_dir(natives_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() {
+                let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+                if ext == "dylib" || ext == "so" || ext == "jnilib" {
+                    if let Ok(metadata) = std::fs::metadata(&path) {
+                        let mut perms = metadata.permissions();
+                        perms.set_mode(0o755);
+                        let _ = std::fs::set_permissions(&path, perms);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 /// Removes macOS quarantine attributes from a directory and its contents.
 /// The com.apple.quarantine attribute is added to downloaded files and can
 /// cause permission issues when trying to execute them.

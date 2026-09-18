@@ -579,6 +579,13 @@ impl InstanceBootstrap {
             );
         }
 
+        #[cfg(target_os = "macos")]
+        {
+            if let Err(e) = crate::core::macos_permissions::repair_native_permissions(&natives_dir) {
+                log::warn!("[instance_bootstrap] Failed to repair macOS native permissions: {}", e);
+            }
+        }
+
         // Update task status - 90%
         if let Some(task_id) = &task_id {
             update_task(

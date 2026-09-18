@@ -191,15 +191,35 @@ impl<'a> ClasspathBuilder<'a> {
             } else {
                 "osx"
             };
-            if let Some(classifier_template) = natives_obj.get(os_name).and_then(Value::as_str) {
+            let classifier_template = natives_obj
+                .get(os_name)
+                .or_else(|| if os_name == "osx" { natives_obj.get("macos") } else { None })
+                .and_then(Value::as_str);
+
+            if let Some(classifier_template) = classifier_template {
                 let arch = if cfg!(target_arch = "x86_64") {
                     "64"
+                } else if cfg!(target_arch = "aarch64") {
+                    "arm64"
                 } else {
                     "32"
                 };
                 let classifier = classifier_template.replace("${arch}", arch);
-                native_paths
-                    .push(self.construct_library_path_from_name(lib_name, Some(&classifier)));
+                let candidate = self.construct_library_path_from_name(lib_name, Some(&classifier));
+                if candidate.exists() {
+                    native_paths.push(candidate);
+                } else if cfg!(target_os = "macos") {
+                    let fallback_classifier = classifier_template.replace("${arch}", "64");
+                    let fallback_candidate = self.construct_library_path_from_name(lib_name, Some(&fallback_classifier));
+                    if fallback_candidate.exists() {
+                        native_paths.push(fallback_candidate);
+                    } else {
+                        // Keep primary candidate as fallback if neither exists on disk yet
+                        native_paths.push(candidate);
+                    }
+                } else {
+                    native_paths.push(candidate);
+                }
             }
         }
 
@@ -225,7 +245,12 @@ impl<'a> ClasspathBuilder<'a> {
             vec!["natives-linux"]
         } else if cfg!(target_os = "macos") {
             if cfg!(target_arch = "aarch64") {
-                vec!["natives-macos-arm64", "natives-osx-arm64"]
+                vec![
+                    "natives-macos-arm64",
+                    "natives-osx-arm64",
+                    "natives-macos",
+                    "natives-osx",
+                ]
             } else {
                 vec!["natives-macos", "natives-osx"]
             }

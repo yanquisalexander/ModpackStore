@@ -217,11 +217,6 @@ impl<'a> ArgumentProcessor<'a> {
                 ),
             ]);
 
-            // OS-specific arguments
-            if cfg!(target_os = "macos") {
-                jvm_args.push("-XstartOnFirstThread".to_string());
-            }
-
             if cfg!(windows) {
                 jvm_args.push("-XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump".to_string());
             }
@@ -229,6 +224,26 @@ impl<'a> ArgumentProcessor<'a> {
             if cfg!(target_arch = "x86") {
                 jvm_args.push("-Xss1M".to_string());
             }
+        }
+
+        // macOS-specific: ensure -XstartOnFirstThread is present for Cocoa GUI thread
+        if cfg!(target_os = "macos") {
+            if !jvm_args.iter().any(|arg| arg == "-XstartOnFirstThread") {
+                jvm_args.push("-XstartOnFirstThread".to_string());
+            }
+        }
+
+        // Ensure java.library.path is present
+        if !jvm_args.iter().any(|arg| arg.starts_with("-Djava.library.path=")) {
+            jvm_args.push(format!("-Djava.library.path={}", self.paths.natives_dir().display()));
+        }
+
+        // Ensure org.lwjgl.system.SharedLibraryExtractPath is present
+        if !jvm_args.iter().any(|arg| arg.starts_with("-Dorg.lwjgl.system.SharedLibraryExtractPath=")) {
+            jvm_args.push(format!(
+                "-Dorg.lwjgl.system.SharedLibraryExtractPath={}",
+                self.paths.natives_dir().display()
+            ));
         }
 
         // Network properties: force IPv4 to avoid connection timeouts on macOS
@@ -370,9 +385,8 @@ impl<'a> ArgumentProcessor<'a> {
                     if let Some(rules) = arg.get("rules").and_then(|r| r.as_array()) {
                         let mut should_include = false;
                         for rule in rules {
-                            if RuleEvaluator::should_apply_rule(rule, features).unwrap_or(false) {
-                                should_include = true;
-                                break;
+                            if let Some(applies) = RuleEvaluator::should_apply_rule(rule, features) {
+                                should_include = applies;
                             }
                         }
                         if should_include {
