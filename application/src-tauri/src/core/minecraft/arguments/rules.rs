@@ -15,7 +15,7 @@ impl RuleEvaluator {
             if let Some(os_name) = os_obj.get("name").and_then(|n| n.as_str()) {
                 let is_current_os = match os_name {
                     "windows" => cfg!(windows),
-                    "osx" => cfg!(target_os = "macos"),
+                    "osx" | "macos" => cfg!(target_os = "macos"),
                     "linux" => cfg!(target_os = "linux"),
                     _ => false,
                 };
@@ -27,9 +27,9 @@ impl RuleEvaluator {
             if let Some(os_arch) = os_obj.get("arch").and_then(|a| a.as_str()) {
                 let is_current_arch = match os_arch {
                     "x86" => cfg!(target_arch = "x86"),
-                    "x86_64" => cfg!(target_arch = "x86_64"),
+                    "x86_64" | "64" => cfg!(target_arch = "x86_64"),
                     "arm" => cfg!(target_arch = "arm"),
-                    "arm64" => cfg!(target_arch = "aarch64"),
+                    "arm64" | "aarch64" => cfg!(target_arch = "aarch64"),
                     _ => false,
                 };
                 if !is_current_arch {

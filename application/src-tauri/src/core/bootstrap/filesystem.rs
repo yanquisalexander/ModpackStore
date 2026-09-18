@@ -222,6 +222,13 @@ pub fn extract_natives(
         );
     }
 
+    #[cfg(target_os = "macos")]
+    {
+        if let Err(e) = crate::core::macos_permissions::repair_native_permissions(natives_dir) {
+            log::warn!("[filesystem] Failed to repair native permissions on macOS: {}", e);
+        }
+    }
+
     Ok(())
 }
 
@@ -263,7 +270,10 @@ fn get_os_info() -> Result<OsInfo, String> {
 fn is_native_library(library: &Value, os_info: &OsInfo) -> bool {
     // Check if library has natives object with our OS
     if let Some(natives) = library.get("natives") {
-        if natives.get(&os_info.name).is_some() {
+        if natives.get(&os_info.name).is_some()
+            || (os_info.name == "osx" && natives.get("macos").is_some())
+            || (os_info.name == "macos" && natives.get("osx").is_some())
+        {
             // Also check rules to ensure this library should be included
             return should_include_library(library, os_info);
         }
@@ -271,7 +281,9 @@ fn is_native_library(library: &Value, os_info: &OsInfo) -> bool {
 
     // Check if library name contains natives classifier
     if let Some(name) = library.get("name").and_then(|n| n.as_str()) {
-        if name.contains(&os_info.classifier) {
+        if name.contains(&os_info.classifier)
+            || (os_info.name == "osx" && (name.contains("natives-macos") || name.contains("macos-natives")))
+        {
             return should_include_library(library, os_info);
         }
     }
@@ -322,14 +334,18 @@ fn is_native_library_enhanced(library: &Value, os_info: &OsInfo) -> bool {
 
         // Check for OS-specific classifiers in the name
         let os_classifiers = [
-            &format!("natives-{}", os_info.name),
-            &format!("{}-natives", os_info.name),
-            &format!("native-{}", os_info.name),
-            &format!("{}-native", os_info.name),
+            format!("natives-{}", os_info.name),
+            format!("{}-natives", os_info.name),
+            format!("native-{}", os_info.name),
+            format!("{}-native", os_info.name),
+            "natives-macos".to_string(),
+            "macos-natives".to_string(),
+            "native-macos".to_string(),
+            "macos-native".to_string(),
         ];
 
         for classifier in &os_classifiers {
-            if name_lower.contains(*classifier) {
+            if name_lower.contains(classifier) {
                 log::debug!(
                     "Detected native library via OS classifier '{}': {}",
                     classifier,
@@ -349,6 +365,11 @@ fn is_native_library_enhanced(library: &Value, os_info: &OsInfo) -> bool {
                 format!("natives-{}-{}", os_info.name, os_info.arch),
                 format!("{}-natives", os_info.name),
                 format!("{}-{}-natives", os_info.name, os_info.arch),
+                "natives-macos".to_string(),
+                format!("natives-macos-{}", os_info.arch),
+                "macos-natives".to_string(),
+                "natives-osx".to_string(),
+                format!("natives-osx-{}", os_info.arch),
             ];
 
             for classifier in &possible_classifiers {
@@ -425,7 +446,10 @@ fn should_include_library(library: &Value, os_info: &OsInfo) -> bool {
 
 fn check_os_rule(os_rule: &Value, os_info: &OsInfo) -> bool {
     if let Some(rule_name) = os_rule.get("name").and_then(|n| n.as_str()) {
-        if rule_name != os_info.name {
+        if rule_name != os_info.name
+            && !(os_info.name == "osx" && rule_name == "macos")
+            && !(os_info.name == "macos" && rule_name == "osx")
+        {
             return false;
         }
     }
@@ -433,7 +457,10 @@ fn check_os_rule(os_rule: &Value, os_info: &OsInfo) -> bool {
     if let Some(rule_arch) = os_rule.get("arch").and_then(|a| a.as_str()) {
         // Match against system architecture
         let system_arch = std::env::consts::ARCH;
-        if rule_arch != system_arch {
+        let is_arch_match = rule_arch == system_arch
+            || (system_arch == "aarch64" && (rule_arch == "arm64" || rule_arch == "x86_64" || rule_arch == "64"))
+            || (system_arch == "x86_64" && rule_arch == "64");
+        if !is_arch_match {
             return false;
         }
     }
@@ -644,7 +671,7 @@ fn get_native_library_path_enhanced(
             // Standard natives pattern with arch replacement
             library
                 .get("natives")
-                .and_then(|n| n.get(&os_info.name))
+                .and_then(|n| n.get(&os_info.name).or_else(|| if os_info.name == "osx" { n.get("macos") } else { None }))
                 .and_then(|n| n.as_str())
                 .map(|template| template.replace("${arch}", &os_info.arch)),
             // Direct OS-specific patterns
@@ -652,6 +679,14 @@ fn get_native_library_path_enhanced(
             Some(format!("natives-{}-{}", os_info.name, os_info.arch)),
             Some(format!("{}-natives", os_info.name)),
             Some(format!("{}-{}-natives", os_info.name, os_info.arch)),
+            Some("natives-macos".to_string()),
+            Some(format!("natives-macos-{}", os_info.arch)),
+            Some("macos-natives".to_string()),
+            Some("natives-osx".to_string()),
+            Some(format!("natives-osx-{}", os_info.arch)),
+            Some("osx-natives".to_string()),
+            Some("natives-macos-64".to_string()),
+            Some("natives-osx-64".to_string()),
         ];
 
         for classifier_opt in possible_classifiers {
