@@ -467,11 +467,22 @@ fn get_current_arch() -> &'static str {
 
 /// Get classifier keys for current platform
 fn get_classifier_keys() -> Vec<String> {
-    vec![
-        format!("{}-{}", get_current_os(), get_current_arch()),
-        format!("natives-{}", get_current_os()),
+    let os = get_current_os();
+    let arch = get_current_arch();
+
+    let mut keys = vec![
+        format!("natives-{}", os),
+        format!("natives-{}-{}", os, arch),
+        format!("{}-{}", os, arch),
         "natives".to_string(),
-    ]
+    ];
+
+    if os == "osx" {
+        keys.push("natives-macos".to_string());
+        keys.push(format!("natives-macos-{}", arch));
+    }
+
+    keys
 }
 
 /// Create parent directories if they don't exist
