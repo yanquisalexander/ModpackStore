@@ -12,9 +12,21 @@
   -->
   <link rel="stylesheet" href="/app.legacy.css" />
   <script>
-    // If browser supports CSS @layer, disable the legacy fallback
-    // The modern Tailwind CSS (loaded via Vite) will provide full styling
-    if (typeof CSSLayerBlockRule !== "undefined") {
+    // The legacy CSS provides fully downleveled styles (no @layer, color-mix,
+    // oklch, etc). Modern browsers disable it at runtime; the modern Tailwind
+    // stylesheet (loaded via Vite) takes over instead.
+    function legacyCssNeeded() {
+      if (typeof CSSLayerBlockRule === "undefined") return true;
+      try {
+        if (!CSS.supports("color", "color-mix(in oklab, #fff 50%, transparent)")) {
+          return true;
+        }
+      } catch (e) {
+        return true;
+      }
+      return false;
+    }
+    if (!legacyCssNeeded()) {
       document.querySelectorAll('link[href*="app.legacy.css"]').forEach(function(l) { l.disabled = true; });
     }
   </script>
