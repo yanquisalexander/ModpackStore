@@ -12,7 +12,7 @@ import { getProfileFromMojang, getUuidFromMojang } from "@/v1/mojang/mojang.serv
 
 const JWT_SECRET = Deno.env.get("JWT_SECRET")!;
 const YGGDRASIL_SESSION_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
-const INACTIVITY_TIMEOUT_MS = 15 * 60 * 1000; // 15 minutes
+const INACTIVITY_TIMEOUT_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 export interface YggdrasilProfile {
     id: string;
@@ -168,6 +168,11 @@ export const yggdrasilService = {
                 .where(eq(gameSessionsTable.id, gs.id));
             return false;
         }
+
+        await db
+            .update(gameSessionsTable)
+            .set({ lastActivity: new Date() })
+            .where(eq(gameSessionsTable.id, gs.id));
 
         return true;
     },
