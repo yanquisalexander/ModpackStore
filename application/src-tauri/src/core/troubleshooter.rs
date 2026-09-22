@@ -271,6 +271,67 @@ pub async fn apply_troubleshooter_fix(fix_id: String) -> Result<String, String> 
                 recommended, total_mb
             ))
         }
+        "fix_java_version_compatibility" => {
+            // Descarga las versiones de Java que falten en _java_versions según lo que
+            // requieren las instancias bootstrapeadas.
+            let java_manager = JavaManager::new()
+                .map_err(|e| format!("Error al inicializar JavaManager: {}", e))?;
+
+            let instances = get_all_instances()?;
+            let mut required_versions: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+            for instance in &instances {
+                let mc_ver = instance.minecraftVersion.trim();
+                if mc_ver.is_empty() { continue; }
+                let instance_dir = match instance.instanceDirectory.as_ref() {
+                    Some(d) => std::path::PathBuf::from(d),
+                    None => continue,
+                };
+                let manifest_path = instance_dir
+                    .join("minecraft")
+                    .join("versions")
+                    .join(mc_ver)
+                    .join(format!("{}.json", mc_ver));
+                if !manifest_path.exists() { continue; }
+
+                let java_major: u32 = std::fs::read_to_string(&manifest_path)
+                    .ok()
+                    .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                    .and_then(|json| {
+                        json.get("javaVersion")
+                            .and_then(|jv| jv.get("majorVersion"))
+                            .and_then(|v| v.as_u64())
+                            .map(|n| n as u32)
+                    })
+                    .unwrap_or(8);
+
+                let version_dir = java_manager.base_path().join(format!("java{}", java_major));
+                let java_exe = get_java_executable(&version_dir);
+                if !java_exe.exists() {
+                    required_versions.insert(java_major.to_string());
+                }
+            }
+
+            if required_versions.is_empty() {
+                return Ok("Todos los Javas requeridos ya están disponibles".to_string());
+            }
+
+            let mut downloaded: Vec<String> = Vec::new();
+            let mut errors: Vec<String> = Vec::new();
+
+            for version in &required_versions {
+                match java_manager.get_java_path(version).await {
+                    Ok(_) => downloaded.push(format!("Java {}", version)),
+                    Err(e) => errors.push(format!("Java {}: {}", version, e)),
+                }
+            }
+
+            if errors.is_empty() {
+                Ok(format!("Descargado: {}", downloaded.join(", ")))
+            } else {
+                Err(format!("Errores al descargar: {}", errors.join("; ")))
+            }
+        }
         #[cfg(target_os = "macos")]
         "fix_macos_java_permissions" => {
             crate::core::macos_permissions::check_and_fix_java_permissions()
@@ -991,66 +1052,33 @@ fn check_recent_jvm_crashes() -> CheckResult {
     result
 }
 
-/// Verifica que la versión de Java configurada sea compatible con las instancias instaladas.
+/// Verifica que los Javas requeridos por las instancias instaladas estén disponibles
+/// en `_java_versions` (el directorio gestionado por la app).
 ///
-/// Lee el campo `javaVersion.majorVersion` del manifest vanilla de cada instancia desde disco
-/// — la fuente de verdad oficial de Mojang — en lugar de usar heurísticas hardcodeadas basadas
-/// en el número de versión de MC. Instancias no bootstrapeadas (sin manifest en disco) se omiten.
+/// Esta es la fuente de verdad correcta: el launcher selecciona automáticamente el Java
+/// adecuado para cada instancia llamando a `JavaManager::get_java_path(version)`, por lo
+/// que el `javaDir` del config es irrelevante para esta comprobación.
+///
+/// Lee el campo `javaVersion.majorVersion` del manifest vanilla de cada instancia desde disco.
+/// Instancias no bootstrapeadas (sin manifest en disco) se omiten.
 fn check_java_version_compatibility() -> CheckResult {
     let mut result = CheckResult {
         id: "java_version_compatibility".to_string(),
-        name: "Compatibilidad Java ↔ Minecraft".to_string(),
-        description: "Comprueba que la versión de Java sea compatible con las instancias instaladas.".to_string(),
+        name: "Javas requeridos disponibles".to_string(),
+        description: "Comprueba que los Javas que necesitan tus instancias estén descargados en la app.".to_string(),
         status: CheckStatus::Running,
         detail: None,
         technical: None,
         fixable: true,
     };
 
-    // Resolve Java major version from the configured executable
-    let java_major_val: u32 = {
-        let config = match get_config_manager().lock() {
-            Ok(guard) => guard,
-            Err(_) => {
-                result.status = CheckStatus::Warn;
-                result.detail = Some("No se pudo leer la configuración".to_string());
-                return result;
-            }
-        };
-        let cfg = match config.as_ref() {
-            Ok(c) => c,
-            Err(_) => {
-                result.status = CheckStatus::Warn;
-                result.detail = Some("Error de configuración".to_string());
-                return result;
-            }
-        };
-        let dir = match cfg.get_java_dir() {
-            Some(d) => d,
-            None => {
-                result.status = CheckStatus::Warn;
-                result.detail = Some("No hay Java configurado".to_string());
-                return result;
-            }
-        };
-        let java_exe = get_java_executable(&dir);
-        let raw = JavaManager::new()
-            .ok()
-            .and_then(|jm| jm.get_java_version(&java_exe).ok());
-
-        match raw.as_deref().and_then(|v| {
-            // "1.8.0_xxx" → 8,  "17.0.x" → 17,  "21" → 21
-            let first = v.split('.').next()?;
-            let n: u32 = first.parse().ok()?;
-            Some(if n == 1 { 8 } else { n })
-        }) {
-            Some(v) => v,
-            None => {
-                result.status = CheckStatus::Warn;
-                result.detail = Some("No se pudo determinar la versión de Java instalada".to_string());
-                result.technical = Some(format!("raw_version={:?}", raw));
-                return result;
-            }
+    let java_manager = match JavaManager::new() {
+        Ok(jm) => jm,
+        Err(e) => {
+            result.status = CheckStatus::Warn;
+            result.detail = Some("No se pudo inicializar el gestor de Java".to_string());
+            result.technical = Some(format!("JavaManager::new failed: {}", e));
+            return result;
         }
     };
 
@@ -1067,14 +1095,14 @@ fn check_java_version_compatibility() -> CheckResult {
     if instances.is_empty() {
         result.status = CheckStatus::Pass;
         result.detail = Some("No hay instancias instaladas".to_string());
-        result.technical = Some(format!("java_major={}\ninstances=0", java_major_val));
+        result.technical = Some("instances=0".to_string());
         return result;
     }
 
-    let mut incompatible: Vec<String> = Vec::new();
-    let mut warnings: Vec<String> = Vec::new();
-    let mut checked = 0usize;
-    let mut skipped = 0usize; // instances not yet bootstrapped (no manifest on disk)
+    // Collect which Java major versions are required across all bootstrapped instances.
+    // Key: major version number. Value: list of instance names that need it.
+    let mut required: std::collections::HashMap<u32, Vec<String>> = std::collections::HashMap::new();
+    let mut skipped = 0usize;
 
     for instance in &instances {
         let mc_ver = instance.minecraftVersion.trim();
@@ -1083,13 +1111,12 @@ fn check_java_version_compatibility() -> CheckResult {
             continue;
         }
 
-        // Resolve the vanilla manifest path.
-        // Matches MinecraftPaths::vanilla_manifest_file():
-        //   <instanceDirectory>/minecraft/versions/<mc_ver>/<mc_ver>.json
         let instance_dir = match instance.instanceDirectory.as_ref() {
             Some(d) => std::path::PathBuf::from(d),
             None => { skipped += 1; continue; }
         };
+
+        // <instanceDir>/minecraft/versions/<mc_ver>/<mc_ver>.json
         let manifest_path = instance_dir
             .join("minecraft")
             .join("versions")
@@ -1097,14 +1124,13 @@ fn check_java_version_compatibility() -> CheckResult {
             .join(format!("{}.json", mc_ver));
 
         if !manifest_path.exists() {
-            // Not bootstrapped yet — skip silently, no crash risk
+            // Not bootstrapped yet — skip, no risk
             skipped += 1;
             continue;
         }
 
-        // Read javaVersion.majorVersion — the official Mojang requirement field.
-        // Present since MC 1.17; absent in older versions (assume Java 8).
-        let required_java: Option<u32> = std::fs::read_to_string(&manifest_path)
+        // Read javaVersion.majorVersion (present since MC 1.17; absent → Java 8)
+        let java_major: u32 = std::fs::read_to_string(&manifest_path)
             .ok()
             .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
             .and_then(|json| {
@@ -1112,73 +1138,71 @@ fn check_java_version_compatibility() -> CheckResult {
                     .and_then(|jv| jv.get("majorVersion"))
                     .and_then(|v| v.as_u64())
                     .map(|n| n as u32)
-            });
+            })
+            .unwrap_or(8);
 
-        checked += 1;
+        required
+            .entry(java_major)
+            .or_default()
+            .push(instance.instanceName.clone());
+    }
 
-        match required_java {
-            Some(required) => {
-                if java_major_val < required {
-                    // Hard incompatibility: Minecraft will refuse to start
-                    incompatible.push(format!(
-                        "{} (MC {}) requiere Java {}, tienes Java {}",
-                        instance.instanceName, mc_ver, required, java_major_val
-                    ));
-                } else if java_major_val > required + 2 {
-                    // More than 2 major versions ahead — may break some mods / Forge
-                    warnings.push(format!(
-                        "{} (MC {}) fue diseñado para Java {}, tienes Java {} (puede ser incompatible con algunos mods)",
-                        instance.instanceName, mc_ver, required, java_major_val
-                    ));
-                }
-            }
-            None => {
-                // No javaVersion field → pre-1.17 vanilla or some modloaders.
-                // Default assumption: Java 8. Warn if significantly newer.
-                if java_major_val > 11 {
-                    warnings.push(format!(
-                        "{} (MC {}) puede ser incompatible con Java {} (se recomienda Java 8 u 11)",
-                        instance.instanceName, mc_ver, java_major_val
-                    ));
-                }
-            }
+    if required.is_empty() {
+        result.status = CheckStatus::Pass;
+        result.detail = Some("Ninguna instancia instalada aún".to_string());
+        result.technical = Some(format!(
+            "instances_total={}\nskipped_no_manifest={}",
+            instances.len(),
+            skipped
+        ));
+        return result;
+    }
+
+    // For each required version, check whether it is present and functional in _java_versions.
+    let mut missing: Vec<String> = Vec::new();
+    let mut present: Vec<u32> = Vec::new();
+
+    for (&java_major, instance_names) in &required {
+        let version_dir = java_manager.base_path().join(format!("java{}", java_major));
+        let java_exe = get_java_executable(&version_dir);
+        let is_ok = java_exe.exists();
+
+        if is_ok {
+            present.push(java_major);
+        } else {
+            missing.push(format!(
+                "Java {} (requerido por: {})",
+                java_major,
+                instance_names.join(", ")
+            ));
         }
     }
 
+    let mut required_sorted: Vec<u32> = required.keys().copied().collect();
+    required_sorted.sort();
+
     result.technical = Some(format!(
-        "java_major={}\ninstances_total={}\nchecked={}\nskipped_no_manifest={}\nincompatible={}\nwarnings={}",
-        java_major_val,
+        "instances_total={}\ninstances_checked={}\nskipped_no_manifest={}\nrequired_versions=[{}]\nmissing=[{}]\npresent=[{}]",
         instances.len(),
-        checked,
+        instances.len() - skipped,
         skipped,
-        incompatible.len(),
-        warnings.len()
+        required_sorted.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", "),
+        missing.join("; "),
+        present.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(", "),
     ));
 
-    if !incompatible.is_empty() {
+    if missing.is_empty() {
+        result.status = CheckStatus::Pass;
+        result.detail = Some(format!(
+            "Todos los Javas requeridos están disponibles ({})",
+            present.iter().map(|v| format!("Java {}", v)).collect::<Vec<_>>().join(", ")
+        ));
+    } else {
         result.status = CheckStatus::Fail;
         result.detail = Some(format!(
-            "{} instancia(s) incompatible(s) con Java {}: {}",
-            incompatible.len(),
-            java_major_val,
-            incompatible.first().map(|s| s.as_str()).unwrap_or("")
-        ));
-    } else if !warnings.is_empty() {
-        result.status = CheckStatus::Warn;
-        result.detail = Some(format!(
-            "Java {} puede causar problemas en {} instancia(s): {}",
-            java_major_val,
-            warnings.len(),
-            warnings.first().map(|s| s.as_str()).unwrap_or("")
-        ));
-    } else if checked == 0 {
-        result.status = CheckStatus::Pass;
-        result.detail = Some("Ninguna instancia instalada aún".to_string());
-    } else {
-        result.status = CheckStatus::Pass;
-        result.detail = Some(format!(
-            "Java {} es compatible con las {} instancia(s) verificada(s)",
-            java_major_val, checked
+            "{} versión(es) de Java faltante(s): {}",
+            missing.len(),
+            missing.first().map(|s| s.as_str()).unwrap_or("")
         ));
     }
 

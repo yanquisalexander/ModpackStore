@@ -31,9 +31,11 @@ const statusConfig = {
 const fixIdMap: Record<string, string> = {
     java_configured: "fix_java",
     java_not_system: "fix_java_config",
+    java_version_compatibility: "fix_java_version_compatibility",
     instances_dir: "fix_instances_dir",
     orphan_accounts: "fix_orphan_accounts",
     connectivity: "recheck_connection",
+    jvm_memory_config: "fix_jvm_memory",
     macos_java_permissions: "fix_macos_java_permissions",
 };
 
