@@ -68,15 +68,22 @@ impl<'a> ArgumentProcessor<'a> {
             "auth_access_token".to_string(),
             self.account.access_token().unwrap_or("null").to_string(),
         );
-        placeholders.insert(
-            "user_type".to_string(),
-            if self.account.user_type() != "offline" {
-                "mojang"
-            } else {
-                "legacy"
-            }
-            .to_string(),
-        );
+        // user_type is passed directly to Minecraft as --userType.
+        // The correct values are:
+        //   "msa"    — Microsoft account (Xbox Live / official Mojang API)
+        //   "mojang" — Yggdrasil auth (legacy Mojang accounts, ModpackStore, or any authlib-injector server)
+        //   "legacy" — offline / crack accounts (no auth)
+        //
+        // Using "legacy" for authenticated accounts causes Minecraft ≥ 1.16 to refuse the session,
+        // which is one of the main causes of the "Ocurrió un error al lanzar Minecraft" message.
+        let raw_user_type = self.account.user_type().to_lowercase();
+        let mc_user_type = match raw_user_type.as_str() {
+            "microsoft" | "msa" | "xbox" => "msa",
+            "offline" | "legacy" | "crack" => "legacy",
+            // ModpackStore Yggdrasil, plain "mojang", and anything else authenticated
+            _ => "mojang",
+        };
+        placeholders.insert("user_type".to_string(), mc_user_type.to_string());
 
         // Version and game info
         placeholders.insert(

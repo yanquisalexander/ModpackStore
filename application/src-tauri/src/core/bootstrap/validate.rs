@@ -14,11 +14,36 @@ use std::io::{self, Result as IoResult};
 use std::path::{Path, PathBuf};
 use tauri_plugin_http::reqwest;
 
-/// Revalidates and downloads missing assets for a Minecraft instance
+/// Revalidates and downloads missing assets for a Minecraft instance.
+///
+/// This is the primary entry point when called from an already-blocking synchronous context
+/// (e.g. `thread::spawn`). It creates its own single Tokio runtime for the async download step.
+/// If you already have a Tokio runtime available, use `revalidate_assets_with_runtime` instead
+/// to avoid the overhead and the risk of nested-runtime panics.
 pub fn revalidate_assets(
     client: &reqwest::blocking::Client,
     instance: &MinecraftInstance,
     version_details: &Value,
+) -> IoResult<()> {
+    let rt = tokio::runtime::Runtime::new().map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to create async runtime for asset download: {}", e),
+        )
+    })?;
+    revalidate_assets_with_runtime(client, instance, version_details, &rt)
+}
+
+/// Revalidates and downloads missing assets, reusing an existing Tokio runtime.
+///
+/// Prefer this variant inside `bootstrap_vanilla_instance` (or any context that already
+/// owns a `tokio::runtime::Runtime`) to avoid creating redundant runtimes and to prevent
+/// the "cannot call block_on inside an async context" panic.
+pub fn revalidate_assets_with_runtime(
+    client: &reqwest::blocking::Client,
+    instance: &MinecraftInstance,
+    version_details: &Value,
+    rt: &tokio::runtime::Runtime,
 ) -> IoResult<()> {
     log::info!("Revalidando assets para: {}", instance.instanceName);
 
@@ -76,7 +101,7 @@ pub fn revalidate_assets(
             )
         })?;
 
-    download_missing_assets(client, instance, &assets_objects_dir, objects)?;
+    download_missing_assets_with_runtime(instance, &assets_objects_dir, objects, rt)?;
 
     log::info!("Asset revalidation completed");
 
@@ -92,23 +117,38 @@ pub fn revalidate_assets(
     Ok(())
 }
 
-/// Downloads missing assets from the assets index using the modern DownloadManager
+/// Downloads missing assets from the assets index using the modern DownloadManager.
+/// Creates its own Tokio runtime — prefer `download_missing_assets_with_runtime` when a
+/// runtime is already available in the calling context.
 fn download_missing_assets(
     _client: &reqwest::blocking::Client, // Kept for API compatibility but not used
     instance: &MinecraftInstance,
     assets_objects_dir: &Path,
     objects: &serde_json::Map<String, Value>,
 ) -> IoResult<()> {
+    let rt = tokio::runtime::Runtime::new().map_err(|e| {
+        io::Error::new(
+            io::ErrorKind::Other,
+            format!("Failed to create async runtime: {}", e),
+        )
+    })?;
+    download_missing_assets_with_runtime(instance, assets_objects_dir, objects, &rt)
+}
+
+/// Core implementation — downloads missing assets reusing an existing Tokio runtime.
+fn download_missing_assets_with_runtime(
+    instance: &MinecraftInstance,
+    assets_objects_dir: &Path,
+    objects: &serde_json::Map<String, Value>,
+    rt: &tokio::runtime::Runtime,
+) -> IoResult<()> {
     let total_assets = objects.len();
-    let mut processed_assets = 0;
     let mut missing_assets_info = Vec::new();
 
     log::info!("Validando {} assets...", total_assets);
 
     // First pass: identify missing assets and collect download information
     for (asset_name, asset_info) in objects {
-        processed_assets += 1;
-
         let hash = match asset_info.get("hash").and_then(|v| v.as_str()) {
             Some(h) => h,
             None => {
@@ -121,13 +161,12 @@ fn download_missing_assets(
         let asset_file = assets_objects_dir.join(hash_prefix).join(hash);
 
         if !asset_file.exists() {
-            // Prepare download info for batch processing
             let asset_url = format!(
                 "https://resources.download.minecraft.net/{}/{}",
                 hash_prefix, hash
             );
 
-            missing_assets_info.push((asset_url.clone(), asset_file.clone(), hash.to_string()));
+            missing_assets_info.push((asset_url, asset_file, hash.to_string()));
         }
     }
 
@@ -143,56 +182,64 @@ fn download_missing_assets(
         missing_count
     );
 
-    // Use async runtime to run the DownloadManager
-    let runtime = tokio::runtime::Runtime::new().map_err(|e| {
-        io::Error::new(
-            io::ErrorKind::Other,
-            format!("Failed to create async runtime: {}", e),
-        )
-    })?;
-
-    let download_result = runtime.block_on(async {
-        // Create DownloadManager optimized for asset downloads (higher concurrency for small files)
+    // Use the provided runtime — never create a nested runtime here.
+    let download_result = rt.block_on(async {
+        // Higher concurrency for small asset files
         let download_manager = DownloadManager::with_concurrency(8);
-
         let instance_clone = instance.clone();
 
-        // Download all missing assets in parallel with progress reporting
-        let result = download_manager
+        download_manager
             .download_files_parallel_with_progress(
                 missing_assets_info,
                 move |current, total, message| {
-                    // Update progress for asset downloads
                     let stage = Stage::ValidatingAssets { current, total };
                     emit_status_with_stage(&instance_clone, "instance-downloading-assets", &stage);
 
-                    // Log progress periodically to avoid spam
-                    if current % 10 == 0 || current == total {
+                    if current % 50 == 0 || current == total {
                         log::info!("Descargando assets: {}/{} - {}", current, total, message);
                     }
                 },
             )
-            .await;
+            .await
+    });
 
-        // Log result but don't fail — individual asset download failures are non-critical
-        // Minecraft can still launch with missing assets (it will re-download or show missing textures)
-        match result {
-            Ok(downloaded) => {
+    match download_result {
+        Ok(downloaded) => {
+            if downloaded < missing_count {
+                let failed = missing_count - downloaded;
+                // Bug 5 fix: treat significant failures as a hard error so the caller knows
+                // assets are incomplete. A small number of failures (< 5%) is tolerated to
+                // handle transient network hiccups without aborting the whole launch.
+                let failure_rate = failed as f64 / missing_count as f64;
+                if failure_rate > 0.05 {
+                    return Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        format!(
+                            "Demasiados assets fallaron al descargar: {}/{} ({:.0}%). Verifica tu conexión a internet.",
+                            failed, missing_count, failure_rate * 100.0
+                        ),
+                    ));
+                } else {
+                    log::warn!(
+                        "Algunos assets fallaron (tolerado): {}/{} ({:.0}%). El juego puede mostrar texturas faltantes.",
+                        failed, missing_count, failure_rate * 100.0
+                    );
+                }
+            } else {
                 log::info!(
-                    "Se han descargado {} de {} assets faltantes usando DownloadManager.",
+                    "Se descargaron {} de {} assets faltantes.",
                     downloaded, missing_count
                 );
             }
-            Err(e) => {
-                log::warn!(
-                    "Algunos assets fallaron al descargar (no crítico): {}. El juego puede lanzarse con textures faltantes.",
-                    e
-                );
-            }
         }
-
-        Ok::<(), io::Error>(())
-    })?;
+        Err(e) => {
+            // Hard failure from the download manager itself — propagate as error
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Error crítico al descargar assets: {}", e),
+            ));
+        }
+    }
 
     Ok(())
 }

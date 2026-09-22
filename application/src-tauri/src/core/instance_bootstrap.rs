@@ -15,7 +15,7 @@ use crate::core::bootstrap::{
         emit_bootstrap_complete, emit_bootstrap_error, emit_bootstrap_start, emit_status,
         emit_status_with_stage, Stage,
     },
-    validate::revalidate_assets,
+    validate::{revalidate_assets, revalidate_assets_with_runtime},
 };
 use crate::core::bootstrap_error::{BootstrapError, BootstrapStep, ErrorCategory};
 use crate::core::instance_manager::get_instance_by_id;
@@ -452,9 +452,14 @@ impl InstanceBootstrap {
             }
         }
 
-        // Create Tokio runtime for async task execution and get Java path
-        let java_path = tokio::runtime::Runtime::new()
-            .map_err(|e| format!("Failed to create Tokio runtime: {}", e))?
+        // Create a SINGLE Tokio runtime and reuse it for all async operations in this bootstrap.
+        // Creating multiple runtimes in the same thread is wasteful and can panic if a Tauri
+        // runtime is already active in the calling context.
+        let async_rt = tokio::runtime::Runtime::new()
+            .map_err(|e| format!("Failed to create Tokio runtime: {}", e))?;
+
+        // Get Java path (downloading if necessary)
+        let java_path = async_rt
             .block_on(java_manager.get_java_path(&java_major_version))
             .map_err(|e| {
                 format!(
@@ -470,9 +475,8 @@ impl InstanceBootstrap {
             "Descargando librerías",
         );
 
-        // Use enhanced download manager for libraries
-        tokio::runtime::Runtime::new()
-            .map_err(|e| format!("Failed to create Tokio runtime: {}", e))?
+        // Use enhanced download manager for libraries (reuse the same runtime)
+        async_rt
             .block_on(download_libraries_enhanced(
                 instance,
                 &version_details,
@@ -494,9 +498,11 @@ impl InstanceBootstrap {
             );
         }
 
-        // Validate assets
+        // Validate assets — reuse the already-created runtime to avoid creating nested runtimes.
+        // This is the step that caused the UI freeze: previously it created a new Runtime
+        // inside validate.rs while one was already alive on this thread.
         emit_status(instance, "instance-downloading-assets", "Validando assets");
-        self.revalidate_assets(instance)
+        revalidate_assets_with_runtime(&self.client, instance, &version_details, &async_rt)
             .map_err(|e| format!("Error validating assets: {}", e))?;
 
         // Create launcher profiles.json if it doesn't exist

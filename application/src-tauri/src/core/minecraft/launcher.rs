@@ -421,7 +421,19 @@ impl GameLauncher for MinecraftLauncher {
         };
 
         // Build and execute command
-        let mut command = Command::new(paths.java_path());
+        // Bug 6 fix: verify the Java executable exists BEFORE spawning so we get a clear,
+        // actionable error message instead of an OS-level "file not found" cryptic failure.
+        let java_path = paths.java_path();
+        if !java_path.exists() {
+            let message = format!(
+                "Java no encontrado en: {}. Por favor reinstala Java desde la configuración.",
+                java_path.display()
+            );
+            log::error!("[MinecraftLauncher] {}", message);
+            return Err(message);
+        }
+
+        let mut command = Command::new(java_path);
         command
             .args(&jvm_args)
             .arg(main_class)

@@ -1,7 +1,8 @@
-
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { Copy, Check } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface CrashDialogProps {
     open: boolean;
@@ -13,124 +14,123 @@ interface CrashDialogProps {
     onSendCrashReport?: () => void;
 }
 
+function useCopyState() {
+    const [copied, setCopied] = useState(false);
+    useEffect(() => {
+        if (!copied) return;
+        const t = setTimeout(() => setCopied(false), 2000);
+        return () => clearTimeout(t);
+    }, [copied]);
+    return [copied, setCopied] as const;
+}
+
 export const InstanceCrashDialog = ({
     open,
     onOpenChange,
     exitCode,
     errorMessage,
     data,
-    onViewCrashReport,
-    onSendCrashReport,
 }: CrashDialogProps) => {
-    const [copied, setCopied] = useState(false);
-    useEffect(() => {
-        if (copied) {
-            const timeout = setTimeout(() => setCopied(false), 2000);
-            return () => clearTimeout(timeout);
-        }
-    }, [copied]);
+    const [copiedReport, setCopiedReport] = useCopyState();
+    const [copiedCode, setCopiedCode] = useCopyState();
+
+    const crashReport: string | null = data?.crashReport ?? null;
+    const errorCode: string | null = data?.detectedError?.code ?? null;
+
+    const fullCopyText = [
+        `Exit code: ${exitCode}`,
+        errorCode ? `Error code: ${errorCode}` : null,
+        errorMessage ? `Message: ${errorMessage}` : null,
+        crashReport ? `\n--- Crash report ---\n${crashReport}` : null,
+    ]
+        .filter(Boolean)
+        .join("\n");
+
+    const copyReport = () => {
+        navigator.clipboard.writeText(fullCopyText);
+        setCopiedReport(true);
+        toast.success("Reporte de crash copiado al portapapeles");
+    };
 
     const copyExitCode = () => {
         navigator.clipboard.writeText(exitCode.toString());
-        setCopied(true);
-        toast.success("Código de error copiado al portapapeles");
+        setCopiedCode(true);
+        toast.success("Código de salida copiado");
     };
-
-    // Avoid typescript unused function warnings
-    {
-        unusedFunctions: [
-            onViewCrashReport,
-            onSendCrashReport,
-            copyExitCode
-        ]
-    }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="bg-neutral-900 text-white border-none max-w-max sm:max-w-[600px] w-full">
                 <DialogHeader className="text-center">
-
-                    <DialogTitle className="text-sm font-normal text-center">ERROR</DialogTitle>
-                    <DialogTitle className="text-2xl font-semibold text-center mb-4">Game crashed</DialogTitle>
-                    <DialogDescription className="text-white text-center">
+                    <DialogTitle className="text-sm font-normal text-center text-zinc-400">ERROR</DialogTitle>
+                    <DialogTitle className="text-2xl font-semibold text-center mb-1">Game crashed</DialogTitle>
+                    <DialogDescription className="text-zinc-300 text-center text-sm">
                         An unexpected issue occurred and the game has crashed.
-                        We're sorry for
-                        the inconvenience.
-                        <br />
-                        {
-                            data?.detectedError && (
-                                <code className="text-red-500 text-sm">
-                                    {data.detectedError?.code}
-                                </code>
-                            )
-                        }
-
-                        {
-                            data?.crashReport && (
-                                <div className="mt-2 max-w-[60ch] mx-auto">
-                                    <p className="text-xs text-zinc-400 mb-1 text-left">Log del crash:</p>
-                                    <code className="block text-left !font-mono bg-neutral-800 text-xs text-zinc-300 p-3 rounded overflow-x-auto max-h-[16rem] overflow-y-auto whitespace-pre-wrap">
-                                        {data.crashReport}
-                                    </code>
-                                </div>
-                            )
-                        }
-
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="text-center text-white text-sm mb-4">
-                    {
-                        errorMessage
-                            ? errorMessage
-                            : "We're sorry, but we couldn't retrieve the error message. Please check the logs for more details."
-                    }
+                {/* Error code badge */}
+                {errorCode && (
+                    <div className="flex justify-center">
+                        <code className="text-red-400 text-xs bg-red-950/40 border border-red-900/50 px-2 py-1 rounded select-text">
+                            {errorCode}
+                        </code>
+                    </div>
+                )}
 
-                </div>
+                {/* Error message */}
+                {errorMessage && (
+                    <p className="text-center text-zinc-300 text-sm select-text px-1">
+                        {errorMessage}
+                    </p>
+                )}
 
-                {/* <div className="flex justify-center mb-4">
-                    <Button
-                        variant="link"
-                        className="text-blue-400 hover:text-blue-300 flex items-center gap-1"
-                        onClick={() => window.open('https://support.example.com/crash-info', '_blank')}
+                {/* Exit code row */}
+                <div className="flex items-center justify-center gap-2 text-sm text-zinc-400">
+                    <span>
+                        Exit code:{" "}
+                        <span className="font-mono text-zinc-200 select-text">{exitCode}</span>
+                    </span>
+                    <button
+                        onClick={copyExitCode}
+                        className="text-zinc-500 hover:text-zinc-200 transition-colors"
+                        title="Copiar código de salida"
                     >
-                        Click here for more information.
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M7 17L17 7" />
-                            <path d="M7 7h10v10" />
-                        </svg>
-                    </Button>
-                </div>
-
-                <div className="flex items-center justify-center gap-2 mb-6">
-                    <span className="text-white">Exit Code: {exitCode}</span>
-                    <button onClick={copyExitCode} className="text-gray-400 hover:text-white transition-colors">
-                        {copied ? (
-                            <LucideClipboard className="size-4 text-green-500" />
+                        {copiedCode ? (
+                            <Check className="size-3.5 text-green-400" />
                         ) : (
-                            <LucideClipboard className="size-4" />
+                            <Copy className="size-3.5" />
                         )}
                     </button>
                 </div>
 
-                <div className="flex gap-2 justify-center">
+                {/* Crash report log */}
+                {crashReport && (
+                    <div className="mt-1">
+                        <p className="text-xs text-zinc-500 mb-1">Log del crash:</p>
+                        <pre className="font-mono bg-neutral-800 text-xs text-zinc-300 p-3 rounded overflow-x-auto max-h-52 overflow-y-auto whitespace-pre-wrap break-all select-text cursor-text">
+                            {crashReport}
+                        </pre>
+                    </div>
+                )}
+
+                {/* Copy full report button */}
+                <div className="flex justify-center pt-1">
                     <Button
                         variant="outline"
-                        className="bg-neutral-800 hover:bg-neutral-700 text-white border-neutral-700"
-                        onClick={onViewCrashReport}
+                        size="sm"
+                        className="bg-neutral-800 hover:bg-neutral-700 text-zinc-200 border-neutral-700 gap-2"
+                        onClick={copyReport}
                     >
-                        <LucideEye className="size-4 mr-2" />
-                        View crash report
+                        {copiedReport ? (
+                            <Check className="size-4 text-green-400" />
+                        ) : (
+                            <Copy className="size-4" />
+                        )}
+                        {copiedReport ? "Copiado" : "Copiar reporte completo"}
                     </Button>
-                    <Button
-                        className="bg-green-600 hover:bg-green-700 text-white"
-                        onClick={onSendCrashReport}
-                    >
-                        Send crash report
-                    </Button>
-                </div> */}
+                </div>
             </DialogContent>
         </Dialog>
     );
 };
-
