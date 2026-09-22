@@ -99,6 +99,20 @@ pub async fn run_troubleshooter() -> Result<TroubleshooterResult, String> {
     emit_check_update(&c);
     checks.push(c);
 
+    let c = check_jvm_memory_config();
+    emit_check_update(&c);
+    checks.push(c);
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+
+    let c = check_recent_jvm_crashes();
+    emit_check_update(&c);
+    checks.push(c);
+    tokio::time::sleep(std::time::Duration::from_millis(80)).await;
+
+    let c = check_java_version_compatibility();
+    emit_check_update(&c);
+    checks.push(c);
+
     let result = TroubleshooterResult {
         checks,
         timestamp: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string(),
@@ -234,6 +248,28 @@ pub async fn apply_troubleshooter_fix(fix_id: String) -> Result<String, String> 
             } else {
                 Err("Sin conexión a internet".to_string())
             }
+        }
+        "fix_jvm_memory" => {
+            // Set a safe default RAM allocation based on available system memory.
+            // We target 50% of physical RAM, clamped between 2048 MB and 8192 MB.
+            let mut sys = sysinfo::System::new();
+            sys.refresh_memory();
+            let total_mb = (sys.total_memory() / (1024 * 1024)) as u32;
+            let recommended = (total_mb / 2).clamp(2048, 8192);
+
+            let mut config = get_config_manager()
+                .lock()
+                .map_err(|_| "Failed to lock config manager".to_string())?;
+            let cfg = config.as_mut().map_err(|e| e.clone())?;
+            cfg.set("ramAllocation", recommended)
+                .map_err(|e| format!("Error al establecer ramAllocation: {}", e))?;
+            cfg.save()
+                .map_err(|e| format!("Error al guardar configuración: {}", e))?;
+
+            Ok(format!(
+                "RAM configurada a {}MB (sistema: {}MB totales)",
+                recommended, total_mb
+            ))
         }
         #[cfg(target_os = "macos")]
         "fix_macos_java_permissions" => {
@@ -773,6 +809,353 @@ fn check_macos_java_permissions() -> CheckResult {
     } else {
         result.status = CheckStatus::Fail;
         result.detail = Some(format!("{} problema(s) encontrado(s) en permisos de Java", issues.len()));
+    }
+
+    result
+}
+
+// ── JVM Crash Checks ───────────────────────────────
+
+/// Verifica que la RAM asignada a Minecraft sea razonable.
+/// Una configuración demasiado baja (<512 MB) o mayor que la RAM del sistema
+/// son causas directas de JVM crash al iniciar.
+fn check_jvm_memory_config() -> CheckResult {
+    let mut result = CheckResult {
+        id: "jvm_memory_config".to_string(),
+        name: "Configuración de RAM para Minecraft".to_string(),
+        description: "Comprueba que la RAM asignada sea suficiente y no supere la disponible en el sistema.".to_string(),
+        status: CheckStatus::Running,
+        detail: None,
+        technical: None,
+        fixable: true,
+    };
+
+    let allocated_mb = {
+        let config = match get_config_manager().lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                result.status = CheckStatus::Warn;
+                result.detail = Some("No se pudo leer la configuración".to_string());
+                return result;
+            }
+        };
+        match config.as_ref() {
+            Ok(c) => c.get_minecraft_memory().unwrap_or(2048),
+            Err(_) => {
+                result.status = CheckStatus::Warn;
+                result.detail = Some("Error de configuración".to_string());
+                return result;
+            }
+        }
+    };
+
+    // Get total system RAM
+    let mut sys = sysinfo::System::new();
+    sys.refresh_memory();
+    let total_ram_mb = (sys.total_memory() / (1024 * 1024)) as u32;
+    // Leave at least 1 GB for the OS + other processes
+    let recommended_max_mb = total_ram_mb.saturating_sub(1024);
+
+    let xmx = allocated_mb;
+    let xms = (xmx / 2).max(256).min(xmx);
+
+    result.technical = Some(format!(
+        "allocated_mb={}\nxmx={}M\nxms={}M\ntotal_ram_mb={}\nrecommended_max_mb={}",
+        allocated_mb, xmx, xms, total_ram_mb, recommended_max_mb
+    ));
+
+    if allocated_mb < 512 {
+        result.status = CheckStatus::Fail;
+        result.detail = Some(format!(
+            "{}MB es demasiado poco. El mínimo recomendado es 512MB. La JVM crasheará al iniciar.",
+            allocated_mb
+        ));
+    } else if allocated_mb > recommended_max_mb && recommended_max_mb > 0 {
+        result.status = CheckStatus::Warn;
+        result.detail = Some(format!(
+            "{}MB asignados pero el sistema solo tiene {}MB libres estimados (de {}MB totales). Puede causar crash por OOM del sistema.",
+            allocated_mb, recommended_max_mb, total_ram_mb
+        ));
+    } else if allocated_mb < 1024 {
+        result.status = CheckStatus::Warn;
+        result.detail = Some(format!(
+            "{}MB puede ser insuficiente para modpacks pesados. Se recomienda al menos 2048MB.",
+            allocated_mb
+        ));
+    } else {
+        result.status = CheckStatus::Pass;
+        result.detail = Some(format!(
+            "{}MB asignados (Xms={}M, Xmx={}M). OK.",
+            allocated_mb, xms, xmx
+        ));
+    }
+
+    result
+}
+
+/// Busca archivos hs_err_pid*.log recientes en los directorios de instancias.
+/// Si encuentra alguno de menos de 24 horas, significa que hubo un JVM crash reciente.
+fn check_recent_jvm_crashes() -> CheckResult {
+    let mut result = CheckResult {
+        id: "recent_jvm_crashes".to_string(),
+        name: "Crashes de JVM recientes".to_string(),
+        description: "Detecta crashes nativos de la JVM (hs_err_pid) en los directorios de las instancias.".to_string(),
+        status: CheckStatus::Running,
+        detail: None,
+        technical: None,
+        fixable: false,
+    };
+
+    let instances_dir = {
+        let config = match get_config_manager().lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                result.status = CheckStatus::Warn;
+                result.detail = Some("No se pudo leer la configuración".to_string());
+                return result;
+            }
+        };
+        match config.as_ref() {
+            Ok(c) => c.get_instances_dir(),
+            Err(_) => {
+                result.status = CheckStatus::Warn;
+                result.detail = Some("Error de configuración".to_string());
+                return result;
+            }
+        }
+    };
+
+    if !instances_dir.exists() {
+        result.status = CheckStatus::Pass;
+        result.detail = Some("No hay instancias instaladas".to_string());
+        result.technical = Some("instances_dir=not_exists".to_string());
+        return result;
+    }
+
+    // Walk up to 3 levels deep looking for hs_err_pid*.log files modified in the last 24h
+    let cutoff_secs = 24 * 60 * 60u64;
+    let mut found_crashes: Vec<String> = Vec::new();
+
+    fn scan_for_hs_err(dir: &std::path::Path, depth: u8, cutoff_secs: u64, found: &mut Vec<String>) {
+        if depth == 0 {
+            return;
+        }
+        let entries = match std::fs::read_dir(dir) {
+            Ok(e) => e,
+            Err(_) => return,
+        };
+        for entry in entries.filter_map(Result::ok) {
+            let path = entry.path();
+            if path.is_dir() {
+                scan_for_hs_err(&path, depth - 1, cutoff_secs, found);
+            } else if path
+                .file_name()
+                .map(|n| n.to_string_lossy().starts_with("hs_err_pid"))
+                .unwrap_or(false)
+            {
+                if let Ok(meta) = std::fs::metadata(&path) {
+                    let age = meta
+                        .modified()
+                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+                        .elapsed()
+                        .unwrap_or_default()
+                        .as_secs();
+                    if age < cutoff_secs {
+                        found.push(path.to_string_lossy().to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    scan_for_hs_err(&instances_dir, 3, cutoff_secs, &mut found_crashes);
+
+    result.technical = Some(format!(
+        "searched_in={}\ncrashes_found={}\nfiles=[{}]",
+        instances_dir.display(),
+        found_crashes.len(),
+        found_crashes.join(", ")
+    ));
+
+    if found_crashes.is_empty() {
+        result.status = CheckStatus::Pass;
+        result.detail = Some("No se encontraron crashes de JVM en las últimas 24 horas".to_string());
+    } else {
+        result.status = CheckStatus::Fail;
+        result.detail = Some(format!(
+            "{} crash(es) de JVM encontrado(s) en las últimas 24h. Revisa los archivos hs_err_pid*.log para más detalles.",
+            found_crashes.len()
+        ));
+    }
+
+    result
+}
+
+/// Verifica que la versión de Java configurada sea compatible con las instancias instaladas.
+/// Java 8 no puede correr MC 1.17+, Java 17+ no puede correr algunos Forge viejos, etc.
+fn check_java_version_compatibility() -> CheckResult {
+    let mut result = CheckResult {
+        id: "java_version_compatibility".to_string(),
+        name: "Compatibilidad Java ↔ Minecraft".to_string(),
+        description: "Comprueba que la versión de Java sea compatible con las instancias instaladas.".to_string(),
+        status: CheckStatus::Running,
+        detail: None,
+        technical: None,
+        fixable: true,
+    };
+
+    // Get configured Java
+    let (java_dir, java_version_str) = {
+        let config = match get_config_manager().lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                result.status = CheckStatus::Warn;
+                result.detail = Some("No se pudo leer la configuración".to_string());
+                return result;
+            }
+        };
+        let cfg = match config.as_ref() {
+            Ok(c) => c,
+            Err(_) => {
+                result.status = CheckStatus::Warn;
+                result.detail = Some("Error de configuración".to_string());
+                return result;
+            }
+        };
+        let dir = match cfg.get_java_dir() {
+            Some(d) => d,
+            None => {
+                result.status = CheckStatus::Warn;
+                result.detail = Some("No hay Java configurado".to_string());
+                return result;
+            }
+        };
+        let java_exe = get_java_executable(&dir);
+        let version = JavaManager::new()
+            .ok()
+            .and_then(|jm| jm.get_java_version(&java_exe).ok());
+        (dir, version)
+    };
+
+    let java_major: Option<u32> = java_version_str.as_deref().and_then(|v| {
+        // Supports "1.8.0_xxx" (Java 8) and "17.0.x", "21.0.x" formats
+        let first = v.split('.').next()?;
+        let n: u32 = first.parse().ok()?;
+        // Normalize: "1" means Java 8 in old versioning
+        Some(if n == 1 { 8 } else { n })
+    });
+
+    // Get all instances to check their MC versions
+    let instances = match crate::core::instance_manager::get_all_instances() {
+        Ok(i) => i,
+        Err(_) => {
+            result.status = CheckStatus::Warn;
+            result.detail = Some("No se pudieron cargar las instancias".to_string());
+            return result;
+        }
+    };
+
+    if instances.is_empty() {
+        result.status = CheckStatus::Pass;
+        result.detail = Some("No hay instancias instaladas".to_string());
+        result.technical = Some("instances=0".to_string());
+        return result;
+    }
+
+    let java_major_val = match java_major {
+        Some(v) => v,
+        None => {
+            result.status = CheckStatus::Warn;
+            result.detail = Some("No se pudo determinar la versión de Java".to_string());
+            result.technical = Some(format!("java_dir={}\nraw_version={:?}", java_dir.display(), java_version_str));
+            return result;
+        }
+    };
+
+    // Check each instance for compatibility
+    // Rules:
+    //   MC 1.17+  requires Java 16+  (officially 17)
+    //   MC 1.20.5+ requires Java 21+
+    //   MC < 1.17  works best with Java 8 or 11; Java 21 may break some Forge versions
+    let mut incompatible: Vec<String> = Vec::new();
+    let mut warnings: Vec<String> = Vec::new();
+
+    for instance in &instances {
+        let mc_ver = &instance.minecraftVersion;
+        if mc_ver.is_empty() {
+            continue;
+        }
+
+        // Parse major.minor from "1.X.Y" or "1.X"
+        let parts: Vec<u32> = mc_ver
+            .split('.')
+            .filter_map(|p| p.parse().ok())
+            .collect();
+
+        if parts.len() < 2 {
+            continue;
+        }
+
+        let minor = parts[1]; // e.g. 17, 20, 21
+        let patch = parts.get(2).copied().unwrap_or(0);
+
+        if minor >= 20 && patch >= 5 {
+            // MC 1.20.5+ requires Java 21+
+            if java_major_val < 21 {
+                incompatible.push(format!(
+                    "{} (MC {}) necesita Java 21+, tienes Java {}",
+                    instance.instanceName, mc_ver, java_major_val
+                ));
+            }
+        } else if minor >= 17 {
+            // MC 1.17+ requires Java 17+
+            if java_major_val < 17 {
+                incompatible.push(format!(
+                    "{} (MC {}) necesita Java 17+, tienes Java {}",
+                    instance.instanceName, mc_ver, java_major_val
+                ));
+            }
+        } else {
+            // MC < 1.17: warn if Java > 17 (can break some old Forge/mods)
+            if java_major_val > 17 {
+                warnings.push(format!(
+                    "{} (MC {}) puede tener problemas con Java {} (recomendado: Java 8 u 11)",
+                    instance.instanceName, mc_ver, java_major_val
+                ));
+            }
+        }
+    }
+
+    result.technical = Some(format!(
+        "java_major={}\njava_version={}\ninstances={}\nincompatible={}\nwarnings={}",
+        java_major_val,
+        java_version_str.as_deref().unwrap_or("unknown"),
+        instances.len(),
+        incompatible.len(),
+        warnings.len()
+    ));
+
+    if !incompatible.is_empty() {
+        result.status = CheckStatus::Fail;
+        result.detail = Some(format!(
+            "{} instancia(s) incompatible(s) con Java {}: {}",
+            incompatible.len(),
+            java_major_val,
+            incompatible.first().map(|s| s.as_str()).unwrap_or("")
+        ));
+    } else if !warnings.is_empty() {
+        result.status = CheckStatus::Warn;
+        result.detail = Some(format!(
+            "Java {} puede causar problemas en {} instancia(s) antigua(s)",
+            java_major_val,
+            warnings.len()
+        ));
+    } else {
+        result.status = CheckStatus::Pass;
+        result.detail = Some(format!(
+            "Java {} es compatible con todas las instancias instaladas",
+            java_major_val
+        ));
     }
 
     result

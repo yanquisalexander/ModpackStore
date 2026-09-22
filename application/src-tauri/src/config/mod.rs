@@ -216,7 +216,13 @@ impl ConfigManager {
     pub fn get_minecraft_memory(&self) -> Option<u32> {
         self.get("ramAllocation")
             .and_then(Value::as_u64)
-            .map(|v| v as u32)
+            .map(|v| {
+                // Enforce a minimum of 512 MB so that the JVM never starts with
+                // a heap too small to load even a vanilla instance. Values below
+                // this threshold (e.g. from a corrupted or hand-edited config)
+                // would cause an immediate OOM / JVM crash on launch.
+                (v as u32).max(512)
+            })
     }
 }
 

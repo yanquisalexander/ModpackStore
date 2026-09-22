@@ -499,39 +499,70 @@ impl InstanceLauncher {
                         }
 
                         // B. Buscar Crash Nativo JVM (hs_err_pid)
+                        //
+                        // IMPORTANT: the JVM writes hs_err_pid<N>.log to the *working directory*
+                        // of the Java process, which is set to `game_dir` (the per-instance MC
+                        // folder). Previously we were searching in `minecraftPath` which may
+                        // differ from game_dir, causing the file to never be found.
+                        //
+                        // We search in up to three candidate directories (from most likely to
+                        // least likely) and also fall back to the parent of mc_path so we don't
+                        // miss crashes on non-standard layouts.
                         if crash_source == "UNKNOWN" {
-                            if let Ok(entries) = fs::read_dir(&mc_path) {
-                                let jvm_crash = entries
-                                    .filter_map(Result::ok)
-                                    .map(|e| e.path())
-                                    .filter(|p| {
-                                        p.file_name()
-                                            .map(|n| n.to_string_lossy().starts_with("hs_err_pid"))
-                                            .unwrap_or(false)
-                                    })
-                                    .max();
+                            let search_dirs = {
+                                let mut dirs = vec![mc_path.clone()];
+                                // Also try the parent directory (common with some instance layouts)
+                                if let Some(parent) = mc_path.parent() {
+                                    dirs.push(parent.to_path_buf());
+                                }
+                                // Try current working directory of this process as a last resort
+                                if let Ok(cwd) = std::env::current_dir() {
+                                    if !dirs.contains(&cwd) {
+                                        dirs.push(cwd);
+                                    }
+                                }
+                                dirs
+                            };
 
-                                if let Some(path) = jvm_crash {
-                                    if let Ok(meta) = fs::metadata(&path) {
-                                        if meta
-                                            .modified()
-                                            .unwrap_or(std::time::SystemTime::now())
-                                            .elapsed()
-                                            .unwrap_or_default()
-                                            .as_secs()
-                                            < 300
-                                        {
-                                            let content =
-                                                fs::read_to_string(path).unwrap_or_default();
-                                            crash_report_content = Some(
-                                                content
-                                                    .lines()
-                                                    .take(50)
-                                                    .collect::<Vec<_>>()
-                                                    .join("\n"),
-                                            );
-                                            crash_source = "JVM_CRASH";
-                                            detected_error_details = json!({ "code": "JVM_CRASH", "message": "Native Java crash detected." });
+                            'hs_search: for dir in &search_dirs {
+                                if let Ok(entries) = fs::read_dir(dir) {
+                                    let jvm_crash = entries
+                                        .filter_map(Result::ok)
+                                        .map(|e| e.path())
+                                        .filter(|p| {
+                                            p.file_name()
+                                                .map(|n| n.to_string_lossy().starts_with("hs_err_pid"))
+                                                .unwrap_or(false)
+                                        })
+                                        .max();
+
+                                    if let Some(path) = jvm_crash {
+                                        if let Ok(meta) = fs::metadata(&path) {
+                                            if meta
+                                                .modified()
+                                                .unwrap_or(std::time::SystemTime::now())
+                                                .elapsed()
+                                                .unwrap_or_default()
+                                                .as_secs()
+                                                < 300
+                                            {
+                                                let content =
+                                                    fs::read_to_string(&path).unwrap_or_default();
+                                                crash_report_content = Some(
+                                                    content
+                                                        .lines()
+                                                        .take(50)
+                                                        .collect::<Vec<_>>()
+                                                        .join("\n"),
+                                                );
+                                                crash_source = "JVM_CRASH";
+                                                detected_error_details = json!({
+                                                    "code": "JVM_CRASH",
+                                                    "message": "Native Java crash detected.",
+                                                    "file": path.display().to_string()
+                                                });
+                                                break 'hs_search;
+                                            }
                                         }
                                     }
                                 }
@@ -702,9 +733,16 @@ impl InstanceLauncher {
                 .unwrap_or_else(|| "8".to_string())
             };
 
-                match tokio::runtime::Runtime::new() {
-                    Ok(rt) => {
-                        match rt.block_on(java_manager.get_java_path(&java_version)) {
+                match tokio::runtime::Handle::try_current() {
+                    Ok(handle) => {
+                        // We're already inside a Tokio runtime context (e.g. a Tauri async
+                        // command thread). Creating a NEW Runtime here with block_on would
+                        // panic with "Cannot start a runtime from within an async context".
+                        // Instead, use block_in_place so the current thread can block without
+                        // starving the scheduler.
+                        match tokio::task::block_in_place(|| {
+                            handle.block_on(java_manager.get_java_path(&java_version))
+                        }) {
                             Ok(java_path) => {
                                 instance_clone.set_java_path(java_path.clone());
                                 info!(
@@ -712,9 +750,6 @@ impl InstanceLauncher {
                                     self.instance.instanceId,
                                     java_path.display()
                                 );
-                                // Re-read instance with updated javaPath
-                                // We can't mutate self.instance (it's Arc), so we'll
-                                // update the saved instance. The next read will pick it up.
                             }
                             Err(e) => {
                                 error!(
@@ -729,16 +764,47 @@ impl InstanceLauncher {
                             }
                         }
                     }
-                    Err(e) => {
-                        error!(
-                            "[Launch Thread: {}] Failed to create runtime for JavaManager: {}",
-                            self.instance.instanceId, e
-                        );
-                        self.emit_error(
-                            &format!("No se pudo crear runtime para resolver Java: {}", e),
-                            None,
-                        );
-                        return;
+                    Err(_) => {
+                        // No active runtime – safe to create a dedicated one.
+                        match tokio::runtime::Builder::new_current_thread()
+                            .enable_all()
+                            .build()
+                        {
+                            Ok(rt) => {
+                                match rt.block_on(java_manager.get_java_path(&java_version)) {
+                                    Ok(java_path) => {
+                                        instance_clone.set_java_path(java_path.clone());
+                                        info!(
+                                            "[Launch Thread: {}] JavaManager fallback resolved: {}",
+                                            self.instance.instanceId,
+                                            java_path.display()
+                                        );
+                                    }
+                                    Err(e) => {
+                                        error!(
+                                            "[Launch Thread: {}] JavaManager fallback failed: {}",
+                                            self.instance.instanceId, e
+                                        );
+                                        self.emit_error(
+                                            &format!("No se pudo resolver Java: {}", e),
+                                            None,
+                                        );
+                                        return;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                error!(
+                                    "[Launch Thread: {}] Failed to create runtime for JavaManager: {}",
+                                    self.instance.instanceId, e
+                                );
+                                self.emit_error(
+                                    &format!("No se pudo crear runtime para resolver Java: {}", e),
+                                    None,
+                                );
+                                return;
+                            }
+                        }
                     }
                 }
             } else {

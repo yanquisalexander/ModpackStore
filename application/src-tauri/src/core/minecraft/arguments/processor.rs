@@ -199,10 +199,18 @@ impl<'a> ArgumentProcessor<'a> {
             jvm_args.push("-XstartOnFirstThread".to_string());
         }
 
-        jvm_args.push(format!("-Xms512M"));
-        jvm_args.push(format!("-Xmx{}M", self.memory));
+        // -Xms must never exceed -Xmx. Use half of Xmx as starting heap, clamped
+        // to [256M, Xmx]. If the user configured less than 512M the old hardcoded
+        // -Xms512M would be larger than -Xmx, causing an immediate JVM crash.
+        let xmx = self.memory;
+        let xms = (xmx / 2).max(256).min(xmx);
+        jvm_args.push(format!("-Xms{}M", xms));
+        jvm_args.push(format!("-Xmx{}M", xmx));
 
-        log::debug!("Processing JVM arguments with {}MB memory", self.memory);
+        log::debug!(
+            "Processing JVM arguments with {}MB memory (Xms={}M, Xmx={}M)",
+            self.memory, xms, xmx
+        );
 
         // Check for modern arguments format (1.13+)
         if let Some(args_obj) = self.manifest.get("arguments").and_then(|v| v.get("jvm")) {

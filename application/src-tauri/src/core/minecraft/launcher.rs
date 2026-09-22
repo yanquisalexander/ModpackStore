@@ -289,16 +289,39 @@ impl GameLauncher for MinecraftLauncher {
             let api_endpoint = crate::API_ENDPOINT.to_string();
             let ms_auth = ModpackStoreAuth::new(api_endpoint);
 
-            let rt = match tokio::runtime::Runtime::new() {
-                Ok(rt) => rt,
-                Err(e) => {
-                    let message = format!("Failed to create Tokio runtime: {}", e);
-                    log::error!("[MinecraftLauncher] {}", message);
-                    return Err(message);
+            // Authenticate using ModpackStore Yggdrasil. We must not call
+            // tokio::runtime::Runtime::new().block_on() here because launcher.rs
+            // is already invoked from within a Tokio-aware thread (Tauri). Doing so
+            // would panic with "Cannot start a runtime from within an async context".
+            // Use block_in_place when a handle is available, otherwise build a
+            // dedicated single-thread runtime as a safe fallback.
+            let auth_response = match tokio::runtime::Handle::try_current() {
+                Ok(handle) => {
+                    tokio::task::block_in_place(|| {
+                        handle.block_on(
+                            ms_auth.authenticate(access_token, Some(username), Some(selected_account.uuid().to_string()))
+                        )
+                    })
+                }
+                Err(_) => {
+                    let rt = match tokio::runtime::Builder::new_current_thread()
+                        .enable_all()
+                        .build()
+                    {
+                        Ok(rt) => rt,
+                        Err(e) => {
+                            let message = format!("Failed to create Tokio runtime: {}", e);
+                            log::error!("[MinecraftLauncher] {}", message);
+                            return Err(message);
+                        }
+                    };
+                    rt.block_on(
+                        ms_auth.authenticate(access_token, Some(username), Some(selected_account.uuid().to_string()))
+                    )
                 }
             };
-            let auth_response =
-                match rt.block_on(ms_auth.authenticate(access_token, Some(username), Some(selected_account.uuid().to_string()))) {
+
+            let auth_response = match auth_response {
                     Ok(response) => response,
                     Err(e) => {
                         let message = format!("Failed to authenticate with ModpackStore: {}", e);
