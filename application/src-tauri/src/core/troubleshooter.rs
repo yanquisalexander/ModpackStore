@@ -992,7 +992,10 @@ fn check_recent_jvm_crashes() -> CheckResult {
 }
 
 /// Verifica que la versión de Java configurada sea compatible con las instancias instaladas.
-/// Java 8 no puede correr MC 1.17+, Java 17+ no puede correr algunos Forge viejos, etc.
+///
+/// Lee el campo `javaVersion.majorVersion` del manifest vanilla de cada instancia desde disco
+/// — la fuente de verdad oficial de Mojang — en lugar de usar heurísticas hardcodeadas basadas
+/// en el número de versión de MC. Instancias no bootstrapeadas (sin manifest en disco) se omiten.
 fn check_java_version_compatibility() -> CheckResult {
     let mut result = CheckResult {
         id: "java_version_compatibility".to_string(),
@@ -1004,8 +1007,8 @@ fn check_java_version_compatibility() -> CheckResult {
         fixable: true,
     };
 
-    // Get configured Java
-    let (java_dir, java_version_str) = {
+    // Resolve Java major version from the configured executable
+    let java_major_val: u32 = {
         let config = match get_config_manager().lock() {
             Ok(guard) => guard,
             Err(_) => {
@@ -1031,21 +1034,27 @@ fn check_java_version_compatibility() -> CheckResult {
             }
         };
         let java_exe = get_java_executable(&dir);
-        let version = JavaManager::new()
+        let raw = JavaManager::new()
             .ok()
             .and_then(|jm| jm.get_java_version(&java_exe).ok());
-        (dir, version)
+
+        match raw.as_deref().and_then(|v| {
+            // "1.8.0_xxx" → 8,  "17.0.x" → 17,  "21" → 21
+            let first = v.split('.').next()?;
+            let n: u32 = first.parse().ok()?;
+            Some(if n == 1 { 8 } else { n })
+        }) {
+            Some(v) => v,
+            None => {
+                result.status = CheckStatus::Warn;
+                result.detail = Some("No se pudo determinar la versión de Java instalada".to_string());
+                result.technical = Some(format!("raw_version={:?}", raw));
+                return result;
+            }
+        }
     };
 
-    let java_major: Option<u32> = java_version_str.as_deref().and_then(|v| {
-        // Supports "1.8.0_xxx" (Java 8) and "17.0.x", "21.0.x" formats
-        let first = v.split('.').next()?;
-        let n: u32 = first.parse().ok()?;
-        // Normalize: "1" means Java 8 in old versioning
-        Some(if n == 1 { 8 } else { n })
-    });
-
-    // Get all instances to check their MC versions
+    // Load all instances
     let instances = match crate::core::instance_manager::get_all_instances() {
         Ok(i) => i,
         Err(_) => {
@@ -1058,79 +1067,90 @@ fn check_java_version_compatibility() -> CheckResult {
     if instances.is_empty() {
         result.status = CheckStatus::Pass;
         result.detail = Some("No hay instancias instaladas".to_string());
-        result.technical = Some("instances=0".to_string());
+        result.technical = Some(format!("java_major={}\ninstances=0", java_major_val));
         return result;
     }
 
-    let java_major_val = match java_major {
-        Some(v) => v,
-        None => {
-            result.status = CheckStatus::Warn;
-            result.detail = Some("No se pudo determinar la versión de Java".to_string());
-            result.technical = Some(format!("java_dir={}\nraw_version={:?}", java_dir.display(), java_version_str));
-            return result;
-        }
-    };
-
-    // Check each instance for compatibility
-    // Rules:
-    //   MC 1.17+  requires Java 16+  (officially 17)
-    //   MC 1.20.5+ requires Java 21+
-    //   MC < 1.17  works best with Java 8 or 11; Java 21 may break some Forge versions
     let mut incompatible: Vec<String> = Vec::new();
     let mut warnings: Vec<String> = Vec::new();
+    let mut checked = 0usize;
+    let mut skipped = 0usize; // instances not yet bootstrapped (no manifest on disk)
 
     for instance in &instances {
-        let mc_ver = &instance.minecraftVersion;
+        let mc_ver = instance.minecraftVersion.trim();
         if mc_ver.is_empty() {
+            skipped += 1;
             continue;
         }
 
-        // Parse major.minor from "1.X.Y" or "1.X"
-        let parts: Vec<u32> = mc_ver
-            .split('.')
-            .filter_map(|p| p.parse().ok())
-            .collect();
+        // Resolve the vanilla manifest path.
+        // Matches MinecraftPaths::vanilla_manifest_file():
+        //   <instanceDirectory>/minecraft/versions/<mc_ver>/<mc_ver>.json
+        let instance_dir = match instance.instanceDirectory.as_ref() {
+            Some(d) => std::path::PathBuf::from(d),
+            None => { skipped += 1; continue; }
+        };
+        let manifest_path = instance_dir
+            .join("minecraft")
+            .join("versions")
+            .join(mc_ver)
+            .join(format!("{}.json", mc_ver));
 
-        if parts.len() < 2 {
+        if !manifest_path.exists() {
+            // Not bootstrapped yet — skip silently, no crash risk
+            skipped += 1;
             continue;
         }
 
-        let minor = parts[1]; // e.g. 17, 20, 21
-        let patch = parts.get(2).copied().unwrap_or(0);
+        // Read javaVersion.majorVersion — the official Mojang requirement field.
+        // Present since MC 1.17; absent in older versions (assume Java 8).
+        let required_java: Option<u32> = std::fs::read_to_string(&manifest_path)
+            .ok()
+            .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+            .and_then(|json| {
+                json.get("javaVersion")
+                    .and_then(|jv| jv.get("majorVersion"))
+                    .and_then(|v| v.as_u64())
+                    .map(|n| n as u32)
+            });
 
-        if minor >= 20 && patch >= 5 {
-            // MC 1.20.5+ requires Java 21+
-            if java_major_val < 21 {
-                incompatible.push(format!(
-                    "{} (MC {}) necesita Java 21+, tienes Java {}",
-                    instance.instanceName, mc_ver, java_major_val
-                ));
+        checked += 1;
+
+        match required_java {
+            Some(required) => {
+                if java_major_val < required {
+                    // Hard incompatibility: Minecraft will refuse to start
+                    incompatible.push(format!(
+                        "{} (MC {}) requiere Java {}, tienes Java {}",
+                        instance.instanceName, mc_ver, required, java_major_val
+                    ));
+                } else if java_major_val > required + 2 {
+                    // More than 2 major versions ahead — may break some mods / Forge
+                    warnings.push(format!(
+                        "{} (MC {}) fue diseñado para Java {}, tienes Java {} (puede ser incompatible con algunos mods)",
+                        instance.instanceName, mc_ver, required, java_major_val
+                    ));
+                }
             }
-        } else if minor >= 17 {
-            // MC 1.17+ requires Java 17+
-            if java_major_val < 17 {
-                incompatible.push(format!(
-                    "{} (MC {}) necesita Java 17+, tienes Java {}",
-                    instance.instanceName, mc_ver, java_major_val
-                ));
-            }
-        } else {
-            // MC < 1.17: warn if Java > 17 (can break some old Forge/mods)
-            if java_major_val > 17 {
-                warnings.push(format!(
-                    "{} (MC {}) puede tener problemas con Java {} (recomendado: Java 8 u 11)",
-                    instance.instanceName, mc_ver, java_major_val
-                ));
+            None => {
+                // No javaVersion field → pre-1.17 vanilla or some modloaders.
+                // Default assumption: Java 8. Warn if significantly newer.
+                if java_major_val > 11 {
+                    warnings.push(format!(
+                        "{} (MC {}) puede ser incompatible con Java {} (se recomienda Java 8 u 11)",
+                        instance.instanceName, mc_ver, java_major_val
+                    ));
+                }
             }
         }
     }
 
     result.technical = Some(format!(
-        "java_major={}\njava_version={}\ninstances={}\nincompatible={}\nwarnings={}",
+        "java_major={}\ninstances_total={}\nchecked={}\nskipped_no_manifest={}\nincompatible={}\nwarnings={}",
         java_major_val,
-        java_version_str.as_deref().unwrap_or("unknown"),
         instances.len(),
+        checked,
+        skipped,
         incompatible.len(),
         warnings.len()
     ));
@@ -1146,15 +1166,19 @@ fn check_java_version_compatibility() -> CheckResult {
     } else if !warnings.is_empty() {
         result.status = CheckStatus::Warn;
         result.detail = Some(format!(
-            "Java {} puede causar problemas en {} instancia(s) antigua(s)",
+            "Java {} puede causar problemas en {} instancia(s): {}",
             java_major_val,
-            warnings.len()
+            warnings.len(),
+            warnings.first().map(|s| s.as_str()).unwrap_or("")
         ));
+    } else if checked == 0 {
+        result.status = CheckStatus::Pass;
+        result.detail = Some("Ninguna instancia instalada aún".to_string());
     } else {
         result.status = CheckStatus::Pass;
         result.detail = Some(format!(
-            "Java {} es compatible con todas las instancias instaladas",
-            java_major_val
+            "Java {} es compatible con las {} instancia(s) verificada(s)",
+            java_major_val, checked
         ));
     }
 
