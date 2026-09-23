@@ -1,6 +1,6 @@
 import { useEffect, useRef, lazy, Suspense, memo, Fragment, useState } from "react";
 import "./App.css";
-import { Routes, Route, useParams, useNavigate } from "react-router-dom";
+import { Routes, Route, useParams, useNavigate, Navigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useConnection } from "./utils/ConnectionContext";
 import { LucideLoader } from "lucide-react";
@@ -15,18 +15,15 @@ import { initAnalytics } from "./lib/analytics";
 import { trackEvent } from "@aptabase/web";
 
 // Rutas eager
-import { ExploreSection } from "./views/ExploreSection";
-import { HomeView } from "./views/HomeView";
+import { PlayPage } from "./views/PlayPage";
 import { ServersSection } from "./views/ServersSection";
 import { ServerDetailView } from "./views/ServerDetailView";
 import { PreLaunchInstance } from "./views/PreLaunchInstance";
 import { MyInstancesSection } from "./views/MyInstancesSection";
-import { LibrarySection } from "./views/LibrarySection";
 import { Login } from "./views/Login";
 import { NotFound } from "./views/NotFound";
 import { AccountsSection } from "./views/AccountsSection";
 import { BannedScreen } from "./components/BannedScreen";
-import { OfflineMode } from "./views/OfflineMode";
 
 import { CreatorsLayout } from "./components/layouts/CreatorsLayout";
 import { CreatorProfileView } from "./views/CreatorProfileView";
@@ -123,7 +120,7 @@ const AppRoutes = memo(function AppRoutes({ isConnected, isConnectionLoading, is
   if (connected === false) {
     return (
       <Routes>
-        <Route path="/" element={<OfflineMode />} />
+        <Route path="/" element={<PlayPage />} />
         <Route path="/my-instances" element={<MyInstancesSection offlineMode={true} />} />
         <Route path="/mc-accounts" element={<AccountsSection />} />
         <Route path="/prelaunch/:instanceId" element={<PreLaunchPage />} />
@@ -144,10 +141,10 @@ const AppRoutes = memo(function AppRoutes({ isConnected, isConnectionLoading, is
   return (
     <Suspense fallback={<LoadingScreen />}>
       <Routes>
-        <Route path="/" element={<HomeView />} />
-        <Route path="/explore" element={<ExploreSection />} />
+        <Route path="/" element={<PlayPage />} />
+        <Route path="/explore" element={<Navigate to="/" replace />} />
+        <Route path="/library" element={<Navigate to="/" replace state={{ tab: "library" }} />} />
         <Route path="/whitelist-instances" element={<WhitelistInstancesView />} />
-        <Route path="/library" element={<LibrarySection />} />
         <Route path="/my-instances" element={<MyInstancesSection offlineMode={false} />} />
         <Route path="/servers" element={<ServersSection />} />
         <Route path="/server/:instanceId" element={<ServerDetailView />} />

@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
 
 // Iconos
-import { LucideLibrary, LucideServer, LucideUsers, LucideTrash2, LucideShield, LucideLayoutGrid, LucideGamepad2, PanelLeftOpen, PanelLeftClose, LucideStethoscope } from "lucide-react";
+import { LucideServer, LucideTrash2, LucideShield, LucideLayoutGrid, LucideGamepad2, PanelLeftOpen, PanelLeftClose, LucideStethoscope } from "lucide-react";
 import GridIcon from "@/icons/GridIcon";
 import { MdiHalloween } from "@/icons/MdiHalloween";
 import { isHalloween } from "@/utils/SPECIAL_DATES";
@@ -22,9 +22,9 @@ import type { MinecraftInstance } from "@/types/TauriCommandReturns";
 import GlassGamingButtons from "@/icons/GlassGamingButtons";
 import GlassUsers from "@/icons/GlassUsers";
 import GlassGridPlus from "@/icons/GlassGridPlus";
-import GlassMagnifier from "@/icons/GlassMagnifier";
 import GlassLock from "@/icons/GlassLock";
 import IconCircleWrench from "@/icons/GlassRepair";
+import { JoystickIcon } from "@/icons/JoystickIcon";
 
 // --- SUBCOMPONENTES ---
 
@@ -179,7 +179,7 @@ export const AppSidebar: React.FC = memo(() => {
     const navigate = useNavigate();
     const location = useLocation();
     const { session } = useAuthentication();
-    const { isLoading: isLoadingConnectionCheck, isConnected } = useConnection();
+    const { isConnected } = useConnection();
     const { hasWhitelists } = useWhitelistMode();
 
     // Estado unificado del Context Menu para evitar re-renders parciales
@@ -336,10 +336,9 @@ export const AppSidebar: React.FC = memo(() => {
 
     const NAV_ITEMS = useMemo(() => {
         const baseItems = [
-            { name: "Explorar", icon: GlassMagnifier, path: "/explore", requiresConnection: true },
+            { name: "Play", icon: JoystickIcon, path: "/", requiresConnection: false },
             { name: "Whitelist", icon: GlassLock, path: "/whitelist-instances", requiresConnection: true },
-            { name: "Biblioteca", icon: LucideLibrary, path: "/library", requiresConnection: true },
-            { name: "Instancias", icon: GlassGamingButtons, path: (!isConnected && !isLoadingConnectionCheck) ? "/" : "/my-instances", requiresConnection: false },
+            { name: "Instancias", icon: GlassGamingButtons, path: "/my-instances", requiresConnection: false },
             /*    { name: "Servidores", icon: LucideServer, path: "/servers", requiresConnection: true }, */
             { name: "Cuentas", icon: GlassUsers, path: "/mc-accounts", requiresConnection: false },
             { name: "Diagnóstico", icon: IconCircleWrench, path: "/troubleshooter", requiresConnection: false },
@@ -348,7 +347,7 @@ export const AppSidebar: React.FC = memo(() => {
 
 
         return isConnected ? baseItems : baseItems.filter(item => !item.requiresConnection);
-    }, [isConnected, isLoadingConnectionCheck, hasWhitelists]);
+    }, [isConnected, hasWhitelists]);
 
     // --- RENDER ---
 

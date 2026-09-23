@@ -10,10 +10,12 @@ import { fetchWithAuth } from "@/lib/fetchWithAuth";
 export const FeaturedSlideshow: React.FC<{
     className?: string;
     heightClass?: string;
+    compact?: boolean;
     slides?: any[];
 }> = ({
     className = "",
     heightClass = "h-60 md:h-96 lg:h-96",
+    compact = false,
     slides: propSlides = [],
 }) => {
         const [slides, setSlides] = useState<any[]>(propSlides);
@@ -136,15 +138,92 @@ export const FeaturedSlideshow: React.FC<{
                             <img
                                 draggable={false}
                                 src={currentSlide.bannerUrl || currentSlide.iconUrl || '/images/modpack-fallback.webp'}
-                                className="absolute inset-0 w-full h-full object-cover z-10"
                                 alt="Slide background"
-                                style={{
+                                className={`absolute inset-0 h-full object-cover z-10 ${compact ? 'w-[55%] right-0 left-auto object-right' : 'w-full object-cover'}`}
+                                style={compact ? {
+                                    maskImage: 'linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 30%, rgba(0,0,0,1) 100%)',
+                                    WebkitMaskImage: 'linear-gradient(to right, rgba(0,0,0,0) 0%, rgba(0,0,0,1) 30%, rgba(0,0,0,1) 100%)',
+                                } : {
                                     maskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 100%)',
                                     WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,1) 70%, rgba(0,0,0,0) 100%)',
                                 }}
                             />
 
+                            {/* Gradient overlay for compact mode */}
+                            {compact && (
+                                <div
+                                    className="absolute inset-0 z-20 pointer-events-none"
+                                    style={{
+                                        background: 'linear-gradient(to right, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 40%, rgba(0,0,0,0.2) 65%, transparent 80%)',
+                                    }}
+                                />
+                            )}
+
                             {/* CONTENT BLOCK */}
+                            {compact ? (
+                                <motion.div
+                                    initial={{ y: 50, opacity: 0 }}
+                                    animate={{ y: 0, opacity: 1 }}
+                                    transition={{ duration: 0.6, delay: 0.2 }}
+                                    className="absolute z-30 left-6 md:left-10 top-1/2 -translate-y-1/2 w-[55%] flex flex-col items-start gap-2"
+                                >
+                                    <motion.div
+                                        initial={{ y: 30, opacity: 0 }}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        transition={{ duration: 0.5, delay: 0.5 }}
+                                    >
+                                        <h3 className="text-base md:text-lg font-bold mb-1 [text-shadow:0_3px_10px_rgba(0,0,0,0.8)]">
+                                            {currentSlide.name}
+                                        </h3>
+                                        <p className="text-xs md:text-sm text-white/80 max-w-sm line-clamp-2 [text-shadow:0_2px_6px_rgba(0,0,0,0.7)]">
+                                            {currentSlide.shortDescription || currentSlide.description}
+                                        </p>
+                                    </motion.div>
+                                    <motion.div
+                                        initial={{ y: 20, opacity: 0 }}
+                                        animate={{ y: 0, opacity: 1 }}
+                                        transition={{ duration: 0.5, delay: 0.7 }}
+                                    >
+                                        {currentSlide.targetUrl ? (
+                                            <button
+                                                onClick={async () => {
+                                                    if (currentSlide.campaignId) {
+                                                        fetchWithAuth(`${API_ENDPOINT}/ads/track/click`, {
+                                                            method: "POST",
+                                                            headers: { "Content-Type": "application/json" },
+                                                            body: JSON.stringify({ campaignId: currentSlide.campaignId })
+                                                        }).catch(() => {});
+                                                    }
+                                                    await openUrl(currentSlide.targetUrl);
+                                                }}
+                                                className="group inline-flex items-center gap-2 bg-[#bcfe47] hover:bg-[#a5e833] text-black px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
+                                            >
+                                                <LucideExternalLink className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                                                {currentSlide.ctaText || "Descubrir"}
+                                            </button>
+                                        ) : (
+                                            <Link
+                                                draggable={false}
+                                                to={`/modpack/${currentSlide.targetModpackId || currentSlide.id}`}
+                                                onClick={() => {
+                                                    if (currentSlide.campaignId) {
+                                                        fetchWithAuth(`${API_ENDPOINT}/ads/track/click`, {
+                                                            method: "POST",
+                                                            headers: { "Content-Type": "application/json" },
+                                                            body: JSON.stringify({ campaignId: currentSlide.campaignId })
+                                                        }).catch(() => {});
+                                                    }
+                                                }}
+                                                className="group inline-flex items-center gap-2 bg-white hover:bg-white/90 text-black px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl"
+                                            >
+                                                <LucideGamepad2 className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+                                                {currentSlide.ctaText || "Ver modpack"}
+                                            </Link>
+                                        )}
+                                    </motion.div>
+                                </motion.div>
+                            ) : (
+                            <>
                             <motion.div
                                 initial={{ y: 50, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}
@@ -213,11 +292,14 @@ export const FeaturedSlideshow: React.FC<{
                                     </Link>
                                 )}
                             </motion.div>
+                            </>
+                            )}
                         </motion.div>
                     </AnimatePresence>
                 </div>
 
                 {/* Featured / Sponsored badge */}
+                {!compact && (
                 <motion.div
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
@@ -236,9 +318,10 @@ export const FeaturedSlideshow: React.FC<{
                         </span>
                     )}
                 </motion.div>
+                )}
 
                 {/* Navigation buttons */}
-                {slides.length > 1 && (
+                {slides.length > 1 && !compact && (
                     <>
                         <motion.button
                             onClick={goToPrev}
@@ -265,7 +348,7 @@ export const FeaturedSlideshow: React.FC<{
                 )}
 
                 {/* Progress indicators */}
-                {slides.length > 1 && (
+                {slides.length > 1 && !compact && (
                     <div className="absolute left-1/2 -translate-x-1/2 bottom-8 z-30 flex items-center gap-3 px-4">
                         {slides.map((_, i) => (
                             <motion.button

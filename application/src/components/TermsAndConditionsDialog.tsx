@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
-import { LucideLoader, LucideFileText, LucideX } from 'lucide-react';
+import { LucideLoader, LucideFileText, LucideX, LucideShieldCheck } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { exit } from '@tauri-apps/plugin-process';
 
@@ -27,12 +27,11 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
     const scrollAreaRef = useRef<HTMLDivElement>(null);
     const timerRef = useRef<number | null>(null);
 
-    // Check if user has scrolled to bottom
     const handleScroll = () => {
         const scrollArea = scrollAreaRef.current;
         if (scrollArea) {
             const { scrollTop, scrollHeight, clientHeight } = scrollArea;
-            const threshold = 10; // Allow 10px threshold
+            const threshold = 10;
             const isAtBottom = scrollTop + clientHeight >= scrollHeight - threshold;
 
             if (isAtBottom && !hasReachedBottom) {
@@ -42,9 +41,8 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
         }
     };
 
-    // Start the 5-second timer when user reaches bottom
     const startTimer = () => {
-        if (timerRef.current) return; // Timer already running
+        if (timerRef.current) return;
 
         let counter = 5;
         setTimeRemaining(counter);
@@ -63,7 +61,6 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
         }, 1000);
     };
 
-    // Reset state when dialog opens/closes
     useEffect(() => {
         if (open) {
             setHasReachedBottom(false);
@@ -71,7 +68,6 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
             setCanAccept(false);
             setIsAccepting(false);
 
-            // Clear any existing timer
             if (timerRef.current) {
                 window.clearInterval(timerRef.current);
                 timerRef.current = null;
@@ -79,7 +75,6 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
         }
     }, [open]);
 
-    // Cleanup timer on unmount
     useEffect(() => {
         return () => {
             if (timerRef.current) {
@@ -106,13 +101,11 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
             duration: 3000,
         });
 
-        // Wait a bit to show the toast, then close the app
         setTimeout(async () => {
             try {
                 await exit(0);
             } catch (error) {
                 console.error('Error closing app:', error);
-                // Fallback: call onReject callback
                 onReject();
             }
         }, 3000);
@@ -124,62 +117,57 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
 
     return (
         <Dialog open={open} onOpenChange={() => { }} modal>
-            <DialogContent
-                className="fixed inset-0 border-none ring-0 z-[2000] top-[var(--app-top-bar-height)] !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !w-screen !h-[calc(100%-36px)] !max-w-none !rounded-none m-0 p-0 flex flex-col bg-background"
-            >
-                {/* Header */}
-                <DialogHeader className="border-b px-6 py-4 flex-shrink-0">
-                    <DialogTitle className="flex items-center gap-2 text-xl">
-                        <LucideFileText className="h-6 w-6" />
+            <DialogContent className="fixed inset-0 border-none ring-0 z-[2000] top-[var(--app-top-bar-height)] !left-0 !right-0 !bottom-0 !translate-x-0 !translate-y-0 !w-screen !h-[calc(100%-36px)] !max-w-none !rounded-none m-0 p-0 flex flex-col bg-[#121212] text-white overflow-hidden">
+                <DialogHeader className="border-b border-white/10 px-6 py-4 flex-shrink-0">
+                    <DialogTitle className="flex items-center gap-3 text-xl font-bold text-white">
+                        <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-purple-600/20">
+                            <LucideShieldCheck className="h-5 w-5 text-purple-400" />
+                        </div>
                         Términos y Condiciones
                     </DialogTitle>
-                    <p className="text-sm text-muted-foreground">
-                        Por favor, lee y acepta los términos y condiciones para continuar utilizando la aplicación.
+                    <p className="text-sm text-neutral-400 mt-2 ml-[52px]">
+                        Para continuar utilizando la aplicación, debes leer y aceptar los siguientes términos.
                     </p>
                 </DialogHeader>
 
-                {/* Content */}
                 <div className="flex-1 flex flex-col min-h-0">
                     <ScrollArea
                         ref={scrollAreaRef}
                         className="flex-1 px-6 overflow-auto"
                         onScrollCapture={handleScroll}
                     >
-                        <div className="py-6 prose prose-sm dark:prose-invert max-w-none">
-                            <ReactMarkdown
-                                components={{
-                                    // Customize markdown components if needed
-                                    h1: ({ children }) => <h1 className="text-2xl font-bold mb-4">{children}</h1>,
-                                    h2: ({ children }) => <h2 className="text-xl font-semibold mb-3 mt-6">{children}</h2>,
-                                    h3: ({ children }) => <h3 className="text-lg font-medium mb-2 mt-4">{children}</h3>,
-                                    p: ({ children }) => <p className="mb-4 leading-relaxed">{children}</p>,
-                                    ul: ({ children }) => <ul className="mb-4 list-disc list-inside space-y-1">{children}</ul>,
-                                    ol: ({ children }) => <ol className="mb-4 list-decimal list-inside space-y-1">{children}</ol>,
-                                    li: ({ children }) => <li className="leading-relaxed">{children}</li>,
-                                    strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                                    em: ({ children }) => <em className="italic">{children}</em>,
-                                    code: ({ children }) => <code className="bg-muted px-1 py-0.5 rounded text-sm">{children}</code>,
-                                }}
-                            >
-                                {content}
-                            </ReactMarkdown>
+                        <div className="py-6 prose prose-invert prose-sm max-w-none
+                            prose-headings:text-white prose-headings:font-bold
+                            prose-p:text-neutral-300 prose-p:leading-relaxed
+                            prose-strong:text-white prose-strong:font-semibold
+                            prose-li:text-neutral-300
+                            prose-code:text-purple-400 prose-code:bg-white/5 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded
+                            prose-a:text-purple-400 prose-a:no-underline hover:prose-a:underline">
+                            <ReactMarkdown>{content}</ReactMarkdown>
                         </div>
 
-                        {/* Spacer to ensure user can scroll past the content */}
                         <div className="h-20" />
                     </ScrollArea>
                 </div>
 
-                {/* Footer */}
-                <div className="border-t px-6 py-4 flex-shrink-0">
+                <div className="border-t border-white/10 px-6 py-4 flex-shrink-0 bg-[#0c0c0c]">
                     <div className="flex items-center justify-between">
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-sm">
                             {!hasReachedBottom ? (
-                                <span>Desplázate hasta el final para continuar</span>
+                                <span className="text-neutral-500 flex items-center gap-2">
+                                    <LucideFileText className="h-4 w-4" />
+                                    Desplázate hasta el final para continuar
+                                </span>
                             ) : !canAccept ? (
-                                <span>Podrás aceptar en {timeRemaining} segundos</span>
+                                <span className="text-neutral-400 flex items-center gap-2">
+                                    <LucideLoader className="h-4 w-4 animate-spin text-purple-400" />
+                                    Podrás aceptar en {timeRemaining} segundos
+                                </span>
                             ) : (
-                                <span>Ya puedes aceptar los términos y condiciones</span>
+                                <span className="text-emerald-400 flex items-center gap-2">
+                                    <LucideShieldCheck className="h-4 w-4" />
+                                    Ya puedes aceptar los términos y condiciones
+                                </span>
                             )}
                         </div>
 
@@ -187,7 +175,7 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
                             <Button
                                 variant="outline"
                                 onClick={handleReject}
-                                className="hover:bg-destructive hover:text-destructive-foreground"
+                                className="bg-transparent border-white/10 hover:bg-white/5 text-white hover:text-white"
                             >
                                 <LucideX className="h-4 w-4 mr-2" />
                                 Rechazar
@@ -195,7 +183,7 @@ export const TermsAndConditionsDialog: React.FC<TermsAndConditionsDialogProps> =
                             <Button
                                 onClick={handleAccept}
                                 disabled={!canAccept || isAccepting}
-                                className="min-w-[120px]"
+                                className="min-w-[120px] bg-purple-600 hover:bg-purple-500 text-white border-0 disabled:bg-purple-600/50 disabled:text-white/50"
                             >
                                 {isAccepting ? (
                                     <>
