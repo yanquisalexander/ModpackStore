@@ -50,6 +50,7 @@ export interface UserPublicProfile {
     avatarUrl: string | null;
     role: string;
     isBanned: boolean;
+    tosAcceptedAt: Date | null;
     createdAt: Date;
     updatedAt: Date;
     creatorMemberships: CreatorMembership[];
@@ -209,6 +210,7 @@ export const authService = {
             avatarUrl: user.avatarUrl,
             role: user.role,
             isBanned: !!activeBan,
+            tosAcceptedAt: user.tosAcceptedAt ?? null,
             createdAt: user.createdAt,
             updatedAt: user.updatedAt,
             creatorMemberships: memberships,

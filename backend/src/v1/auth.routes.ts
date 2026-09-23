@@ -11,6 +11,9 @@ import {
 import { ForbiddenError, NotFoundError } from "@/lib/errors/index.ts";
 import { log } from "@/lib/logger.ts";
 import { getUserFlags } from "@/services/userFlags.service.ts";
+import { db } from "@/db/client.ts";
+import { users } from "@/db/schema.ts";
+import { eq } from "drizzle-orm";
 
 const authRoutes = new Hono();
 
@@ -128,6 +131,25 @@ authRoutes.get(
         const userId = c.get("userId");
         const flags = await getUserFlags(userId);
         return c.json({ data: flags }, 200);
+    },
+);
+
+// ── Terms and Conditions ───────────────────────────────
+
+authRoutes.post(
+    "/accept-tos",
+    requireAuth,
+    async (c: Context<{ Variables: AuthVariables }>) => {
+        const userId = c.get("userId");
+        const now = new Date();
+
+        await db.update(users).set({ tosAcceptedAt: now }).where(eq(users.id, userId));
+
+        return c.json({
+            data: {
+                tosAcceptedAt: now.toISOString(),
+            },
+        });
     },
 );
 

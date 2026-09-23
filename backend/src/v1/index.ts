@@ -11,6 +11,7 @@ import categoriesRoutes from "@/v1/categories.routes.ts";
 import yggdrasilRoutes from "@/v1/yggdrasil/yggdrasil.routes.ts";
 import adsRoutes from "@/v1/ads.routes.ts";
 import skinsRoutes from "@/v1/skins.routes.ts";
+import publicRoutes from "@/v1/public.routes.ts";
 
 const v1Router = new Hono();
 
@@ -26,6 +27,7 @@ v1Router.route("/categories", categoriesRoutes);
 v1Router.route("/yggdrasil", yggdrasilRoutes);
 v1Router.route("/ads", adsRoutes);
 v1Router.route("/skins", skinsRoutes);
+v1Router.route("/public", publicRoutes);
 
 v1Router.get("/ping", (c) => c.body(null, 204));
 

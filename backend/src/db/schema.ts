@@ -160,6 +160,7 @@ export const users = pgTable("users", {
     role: roleEnum("role").notNull().default(UserRole.USER),
     isPlus: boolean("is_plus").notNull().default(false),
     adFree: boolean("ad_free").notNull().default(false),
+    tosAcceptedAt: timestamp("tos_accepted_at", { withTimezone: true }),
     lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -670,4 +671,12 @@ export const backupJobsRelations = relations(backupJobsTable, ({ one }) => ({
         references: [backupJobsTable.id],
         relationName: "sourceBackup",
     }),
-}));
+}));
+
+/* System Settings (key-value store) */
+
+export const systemSettingsTable = pgTable("system_settings", {
+    key: varchar("key", { length: 128 }).primaryKey().notNull(),
+    value: text("value"),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
