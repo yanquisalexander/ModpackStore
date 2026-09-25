@@ -42,7 +42,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({
     const pool = useMemo<PoolItem[]>(() => {
         const internal: PoolItem[] = ads.map((a) => ({ kind: "internal", ad: a }));
         const weightedExternal: PoolItem[] = externalAds
-            .filter((e) => e.placement === placement)
+            .filter((e) => Array.isArray(e.placement) ? e.placement.includes(placement) : e.placement === placement)
             .flatMap((e) => Array.from({ length: e.weight ?? 1 }, () => ({ kind: "external" as const, config: e })));
 
         if (internal.length === 0) return shuffleArray(weightedExternal);

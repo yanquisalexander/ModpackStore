@@ -30,8 +30,10 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
     const iframeSrc = useMemo(() => {
         const payload: Record<string, unknown> = {
             scriptSrc: config.scriptSrc,
-            containerId: config.containerId,
         };
+        if (config.containerId) payload.containerId = config.containerId;
+        if (config.format) payload.format = config.format;
+        if (config.settings) payload.settings = config.settings;
         if (config.width) payload.width = config.width;
         if (config.height) payload.height = config.height;
         if (config.native) payload.native = true;

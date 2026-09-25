@@ -51,12 +51,13 @@ if (payload) {
     parsed &&
     typeof parsed.scriptSrc === "string" &&
     isSafeUrl(parsed.scriptSrc) &&
-    typeof parsed.containerId === "string" &&
-    isSafeId(parsed.containerId)
+    (parsed.containerId === undefined || (typeof parsed.containerId === "string" && isSafeId(parsed.containerId)))
   ) {
     if (
       (parsed.width === undefined || (typeof parsed.width === "string" && isReasonableSize(parsed.width))) &&
       (parsed.height === undefined || (typeof parsed.height === "string" && isReasonableSize(parsed.height))) &&
+      (parsed.format === undefined || typeof parsed.format === "string") &&
+      (parsed.settings === undefined || (typeof parsed.settings === "object" && parsed.settings !== null && !Array.isArray(parsed.settings))) &&
       (parsed.options === undefined || (typeof parsed.options === "object" && parsed.options !== null && !Array.isArray(parsed.options))) &&
       (parsed.scriptAttrs === undefined || (typeof parsed.scriptAttrs === "object" && parsed.scriptAttrs !== null && !Array.isArray(parsed.scriptAttrs)))
     ) {
@@ -72,36 +73,53 @@ function escapeHtml(s: string): string {
 let bodyHtml = "";
 
 if (config) {
-  const containerId = config.containerId as string;
+  const containerId = (config.containerId as string) || "";
   const scriptSrc = config.scriptSrc as string;
   const native = config.native === true;
+  const format = config.format as string | undefined;
   const width = (config.width as string) || "100%";
   const height = (config.height as string) || "100%";
 
   const S_TAG = "<" + "script";
   const S_END = "<" + "/script>";
 
-  const optionsScript = config.options
-    ? `${S_TAG}>window.atOptions=${JSON.stringify(config.options)};${S_END}`
-    : "";
+  if (format === "hilltopads") {
+    const settingsJson = JSON.stringify(config.settings || {});
+    bodyHtml = `${S_TAG}>
+(function(pbqc){
+var d = document,
+    s = d.createElement('script'),
+    l = d.currentScript || d.scripts[d.scripts.length - 1];
+s.settings = pbqc || {};
+s.src = ${JSON.stringify(scriptSrc)};
+s.async = true;
+s.referrerPolicy = 'no-referrer-when-downgrade';
+l.parentNode.insertBefore(s, l);
+})(${settingsJson});
+${S_END}`;
+  } else {
+    const optionsScript = config.options
+      ? `${S_TAG}>window.atOptions=${JSON.stringify(config.options)};${S_END}`
+      : "";
 
-  let scriptAttrsStr = "";
-  const scriptAttrs = config.scriptAttrs as Record<string, string> | undefined;
-  if (scriptAttrs) {
-    for (const [key, value] of Object.entries(scriptAttrs)) {
-      if (/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(key) && typeof value === "string") {
-        scriptAttrsStr += ` ${escapeHtml(key)}="${escapeHtml(value)}"`;
+    let scriptAttrsStr = "";
+    const scriptAttrs = config.scriptAttrs as Record<string, string> | undefined;
+    if (scriptAttrs) {
+      for (const [key, value] of Object.entries(scriptAttrs)) {
+        if (/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(key) && typeof value === "string") {
+          scriptAttrsStr += ` ${escapeHtml(key)}="${escapeHtml(value)}"`;
+        }
       }
     }
-  }
 
-  let containerHtml = "";
-  if (native) {
-    const containerStyle = `width:${width};height:${height};max-height:200px;overflow:hidden;`;
-    containerHtml = `<div id="${escapeHtml(containerId)}" style="${escapeHtml(containerStyle)}"></div>`;
-  }
+    let containerHtml = "";
+    if (native && containerId) {
+      const containerStyle = `width:${width};height:${height};max-height:200px;overflow:hidden;`;
+      containerHtml = `<div id="${escapeHtml(containerId)}" style="${escapeHtml(containerStyle)}"></div>`;
+    }
 
-  bodyHtml = `${containerHtml}${optionsScript}${S_TAG}${scriptAttrsStr} src="${escapeHtml(scriptSrc)}">${S_END}`;
+    bodyHtml = `${containerHtml}${optionsScript}${S_TAG}${scriptAttrsStr} src="${escapeHtml(scriptSrc)}">${S_END}`;
+  }
 }
 ---
 
@@ -117,6 +135,9 @@ if (config) {
         height: 100%;
         overflow: hidden;
         background: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       * { box-sizing: border-box; }
     </style>

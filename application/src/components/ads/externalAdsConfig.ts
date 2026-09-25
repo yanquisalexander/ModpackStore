@@ -1,27 +1,33 @@
 export interface ExternalAdConfig {
     id: string;
     scriptSrc: string;
-    containerId: string;
-    placement: string;
+    containerId?: string;
+    placement: string | string[];
     width?: string;
     height?: string;
     label?: string;
     native?: boolean;
+    format?: "adsterra" | "hilltopads" | string;
+    settings?: Record<string, unknown>;
     options?: Record<string, unknown>;
     weight?: number;
     scriptAttrs?: Record<string, string>;
 }
 
 export const externalAds: ExternalAdConfig[] = [
+    // HilltopAds 300x250 (Zona #7460805 - Explore Banner y Sidebar)
     {
-        id: "adsterra-native-1x1",
-        scriptSrc: "https://pl31260735.profitableratecpmnetwork.com/a40d8c1ec3644f1ce38250c2169d5697/invoke.js",
-        containerId: "container-a40d8c1ec3644f1ce38250c2169d5697",
-        placement: "explore_banner",
-        height: "100px",
-        native: true,
-        weight: 1,
+        id: "hilltopads-300x250",
+        scriptSrc: "//juvenilechoice.com/b-XMV/sKd.GIlB0qYIWEcd/Xezm/9uu/Z/UgldkxPZToca0jNZjpA_4qMoD/UltwNJzpQS2bM/D/gfw/OTQC",
+        containerId: "container-hilltopads-7460805",
+        placement: ["explore_banner", "modpack_sidebar"],
+        width: "300px",
+        height: "250px",
+        format: "hilltopads",
+        weight: 2,
     },
+
+    // Adsterra 728x90 (Banner principal en Explore)
     {
         id: "adsterra-728x90",
         scriptSrc: "https://www.highrevenueformat.com/3b96dc390e386e1b4cdcd2313dfa0570/invoke.js",
@@ -38,6 +44,23 @@ export const externalAds: ExternalAdConfig[] = [
             params: {},
         },
     },
+
+    // ── Anuncios comentados ──
+    // Adsterra Native 1x1
+    /*
+    {
+        id: "adsterra-native-1x1",
+        scriptSrc: "https://pl31260735.profitableratecpmnetwork.com/a40d8c1ec3644f1ce38250c2169d5697/invoke.js",
+        containerId: "container-a40d8c1ec3644f1ce38250c2169d5697",
+        placement: "explore_banner",
+        height: "100px",
+        native: true,
+        weight: 1,
+    },
+    */
+
+    // Adsterra 300x250 (reemplazado por HilltopAds 300x250)
+    /*
     {
         id: "adsterra-300x250",
         scriptSrc: "https://www.highrevenueformat.com/b537ccdc5ec66b9f28e4de33ebb0e2a4/invoke.js",
@@ -54,4 +77,5 @@ export const externalAds: ExternalAdConfig[] = [
             params: {},
         },
     },
+    */
 ];
