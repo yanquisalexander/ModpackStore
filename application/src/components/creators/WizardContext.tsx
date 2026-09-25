@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from "react";
-import PublisherModpackVersionWizard from "@/components/publisher/PublisherModpackVersionWizard";
+import CreateVersionDialog from "@/components/creators/dialogs/CreateVersionDialog";
 
 interface WizardState {
   isOpen: boolean;
@@ -37,13 +37,15 @@ export function WizardProvider({ children }: { children: React.ReactNode }) {
   return (
     <WizardContext.Provider value={{ openWizard, closeWizard }}>
       {children}
-      <PublisherModpackVersionWizard
-        isOpen={state.isOpen}
-        onClose={closeWizard}
-        onSuccess={state.onSuccess}
-        modpack={state.modpack}
-        existingVersions={state.existingVersions}
-      />
+      {state.modpack && (
+        <CreateVersionDialog
+          isOpen={state.isOpen}
+          onClose={closeWizard}
+          onSuccess={state.onSuccess}
+          modpack={state.modpack}
+          existingVersions={state.existingVersions}
+        />
+      )}
     </WizardContext.Provider>
   );
 }
