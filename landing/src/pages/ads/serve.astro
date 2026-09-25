@@ -57,6 +57,8 @@ if (payload) {
       (parsed.width === undefined || (typeof parsed.width === "string" && isReasonableSize(parsed.width))) &&
       (parsed.height === undefined || (typeof parsed.height === "string" && isReasonableSize(parsed.height))) &&
       (parsed.format === undefined || typeof parsed.format === "string") &&
+      (parsed.zoneId === undefined || (typeof parsed.zoneId === "string" && isSafeId(parsed.zoneId))) &&
+      (parsed.insClass === undefined || (typeof parsed.insClass === "string" && isSafeId(parsed.insClass))) &&
       (parsed.settings === undefined || (typeof parsed.settings === "object" && parsed.settings !== null && !Array.isArray(parsed.settings))) &&
       (parsed.options === undefined || (typeof parsed.options === "object" && parsed.options !== null && !Array.isArray(parsed.options))) &&
       (parsed.scriptAttrs === undefined || (typeof parsed.scriptAttrs === "object" && parsed.scriptAttrs !== null && !Array.isArray(parsed.scriptAttrs)))
@@ -97,6 +99,10 @@ s.referrerPolicy = 'no-referrer-when-downgrade';
 l.parentNode.insertBefore(s, l);
 })(${settingsJson});
 ${S_END}`;
+  } else if (format === "exoclick") {
+    const zoneId = escapeHtml(String(config.zoneId || ""));
+    const insClass = escapeHtml(String(config.insClass || "eas6a97888e2"));
+    bodyHtml = `<ins class="${insClass}" data-zoneid="${zoneId}"></ins>${S_TAG} async type="application/javascript" src="${escapeHtml(scriptSrc)}">${S_END}${S_TAG}>(AdProvider = window.AdProvider || []).push({"serve": {}});${S_END}`;
   } else {
     const optionsScript = config.options
       ? `${S_TAG}>window.atOptions=${JSON.stringify(config.options)};${S_END}`
@@ -127,6 +133,7 @@ ${S_END}`;
 <html>
   <head>
     <meta charset="utf-8" />
+    <base target="_blank" />
     <style>
       html, body {
         margin: 0;

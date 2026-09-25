@@ -7,14 +7,30 @@ export interface ExternalAdConfig {
     height?: string;
     label?: string;
     native?: boolean;
-    format?: "adsterra" | "hilltopads" | string;
+    format?: "adsterra" | "hilltopads" | "exoclick" | string;
+    zoneId?: string;
+    insClass?: string;
     settings?: Record<string, unknown>;
     options?: Record<string, unknown>;
     weight?: number;
     scriptAttrs?: Record<string, string>;
+    renderMode?: "local" | "remote";
 }
 
 export const externalAds: ExternalAdConfig[] = [
+    // ExoClick Banner (Zona #6040426 - Explore Banner y Sidebar)
+    {
+        id: "exoclick-6040426",
+        scriptSrc: "https://a.magsrv.com/ad-provider.js",
+        placement: ["explore_banner", "modpack_sidebar"],
+        format: "exoclick",
+        zoneId: "6040426",
+        insClass: "eas6a97888e2",
+        width: "300px",
+        height: "250px",
+        weight: 2,
+    },
+
     // HilltopAds 300x250 (Zona #7460805 - Explore Banner y Sidebar)
     {
         id: "hilltopads-300x250",
