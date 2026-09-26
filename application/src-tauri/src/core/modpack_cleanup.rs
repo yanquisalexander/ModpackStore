@@ -25,7 +25,6 @@ fn get_essential_minecraft_paths(
     essential_paths.insert(minecraft_dir.join("crash-reports"));
     essential_paths.insert(minecraft_dir.join("saves"));
     essential_paths.insert(minecraft_dir.join("screenshots"));
-    essential_paths.insert(minecraft_dir.join("resourcepacks"));
     essential_paths.insert(minecraft_dir.join("shaderpacks"));
     essential_paths.insert(minecraft_dir.join("config")); // May contain user configurations
 
@@ -420,6 +419,7 @@ fn is_modpack_file(relative_path: &str) -> bool {
     relative_path.starts_with("coremods/") ||
     relative_path.starts_with("scripts/") ||
     relative_path.starts_with("resources/") ||
+    relative_path.starts_with("resourcepacks/") ||
     relative_path.starts_with("packmenu/") ||
     relative_path.starts_with("structures/") ||
     relative_path.starts_with("schematics/") ||
@@ -438,6 +438,7 @@ fn get_controlled_directories() -> Vec<&'static str> {
         "coremods",
         "scripts",
         "resources",
+        "resourcepacks",
         "packmenu",
         "structures",
         "schematics",
@@ -699,7 +700,6 @@ pub fn audit_user_data_protection(
         ("screenshots", "User screenshots"),
         ("logs", "Game logs"),
         ("crash-reports", "Crash reports"),
-        ("resourcepacks", "User resource packs"),
         ("shaderpacks", "User shader packs"),
     ];
 
@@ -787,6 +787,7 @@ mod tests {
         assert!(is_modpack_file("config/some_config.cfg"));
         assert!(is_modpack_file("scripts/some_script.zs"));
         assert!(is_modpack_file("resources/some_resource.png"));
+        assert!(is_modpack_file("resourcepacks/some_pack.zip"));
 
         // Test files that should not be considered modpack files
         assert!(!is_modpack_file("config/options.txt")); // Player options
@@ -806,6 +807,7 @@ mod tests {
         assert!(controlled_dirs.contains(&"mods"));
         assert!(controlled_dirs.contains(&"config"));
         assert!(controlled_dirs.contains(&"resources"));
+        assert!(controlled_dirs.contains(&"resourcepacks"));
         assert!(controlled_dirs.contains(&"scripts"));
 
         // Ensure we don't control essential Minecraft directories
@@ -824,15 +826,18 @@ mod tests {
         // Create test files in controlled directories
         let mods_dir = temp_dir.join("mods");
         let config_dir = temp_dir.join("config");
+        let resourcepacks_dir = temp_dir.join("resourcepacks");
         let saves_dir = temp_dir.join("saves"); // This should NOT be scanned
 
         let _ = std::fs::create_dir_all(&mods_dir);
         let _ = std::fs::create_dir_all(&config_dir);
+        let _ = std::fs::create_dir_all(&resourcepacks_dir);
         let _ = std::fs::create_dir_all(&saves_dir);
 
         // Create test files
         let _ = std::fs::write(mods_dir.join("test_mod.jar"), "test content");
         let _ = std::fs::write(config_dir.join("test_config.cfg"), "test config");
+        let _ = std::fs::write(resourcepacks_dir.join("test_pack.zip"), "test pack");
         let _ = std::fs::write(saves_dir.join("world.dat"), "world data"); // Should be ignored
         let _ = std::fs::write(temp_dir.join("manifest.json"), "manifest"); // Standalone file
 
@@ -842,6 +847,7 @@ mod tests {
         // Verify correct files were found
         assert!(controlled_files.contains("mods/test_mod.jar"));
         assert!(controlled_files.contains("config/test_config.cfg"));
+        assert!(controlled_files.contains("resourcepacks/test_pack.zip"));
         assert!(controlled_files.contains("manifest.json"));
 
         // Verify files in non-controlled directories were ignored
