@@ -207,12 +207,12 @@ const FileTreeNode: React.FC<{
                             checked={allSelected}
                             ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
                             onChange={() => onToggleFolderSelection?.(path, folderFileHashes, versionId)}
-                            className="mr-2 rounded border-white/20 bg-transparent"
+                            className="mr-2 rounded border-border bg-transparent"
                         />
                         <div onClick={toggleExpand} className="flex items-center flex-1">
                             {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-foreground flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-foreground flex-shrink-0" />}
                             <LucideFolder className="h-4 w-4 mr-2 text-sky-500 flex-shrink-0" />
-                            <span className="text-neutral-200 font-medium">{name}</span>
+                            <span className="text-foreground font-medium">{name}</span>
                             <span className="text-xs text-muted-foreground ml-2">({folderFileHashes.length})</span>
                         </div>
                     </div>
@@ -250,7 +250,7 @@ const FileTreeNode: React.FC<{
                 <div onClick={toggleExpand} className="flex items-center cursor-pointer hover:bg-muted/30 p-1 rounded transition-colors group">
                     {isExpanded ? <LucideChevronDown className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-foreground flex-shrink-0" /> : <LucideChevronRight className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-foreground flex-shrink-0" />}
                     <LucideFolder className="h-4 w-4 mr-2 text-sky-500 flex-shrink-0" />
-                    <span className="text-neutral-200 font-medium">{name}</span>
+                    <span className="text-foreground font-medium">{name}</span>
                 </div>
                 {isExpanded && (
                     <div className="pl-6 border-l border-border ml-2 mt-0.5">
@@ -296,7 +296,7 @@ const FileTreeNode: React.FC<{
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => onToggleSelection?.(versionId!, fileData.fileHash, fileData.path)}
-                        className="mr-2 rounded border-white/20 bg-transparent flex-shrink-0"
+                        className="mr-2 rounded border-border bg-transparent flex-shrink-0"
                     />
                     <div className="w-4 mr-2 flex-shrink-0"></div>
                     {getFileIcon(name)}
@@ -687,7 +687,7 @@ const VirtualizedFileTree: React.FC<{
                                                     onToggleFolderSelection(item.key, getAllFileHashes(node), versionId);
                                                 }
                                             }}
-                                            className="mr-2 rounded border-white/20 bg-transparent"
+                                            className="mr-2 rounded border-border bg-transparent"
                                         />
                                         <div onClick={() => toggleExpand(item.key)} className="flex items-center flex-1 cursor-pointer">
                                             {item.isExpanded
@@ -695,7 +695,7 @@ const VirtualizedFileTree: React.FC<{
                                                 : <LucideChevronRight className="h-4 w-4 mr-2 text-muted-foreground group-hover:text-foreground flex-shrink-0" />
                                             }
                                             <LucideFolder className="h-4 w-4 mr-2 text-sky-500 flex-shrink-0" />
-                                            <span className="text-neutral-200 font-medium">{item.name}</span>
+                                            <span className="text-foreground font-medium">{item.name}</span>
                                             <span className="text-xs text-muted-foreground ml-2">({item.childCount})</span>
                                         </div>
                                     </>
@@ -705,7 +705,7 @@ const VirtualizedFileTree: React.FC<{
                                             type="checkbox"
                                             checked={checkFileSelected(item.fileHash!, item.filePath!)}
                                             onChange={() => onToggleSelection(versionId, item.fileHash!, item.filePath!)}
-                                            className="mr-2 rounded border-white/20 bg-transparent flex-shrink-0"
+                                            className="mr-2 rounded border-border bg-transparent flex-shrink-0"
                                         />
                                         {getFileIcon(item.name)}
                                         <span className="text-foreground truncate text-sm" title={item.filePath}>{item.name}</span>
@@ -1764,7 +1764,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
                             </div>
                             <p className="text-muted-foreground flex items-center gap-2 text-sm">
                                 Versión <code className="bg-muted/30 px-1.5 py-0.5 rounded text-muted-foreground font-mono text-sm">{version.version}</code>
-                                <span className="text-neutral-700">•</span>
+                                <span className="text-border">•</span>
                                 <span>Enviada el {new Date(version.createdAt).toLocaleDateString()}</span>
                             </p>
                         </div>
