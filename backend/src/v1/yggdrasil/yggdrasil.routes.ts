@@ -28,6 +28,7 @@ yggdrasilRoutes.post("/authenticate", async (c) => {
             body.clientToken,
             body.username,
             body.minecraftUuid,
+            body.launcherVersion,
         );
         return c.json(result);
     } catch (err) {

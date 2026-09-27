@@ -1,0 +1,1 @@
+ALTER TABLE "game_sessions" ADD COLUMN "launcher_version" text;
