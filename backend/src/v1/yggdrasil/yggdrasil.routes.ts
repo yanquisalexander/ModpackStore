@@ -1,85 +1,54 @@
 import { Hono } from "@hono/hono";
 import { yggdrasilService } from "@/v1/yggdrasil/yggdrasil.service.ts";
 import { APIError } from "@/lib/errors/index.ts";
-
 const yggdrasilRoutes = new Hono();
 
-yggdrasilRoutes.get("/", (c) => {
-    const r2PublicDomain = Deno.env.get("R2_PUBLIC_DOMAIN") ?? "";
-    const skinDomains = r2PublicDomain ? [new URL(r2PublicDomain).hostname] : [];
-    return c.json({
-        meta: { serverName: "Modpack Store Auth", version: { name: "1.8", protocol: 47 } },
-        skinDomains,
-        skinHosts: [],
-    });
+const toYggError = (err: APIError) => ({
+    error: (err as any).code || "ForbiddenOperationException",
+    errorMessage: err.message,
 });
 
-function toYggError(err: APIError) {
-    return { error: "ForbiddenOperationException", errorMessage: err.message, cause: (err as any).code || undefined };
-}
+yggdrasilRoutes.get("/", (c) => {
+    const r2 = Deno.env.get("R2_PUBLIC_DOMAIN") ?? "";
+    return c.json({ meta: { serverName: "Modpack Store Auth", version: { name: "1.8", protocol: 47 } }, skinDomains: r2 ? [new URL(r2).hostname] : [], skinHosts: [] });
+});
 
 yggdrasilRoutes.post("/authenticate", async (c) => {
     try {
-        const body = await c.req.json();
-        const result = await yggdrasilService.authenticate(body.password, body.clientToken, body.username, body.minecraftUuid, body.launcherVersion);
-        return c.json(result);
-    } catch (err) {
-        if (err instanceof APIError) return c.json(toYggError(err), err.statusCode as any);
-        throw err;
-    }
+        const b = await c.req.json();
+        return c.json(await yggdrasilService.authenticate(b.password, b.clientToken, b.username, b.minecraftUuid, b.launcherVersion));
+    } catch (e) { if (e instanceof APIError) return c.json(toYggError(e), e.statusCode as any); throw e; }
 });
-
 yggdrasilRoutes.post("/refresh", async (c) => {
     try {
-        const body = await c.req.json();
-        const result = await yggdrasilService.refresh(body.accessToken, body.clientToken);
-        return c.json(result);
-    } catch (err) {
-        if (err instanceof APIError) return c.json(toYggError(err), err.statusCode as any);
-        throw err;
-    }
+        const b = await c.req.json();
+        if (!b?.accessToken || !b?.clientToken) throw new APIError(400, "credentials can not be null.", "IllegalArgumentException");
+        return c.json(await yggdrasilService.refresh(b.accessToken, b.clientToken));
+    } catch (e) { if (e instanceof APIError) return c.json(toYggError(e), e.statusCode as any); throw e; }
 });
-
 yggdrasilRoutes.post("/validate", async (c) => {
-    const body = await c.req.json();
-    const valid = await yggdrasilService.validate(body.accessToken, body.clientToken);
-    return c.body(null, valid ? 204 : 403);
+    const b = await c.req.json(); return c.body(null, await yggdrasilService.validate(b.accessToken, b.clientToken) ? 204 : 403);
 });
-
 yggdrasilRoutes.post("/invalidate", async (c) => {
-    const body = await c.req.json();
-    await yggdrasilService.invalidate(body.accessToken, body.clientToken);
-    return c.body(null, 204);
+    const b = await c.req.json(); await yggdrasilService.invalidate(b.accessToken, b.clientToken); return c.body(null, 204);
 });
-
-yggdrasilRoutes.post("/signout", async (c) => {
-    return c.json({ error: "ForbiddenOperationException", errorMessage: "Not implemented" }, 501 as any);
-});
+yggdrasilRoutes.post("/signout", (c) => c.json({ error: "ForbiddenOperationException", errorMessage: "Not implemented" }, 501 as any));
 
 async function handleJoin(c: any) {
     try {
-        const body = await c.req.json();
-        await yggdrasilService.joinServer(body.accessToken, body.selectedProfile, body.serverId, body.ip);
+        const b = await c.req.json();
+        await yggdrasilService.joinServer(b.accessToken, b.selectedProfile, b.serverId, b.ip);
         return c.body(null, 204);
-    } catch (err) {
-        if (err instanceof APIError) return c.json(toYggError(err), err.statusCode as any);
-        throw err;
-    }
+    } catch (e) { if (e instanceof APIError) return c.json(toYggError(e), e.statusCode as any); throw e; }
 }
-
 async function handleHasJoined(c: any) {
     try {
-        const username = c.req.query("username");
-        const serverId = c.req.query("serverId");
-        const ip = c.req.query("ip");
-        if (!username || !serverId) return c.body(null, 204);
-        const profile = await yggdrasilService.hasJoined(username, serverId, ip);
-        if (!profile) return c.body(null, 204);
-        return c.json(profile);
-    } catch (err) {
-        if (err instanceof APIError) return c.json(toYggError(err), err.statusCode as any);
-        throw err;
-    }
+        const username = c.req.query("username"), serverId = c.req.query("serverId"), ip = c.req.query("ip");
+        if (!username || !serverId) throw new APIError(400, "Missing username or serverId", "IllegalArgumentException");
+        const p = await yggdrasilService.hasJoined(username, serverId, ip);
+        if (!p) return c.body(null, 204);
+        return c.json(p);
+    } catch (e) { if (e instanceof APIError) return c.json(toYggError(e), e.statusCode as any); throw e; }
 }
 
 yggdrasilRoutes.post("/session/minecraft/join", handleJoin);
@@ -88,18 +57,12 @@ yggdrasilRoutes.post("/sessionserver/session/minecraft/join", handleJoin);
 yggdrasilRoutes.get("/sessionserver/session/minecraft/hasJoined", handleHasJoined);
 
 yggdrasilRoutes.get("/session/minecraft/profile/:uuid", async (c) => {
-    const uuid = c.req.param("uuid");
-    const unsigned = c.req.query("unsigned") !== "false";
-    const profile = await yggdrasilService.getProfile(uuid, unsigned);
-    if (!profile) return c.body(null, 404);
-    return c.json(profile);
+    const p = await yggdrasilService.getProfile(c.req.param("uuid"), c.req.query("unsigned") !== "false");
+    if (!p) return c.body(null, 404); return c.json(p);
 });
 yggdrasilRoutes.get("/sessionserver/session/minecraft/profile/:uuid", async (c) => {
-    const uuid = c.req.param("uuid");
-    const unsigned = c.req.query("unsigned") !== "false";
-    const profile = await yggdrasilService.getProfile(uuid, unsigned);
-    if (!profile) return c.body(null, 404);
-    return c.json(profile);
+    const p = await yggdrasilService.getProfile(c.req.param("uuid"), c.req.query("unsigned") !== "false");
+    if (!p) return c.body(null, 404); return c.json(p);
 });
 
 export default yggdrasilRoutes;
