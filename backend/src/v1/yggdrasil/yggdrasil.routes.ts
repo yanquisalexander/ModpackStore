@@ -3,15 +3,16 @@ import { yggdrasilService } from "@/v1/yggdrasil/yggdrasil.service.ts";
 import { APIError } from "@/lib/errors/index.ts";
 const yggdrasilRoutes = new Hono();
 
-const toYggError = (err: any) => ({
+const toYggError = (err: any, path?: string) => ({
     error: err?.errorCode || "ForbiddenOperationException",
     errorMessage: err?.message || "An unexpected error occurred.",
+    ...(path ? { path } : {}),
 });
 
 yggdrasilRoutes.onError((err, c) => {
     console.error("[Yggdrasil Router Error]", err);
     const status = err instanceof APIError ? err.statusCode : 500;
-    return c.json(toYggError(err), status as any);
+    return c.json(toYggError(err, c.req.path), status as any);
 });
 
 yggdrasilRoutes.get("/", (c) => {
@@ -65,9 +66,9 @@ async function handleJoin(c: any) {
         await yggdrasilService.joinServer(b.accessToken, b.selectedProfile, b.serverId, b.ip);
         return c.body(null, 204);
     } catch (e) {
-        if (e instanceof APIError) return c.json(toYggError(e), e.statusCode as any);
+        if (e instanceof APIError) return c.json(toYggError(e, c.req.path), e.statusCode as any);
         console.error("[Yggdrasil Join Error]", e);
-        return c.json(toYggError(e), 500);
+        return c.json(toYggError(e, c.req.path), 500);
     }
 }
 async function handleHasJoined(c: any) {
@@ -78,9 +79,9 @@ async function handleHasJoined(c: any) {
         if (!p) return c.body(null, 204);
         return c.json(p);
     } catch (e) {
-        if (e instanceof APIError) return c.json(toYggError(e), e.statusCode as any);
+        if (e instanceof APIError) return c.json(toYggError(e, c.req.path), e.statusCode as any);
         console.error("[Yggdrasil HasJoined Error]", e);
-        return c.json(toYggError(e), 500);
+        return c.json(toYggError(e, c.req.path), 500);
     }
 }
 
