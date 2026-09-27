@@ -72,6 +72,14 @@ export const yggdrasilService = {
             throw new APIError(404, "User not found.", "USER_NOT_FOUND");
         }
 
+        if (!launcherVersion) {
+            throw new APIError(
+                403,
+                "\n§c§l⚠ LAUNCHER REQUIRED ⚠§r\n§6This server §e§lrequires§r you to use the §e§lModpack Store Launcher§r!\n§7Please update to the latest version.",
+                "LauncherVersionRequiredException",
+            );
+        }
+
         const accessToken = generateToken(32);
         const generatedClientToken = clientToken || generateToken(16);
 
@@ -296,14 +304,6 @@ export const yggdrasilService = {
                 403,
                 "&c&l⚠ BAN NOTICE ⚠&r\n&6Your &e&lModpack Store&r account has been &c&lBANNED&r from multiplayer!\n&7Please contact support for more information.",
                 "UserBannedException",
-            );
-        }
-
-        if (!gs.launcherVersion) {
-            throw new APIError(
-                403,
-                "&c&l⚠ LAUNCHER REQUIRED ⚠&r\n&6This server &e&lrequires&r you to use the &e&lModpack Store Launcher&r!\n&7Please update to the latest version.",
-                "LauncherVersionRequiredException",
             );
         }
 
