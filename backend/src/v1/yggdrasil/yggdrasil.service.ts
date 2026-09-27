@@ -9,6 +9,7 @@ import { getProfileFromMojang } from "@/v1/mojang/mojang.service.ts";
 const JWT_SECRET = Deno.env.get("JWT_SECRET")!;
 const YGGDRASIL_SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 const INACTIVITY_TIMEOUT_MS = 6 * 60 * 60 * 1000;
+const MIN_LAUNCHER_VERSION = "1.1.5";
 
 export interface YggdrasilProfile {
     id: string; name: string;
@@ -97,11 +98,19 @@ export const yggdrasilService = {
 
         // Primero verificar si el usuario está baneado (prioridad sobre cualquier otra comprobación)
         if (await isUserBanned(user.id)) {
-            throw new APIError(403, "\n§c§l⚠ BAN NOTICE ⚠§r\n§6Your §e§lModpack Store§r account has been §c§lBANNED§r!\n§7Please contact support for more information.", "UserBannedException");
+            throw new APIError(
+                403,
+                "\n\n§c§l⚠ BAN NOTICE ⚠§r\n\n§6Your §e§lModpack Store§r account has been §c§lBANNED§r!\n\n§7Please contact support for more information.\n",
+                "UserBannedException",
+            );
         }
 
-        if (!gs.launcherVersion) {
-            throw new APIError(403, "\n§c§l⚠ LAUNCHER REQUIRED ⚠§r\n§6This server §e§lrequires§r you to use the §e§lModpack Store Launcher§r!\n§7Please update to the latest version.", "UserBannedException");
+        if (!gs.launcherVersion || !isVersionAtLeast(gs.launcherVersion, MIN_LAUNCHER_VERSION)) {
+            throw new APIError(
+                403,
+                "\n\n§c§l⚠ LAUNCHER REQUIRED ⚠§r\n\n§6This server §e§lrequires§r you to use the §e§lModpack Store Launcher§r!\n\n§7Please install or update to the latest version.\n",
+                "UserBannedException",
+            );
         }
 
         const uuidRegex = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
@@ -136,7 +145,11 @@ export const yggdrasilService = {
         if (ip && gs.ipAddress && gs.ipAddress !== ip) return null;
 
         if (await isUserBanned(user.id)) {
-            throw new APIError(403, "\n§c§l⚠ BAN NOTICE ⚠§r\n§6Your §e§lModpack Store§r account has been §c§lBANNED§r from multiplayer!\n§7Please contact support for more information.", "UserBannedException");
+            throw new APIError(
+                403,
+                "\n\n§c§l⚠ BAN NOTICE ⚠§r\n\n§6Your §e§lModpack Store§r account has been §c§lBANNED§r from multiplayer!\n\n§7Please contact support for more information.\n",
+                "UserBannedException",
+            );
         }
 
         await db.update(gameSessionsTable).set({ serverId: null, lastActivity: new Date() }).where(eq(gameSessionsTable.id, gs.id));
@@ -192,3 +205,16 @@ async function buildProfile(user: any, customUsername?: string, signed = false, 
     return profile;
 }
 async function signTextures(d: string) { const h = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(d))); let b = ""; for (let i = 0; i < h.length; i++) b += String.fromCharCode(h[i]); return btoa(b); }
+function isVersionAtLeast(version: string, minVersion: string): boolean {
+    const cleanV = version.trim().replace(/^v/, "").split("-")[0];
+    const cleanMin = minVersion.trim().replace(/^v/, "").split("-")[0];
+    const vParts = cleanV.split(".").map(p => parseInt(p, 10) || 0);
+    const minParts = cleanMin.split(".").map(p => parseInt(p, 10) || 0);
+    for (let i = 0; i < Math.max(vParts.length, minParts.length); i++) {
+        const v = vParts[i] ?? 0;
+        const min = minParts[i] ?? 0;
+        if (v > min) return true;
+        if (v < min) return false;
+    }
+    return true;
+}
