@@ -101,7 +101,7 @@ export const yggdrasilService = {
         }
 
         if (!gs.launcherVersion) {
-            throw new APIError(403, "\n§c§l⚠ LAUNCHER REQUIRED ⚠§r\n§6This server §e§lrequires§r you to use the §e§lModpack Store Launcher§r!\n§7Please update to the latest version.", "ForbiddenOperationException");
+            throw new APIError(403, "\n§c§l⚠ LAUNCHER REQUIRED ⚠§r\n§6This server §e§lrequires§r you to use the §e§lModpack Store Launcher§r!\n§7Please update to the latest version.", "UserBannedException");
         }
 
         const uuidRegex = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
