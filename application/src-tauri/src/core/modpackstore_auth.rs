@@ -1,4 +1,5 @@
 use crate::core::clients::HTTP_CLIENT;
+use crate::GLOBAL_APP_HANDLE;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -50,6 +51,8 @@ pub struct YggdrasilAuthRequest {
     pub client_token: Option<String>,
     #[serde(rename = "minecraftUuid", skip_serializing_if = "Option::is_none")]
     pub minecraft_uuid: Option<String>,
+    #[serde(rename = "launcherVersion")]
+    pub launcher_version: String,
 }
 
 pub struct ModpackStoreAuth {
@@ -142,11 +145,18 @@ impl ModpackStoreAuth {
     ) -> Result<YggdrasilAuthResponse, String> {
         let client = &*HTTP_CLIENT;
 
+        let launcher_version = GLOBAL_APP_HANDLE
+            .lock()
+            .ok()
+            .and_then(|guard| guard.as_ref().map(|h| h.package_info().version.to_string()))
+            .unwrap_or_else(|| "unknown".to_string());
+
         let request_body = YggdrasilAuthRequest {
             username,
             password: jwt_token,
             client_token: None,
             minecraft_uuid,
+            launcher_version,
         };
 
         let url = format!("{}/yggdrasil/authenticate", self.api_endpoint);
