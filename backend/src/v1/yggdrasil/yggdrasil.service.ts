@@ -1,6 +1,6 @@
 import { db } from "@/db/client.ts";
 import { gameSessionsTable, users, bansTable } from "@/db/schema.ts";
-import { eq, and, lt } from "drizzle-orm";
+import { eq, and, or, lt, isNull } from "drizzle-orm";
 import { APIError } from "@/lib/errors/index.ts";
 import { verify } from "@hono/hono/jwt";
 import { getActiveSkin, getActiveCape } from "@/services/skins.service.ts";
@@ -95,12 +95,13 @@ export const yggdrasilService = {
         const [user] = await db.select().from(users).where(eq(users.id, gs.userId)).limit(1);
         if (!user) throw new APIError(401, "Invalid access_token.", "ForbiddenOperationException");
 
-        // ---- AQUÍ ES DONDE DEBE FALLAR PARA QUE SE VEA AL UNIRSE ----
+        // Primero verificar si el usuario está baneado (prioridad sobre cualquier otra comprobación)
+        if (await isUserBanned(user.id)) {
+            throw new APIError(403, "\n§c§l⚠ BAN NOTICE ⚠§r\n§6Your §e§lModpack Store§r account has been §c§lBANNED§r!\n§7Please contact support for more information.", "UserBannedException");
+        }
+
         if (!gs.launcherVersion) {
             throw new APIError(403, "\n§c§l⚠ LAUNCHER REQUIRED ⚠§r\n§6This server §e§lrequires§r you to use the §e§lModpack Store Launcher§r!\n§7Please update to the latest version.", "ForbiddenOperationException");
-        }
-        if (await isUserBanned(user.id)) {
-            throw new APIError(403, "\n§c§l⚠ BAN NOTICE ⚠§r\n§6Your §e§lModpack Store§r account has been §c§lBANNED§r!\n§7Please contact support.", "ForbiddenOperationException");
         }
 
         const uuidRegex = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i;
@@ -112,7 +113,19 @@ export const yggdrasilService = {
     },
 
     async hasJoined(username: string, serverId: string, ip?: string): Promise<YggdrasilProfile | null> {
-        const [row] = await db.select({ session: gameSessionsTable, user: users }).from(gameSessionsTable).innerJoin(users, eq(gameSessionsTable.userId, users.id)).where(and(eq(gameSessionsTable.serverId, serverId), eq(gameSessionsTable.requestedUsername, username))).limit(1);
+        const [row] = await db.select({ session: gameSessionsTable, user: users })
+            .from(gameSessionsTable)
+            .innerJoin(users, eq(gameSessionsTable.userId, users.id))
+            .where(
+                and(
+                    eq(gameSessionsTable.serverId, serverId),
+                    or(
+                        eq(gameSessionsTable.requestedUsername, username),
+                        eq(users.username, username)
+                    )
+                )
+            )
+            .limit(1);
 
         if (!row) return null; // OFICIAL: 204 = no hizo join, NO es error
 
@@ -123,7 +136,7 @@ export const yggdrasilService = {
         if (ip && gs.ipAddress && gs.ipAddress !== ip) return null;
 
         if (await isUserBanned(user.id)) {
-            throw new APIError(403, "\n§c§l⚠ BAN NOTICE ⚠§r\n§6Your §e§lModpack Store§r account has been §c§lBANNED§r from multiplayer!\n§7Please contact support.", "ForbiddenOperationException");
+            throw new APIError(403, "\n§c§l⚠ BAN NOTICE ⚠§r\n§6Your §e§lModpack Store§r account has been §c§lBANNED§r from multiplayer!\n§7Please contact support for more information.", "UserBannedException");
         }
 
         await db.update(gameSessionsTable).set({ serverId: null, lastActivity: new Date() }).where(eq(gameSessionsTable.id, gs.id));
@@ -148,7 +161,22 @@ function generateToken(n: number) { const b = new Uint8Array(n); crypto.getRando
 function isExpired(d: Date) { return new Date(d).getTime() < Date.now(); }
 function isInactive(d: Date) { return new Date(d).getTime() < Date.now() - INACTIVITY_TIMEOUT_MS; }
 function uuidWithDashes(u: string) { if (u.includes("-")) return u; return `${u.slice(0, 8)}-${u.slice(8, 12)}-${u.slice(12, 16)}-${u.slice(16, 20)}-${u.slice(20)}`; }
-async function isUserBanned(id: string) { const [ban] = await db.select().from(bansTable).where(and(eq(bansTable.userId, id), eq(bansTable.isActive, true))).limit(1); return !!ban; }
+async function isUserBanned(id: string) {
+    const [ban] = await db
+        .select()
+        .from(bansTable)
+        .where(
+            and(
+                eq(bansTable.userId, id),
+                or(
+                    eq(bansTable.isActive, true),
+                    isNull(bansTable.unbanDate)
+                )
+            )
+        )
+        .limit(1);
+    return !!ban;
+}
 async function buildProfile(user: any, customUsername?: string, signed = false, minecraftUuid?: string): Promise<YggdrasilProfile> {
     const profileId = minecraftUuid || user.id;
     const profile: YggdrasilProfile = { id: uuidWithDashes(profileId), name: customUsername || user.username };
