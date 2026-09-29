@@ -21,7 +21,7 @@ export const getDefaultAppeareance = ({ title, description, logoUrl }: { title?:
             backgroundColor: "#00a63e",
             hoverColor: "#262626",
             textColor: "#ffffff",
-            borderColor: "#ffffff",
+            borderColor: "#1e1e1e",
             fadeInDuration: "500ms",
             fadeInDelay: "1500ms"
         },

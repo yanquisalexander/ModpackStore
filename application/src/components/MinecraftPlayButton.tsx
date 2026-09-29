@@ -108,6 +108,7 @@ export const MinecraftPlayButton: React.FC<MinecraftPlayButtonProps> = ({
                 active:bg-[var(--hover-color)]
                 text-[var(--text-color)]
                 border-[var(--border-color)]
+                mc-play-btn-texture
                 ${className}
             `}
         >

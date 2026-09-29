@@ -64,13 +64,14 @@ export const externalAds: ExternalAdConfig[] = [
     // Adcash Display (Zona #12241178)
     {
         id: "adcash-12241178",
-        scriptSrc: "//acscdn.com/script/aclib.js",
+        scriptSrc: "https://acscdn.com/script/aclib.js",
         placement: "explore_banner",
         format: "adcash",
         zoneId: "12241178",
         width: "728px",
         height: "90px",
         weight: 3,
+        renderMode: "remote",
     },
 
     // ── Anuncios comentados ──

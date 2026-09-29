@@ -55,7 +55,7 @@ import GlassCircleWrench from "./icons/GlassCircleWrench";
 const LoadingScreen = () => (
   <div
     style={{ gridArea: "main" }}
-    className="relative flex items-center justify-center min-h-full h-full w-full bg-[#121214] bg-[var(--background)]"
+    className="relative flex items-center justify-center min-h-full h-full w-full bg-[var(--sidebar)]"
   >
     <LucideLoader className="size-10 -mt-12 animate-spin text-white" />
   </div>
@@ -247,16 +247,16 @@ function App() {
     return () => window.removeEventListener("navigate-to-instance", handler);
   }, [navigate]);
 
-  useEffect(() => {
-    const showSidebar = (isAuthenticated || effectiveIsConnected === false) && !isFirstRun && !session?.isBanned;
-    setHasSidebar(showSidebar);
-  }, [isAuthenticated, effectiveIsConnected, isFirstRun, session?.isBanned, setHasSidebar]);
-
   const shouldShowLoading =
     authLoading || onboardingLoading || connectionLoading || !hasCheckedConnection;
 
   const isShowingLogin = !isAuthenticated && effectiveIsConnected !== false && !isFirstRun && hasCheckedConnection;
   const isBanned = isAuthenticated && session?.isBanned;
+
+  const shouldShowSidebar = !shouldShowLoading && (isAuthenticated || effectiveIsConnected === false) && !isFirstRun && !isBanned;
+  if (hasSidebar !== shouldShowSidebar) {
+    setHasSidebar(shouldShowSidebar);
+  }
 
   if (shouldShowLoading) {
     return <LoadingScreen />;

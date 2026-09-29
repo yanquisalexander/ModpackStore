@@ -42,7 +42,7 @@ function forwardConsole(
       }
       return String(arg);
     }).join(' ');
-    logger(message).catch(() => {});
+    logger(message).catch(() => { });
   };
 }
 
@@ -54,14 +54,14 @@ forwardConsole('error', error);
 
 window.addEventListener('error', (event) => {
   const message = `[Unhandled Error] ${event.message} at ${event.filename}:${event.lineno}:${event.colno}`;
-  error(message).catch(() => {});
+  error(message).catch(() => { });
 });
 
 window.addEventListener('unhandledrejection', (event) => {
   const reason = event.reason instanceof Error
     ? `${event.reason.name}: ${event.reason.message}\n${event.reason.stack || ''}`
     : String(event.reason);
-  error(`[Unhandled Rejection] ${reason}`).catch(() => {});
+  error(`[Unhandled Rejection] ${reason}`).catch(() => { });
 });
 
 
@@ -69,7 +69,7 @@ window.addEventListener('unhandledrejection', (event) => {
 const LayoutWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { hasSidebar } = useLayout();
   return (
-    <div id="mstore-layout" className={`mstore-layout-base ${!hasSidebar ? 'no-sidebar' : ''}`}>
+    <div id="mstore-layout" className={`mstore-layout-base bg-sidebar ${!hasSidebar ? 'no-sidebar' : ''}`}>
       {children}
     </div>
   );

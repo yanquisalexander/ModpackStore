@@ -21,7 +21,7 @@ interface LayoutProviderProps {
 }
 
 export const LayoutProvider: React.FC<LayoutProviderProps> = ({ children }) => {
-    const [hasSidebar, setHasSidebar] = useState(true);
+    const [hasSidebar, setHasSidebar] = useState(false);
 
     const setSidebar = useCallback((has: boolean) => setHasSidebar(has), []);
 

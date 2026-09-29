@@ -81,10 +81,26 @@ body,
 }
 
 @utility mc-play-btn {
-  --border: var(--color-border, #000);
-  --top-border: var(--color-primary, #27ce40);
-  --bottom-border: var(--color-secondary, #064d2a);
-  box-shadow: 0 -3px 0 0 var(--top-border), 0 3px 0 0 var(--bottom-border), -3px 0 0 0 #0c6e3d, 3px 0 0 0 #0c6e3d, -2px -5px 0 0 var(--border), 2px -5px 0 0 var(--border), -5px -2px 0 0 var(--border), 5px -2px 0 0 var(--border), -2px 5px 0 0 var(--border), 2px 5px 0 0 var(--border), -5px 2px 0 0 var(--border), 5px 2px 0 0 var(--border);
+  --mc-border: var(--border-color, #000);
+  position: relative;
+  box-shadow: 0 -3px 0 0 #27ce40, 0 3px 0 0 #064d2a, -3px 0 0 0 #0c6e3d, 3px 0 0 0 #0c6e3d, -2px -5px 0 0 var(--mc-border), 2px -5px 0 0 var(--mc-border), -5px -2px 0 0 var(--mc-border), 5px -2px 0 0 var(--mc-border), -2px 5px 0 0 var(--mc-border), 2px 5px 0 0 var(--mc-border), -5px 2px 0 0 var(--mc-border), 5px 2px 0 0 var(--mc-border);
+}
+
+.mc-play-btn-texture::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  pointer-events: none;
+
+  background-image: url("/images/button-mosaic.svg");
+  background-position: center;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+
+  z-index: 0;
 }
 
 /* 
@@ -93,7 +109,7 @@ body,
 
 @utility temblor {
   /* Más agresivo: desplazamiento mayor, ligera rotación y curva más natural */
-  animation: temblor 0.5s  infinite;
+  animation: temblor 0.5s infinite;
   transform-origin: center;
 }
 
@@ -101,18 +117,23 @@ body,
   0% {
     transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
   }
+
   10% {
     transform: translate3d(-6px, -4px, 0) rotate(-2deg) scale(0.995);
   }
+
   30% {
     transform: translate3d(6px, 4px, 0) rotate(2deg) scale(1.005);
   }
+
   50% {
     transform: translate3d(-4px, 6px, 0) rotate(-1deg) scale(1);
   }
+
   70% {
     transform: translate3d(4px, -6px, 0) rotate(1deg) scale(1);
   }
+
   100% {
     transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
   }
@@ -127,6 +148,7 @@ body,
   0% {
     transform: rotate(0deg);
   }
+
   100% {
     transform: rotate(360deg);
   }
@@ -430,7 +452,7 @@ body,
 
 .mstore-layout-base {
   display: grid;
-  grid-template-areas: 
+  grid-template-areas:
     "appbar appbar"
     var(--grid-row-2, "sidebar main");
   grid-template-columns: var(--grid-columns, [start] var(--sidebar-width) [sidebarEnd] 1fr [end]);
@@ -440,104 +462,106 @@ body,
 }
 
 .mstore-layout-base.no-sidebar {
-  grid-template-areas: 
+  grid-template-areas:
     "appbar appbar"
     "main main";
   grid-template-columns: [start] 1fr [end];
 }
 
 .mstore-layout-content {
-    display: grid;
-    grid-column: start / end;     /* ocupa toda la fila de contenido */
-    grid-row: topbarEnd / end;    /* debajo del topbar */
-    grid-template-columns: subgrid;
-    grid-template-rows: subgrid;
-  
+  display: grid;
+  grid-column: start / end;
+  /* ocupa toda la fila de contenido */
+  grid-row: topbarEnd / end;
+  /* debajo del topbar */
+  grid-template-columns: subgrid;
+  grid-template-rows: subgrid;
+
 }
 
 /* CodeMirror Asset Completion Tooltip */
 .cm-tooltip-autocomplete {
-    background: #18181b !important;
-    border: 1px solid #3f3f46 !important;
-    border-radius: 8px !important;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
-    overflow: hidden !important;
+  background: #18181b !important;
+  border: 1px solid #3f3f46 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+  overflow: hidden !important;
 }
 
 .cm-tooltip-autocomplete ul {
-    font-family: inherit !important;
+  font-family: inherit !important;
 }
 
 .cm-tooltip-autocomplete ul li {
-    padding: 0 !important;
-    line-height: normal !important;
+  padding: 0 !important;
+  line-height: normal !important;
 }
 
 .cm-tooltip-autocomplete ul li[aria-selected] {
-    background: #27272a !important;
+  background: #27272a !important;
 }
 
 .cm-asset-preview {
-    background: transparent;
+  background: transparent;
 }
 
 .cm-tooltip-autocomplete ul li[aria-selected] .cm-asset-preview {
-    background: transparent;
+  background: transparent;
 }
 
 /* @asset mention badge - Discord style */
 .cm-asset-mention-text {
-    display: none !important;
+  display: none !important;
 }
 
 .cm-asset-mention {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    background: rgba(99, 102, 241, 0.15) !important;
-    color: #a5b4fc !important;
-    padding: 1px 6px !important;
-    border-radius: 4px !important;
-    font-size: 14px !important;
-    font-weight: 500 !important;
-    white-space: nowrap !important;
-    cursor: default !important;
-    border: none !important;
-    box-shadow: none !important;
-    vertical-align: baseline;
-    line-height: 1.3;
-    max-width: 180px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    transition: background 0.1s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: #a5b4fc !important;
+  padding: 1px 6px !important;
+  border-radius: 4px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  white-space: nowrap !important;
+  cursor: default !important;
+  border: none !important;
+  box-shadow: none !important;
+  vertical-align: baseline;
+  line-height: 1.3;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.1s ease;
 }
 
 .cm-asset-mention * {
-    color: inherit !important;
-    background: transparent !important;
+  color: inherit !important;
+  background: transparent !important;
 }
 
 .cm-asset-mention-img {
-    width: 18px;
-    height: 18px;
-    border-radius: 3px;
-    object-fit: cover;
-    flex-shrink: 0;
-    margin-left: -2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  object-fit: cover;
+  flex-shrink: 0;
+  margin-left: -2px;
 }
 
 .cm-asset-mention-icon {
-    font-size: 13px;
-    flex-shrink: 0;
-    margin-left: -1px;
+  font-size: 13px;
+  flex-shrink: 0;
+  margin-left: -1px;
 }
 
 .cm-asset-mention-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cm-asset-mention:hover {
-    background: rgba(99, 102, 241, 0.25) !important;
+  background: rgba(99, 102, 241, 0.25) !important;
 }
