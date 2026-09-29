@@ -103,6 +103,9 @@ ${S_END}`;
     const zoneId = escapeHtml(String(config.zoneId || ""));
     const insClass = escapeHtml(String(config.insClass || "eas6a97888e2"));
     bodyHtml = `<ins class="${insClass}" data-zoneid="${zoneId}"></ins>${S_TAG} async type="application/javascript" src="${escapeHtml(scriptSrc)}">${S_END}${S_TAG}>(AdProvider = window.AdProvider || []).push({"serve": {}});${S_END}`;
+  } else if (format === "adcash") {
+    const zoneId = escapeHtml(String(config.zoneId || ""));
+    bodyHtml = `${S_TAG} id="aclib" type="text/javascript" src="${escapeHtml(scriptSrc)}">${S_END}<div>${S_TAG} type="text/javascript">aclib.runBanner({ zoneId: '${zoneId}' });${S_END}</div>`;
   } else {
     const optionsScript = config.options
       ? `${S_TAG}>window.atOptions=${JSON.stringify(config.options)};${S_END}`
