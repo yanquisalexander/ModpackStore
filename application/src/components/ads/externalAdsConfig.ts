@@ -19,7 +19,7 @@ export interface ExternalAdConfig {
 
 export const externalAds: ExternalAdConfig[] = [
     // ExoClick Banner (Zona #6040426 - Explore Banner y Sidebar)
-    {
+    /* {
         id: "exoclick-6040426",
         scriptSrc: "https://a.magsrv.com/ad-provider.js",
         placement: ["explore_banner", "modpack_sidebar"],
@@ -29,10 +29,10 @@ export const externalAds: ExternalAdConfig[] = [
         width: "300px",
         height: "250px",
         weight: 2,
-    },
+    }, */
 
     // HilltopAds 300x250 (Zona #7460805 - Explore Banner y Sidebar)
-    {
+    /* {
         id: "hilltopads-300x250",
         scriptSrc: "//juvenilechoice.com/b-XMV/sKd.GIlB0qYIWEcd/Xezm/9uu/Z/UgldkxPZToca0jNZjpA_4qMoD/UltwNJzpQS2bM/D/gfw/OTQC",
         containerId: "container-hilltopads-7460805",
@@ -41,7 +41,7 @@ export const externalAds: ExternalAdConfig[] = [
         height: "250px",
         format: "hilltopads",
         weight: 2,
-    },
+    }, */
 
     // Adsterra 728x90 (Banner principal en Explore)
     {
@@ -51,7 +51,7 @@ export const externalAds: ExternalAdConfig[] = [
         placement: "explore_banner",
         width: "728px",
         height: "90px",
-        weight: 2,
+        weight: 5,
         options: {
             key: "3b96dc390e386e1b4cdcd2313dfa0570",
             format: "iframe",
@@ -59,6 +59,18 @@ export const externalAds: ExternalAdConfig[] = [
             width: 728,
             params: {},
         },
+    },
+
+    // Adcash Display (Zona #12241178)
+    {
+        id: "adcash-12241178",
+        scriptSrc: "//acscdn.com/script/aclib.js",
+        placement: "explore_banner",
+        format: "adcash",
+        zoneId: "12241178",
+        width: "728px",
+        height: "90px",
+        weight: 3,
     },
 
     // ── Anuncios comentados ──

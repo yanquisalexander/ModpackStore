@@ -17,7 +17,8 @@ adsRoutes.get("/serve", optionalAuth, async (c: Context<{ Variables: AuthVariabl
     }
 
     const userId = c.get("userId");
-    const ad = await adsService.serveAd(placement, userId);
+    const forceShowAds = c.req.query("forceShowAds") === "true";
+    const ad = await adsService.serveAd(placement, userId, forceShowAds);
 
     return c.json({ data: ad });
 });

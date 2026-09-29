@@ -59,7 +59,9 @@ export function useAd(placement: string) {
             setLoading(true);
             setError(null);
 
-            const res = await fetchWithAuth(`${API_ENDPOINT}/ads/serve?placement=${placement}`);
+            const params = new URLSearchParams({ placement });
+            if (forceShowAds) params.set("forceShowAds", "true");
+            const res = await fetchWithAuth(`${API_ENDPOINT}/ads/serve?${params}`);
             if (!res.ok) {
                 throw new Error(`Failed to fetch ad for placement: ${placement}`);
             }

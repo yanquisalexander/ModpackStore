@@ -131,8 +131,8 @@ export const adsService = {
      * Serve an ad for a specific placement.
      * Applies ad-free check, active window check, weighted rotation and fallback to house ads.
      */
-    async serveAd(placement: string, userId?: string): Promise<AdPayload | null> {
-        if (userId && (await this.isUserAdFree(userId))) {
+    async serveAd(placement: string, userId?: string, forceShowAds = false): Promise<AdPayload | null> {
+        if (!forceShowAds && userId && (await this.isUserAdFree(userId))) {
             return null;
         }
 

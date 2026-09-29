@@ -49,6 +49,10 @@ l.parentNode.insertBefore(s, l);
         bodyHtml = `<ins class="${insClass}" data-zoneid="${zoneId}"></ins>
 <script async type="application/javascript" src="${scriptSrc}"></script>
 <script>(AdProvider = window.AdProvider || []).push({"serve": {}});</script>`;
+    } else if (config.format === "adcash") {
+        const zoneId = config.zoneId || "";
+        bodyHtml = `<script id="aclib" type="text/javascript" src="${scriptSrc}"></script>
+<div><script type="text/javascript">aclib.runBanner({ zoneId: '${zoneId}' });</script></div>`;
     } else {
         const optionsScript = config.options
             ? `<script>window.atOptions=${JSON.stringify(config.options)};</script>`

@@ -49,7 +49,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({
         if (weightedExternal.length === 0) return shuffleArray(internal);
 
         const totalSlots = internal.length + weightedExternal.length;
-        const externalTarget = Math.max(1, Math.round(totalSlots * 0.3));
+        const externalTarget = Math.max(1, Math.round(totalSlots * 0.4));
         const internalTarget = totalSlots - externalTarget;
 
         const pickedInternal = shuffleArray(internal).slice(0, internalTarget);
