@@ -87,7 +87,7 @@ export function useAd(placement: string) {
         } finally {
             setLoading(false);
         }
-    }, [placement, isAdFree]);
+    }, [placement, isAdFree, forceShowAds]);
 
     useEffect(() => {
         if (flagsLoading) return;
