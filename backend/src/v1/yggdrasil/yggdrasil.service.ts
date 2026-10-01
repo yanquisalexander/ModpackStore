@@ -9,7 +9,7 @@ import { getProfileFromMojang } from "@/v1/mojang/mojang.service.ts";
 const JWT_SECRET = Deno.env.get("JWT_SECRET")!;
 const YGGDRASIL_SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 const INACTIVITY_TIMEOUT_MS = 6 * 60 * 60 * 1000;
-const MIN_LAUNCHER_VERSION = "1.1.5";
+const MIN_LAUNCHER_VERSION = "1.2.0";
 
 export interface YggdrasilProfile {
     id: string; name: string;
