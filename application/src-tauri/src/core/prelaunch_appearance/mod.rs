@@ -321,6 +321,17 @@ pub struct PreLaunchAppearance {
     pub loading_indicator: Option<LoadingIndicator>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub disable_built_in_presence: Option<bool>,
+    /// Experimental: armored instance. When true, the launcher watches
+    /// `minecraft/resourcepacks/` while the game is running and force-kills
+    /// the instance if an unauthorized file is added or modified.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub experimental_armored_instance: Option<bool>,
+    /// Optional Discord webhook URL to report armored-instance violations.
+    /// EXPERIMENTAL: this value is distributed to clients via the public
+    /// prelaunch-appearance endpoint, so it can be seen by anyone.
+    /// Use a private channel webhook.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub armored_instance_discord_webhook: Option<String>,
 
     // Captura campos desconocidos
     #[serde(flatten)]

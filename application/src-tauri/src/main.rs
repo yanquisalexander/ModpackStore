@@ -441,7 +441,19 @@ pub fn main() {
             match builder
                 .on_menu_event(|app, event| {
                     match event.id().as_ref() {
-                        "quit" => app.exit(0),
+                        "quit" => {
+                            if crate::core::armored_instance::has_armored_watch_running() {
+                                log::warn!("[Armored] Exit blocked from tray: armored instance running");
+                                if let Some(window) = app.get_webview_window("main") {
+                                    let _ = window.show();
+                                    let _ = window.unminimize();
+                                    let _ = window.set_focus();
+                                }
+                                crate::core::armored_instance::emit_exit_blocked(app);
+                            } else {
+                                app.exit(0);
+                            }
+                        }
                         "show" => {
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.show();
@@ -640,6 +652,7 @@ pub fn main() {
             get_git_hash,
             get_running_instances,
             kill_mc_instance,
+            core::armored_instance::has_armored_watch_running,
             splash_done,
             core::hotkeys::reload_hotkeys,
             core::hotkeys::unregister_hotkeys,

@@ -1,4 +1,5 @@
 pub mod accounts_manager;
+pub mod armored_instance;
 pub mod auth;
 pub mod bootstrap;
 pub mod bootstrap_error;

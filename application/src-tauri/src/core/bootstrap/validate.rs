@@ -413,6 +413,8 @@ mod tests {
             loaderType: ModLoaderType::Vanilla,
             loaderVersion: None,
             javaPath: None,
+            bootstrap_complete: Some(false),
+            bootstrap_error: None,
             favorite: false,
             favorite_order: None,
             ms_nickname: None,

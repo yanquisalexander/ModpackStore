@@ -27,6 +27,8 @@ import { PatreonButton } from "./appbar/PatreonButton";
 import { NativeContextMenu } from "./appbar/ContextMenu";
 import { isMac } from "@/lib/utils";
 import { TwemojiTestTube } from "@/icons/TwemojiTestTube";
+import { toast } from "sonner";
+import { playSound } from "@/utils/sounds";
 
 export const AppTitleBar = () => {
     const [window, setWindow] = useState<Window | null>(null);
@@ -157,6 +159,24 @@ export const AppTitleBar = () => {
     };
 
     const confirmClose = async () => {
+        // Una instancia blindada necesita el launcher vivo para vigilar
+        // resourcepacks: bloquear la salida total y minimizar a tray.
+        try {
+            const armoredRunning = await invoke<boolean>("has_armored_watch_running");
+            if (armoredRunning) {
+                const currentWindow = await getCurrentWindow();
+                await currentWindow.hide();
+                setIsExitDialogOpen(false);
+                playSound("INFO_NOTIFICATION");
+                toast.warning("Hay una instancia blindada en ejecución", {
+                    duration: 8000,
+                    description: "El launcher seguirá en segundo plano para protegerla. Ciérrala primero si quieres salir del todo.",
+                });
+                return;
+            }
+        } catch (error) {
+            console.error("Error checking armored watch:", error);
+        }
         exit(0);
     };
 

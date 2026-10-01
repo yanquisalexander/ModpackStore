@@ -1,11 +1,12 @@
 import { usePrelaunchInstance } from "@/hooks/usePrelaunchInstance";
-import { LucideGamepad2, LucideLoaderCircle } from "lucide-react";
+import { LucideGamepad2, LucideLoaderCircle, LucideShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { memo, useMemo } from "react";
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance";
 import { BackgroundVideo } from "@/components/LauncherBackgroundVideo";
 import PreLaunchQuickActions from "@/components/PreLaunchQuickActions";
 import { InstanceCrashDialog } from "@/components/InstanceCrashDialog";
+import { ArmoredViolationDialog } from "@/components/ArmoredViolationDialog";
 import { AccountSelectionDialog } from "@/components/AccountSelectionDialog";
 import { useParams } from "react-router-dom";
 import { MinecraftPlayButton } from "@/components/MinecraftPlayButton";
@@ -228,6 +229,8 @@ export const PreLaunchInstance = () => {
         setShowAccountSelection,
         crashErrorState,
         setCrashErrorState,
+        armoredViolationState,
+        setArmoredViolationState,
         handlePlayButtonClick,
         handleAccountSelected,
         fetchInstanceData,
@@ -285,6 +288,16 @@ export const PreLaunchInstance = () => {
                     blocks={appearance?.customBlocks}
                     instance={prelaunchState.instance!}
                 />
+                {appearance?.experimentalArmoredInstance && (
+                    <div
+                        className="absolute z-20 top-12 left-4 flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-white"
+                        style={{ background: '#000000cc' }}
+                        title="Esta instancia está blindada: no se permiten resourcepacks ni modificaciones no autorizadas mientras juegas"
+                    >
+                        <LucideShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
+                        Instancia blindada
+                    </div>
+                )}
                 <Footer
                     appearance={appearance}
                     isLoading={loadingStatus.isLoading}
@@ -308,6 +321,11 @@ export const PreLaunchInstance = () => {
                     errorMessage={crashErrorState.message}
                     data={crashErrorState.data}
                     exitCode={crashErrorState.exitCode}
+                />
+                <ArmoredViolationDialog
+                    open={armoredViolationState.showModal}
+                    onOpenChange={(open) => setArmoredViolationState(prev => ({ ...prev, showModal: open }))}
+                    file={armoredViolationState.file}
                 />
 
                 <AccountSelectionDialog

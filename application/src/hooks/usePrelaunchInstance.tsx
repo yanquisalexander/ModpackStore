@@ -90,6 +90,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
     const [state, dispatch] = useReducer(prelaunchReducer, initialState);
     const [crashErrorState, setCrashErrorState] = useState({ showModal: false, exitCode: -1, message: "", data: null });
+    const [armoredViolationState, setArmoredViolationState] = useState({ showModal: false, file: null as string | null, message: "" });
     const [showConfig, setShowConfig] = useState(false);
     const [showAccountSelection, setShowAccountSelection] = useState(false);
 
@@ -341,6 +342,22 @@ export const usePrelaunchInstance = (instanceId: string) => {
         return () => document.removeEventListener("instance-crash", listener);
     }, [instanceId]);
 
+    // Armored-instance violation handler effect
+    useEffect(() => {
+        const handleArmoredViolation = (event: CustomEvent<{ instanceId: string; message?: string; data?: any }>) => {
+            if (event.detail.instanceId === instanceId) {
+                setArmoredViolationState({
+                    showModal: true,
+                    file: event.detail.data?.file ?? null,
+                    message: event.detail.message || "Esta instancia está blindada y no se permiten modificaciones no autorizadas.",
+                });
+            }
+        };
+        const listener = handleArmoredViolation as EventListener;
+        document.addEventListener("instance-armored-violation", listener);
+        return () => document.removeEventListener("instance-armored-violation", listener);
+    }, [instanceId]);
+
     // URL params effect
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -372,6 +389,8 @@ export const usePrelaunchInstance = (instanceId: string) => {
         setShowAccountSelection,
         crashErrorState,
         setCrashErrorState,
+        armoredViolationState,
+        setArmoredViolationState,
         handlePlayButtonClick: handlePlay,
         handleAccountSelected,
         fetchInstanceData: () => fetchInstanceAndAppearance(new AbortController().signal), // Expose refetch if needed

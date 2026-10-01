@@ -18,6 +18,8 @@ export interface PreLaunchAppearance {
     customBlocks?: CustomBlock[];
     loadingIndicator?: LoadingIndicator;
     disableBuiltInPresence?: boolean;
+    experimentalArmoredInstance?: boolean;
+    armoredInstanceDiscordWebhook?: string;
 }
 
 export interface CustomBlock {

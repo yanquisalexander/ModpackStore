@@ -86,6 +86,11 @@ body,
   box-shadow: 0 -3px 0 0 #27ce40, 0 3px 0 0 #064d2a, -3px 0 0 0 #0c6e3d, 3px 0 0 0 #0c6e3d, -2px -5px 0 0 var(--mc-border), 2px -5px 0 0 var(--mc-border), -5px -2px 0 0 var(--mc-border), 5px -2px 0 0 var(--mc-border), -2px 5px 0 0 var(--mc-border), 2px 5px 0 0 var(--mc-border), -5px 2px 0 0 var(--mc-border), 5px 2px 0 0 var(--mc-border);
 }
 
+.mc-play-btn-texture {
+  position: relative;
+  overflow: hidden;
+}
+
 .mc-play-btn-texture::before {
   content: "";
   position: absolute;

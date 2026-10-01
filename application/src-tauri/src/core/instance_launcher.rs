@@ -434,6 +434,9 @@ impl InstanceLauncher {
                 }
             }
 
+            // Stop the experimental armored-instance watcher, if any.
+            crate::core::armored_instance::stop_armored_watch(&instance_id);
+
             match wait_result {
                 Ok(status) => {
                     let exit_code = status.code().unwrap_or(-1);
@@ -936,6 +939,11 @@ impl InstanceLauncher {
 
                 Self::monitor_process(Arc::clone(&self.instance), child_process, session_id);
 
+                // Experimental armored instance: start resourcepacks watch.
+                // Snapshot is taken here (post-cleanup) so only authorized
+                // files are allowed from this point on.
+                crate::core::armored_instance::maybe_start_armored_watch(&self.instance);
+
                 // Handle closing the launcher if configured
                 self.handle_close_on_launch();
             }
@@ -963,6 +971,22 @@ impl InstanceLauncher {
             Err(_) => false,
         };
         if !close_on_launch {
+            return;
+        }
+
+        // Experimental armored instance: closing the launcher would kill the
+        // resourcepacks watcher and leave the game unprotected, so the
+        // closeOnLaunch setting is ignored for this session.
+        if crate::core::armored_instance::is_armored_watch_running(&self.instance.instanceId) {
+            warn!(
+                "[Launch Thread: {}] closeOnLaunch ignored: armored instance must keep the launcher alive.",
+                self.instance.instanceId
+            );
+            self.emit_status(
+                "instance-armored-exit-blocked",
+                "closeOnLaunch omitido: esta instancia blindada necesita el launcher en segundo plano.",
+                None,
+            );
             return;
         }
 

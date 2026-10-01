@@ -32,6 +32,10 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
     const pendingUpdateRef = useRef<Map<string, { updates: Partial<InstanceState>; timer: ReturnType<typeof setTimeout> }>>(new Map());
     const THROTTLE_MS = 150;
 
+    // Armored-instance violations: instance id -> timestamp. Used to suppress
+    // the generic crash toast/dialog when the exit was a forced armored kill.
+    const armoredViolationRef = useRef<Map<string, number>>(new Map());
+
     const throttledUpdate = (id: string, eventKey: string, updates: Partial<InstanceState>) => {
         const key = `${id}:${eventKey}`;
         const now = Date.now();
@@ -180,6 +184,10 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                 window.setFocus();
 
                 if (exitCode !== 0) {
+                    const wasArmoredKill = (Date.now() - (armoredViolationRef.current.get(id) ?? 0)) < 60_000;
+                    if (wasArmoredKill) {
+                        armoredViolationRef.current.delete(id);
+                    } else {
                     const errorDesc = (possibleErrorCode === "GENERIC_ERROR" || possibleErrorCode === "UNKNOWN_ERROR")
                         ? `Esto puede ser causado por un error en la configuración de la instancia o un problema con tu instalación de Java.`
                         : `Código de error: ${exitCode}`;
@@ -205,12 +213,58 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
                             }
                         })
                     );
+                    }
                 }
 
                 // Opcional: quitar la instancia después de un tiempo
                 setTimeout(() => removeInstance(id), 5000);
             });
             unlistenList.push(exitedUnlisten);
+
+            // Evento para cuando una instancia blindada detecta una modificación no autorizada.
+            // Marca la instancia para suprimir el diálogo genérico de crash (el kill
+            // forzado también genera un instance-exited con código != 0) y reenvía
+            // el evento al DOM para que la vista prelaunch muestre el modal específico.
+            const armoredViolationUnlisten = await listen("instance-armored-violation", (e: any) => {
+                const { id, name, message, data } = e.payload;
+                armoredViolationRef.current.set(id, Date.now());
+                cancelPendingUpdates(id);
+
+                trackEvent("instance_armored_violation", {
+                    instanceId: id,
+                    message: message || "Modificación no autorizada en instancia blindada",
+                });
+
+                playSound("ERROR_NOTIFICATION");
+                toast.error(`La instancia blindada "${name || id}" se ha cerrado forzosamente`, {
+                    duration: 10000,
+                    description: "Esta instancia está blindada y no se permiten modificaciones no autorizadas.",
+                });
+
+                document.dispatchEvent(
+                    new CustomEvent("instance-armored-violation", {
+                        detail: {
+                            instanceId: id,
+                            message: message || "Esta instancia está blindada y no se permiten modificaciones no autorizadas.",
+                            data,
+                        }
+                    })
+                );
+            });
+            unlistenList.push(armoredViolationUnlisten);
+
+            // Evento para cuando se bloquea una salida total del launcher
+            // (o se omite closeOnLaunch) porque hay una instancia blindada
+            // en ejecución que necesita el watcher vivo.
+            const armoredExitBlockedUnlisten = await listen("instance-armored-exit-blocked", (e: any) => {
+                const { message } = e.payload ?? {};
+                playSound("INFO_NOTIFICATION");
+                toast.warning("Salida bloqueada: instancia blindada en ejecución", {
+                    duration: 8000,
+                    description: message || "El launcher seguirá en segundo plano para protegerla.",
+                });
+            });
+            unlistenList.push(armoredExitBlockedUnlisten);
 
             // Evento para cuando hay un error en la instancia
             const errorUnlisten = await listen("instance-error", (e: any) => {
