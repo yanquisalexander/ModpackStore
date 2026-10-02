@@ -9,6 +9,7 @@ export default defineConfig({
     integrations: [preact()],
     output: 'static',
     adapter: vercel(),
+    compressHTML: true,
     vite: {
         plugins: [tailwindcss()],
     }
