@@ -1,7 +1,6 @@
 ---
 import "../styles/global.css";
 import Navbar from "../components/Navbar.astro";
-import { ClientRouter } from "astro:transitions";
 
 interface Props {
   title: string;
@@ -50,8 +49,18 @@ const canonicalUrl = canonical ?? new URL(Astro.url.pathname, site).toString();
 
     <noscript>
       <style>
-        #hero-badge, #hero-title, #hero-desc, #hero-meta, #hero-cta, #hero-preview,
-        #download-card, .feature-card, #site-header { opacity: 1 !important; transform: none !important; }
+        #hero-badge,
+        #hero-title,
+        #hero-desc,
+        #hero-meta,
+        #hero-cta,
+        #hero-preview,
+        #download-card,
+        .feature-card,
+        #site-header {
+          opacity: 1 !important;
+          transform: none !important;
+        }
       </style>
     </noscript>
     <!-- Twitter -->
@@ -59,10 +68,14 @@ const canonicalUrl = canonical ?? new URL(Astro.url.pathname, site).toString();
     <meta property="twitter:url" content={canonicalUrl} />
     <meta property="twitter:title" content={title} />
     <meta property="twitter:description" content={description} />
-    <meta property="twitter:image" content={new URL(ogImage, site).toString()} />
+    <meta
+      property="twitter:image"
+      content={new URL(ogImage, site).toString()}
+    />
+
+    <body class="bg-background text-white min-h-screen flex flex-col">
+      <Navbar />
+      <slot />
+    </body>
   </head>
-  <body class="bg-background text-white min-h-screen flex flex-col">
-    <Navbar />
-    <slot />
-  </body>
 </html>
