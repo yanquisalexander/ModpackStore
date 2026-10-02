@@ -41,7 +41,7 @@ async function getS3Client() {
     if (!_s3Client) {
         const { accountId, bucket, publicDomain } = getEnv();
         // Lazy imports solo cuando realmente se necesita.
-        const { S3Client, FetchHttpHandler } = await import("@aws-sdk/client-s3");
+        const { S3Client } = await import("@aws-sdk/client-s3");
         const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
         const { FetchHttpHandler: SmithyFetchHttpHandler } = await import("@smithy/fetch-http-handler");
         _s3Client = new S3Client({
