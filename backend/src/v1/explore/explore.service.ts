@@ -12,6 +12,7 @@ import {
 } from "@/db/schema.ts";
 import { eq, and, or, desc, ilike, inArray, sql, type SQL, asc } from "drizzle-orm";
 import { NotFoundError } from "@/lib/errors/index.ts";
+import { ForbiddenError } from "@/lib/errors/index.ts";
 import { hasAccess as checkWhitelistAccess } from "@/services/whitelist.service.ts";
 import { adsService } from "@/services/ads.service.ts";
 
@@ -345,4 +346,32 @@ export async function searchModpacks(query: string) {
         ))
         .orderBy(modpacksTable.name)
         .limit(20);
+}
+
+/**
+ * Validates that a creator API token may access a modpack (server-sync use case).
+ * The token must belong to the creator that owns the modpack, carry the
+ * `server:sync` scope, and — when restricted — include the modpack in `modpackIds`.
+ * Throws ForbiddenError otherwise. User sessions must use checkAccess() instead.
+ */
+export async function assertTokenModpackAccess(
+    token: { creatorId: string; scopes: string[]; modpackIds: string[] | null } | undefined,
+    modpackId: string,
+): Promise<void> {
+    if (!token) {
+        throw new ForbiddenError("Invalid API token", "INVALID_API_TOKEN");
+    }
+    if (!token.scopes.includes("server:sync")) {
+        throw new ForbiddenError("Token lacks required scope", "INSUFFICIENT_SCOPE");
+    }
+    if (token.modpackIds !== null && !token.modpackIds.includes(modpackId)) {
+        throw new ForbiddenError("Token is not scoped to this modpack", "TOKEN_MODPACK_NOT_ALLOWED");
+    }
+    const [modpack] = await db.select({ creatorId: modpacksTable.creatorId })
+        .from(modpacksTable)
+        .where(eq(modpacksTable.id, modpackId))
+        .limit(1);
+    if (!modpack || modpack.creatorId !== token.creatorId) {
+        throw new ForbiddenError("Token does not belong to this modpack's creator", "TOKEN_CREATOR_MISMATCH");
+    }
 }

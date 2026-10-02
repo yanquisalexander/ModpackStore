@@ -1,6 +1,6 @@
 import { Hono } from "@hono/hono";
 import type { Context } from "@hono/hono";
-import { requireAuth, optionalAuth, type AuthVariables } from "@/auth/middleware.ts";
+import { requireAuth, optionalAuth, requireAuthOrToken, requireScope, type AuthVariables } from "@/auth/middleware.ts";
 import { getFileKey } from "@/lib/r2.ts";
 import { eq } from "drizzle-orm";
 import { db } from "@/db/client.ts";
@@ -15,6 +15,7 @@ import {
     getModpackBasicInfo,
     getExploreHomepage,
     getModpackPassword,
+    assertTokenModpackAccess,
     searchModpacks,
 } from "./explore.service.ts";
 import { searchTwitchChannels } from "./twitch.service.ts";
@@ -115,7 +116,7 @@ app.get("/modpacks/:modpackId/versions", async (c) => {
 
 // ── Latest version ─────────────────────────────────
 
-app.get("/modpacks/:modpackId/latest", requireAuth, async (c) => {
+app.get("/modpacks/:modpackId/latest", requireAuthOrToken, requireScope("server:sync"), async (c) => {
     const modpackId = c.req.param("modpackId")!;
 
     try {
@@ -126,7 +127,9 @@ app.get("/modpacks/:modpackId/latest", requireAuth, async (c) => {
             .where(eq(modpacksTable.id, modpackId))
             .limit(1);
 
-        if (modpackData && modpackData.acquisitionMethod !== "free") {
+        if (c.get("authType") === "api_token") {
+            await assertTokenModpackAccess(c.get("apiToken"), modpackId);
+        } else if (modpackData && modpackData.acquisitionMethod !== "free") {
             const { hasAccess } = await checkAccess(c.get("userId"), modpackId);
             if (!hasAccess) {
                 throw new ForbiddenError("You need to acquire this modpack first.", "ACCESS_DENIED");
@@ -168,7 +171,7 @@ app.get("/modpacks/:modpackId/latest", requireAuth, async (c) => {
 
 // ── Manifest (version detail with files) ───────────
 
-app.get("/modpacks/:modpackId/versions/:versionId", requireAuth, async (c) => {
+app.get("/modpacks/:modpackId/versions/:versionId", requireAuthOrToken, requireScope("server:sync"), async (c) => {
     const modpackId = c.req.param("modpackId")!;
     const versionParam = c.req.param("versionId")!;
     const target = (c.req.query("target") || "both") as "client" | "server" | "both";
@@ -181,10 +184,15 @@ app.get("/modpacks/:modpackId/versions/:versionId", requireAuth, async (c) => {
             versionId = latest.id;
         }
 
-        // Validate access first — must verify permission before checking ETag
-        const { hasAccess } = await checkAccess(c.get("userId"), modpackId);
-        if (!hasAccess) {
-            throw new ForbiddenError("You need to acquire this modpack first.", "ACCESS_DENIED");
+        // Validate access first — must verify permission before checking ETag.
+        // Creator API tokens (server-agent) bypass acquisition: ownership + scope is enough.
+        if (c.get("authType") === "api_token") {
+            await assertTokenModpackAccess(c.get("apiToken"), modpackId);
+        } else {
+            const { hasAccess } = await checkAccess(c.get("userId"), modpackId);
+            if (!hasAccess) {
+                throw new ForbiddenError("You need to acquire this modpack first.", "ACCESS_DENIED");
+            }
         }
 
         // ETag check after access validation, before fetching full data
@@ -262,8 +270,13 @@ app.get("/modpacks/:modpackId/check-update", optionalAuth, async (c) => {
             .where(eq(modpacksTable.id, modpackId))
             .limit(1);
 
-        // Non-free modpacks require auth + access check for updates
-        if (modpackData && modpackData.acquisitionMethod !== "free") {
+        // Creator API tokens bypass acquisition (ownership + scope is enough).
+        // NOTE: optionalAuth resolves valid tokens into context; invalid ones are ignored here
+        // and fall through to the regular auth checks below.
+        if (c.get("authType") === "api_token") {
+            await assertTokenModpackAccess(c.get("apiToken"), modpackId);
+        } else if (modpackData && modpackData.acquisitionMethod !== "free") {
+            // Non-free modpacks require auth + access check for updates
             const userId = c.get("userId");
             if (!userId) {
                 throw new ForbiddenError("Authentication required", "AUTH_REQUIRED");

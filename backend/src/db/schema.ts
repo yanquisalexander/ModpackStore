@@ -330,6 +330,31 @@ export const permissionsTable = pgTable("permissions", {
 }));
 
 
+// Creator API tokens (PATs a nombre del creator, ej. para server-agent headless)
+export const CREATOR_TOKEN_SCOPES = [
+    "server:sync",
+    "modpack:read",
+    "version:write",
+    "version:publish",
+] as const;
+export type CreatorTokenScope = typeof CREATOR_TOKEN_SCOPES[number];
+
+export const creatorApiTokensTable = pgTable("creator_api_tokens", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    creatorId: uuid("creator_id").notNull().references(() => creatorsTable.id, { onDelete: "cascade" }),
+    name: varchar("name", { length: 64 }).notNull(),
+    prefix: varchar("prefix", { length: 16 }).notNull().unique(),
+    tokenHash: text("token_hash").notNull().unique(),
+    scopes: jsonb("scopes").notNull().$type<string[]>(),
+    modpackIds: jsonb("modpack_ids").$type<string[] | null>(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdBy: uuid("created_by").notNull().references(() => users.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 /* Acquisitions */
 
 export const modpackAcquisitionsTable = pgTable("modpack_acquisitions", {

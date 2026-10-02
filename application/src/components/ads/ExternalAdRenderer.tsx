@@ -123,22 +123,22 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
         return `${ADS_BASE_URL}/ads/serve?payload=${encodeURIComponent(encodeBase64Url(payload))}`;
     }, [config, renderMode]);
 
-    const iframeHeight = config.height || "auto";
-
     const iframeAllow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
 
     if (variant === "sidebar") {
         return (
             <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                style={{ contain: "paint", isolation: "isolate" }}
-                className={`relative rounded-xl overflow-hidden border border-white/[0.08] bg-[#141418] hover:border-white/[0.18] transition-all p-4 space-y-3 shadow-lg ${className}`}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.25 }}
+                style={{ contain: "strict", isolation: "isolate", width: "300px", maxWidth: "100%", height: "250px", minHeight: "250px" }}
+                className={`relative rounded-xl overflow-hidden border border-white/[0.08] bg-[#141418] shadow-lg mx-auto ${className}`}
             >
-                <div className="relative w-full flex items-center justify-center rounded-lg overflow-hidden bg-black/40 max-w-full">
+                <div className="relative flex items-center justify-center rounded-lg overflow-hidden bg-black/40 w-[300px] h-[250px] max-w-full mx-auto">
                     <iframe
                         {...(renderMode === "local" ? { srcDoc: localHtml } : { src: iframeSrc })}
-                        style={{ width: "100%", height: iframeHeight, border: "none", maxWidth: "100%" }}
+                        style={{ width: "300px", height: "250px", maxWidth: "100%", border: "none", display: "block", overflow: "hidden" }}
+                        scrolling="no"
                         allow={iframeAllow}
                         referrerPolicy="no-referrer-when-downgrade"
                         sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms"
@@ -148,7 +148,7 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
 
                 <Tooltip>
                     <TooltipTrigger asChild>
-                        <div className="flex items-center gap-1.5 text-xs text-neutral-500 cursor-help w-max">
+                        <div className="absolute bottom-1 right-2 flex items-center gap-1 text-[10px] text-neutral-500 bg-black/50 backdrop-blur-sm px-1.5 py-0.5 rounded cursor-help pointer-events-none">
                             <LucideInfo className="w-3 h-3" />
                             <span>{config.label || "Publicidad externa"}</span>
                         </div>
@@ -163,16 +163,17 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 14 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-            style={{ contain: "paint", isolation: "isolate" }}
-            className={`relative rounded-2xl overflow-hidden border border-white/[0.08] bg-[#121215] hover:border-white/[0.18] transition-all duration-300 shadow-xl ${className}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.25 }}
+            style={{ contain: "strict", isolation: "isolate", width: "728px", maxWidth: "100%", height: "90px", minHeight: "90px" }}
+            className={`relative rounded-2xl overflow-hidden border border-white/[0.08] bg-[#121215] shadow-xl mx-auto ${className}`}
         >
-            <div className="relative w-full flex items-center justify-center overflow-hidden max-w-full">
+            <div className="relative flex items-center justify-center overflow-hidden w-[728px] h-[90px] max-w-full mx-auto">
                 <iframe
                     {...(renderMode === "local" ? { srcDoc: localHtml } : { src: iframeSrc })}
-                    style={{ width: "100%", height: iframeHeight, border: "none", maxWidth: "100%" }}
+                    style={{ width: "728px", height: "90px", maxWidth: "100%", border: "none", display: "block", overflow: "hidden" }}
+                    scrolling="no"
                     allow={iframeAllow}
                     referrerPolicy="no-referrer-when-downgrade"
                     sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-forms"
@@ -182,7 +183,7 @@ export const ExternalAdRenderer: React.FC<ExternalAdRendererProps> = ({
 
             <Tooltip>
                 <TooltipTrigger asChild>
-                    <div className="absolute bottom-2 right-3 flex items-center gap-1.5 text-xs text-neutral-500 bg-black/50 backdrop-blur-sm px-2 py-1 rounded-md cursor-help">
+                    <div className="absolute bottom-2 right-3 flex items-center gap-1.5 text-xs text-neutral-500 bg-black/50 backdrop-blur-sm px-2 py-1 rounded-md cursor-help pointer-events-none">
                         <LucideInfo className="w-3 h-3" />
                         <span>{config.label || "Publicidad externa"}</span>
                     </div>

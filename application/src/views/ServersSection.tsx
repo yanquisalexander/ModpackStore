@@ -10,6 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { LucideServer, LucidePlus } from "lucide-react";
 import { useCallback, useEffect, useState } from "react"
 import { motion } from "motion/react";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const ServersSection = () => {
     const { setTitleBarState } = useGlobalContext()
@@ -92,6 +93,8 @@ export const ServersSection = () => {
                         Gestiona tus propios servidores de Minecraft. Inicia, configura y administra tus mundos.
                     </p>
                 </header>
+
+                <AdSlot placement="explore_banner" className="my-4 mx-auto max-w-[728px]" />
 
                 {isLoading ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">

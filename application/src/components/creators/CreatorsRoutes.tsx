@@ -12,6 +12,7 @@ import { PublisherTeamView } from "@/views/publisher/PublisherTeamViewEnhanced";
 import { PublisherAnalyticsView } from "@/views/publisher/PublisherAnalyticsView";
 import { PublisherStorageView } from "@/views/publisher/PublisherStorageView";
 import { PublisherSettingsView } from "@/views/publisher/PublisherSettingsView";
+import { PublisherApiTokensView } from "@/views/publisher/PublisherApiTokensView";
 import { PublisherPromotionsView } from "@/views/publisher/PublisherPromotionsView";
 
 interface CreatorsRoutesProps {
@@ -34,6 +35,7 @@ export const CreatorsRoutes: React.FC<CreatorsRoutesProps> = ({ teams, accessTok
                 <Route path="org/:publisherId/analytics" element={<PublisherAnalyticsView />} />
                 <Route path="org/:publisherId/promotions" element={<PublisherPromotionsView />} />
                 <Route path="org/:publisherId/storage" element={<PublisherStorageView />} />
+                <Route path="org/:publisherId/api-tokens" element={<PublisherApiTokensView />} />
                 <Route path="org/:publisherId/settings" element={<PublisherSettingsView />} />
 
                 {/* Global */}

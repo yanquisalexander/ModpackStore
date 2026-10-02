@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { MinecraftInstance } from "@/types/TauriCommandReturns";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 type FilterType = 'all' | 'installed' | 'not-installed';
 
@@ -151,6 +152,8 @@ export const LibrarySection = () => {
                         </div>
                     </div>
                 </header>
+
+                <AdSlot placement="explore_banner" className="my-4 mx-auto max-w-[728px]" />
 
                 {/* Content */}
                 {isLoading ? (

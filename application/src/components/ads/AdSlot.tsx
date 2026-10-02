@@ -48,12 +48,22 @@ export const AdSlot: React.FC<AdSlotProps> = ({
         if (internal.length === 0) return shuffleArray(weightedExternal);
         if (weightedExternal.length === 0) return shuffleArray(internal);
 
-        const totalSlots = internal.length + weightedExternal.length;
-        const externalTarget = Math.max(1, Math.round(totalSlots * 0.4));
-        const internalTarget = totalSlots - externalTarget;
+        // 75% externo / 25% interno con repetición para mantener el ratio
+        // aunque haya pocas creatividades disponibles de un tipo.
+        const EXTERNAL_RATIO = 0.75;
+        const POOL_SIZE = 4;
+        const externalTarget = Math.max(1, Math.round(POOL_SIZE * EXTERNAL_RATIO));
+        const internalTarget = Math.max(1, POOL_SIZE - externalTarget);
 
-        const pickedInternal = shuffleArray(internal).slice(0, internalTarget);
-        const pickedExternal = shuffleArray(weightedExternal).slice(0, externalTarget);
+        const shuffledInternal = shuffleArray(internal);
+        const pickedInternal: PoolItem[] = Array.from(
+            { length: internalTarget },
+            (_, i) => shuffledInternal[i % shuffledInternal.length],
+        );
+        const pickedExternal: PoolItem[] = Array.from(
+            { length: externalTarget },
+            (_, i) => weightedExternal[i % weightedExternal.length],
+        );
 
         return shuffleArray([...pickedInternal, ...pickedExternal]);
     }, [ads, placement]);
@@ -150,11 +160,11 @@ export const AdSlot: React.FC<AdSlotProps> = ({
         }
     };
 
-    // ── Render external ad ──
+    // ── Render external ad (contenido: tamaño fijo + centrado para no romper layout) ──
     if (isExternal && currentExternalConfig) {
         const variant = placement === "modpack_sidebar" ? "sidebar" : "banner";
         return (
-            <div ref={containerRef} data-slot="ad-slot" className={`overflow-hidden ${className}`}>
+            <div ref={containerRef} data-slot="ad-slot" className={`flex justify-center overflow-hidden ${className}`}>
                 <ExternalAdRenderer config={currentExternalConfig} variant={variant} />
             </div>
         );

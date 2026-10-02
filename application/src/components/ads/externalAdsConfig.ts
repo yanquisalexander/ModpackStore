@@ -51,7 +51,7 @@ export const externalAds: ExternalAdConfig[] = [
         placement: "explore_banner",
         width: "728px",
         height: "90px",
-        weight: 5,
+        weight: 1,
         options: {
             key: "3b96dc390e386e1b4cdcd2313dfa0570",
             format: "iframe",
@@ -61,8 +61,8 @@ export const externalAds: ExternalAdConfig[] = [
         },
     },
 
-    // Adcash Display (Zona #12241178)
-    {
+    // Adcash Display (Zona #12241178) — desactivado, se deja comentado para reactivar si hace falta
+    /* {
         id: "adcash-12241178",
         scriptSrc: "https://acscdn.com/script/aclib.js",
         placement: "explore_banner",
@@ -70,9 +70,9 @@ export const externalAds: ExternalAdConfig[] = [
         zoneId: "12241178",
         width: "728px",
         height: "90px",
-        weight: 3,
+        weight: 1,
         renderMode: "remote",
-    },
+    }, */
 
     // ── Anuncios comentados ──
     // Adsterra Native 1x1
@@ -88,8 +88,7 @@ export const externalAds: ExternalAdConfig[] = [
     },
     */
 
-    // Adsterra 300x250 (reemplazado por HilltopAds 300x250)
-    /*
+    // Adsterra 300x250 (Detalle modpack / sidebar)
     {
         id: "adsterra-300x250",
         scriptSrc: "https://www.highrevenueformat.com/b537ccdc5ec66b9f28e4de33ebb0e2a4/invoke.js",
@@ -97,7 +96,7 @@ export const externalAds: ExternalAdConfig[] = [
         placement: "modpack_sidebar",
         width: "300px",
         height: "250px",
-        weight: 2,
+        weight: 1,
         options: {
             key: "b537ccdc5ec66b9f28e4de33ebb0e2a4",
             format: "iframe",
@@ -106,5 +105,4 @@ export const externalAds: ExternalAdConfig[] = [
             params: {},
         },
     },
-    */
 ];

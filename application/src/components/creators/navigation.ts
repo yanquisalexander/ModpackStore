@@ -5,6 +5,7 @@ import {
     BarChart3,
     Cloud,
     Settings,
+    KeyRound,
     Megaphone,
     type LucideIcon,
 } from "lucide-react";
@@ -67,6 +68,12 @@ export const getOrgNavItems = (orgId: string): NavItem[] => [
         label: "Archivos",
         description: "Almacenamiento en la nube",
         icon: Cloud,
+    },
+    {
+        path: `/creators/org/${orgId}/api-tokens`,
+        label: "API Tokens",
+        description: "Tokens para servidores y automatización",
+        icon: KeyRound,
     },
     {
         path: `/creators/org/${orgId}/settings`,

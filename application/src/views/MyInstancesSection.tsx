@@ -18,6 +18,7 @@ import { useActionLimit } from "@/hooks/useUserFlags";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { motion, AnimatePresence } from "motion/react";
 import GlassGamingButtons from "@/icons/GlassGamingButtons";
+import { AdSlot } from "@/components/ads/AdSlot";
 
 export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) => {
     const { setTitleBarState } = useGlobalContext()
@@ -231,6 +232,8 @@ export const MyInstancesSection = ({ offlineMode }: { offlineMode?: boolean }) =
                         </Alert>
                     </motion.div>
                 )}
+
+                <AdSlot placement="explore_banner" className="my-4 mx-auto max-w-[728px]" />
 
                 {isLoading ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">

@@ -20,11 +20,13 @@ import {
 import { CreatorRole } from "@/db/schema.ts";
 import { getMemberPermissions, setMemberPermission } from "@/services/permission.service.ts";
 import modpackRoutes from "./modpacks.routes.ts";
+import apiTokenRoutes from "./api-tokens.routes.ts";
 import storageRoutes from "./storage.routes.ts";
 import creatorAdsRoutes from "./ads.routes.ts";
 
 const app = new Hono();
 app.route("/:creatorId/modpacks", modpackRoutes);
+app.route("/:creatorId/api-tokens", apiTokenRoutes);
 app.route("/:creatorId/ads", creatorAdsRoutes);
 app.route("/", storageRoutes);
 
