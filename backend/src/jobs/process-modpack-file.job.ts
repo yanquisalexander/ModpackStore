@@ -12,8 +12,14 @@ import {
 import { eq, inArray } from "drizzle-orm";
 import { log } from "@/lib/logger.ts";
 import { downloadObjectToFile, deleteObject, getTempZipKey, getFileKey, batchUploadFromPaths } from "@/lib/r2.ts";
-
-const INSERT_CHUNK_SIZE = 500;
+import {
+    getWorkerProfile,
+    isMemoryPressured,
+    isMemoryCritical,
+    maybeGc,
+    getDiskFreeBytes,
+    getMemorySnapshot,
+} from "@/lib/auto-tune.ts";
 
 // --- Helper para que zip.js lea desde el disco en lugar de la RAM ---
 class DenoFileReader extends Reader<Deno.FsFile> {
@@ -104,7 +110,17 @@ export async function processModpackFiles(job: Job) {
     const { versionId, fileType } = job.data as { versionId: string; fileType: string };
     const start = Date.now();
     const jobId = job.id!;
+    const profile = getWorkerProfile();
+    const INSERT_CHUNK_SIZE = profile.insertChunkSize;
     let zipKey = "";
+
+    // Registro centralizado de temporales: limpieza garantizada en `finally`.
+    const tempPaths = new Set<string>();
+    const trackTemp = (p: string) => { tempPaths.add(p); return p; };
+    const untrackTemp = async (p: string) => {
+        tempPaths.delete(p);
+        try { await Deno.remove(p); } catch { /* best effort */ }
+    };
 
     // Almacenará la ruta de nuestro ZIP temporal en disco
     let tempZipPath: string | null = null;
@@ -114,6 +130,7 @@ export async function processModpackFiles(job: Job) {
         await updateProcessingJob(jobId, { status: ProcessingJobStatus.PROCESSING, progress: 0 });
 
         log(`═══ process-modpack-files [${jobId}] ═══`);
+        log(`  Profile: ${profile.name} (up=${profile.uploadConcurrency} chunk=${INSERT_CHUNK_SIZE})`);
         log(`  FileType: ${fileType}`);
         log(`  VersionId: ${versionId}`);
 
@@ -132,7 +149,7 @@ export async function processModpackFiles(job: Job) {
         zipKey = getTempZipKey(modpackId, versionId, fileType);
 
         // 1. Crear archivo temporal en disco para descargar el ZIP
-        tempZipPath = await Deno.makeTempFile({ prefix: "modpack_", suffix: ".zip" });
+        tempZipPath = trackTemp(await Deno.makeTempFile({ prefix: "modpack_", suffix: ".zip" }));
         log(`  ZIP key: ${zipKey}`);
         log(`  Downloading ZIP directly to disk (${tempZipPath})...`);
 
@@ -152,6 +169,14 @@ export async function processModpackFiles(job: Job) {
         zipFile = await Deno.open(tempZipPath, { read: true });
         const zipStat = await zipFile.stat();
         log(`  Downloaded ${(zipStat.size / 1024 / 1024).toFixed(2)} MB to disk`);
+
+        // Pre-chequeo de disco: el contenido extraído puede triplicar el ZIP.
+        const diskFree = getDiskFreeBytes(Deno.env.get("TMPDIR") || "/tmp");
+        if (diskFree !== null && diskFree < zipStat.size * 3) {
+            throw new Error(
+                `LOW_DISK: only ${(diskFree / 1024 / 1024).toFixed(0)}MB free, need ~${(zipStat.size * 3 / 1024 / 1024).toFixed(0)}MB. Aborting cleanly.`,
+            );
+        }
 
         log(`  Reading ZIP entries...`);
         const zipReader = new ZipReader(new DenoFileReader(zipFile, zipStat.size));
@@ -187,8 +212,22 @@ export async function processModpackFiles(job: Job) {
             processedCount++;
             if (processedCount <= 3) log(`  [DEBUG] Processing entry #${processedCount}: ${entry.filename} (${entry.compressedSize}→${entry.uncompressedSize} bytes)`);
 
+            // Watermark de memoria cada 25 entradas: degradar o abortar limpio.
+            if (processedCount % 25 === 0) {
+                const snap = getMemorySnapshot();
+                if (isMemoryCritical(profile, snap)) {
+                    throw new Error(
+                        `LOW_MEMORY: critical pressure at entry ${processedCount}/${entries.length}. Aborting cleanly for retry.`,
+                    );
+                }
+                if (isMemoryPressured(profile, snap)) {
+                    maybeGc();
+                    await new Promise((r) => setTimeout(r, 1000));
+                }
+            }
+
             // Creamos un archivo temporal para extraer este mod específico
-            const tempEntryPath = await Deno.makeTempFile({ prefix: "entry_", suffix: ".dat" });
+            const tempEntryPath = trackTemp(await Deno.makeTempFile({ prefix: "entry_", suffix: ".dat" }));
             let entryFile = await Deno.open(tempEntryPath, { write: true, read: true, create: true });
             const entryWriter = new DenoFileWriter(entryFile);
 
@@ -215,6 +254,7 @@ export async function processModpackFiles(job: Job) {
 
                 if (contentSize === 0) {
                     skipped++;
+                    await untrackTemp(tempEntryPath);
                     continue;
                 }
 
@@ -229,6 +269,7 @@ export async function processModpackFiles(job: Job) {
                     tempFilesForUpload.set(sha1Hex, tempEntryPath);
                 } else {
                     dedupSavingsLocal += contentSize;
+                    await untrackTemp(tempEntryPath);
                 }
 
                 const ext = filePath.includes(".") ? filePath.split(".").pop()!.toLowerCase() : "(none)";
@@ -248,12 +289,19 @@ export async function processModpackFiles(job: Job) {
 
         await zipReader.close();
 
-        // 4. Check database for existing files (like legacy system - avoids R2 HEAD calls)
-        log(`  Checking database for ${uniqueMetas.size} unique files...`);
-        
+        // 4. Check database for existing files (chunked — evita queries gigantes)
+        log(`  Checking database for ${uniqueMetas.size} unique files (chunks of ${INSERT_CHUNK_SIZE})...`);
+
         const allHashes = Array.from(uniqueMetas.keys());
-        const existingFiles = await db.select().from(modpackFilesTable).where(inArray(modpackFilesTable.hash, allHashes));
-        const existingHashes = new Set(existingFiles.map(ef => ef.hash));
+        const existingHashes = new Set<string>();
+        for (let i = 0; i < allHashes.length; i += INSERT_CHUNK_SIZE) {
+            const chunkHashes = allHashes.slice(i, i + INSERT_CHUNK_SIZE);
+            if (chunkHashes.length === 0) continue;
+            const existingFiles = await db.select({ hash: modpackFilesTable.hash })
+                .from(modpackFilesTable)
+                .where(inArray(modpackFilesTable.hash, chunkHashes));
+            for (const ef of existingFiles) existingHashes.add(ef.hash);
+        }
 
         // 5. Build upload list from files not in database
         const uploadList: Array<{ key: string; filePath: string; contentType?: string }> = [];
@@ -269,8 +317,8 @@ export async function processModpackFiles(job: Job) {
 
         log(`  ${uploadList.length} files to upload, ${crossJobSkipped} already in database.`);
 
-        // 6. Batch upload: subir todos los nuevos archivos con concurrencia
-        const result = await batchUploadFromPaths(uploadList, 5);
+        // 6. Batch upload: streaming + concurrencia del perfil auto-detectado
+        const result = await batchUploadFromPaths(uploadList, profile.uploadConcurrency);
         uploaded = result.uploaded;
         log(`  ${result.uploaded} files uploaded to R2, ${result.skipped} failed.`);
 
@@ -280,8 +328,9 @@ export async function processModpackFiles(job: Job) {
 
         // Limpiar todos los archivos temporales de entrada
         for (const tempPath of tempFilesForUpload.values()) {
-            try { await Deno.remove(tempPath); } catch { /* Ignorar */ }
+            await untrackTemp(tempPath);
         }
+        tempFilesForUpload.clear();
 
         await updateProcessingJob(jobId, { progress: 40 });
 
@@ -328,17 +377,24 @@ export async function processModpackFiles(job: Job) {
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         const stack = err instanceof Error ? err.stack : "";
-        log(`  [ERROR] Job failed: ${message}`);
+        const lowMem = message.includes("LOW_MEMORY") || message.includes("LOW_DISK");
+        log(`  [ERROR] Job failed${lowMem ? " (retryable resource guard)" : ""}: ${message}`);
         if (stack) log(`  [STACK] ${stack}`);
         await updateProcessingJob(jobId, { status: ProcessingJobStatus.FAILED, error: `${message}\n${stack}` });
         throw err;
     } finally {
-        // Limpiar recursos físicos del Worker
+        // Limpiar recursos físicos del Worker (ZIP + TODOS los .dat aunque haya fallado)
         if (zipFile) {
             try { zipFile.close(); } catch { }
         }
         if (tempZipPath) {
+            tempPaths.delete(tempZipPath);
             try { await Deno.remove(tempZipPath); } catch { }
+            tempZipPath = null;
         }
+        for (const p of [...tempPaths]) {
+            try { await Deno.remove(p); } catch { }
+        }
+        tempPaths.clear();
     }
 }

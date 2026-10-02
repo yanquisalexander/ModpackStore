@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { CurseForgeProjectInfo, CurseForgeFileInfo } from "@/types/curseforge.ts";
 import { log } from "@/lib/logger.ts";
 
@@ -52,16 +53,51 @@ export async function getFile(projectId: number, fileId: number): Promise<CurseF
     return apiFetch<CurseForgeFileInfo>(`/mods/${projectId}/files/${fileId}`);
 }
 
-export async function getDownloadUrl(projectId: number, fileId: number): Promise<string | null> {
-    const result = await apiFetch<string>(`/mods/${projectId}/files/${fileId}/download-url`);
-    if (result) return result;
-
-    // Fallback: get URL from file info
-    const fileInfo = await getFile(projectId, fileId);
-    return fileInfo?.downloadUrl ?? null;
+export interface ResolvedModDownload {
+    fileInfo: CurseForgeFileInfo;
+    downloadUrl: string;
 }
 
-export async function downloadFileToPath(url: string, destPath: string): Promise<boolean> {
+/**
+ * Resuelve info + URL de descarga con UNA sola llamada API en el caso común.
+ * `getFile` ya incluye `downloadUrl`; solo se llama al endpoint
+ * `/download-url` como fallback si viene vacío. (Antes se hacían 2-3
+ * llamadas por mod: getFile + getDownloadUrl + posible getFile interno.)
+ */
+export async function getFileAndDownloadUrl(
+    projectId: number,
+    fileId: number,
+): Promise<ResolvedModDownload | null> {
+    const fileInfo = await getFile(projectId, fileId);
+    if (!fileInfo) return null;
+    if (fileInfo.downloadUrl) return { fileInfo, downloadUrl: fileInfo.downloadUrl };
+
+    const url = await apiFetch<string>(`/mods/${projectId}/files/${fileId}/download-url`);
+    if (!url) {
+        log(`  [SKIP] No download URL for ${fileInfo.fileName}`);
+        return null;
+    }
+    return { fileInfo, downloadUrl: url };
+}
+
+export async function getDownloadUrl(projectId: number, fileId: number): Promise<string | null> {
+    // Orden invertido respecto a la versión anterior: primero getFile
+    // (1 llamada que ya trae downloadUrl), fallback al endpoint dedicado.
+    const fileInfo = await getFile(projectId, fileId);
+    if (fileInfo?.downloadUrl) return fileInfo.downloadUrl;
+    if (!fileInfo) return null;
+
+    return apiFetch<string>(`/mods/${projectId}/files/${fileId}/download-url`);
+}
+
+export type DownloadResult = { ok: true; sha1: string; size: number } | { ok: false };
+
+/**
+ * Descarga un archivo a disco haciendo hash SHA1 incremental MIENTRAS se
+ * escribe (un solo pase de I/O). Evita el patrón anterior de descargar y
+ * después re-leer el archivo entero solo para hashearlo.
+ */
+export async function downloadFileWithHash(url: string, destPath: string): Promise<DownloadResult> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT);
 
@@ -71,26 +107,46 @@ export async function downloadFileToPath(url: string, destPath: string): Promise
             signal: controller.signal,
         });
 
-        if (!response.ok) {
+        if (!response.ok || !response.body) {
             log(`  [CURSEFORGE_DL] ${response.status} for ${url}`);
-            return false;
+            return { ok: false };
         }
 
+        const hash = createHash("sha1");
         const file = await Deno.open(destPath, { write: true, create: true, truncate: true });
+        let size = 0;
         try {
-            if (response.body) {
-                await response.body.pipeTo(file.writable);
+            const reader = response.body.getReader();
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    hash.update(value);
+                    size += value.byteLength;
+                    let offset = 0;
+                    while (offset < value.byteLength) {
+                        const n = await file.write(value.subarray(offset));
+                        offset += n;
+                    }
+                }
+            } finally {
+                reader.releaseLock();
             }
         } finally {
-            try { file.close(); } catch { /* already closed by pipeTo */ }
+            try { file.close(); } catch { /* ignore */ }
         }
 
-        return true;
+        return { ok: true, sha1: hash.digest("hex"), size };
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         log(`  [CURSEFORGE_DL] Failed: ${msg}`);
-        return false;
+        return { ok: false };
     } finally {
         clearTimeout(timer);
     }
+}
+
+export async function downloadFileToPath(url: string, destPath: string): Promise<boolean> {
+    const res = await downloadFileWithHash(url, destPath);
+    return res.ok;
 }

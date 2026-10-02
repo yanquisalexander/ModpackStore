@@ -12,8 +12,88 @@ import { StatusPage } from "./status-page.tsx";
 import type { StatusPageData } from "./status-page.tsx";
 import { log, getLogBuffer, subscribeLogs } from "@/lib/logger.ts";
 import { cleanupOldTempZips } from "@/lib/r2.ts";
+import {
+    getWorkerProfile,
+    downgradeProfile,
+    forceWorkerProfile,
+    formatProfileLine,
+    getDiskFreeBytes,
+    cleanupOrphanTempFiles,
+} from "@/lib/auto-tune.ts";
 
 log("Initializing worker...");
+
+// Perfil auto-detectado (cgroup/RAM/CPU/disco). Sin env manual: en Render
+// free (512MB) sale `survival` (todo secuencial + streaming), en planes
+// mayores sube solo la concurrencia.
+const workerProfile = getWorkerProfile();
+log(`[AUTOTUNE] ${formatProfileLine(workerProfile)}`);
+
+const LOWMEM_COUNTER_KEY = "worker:lowmem:count";
+
+/**
+ * Mutex global de jobs pesados: aunque haya 3 BullMQ Workers en el mismo
+ * proceso, solo `maxHeavyJobsParallel` jobs pesados corren a la vez.
+ * En free tier (survival/small) es 1: elimina el OOM por jobs en paralelo.
+ */
+class HeavyJobMutex {
+    private active = 0;
+    private waiters: Array<() => void> = [];
+    constructor(private readonly max: number) {}
+    async acquire(): Promise<() => void> {
+        while (this.active >= this.max) {
+            await new Promise<void>((resolve) => this.waiters.push(resolve));
+        }
+        this.active++;
+        let released = false;
+        return () => {
+            if (released) return;
+            released = true;
+            this.active = Math.max(0, this.active - 1);
+            const next = this.waiters.shift();
+            if (next) next();
+        };
+    }
+    getActive(): number {
+        return this.active;
+    }
+}
+
+const heavyMutex = new HeavyJobMutex(workerProfile.maxHeavyJobsParallel);
+
+async function recordLowMemoryAbort(): Promise<void> {
+    try {
+        await redisConnection.incr(LOWMEM_COUNTER_KEY);
+        await redisConnection.expire(LOWMEM_COUNTER_KEY, 24 * 3600);
+    } catch {
+        // Redis caído: no bloqueamos el job por esto
+    }
+}
+
+async function clearLowMemoryCounter(): Promise<void> {
+    try {
+        await redisConnection.del(LOWMEM_COUNTER_KEY);
+    } catch {
+        // best effort
+    }
+}
+
+/** Backoff automático: si hubo ≥2 abortos LOW_MEMORY, bajar un nivel de perfil. */
+async function applyLowMemoryBackoff(): Promise<void> {
+    try {
+        const raw = await redisConnection.get(LOWMEM_COUNTER_KEY);
+        const count = raw ? parseInt(raw, 10) : 0;
+        if (count >= 2) {
+            const lower = downgradeProfile(getWorkerProfile());
+            if (lower.name !== getWorkerProfile().name) {
+                forceWorkerProfile(lower);
+                log(`[AUTOTUNE] Backoff: ${count} LOW_MEMORY aborts → profile=${lower.name}`);
+            }
+        }
+    } catch (err) {
+        log(`[AUTOTUNE_WARN] Could not check low-mem backoff: ${err}`);
+    }
+}
 
 redisConnection.on("error", (err) => {
     log("[REDIS_CONNECTION_ERROR]", err);
@@ -43,6 +123,9 @@ app.get("/status", async (c) => {
         Promise.resolve(Deno.systemMemoryInfo()).catch(() => null),
     ]);
 
+    const profile = getWorkerProfile();
+    const diskFree = getDiskFreeBytes(Deno.env.get("TMPDIR") || "/tmp");
+
     const data: StatusPageData = {
         status: workerStatus,
         startedAt,
@@ -60,6 +143,14 @@ app.get("/status", async (c) => {
             ? { total: systemMemory.total, free: systemMemory.free }
             : { total: 0, free: 0 },
         cpuCores: navigator.hardwareConcurrency ?? 0,
+        profile: {
+            name: profile.name,
+            downloadConcurrency: profile.downloadConcurrency,
+            uploadConcurrency: profile.uploadConcurrency,
+            heavyJobs: profile.maxHeavyJobsParallel,
+            heavyActive: heavyMutex.getActive(),
+        },
+        diskFree,
     };
 
     return c.html(<StatusPage stats={data} />);
@@ -189,14 +280,20 @@ const worker = new Worker(
             return;
         }
 
-        log(`Processing job ${job.id} of type ${job.name} with data:`, job.data);
-        await handler(job);
+        // Mutex global: 1 solo job pesado a la vez en perfiles bajos.
+        const release = await heavyMutex.acquire();
+        try {
+            log(`Processing job ${job.id} of type ${job.name}`);
+            await handler(job);
+        } finally {
+            release();
+        }
     },
     {
         connection: redisConnection,
         concurrency: 1, // Mantiene bajo el consumo de CPU/RAM
         maxStalledCount: 1, // Configurado para delegar stalled jobs
-        lockDuration: 30000,
+        lockDuration: Math.max(30000, getWorkerProfile().lockDurationMs),
     },
 );
 
@@ -206,12 +303,20 @@ worker.on("ready", async () => {
     startedAt = Date.now();
 
     startServer();
+    await applyLowMemoryBackoff();
+    if (getWorkerProfile().name !== workerProfile.name) {
+        log(`[AUTOTUNE] Active profile after backoff: ${formatProfileLine(getWorkerProfile())}`);
+    }
     await recoverStuckJobs();
 
-    // Limpieza de R2 al iniciar
+    // Limpieza de R2 + temporales huérfanos locales al iniciar
     try {
-        const cleaned = await cleanupOldTempZips(24 * 60 * 60 * 1000);
-        if (cleaned > 0) log(`Cleaned up ${cleaned} old temp ZIP(s) from R2.`);
+        const [cleanedR2, cleanedLocal] = await Promise.all([
+            cleanupOldTempZips(24 * 60 * 60 * 1000),
+            cleanupOrphanTempFiles(),
+        ]);
+        if (cleanedR2 > 0) log(`Cleaned up ${cleanedR2} old temp ZIP(s) from R2.`);
+        if (cleanedLocal > 0) log(`Cleaned up ${cleanedLocal} orphan temp file(s) from disk.`);
     } catch (err) {
         log(`[CLEANUP_WARN] Failed to clean old temp ZIPs: ${err}`);
     }
@@ -237,12 +342,16 @@ worker.on("completed", (job) => {
     log(`Job ${job.id} of type ${job.name} has completed.`);
     completedCount++;
     activeJobId = null;
+    void clearLowMemoryCounter();
 });
 
 worker.on("failed", (job, err) => {
     log(`Job ${job?.id ?? "unknown"} has failed:`, err.message);
     failedCount++;
     activeJobId = null;
+    if (err.message.includes("LOW_MEMORY") || err.message.includes("LOW_DISK")) {
+        void recordLowMemoryAbort();
+    }
 });
 
 worker.on("paused", () => {
@@ -273,8 +382,15 @@ const backupWorker = new Worker(
             return;
         }
 
-        log(`Processing backup job ${job.id} of type ${job.name} with data:`, job.data);
-        await handler(job);
+        // Los backups (export carga tablas enteras en RAM) también cuentan
+        // como job pesado para el mutex global.
+        const release = await heavyMutex.acquire();
+        try {
+            log(`Processing backup job ${job.id} of type ${job.name}`);
+            await handler(job);
+        } finally {
+            release();
+        }
     },
     {
         connection: redisConnection,
@@ -315,14 +431,22 @@ const curseforgeWorker = new Worker(
             return;
         }
 
-        log(`Processing CurseForge import job ${job.id} with data:`, job.data);
-        await handler(job);
+        // Mutex global: comparte el límite con los otros workers pesados.
+        // No se loguea job.data entero: el manifest (500 mods) es puro churn.
+        const release = await heavyMutex.acquire();
+        try {
+            const mods = (job.data as { manifest?: { files?: unknown[] } }).manifest?.files?.length ?? "?";
+            log(`Processing CurseForge import job ${job.id} (${mods} mods)`);
+            await handler(job);
+        } finally {
+            release();
+        }
     },
     {
         connection: redisConnection,
         concurrency: 1,
         maxStalledCount: 1,
-        lockDuration: 60000, // 60s per mod download batch
+        lockDuration: getWorkerProfile().lockDurationMs,
     },
 );
 
@@ -336,10 +460,14 @@ curseforgeWorker.on("active", (job) => {
 
 curseforgeWorker.on("completed", (job) => {
     log(`CurseForge job ${job.id} has completed.`);
+    void clearLowMemoryCounter();
 });
 
 curseforgeWorker.on("failed", (job, err) => {
     log(`CurseForge job ${job?.id ?? "unknown"} has failed:`, err.message);
+    if (err.message.includes("LOW_MEMORY") || err.message.includes("LOW_DISK")) {
+        void recordLowMemoryAbort();
+    }
 });
 
 curseforgeWorker.on("error", (err) => {

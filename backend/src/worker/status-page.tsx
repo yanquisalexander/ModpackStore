@@ -17,6 +17,14 @@ export interface StatusPageData {
   memory: { rss: number; heapTotal: number; heapUsed: number }
   systemMemory: { total: number; free: number }
   cpuCores: number
+  profile?: {
+    name: string
+    downloadConcurrency: number
+    uploadConcurrency: number
+    heavyJobs: number
+    heavyActive: number
+  }
+  diskFree?: number | null
 }
 
 const css = `
@@ -73,7 +81,19 @@ export function StatusPage({ stats }: { stats: StatusPageData }) {
           <tr><th>Memory (heap)</th><td>{formatBytes(stats.memory.heapUsed)} / {formatBytes(stats.memory.heapTotal)}</td></tr>
           <tr><th>Memory (RSS)</th><td>{formatBytes(stats.memory.rss)}</td></tr>
           <tr><th>RAM (system)</th><td>{formatBytes(stats.systemMemory.free)} / {formatBytes(stats.systemMemory.total)} free</td></tr>
+          <tr><th>Disk free (tmp)</th><td>{stats.diskFree == null ? "n/a" : formatBytes(stats.diskFree)}</td></tr>
         </table>
+
+        {stats.profile && (
+          <>
+            <h2>Auto-tune profile: {stats.profile.name}</h2>
+            <table>
+              <tr><th>Download concurrency</th><td>{stats.profile.downloadConcurrency}</td></tr>
+              <tr><th>Upload concurrency</th><td>{stats.profile.uploadConcurrency}</td></tr>
+              <tr><th>Heavy jobs (max / active)</th><td>{stats.profile.heavyActive} / {stats.profile.heavyJobs}</td></tr>
+            </table>
+          </>
+        )}
 
         <h2>Queue: {stats.queueName}</h2>
         <table>

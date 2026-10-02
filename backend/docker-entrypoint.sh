@@ -15,8 +15,10 @@ if [ -z "$V8_MAX_MEMORY" ]; then
                 # Si tiene más de 512MB, dejamos un margen de 256MB
                 MAX_RAM=$((CONTAINER_MB - 256))
             elif [ "$CONTAINER_MB" -gt 256 ]; then
-                # Si está en el rango de 512MB (como el plan gratis), dejamos 128MB libres para Deno/OS
-                MAX_RAM=$((CONTAINER_MB - 128))
+                # Plan gratis (~512MB): la memoria nativa (Deno, AWS SDK, zip,
+                # buffers fuera de V8) necesita más margen o el cgroup mata el
+                # proceso aunque el heap esté OK. 192MB de margen.
+                MAX_RAM=$((CONTAINER_MB - 192))
             else
                 MAX_RAM=128
             fi
@@ -43,10 +45,15 @@ else
 fi
 
 # 2. Flags Base Consolidados
-DENO_FLAGS="--allow-net --allow-read --allow-env --allow-write --allow-ffi --allow-sys --no-prompt"
+# --allow-run=df permite al worker leer espacio libre con `df` (auto-tune).
+# Sin él, el chequeo de disco se omite sin bloquear nada.
+DENO_FLAGS="--allow-net --allow-read --allow-env --allow-write --allow-ffi --allow-sys --allow-run=df --no-prompt"
 
 # 3. Flags de V8 (Motor de JS)
-V8_FLAGS="--v8-flags=--max-old-space-size=${MAX_RAM}"
+# --expose-gc permite al worker forzar GC cuando el watermark de memoria
+# detecta presión (ver auto-tune.ts). Sin él, el GC solo corre por presión
+# de heap y llega tarde en free tier.
+V8_FLAGS="--v8-flags=--max-old-space-size=${MAX_RAM},--expose-gc"
 
 echo "[STARTUP] Starting Deno process (V8 Max RAM: ${MAX_RAM}MB)..."
 
