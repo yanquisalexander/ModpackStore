@@ -9,3 +9,6 @@ dist/
 # Redis dump files
 dump.rdb
 *.rdb
+
+# Java server-agent build outputs
+server-agent/target/
