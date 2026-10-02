@@ -47,6 +47,7 @@ async function getS3Client() {
         _s3Client = new S3Client({
             region: "auto",
             endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+            forcePathStyle: true,
             credentials: {
                 accessKeyId: Deno.env.get("R2_ACCESS_KEY_ID")!,
                 secretAccessKey: Deno.env.get("R2_SECRET_ACCESS_KEY")!,
@@ -202,16 +203,6 @@ export async function uploadStreamObject(key: string, stream: ReadableStream, co
 
 export async function uploadFileFromPath(key: string, filePath: string, contentType?: string): Promise<void> {
     const stat = await Deno.stat(filePath);
-    const profile = getWorkerProfile();
-    const useBuffer = !profile.forceStreamingUpload && stat.size <= profile.bufferedUploadMaxBytes;
-
-    if (useBuffer) {
-        // Archivos pequeños en planes con RAM: un readFile es m�s r�pido.
-        const body = await Deno.readFile(filePath);
-        await uploadObject(key, body, contentType);
-        return;
-    }
-
     // Streaming real: el archivo nunca se carga entero en RAM (clave anti-OOM).
     const file = await Deno.open(filePath, { read: true });
     try {

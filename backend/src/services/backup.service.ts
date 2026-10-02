@@ -1,4 +1,5 @@
 import { db } from "@/db/client.ts";
+import { log } from "@/lib/logger.ts";
 import {
     backupJobsTable,
     BackupJobStatus,
@@ -294,6 +295,7 @@ async function getBackupS3Client() {
     return new S3Client({
         region: "auto",
         endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+        forcePathStyle: true,
         credentials: {
             accessKeyId: Deno.env.get("R2_ACCESS_KEY_ID")!,
             secretAccessKey: Deno.env.get("R2_SECRET_ACCESS_KEY")!,
