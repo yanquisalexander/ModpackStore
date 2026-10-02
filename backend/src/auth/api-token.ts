@@ -42,9 +42,17 @@ export const apiTokenService = {
         return [...CREATOR_TOKEN_SCOPES];
     },
 
-    /** Generates a new `mps_<prefix>_<secret>` token. Only the hash is stored; the full value is returned once. */
+    /**
+     * Generates a new `mps_<prefix>_<secret>` token. Only the hash is stored; the full value is returned once.
+     *
+     * The prefix is hex (never contains `_`), so `resolve()` can split on the
+     * first `_` unambiguously. (base64url was tried first, but its alphabet
+     * includes `_`, which made the separator ambiguous.)
+     */
     async generate(): Promise<{ full: string; prefix: string; hash: string }> {
-        const prefix = randomUrlSafe(6); // 8 chars base64url
+        const prefixBytes = new Uint8Array(4);
+        crypto.getRandomValues(prefixBytes);
+        const prefix = [...prefixBytes].map((b) => b.toString(16).padStart(2, "0")).join(""); // 8 hex chars
         const secret = randomUrlSafe(32); // ~43 chars (~256 bits)
         const full = `${TOKEN_PREFIX_SCHEME}${prefix}_${secret}`;
         const hash = await sha256Hex(full);
@@ -66,7 +74,9 @@ export const apiTokenService = {
         const sep = rest.indexOf("_");
         if (sep <= 0) return null;
         const prefix = rest.slice(0, sep);
-        if (!prefix || rest.length - sep - 1 < 16) return null;
+        // Prefixes are 8 hex chars (see generate). Reject anything else early
+        // so a malformed/legacy value can never match the wrong row.
+        if (!/^[0-9a-f]{8}$/.test(prefix) || rest.length - sep - 1 < 16) return null;
 
         const candidateHash = await sha256Hex(bearer);
 
