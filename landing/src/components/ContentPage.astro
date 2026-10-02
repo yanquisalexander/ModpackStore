@@ -1,0 +1,21 @@
+---
+interface Props {
+  title: string;
+  intro?: string;
+}
+const { title, intro } = Astro.props;
+---
+<section class="relative px-4 pt-28 pb-16">
+  <div class="mx-auto max-w-3xl">
+    <nav class="mb-6 text-xs text-zinc-500" aria-label="Migas de pan">
+      <a href="/" class="hover:text-white transition-colors">Inicio</a>
+      <span class="mx-2">/</span>
+      <span class="text-zinc-300">{title}</span>
+    </nav>
+    <h1 class="text-3xl md:text-4xl font-lexend font-bold text-white tracking-tight">{title}</h1>
+    {intro && <p class="mt-4 text-zinc-400 leading-relaxed">{intro}</p>}
+    <div class="prose prose-invert prose-zinc mt-8 max-w-none prose-headings:font-lexend prose-headings:tracking-tight prose-a:text-indigo-300 hover:prose-a:text-white prose-details:rounded-xl prose-details:border prose-details:border-white/10 prose-details:bg-white/[0.02] prose-details:px-4 prose-details:py-3 prose-summary:cursor-pointer prose-summary:font-semibold prose-summary:text-white">
+      <slot />
+    </div>
+  </div>
+</section>

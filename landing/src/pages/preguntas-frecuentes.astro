@@ -1,0 +1,44 @@
+---
+import Layout from "../layouts/Layout.astro";
+import ContentPage from "../components/ContentPage.astro";
+import Footer from "../components/Footer.astro";
+
+const faqs = [
+  { q: "¿Qué es ModpackStore?", a: "ModpackStore es un launcher y ecosistema para Minecraft que permite instalar, actualizar y gestionar modpacks e instancias aisladas en un click, sin configurar manualmente Forge, Fabric, Java ni memoria RAM." },
+  { q: "¿Es gratis?", a: "Sí. La versión Canary del launcher es gratuita para Windows, macOS y Linux. Necesitas una cuenta válida de Minecraft (Microsoft) para jugar, como en cualquier launcher." },
+  { q: "¿Qué sistemas operativos soporta?", a: "Windows 10/11 (MSI 64-bit), macOS Apple Silicon e Intel, y Linux (AppImage, .deb para Ubuntu/Debian y .rpm para Fedora). La web detecta tu sistema y te sugiere la descarga correcta." },
+  { q: "¿Cómo instalo un modpack como SaltoCraft?", a: "Descarga el launcher, inicia sesión con tu cuenta de Microsoft, elige el modpack en Explorar y pulsa Jugar. El launcher descarga mods, loader y Java automáticamente y crea una instancia aislada." },
+  { q: "¿Qué es una instancia aislada?", a: "Cada modpack vive en su propia carpeta con sus mundos, configs y versiones. Puedes tener PixelSurvival en Forge 1.20 y otro en Fabric 1.20.1 sin que se mezclen ni se rompan." },
+  { q: "¿Optimiza el rendimiento automáticamente?", a: "Sí. Detecta tu hardware y ajusta la versión de Java, argumentos JVM y memoria RAM asignada para evitar tirones y crasheos por falta de memoria." },
+  { q: "¿Es seguro?", a: "Los modpacks del catálogo y sus dependencias son auditados. Descarga siempre desde esta web oficial o el repositorio ModpackStore-Releases en GitHub. Nunca te pediremos tu contraseña de Microsoft fuera del login oficial." },
+  { q: "¿Está afiliado a Mojang o Microsoft?", a: "No. ModpackStore no está afiliado a Mojang Studios ni Microsoft. Minecraft es una marca de Mojang. Ver aviso legal." },
+  { q: "Soy creador, ¿cómo publico mi modpack?", a: "Únete al Discord oficial y solicita acceso como creador. Obtienes panel con versiones, equipo, métricas y actualizaciones automáticas para tus jugadores." },
+  { q: "¿Necesito buen PC?", a: "No necesariamente. Hay modpacks livianos y la optimización automática ayuda en PCs modestos. Revisa los requisitos de cada modpack (RAM recomendada) antes de instalar." },
+  { q: "¿Dónde pido ayuda?", a: "En el Discord oficial y en la página de contacto. Incluye tu sistema operativo, versión canary y el modpack que falla." },
+  { q: "¿Qué es la versión Canary?", a: "Es el canal de lanzamientos frecuentes con las últimas novedades. Puede cambiar seguido; la versión y fecha de publicación se muestran en la sección de descarga." },
+];
+
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faqs.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+};
+---
+
+<Layout
+  title="Preguntas frecuentes — ModpackStore"
+  description="Resolvemos dudas sobre ModpackStore: qué es, cómo instalar modpacks de Minecraft, requisitos, seguridad, instancias y soporte para creadores."
+>
+  <script type="application/ld+json" set:html={JSON.stringify(faqJsonLd)} />
+  <ContentPage title="Preguntas frecuentes" intro="Todo lo que necesitas saber sobre ModpackStore, el launcher de modpacks de Minecraft para Windows, macOS y Linux.">
+    {faqs.map((f) => (
+      <details>
+        <summary>{f.q}</summary>
+        <p class="mt-2">{f.a}</p>
+      </details>
+    ))}
+    <h2>¿No encuentras tu respuesta?</h2>
+    <p>Escríbenos desde la <a href="/contacto/">página de contacto</a> o únete al <a href="https://discord.gg/9upQuDS4YQ" rel="noopener" target="_blank">Discord oficial</a>.</p>
+  </ContentPage>
+  <Footer />
+</Layout>

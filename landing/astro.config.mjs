@@ -5,8 +5,9 @@ import vercel from '@astrojs/vercel';
 
 // https://astro.build/config
 export default defineConfig({
+    site: process.env.PUBLIC_SITE_URL ?? 'https://modpackstore.vercel.app',
     integrations: [preact()],
-    output: 'server',
+    output: 'static',
     adapter: vercel(),
     vite: {
         plugins: [tailwindcss()],

@@ -4,21 +4,8 @@ import Hero from "../components/Hero.astro";
 import Features from "../components/Features.astro";
 import Footer from "../components/Footer.astro";
 import DownloadSection from "../components/DownloadSection.astro";
-import { CANARY_RELEASES_URL } from "@/consts";
 import TrustedCommunities from "@/components/TrustedCommunities.astro";
-
-interface TauriAsset {
-  url?: string;
-  signature?: string;
-  browser_download_url?: string;
-}
-
-interface TauriManifest {
-  version: string;
-  notes: string;
-  pub_date: string;
-  platforms: Record<string, TauriAsset>;
-}
+import LiveRelease from "@/components/LiveRelease.tsx";
 
 interface ResolvedAsset {
   browser_download_url: string;
@@ -31,65 +18,38 @@ interface ResolvedRelease {
   platforms: Record<string, ResolvedAsset>;
 }
 
-const fallbackRelease: ResolvedRelease = {
+// Fallback estático: el crawler (AdSense) siempre ve contenido y descargas.
+// LiveRelease (client-side) lo hidrata con la versión canary real de GitHub.
+const RELEASES_PAGE = "https://github.com/ModpackStore/ModpackStore-Releases/releases";
+const release: ResolvedRelease = {
   version: "canary",
-  notes: "Última versión disponible",
-  pub_date: new Date().toISOString(),
-  platforms: {},
+  notes: "Launcher gratuito para modpacks de Minecraft en Windows, macOS y Linux",
+  pub_date: "2026-01-15T00:00:00.000Z",
+  platforms: {
+    "windows-x86_64-msi": { browser_download_url: RELEASES_PAGE },
+    "linux-x86_64-appimage": { browser_download_url: RELEASES_PAGE },
+    "darwin-aarch64": { browser_download_url: RELEASES_PAGE },
+  },
 };
 
-let release = fallbackRelease;
-
-try {
-  const response = await fetch(CANARY_RELEASES_URL, {
-    headers: { accept: "application/json" },
-  });
-
-  if (response.ok) {
-    const manifest = (await response.json()) as TauriManifest;
-
-    const platformEntries = Object.entries(manifest.platforms);
-
-    const resolvedPlatforms: Record<string, ResolvedAsset> = {};
-
-    await Promise.all(
-      platformEntries.map(async ([key, asset]) => {
-        let downloadUrl = asset.browser_download_url ?? asset.url;
-
-        if (!asset.browser_download_url && downloadUrl?.includes("api.github.com")) {
-          try {
-            const assetRes = await fetch(downloadUrl);
-            if (assetRes.ok) {
-              const assetData = (await assetRes.json()) as { browser_download_url?: string };
-              if (assetData.browser_download_url) {
-                downloadUrl = assetData.browser_download_url;
-              }
-            }
-          } catch { /* keep original url */ }
-        }
-
-        if (downloadUrl) {
-          resolvedPlatforms[key] = { browser_download_url: downloadUrl };
-        }
-      }),
-    );
-
-    release = {
-      version: manifest.version,
-      notes: manifest.notes,
-      pub_date: manifest.pub_date,
-      platforms: resolvedPlatforms,
-    };
-  }
-} catch {
-  release = fallbackRelease;
-}
+const orgJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "ModpackStore",
+  applicationCategory: "GameApplication",
+  operatingSystem: "Windows, macOS, Linux",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  description:
+    "Launcher gratuito para instalar y gestionar modpacks de Minecraft con instancias aisladas y optimización automática.",
+};
 ---
 
 <Layout
-  title={`Modpack Store - Canary ${release.version}`}
-  description={`Modpack Store canary ${release.version}: ${release.notes}`}
+  title="ModpackStore — Launcher de modpacks de Minecraft para PC"
+  description="Descarga ModpackStore gratis: instala modpacks de Minecraft en un click en Windows, macOS y Linux. Instancias aisladas, Java y RAM automáticos, catálogo curado y soporte para creadores."
 >
+  <script type="application/ld+json" set:html={JSON.stringify(orgJsonLd)} />
+  <LiveRelease client:load />
   <!-- Google TV Cinematic Ambient Light Background -->
   <div class="fixed inset-0 z-[-1] pointer-events-none overflow-hidden bg-[#09090b]">
     <div
@@ -110,13 +70,65 @@ try {
     <Hero release={release} />
     <TrustedCommunities />
     <Features />
+
+    <!-- Cómo funciona (contenido indexable para AdSense) -->
+    <section id="como-funciona" class="relative px-4 scroll-mt-24">
+      <div class="mx-auto max-w-4xl text-center">
+        <h2 class="text-3xl md:text-4xl font-lexend font-bold text-white tracking-tight">
+          De la descarga al juego en <span class="text-gradient-ms">3 pasos</span>
+        </h2>
+        <p class="mt-3 text-zinc-400 text-sm md:text-base leading-relaxed">
+          Sin configurar Forge, Fabric, Java ni memoria RAM a mano. El launcher crea una
+          instancia aislada por modpack, descarga sus dependencias y ajusta el rendimiento
+          a tu PC. Ideal para jugar SaltoCraft y otros modpacks de la comunidad sin romper
+          tus mundos.
+        </p>
+        <ol class="mt-8 grid gap-3 text-left sm:grid-cols-3">
+          <li class="tv-card rounded-2xl p-5">
+            <div class="text-xs font-bold uppercase tracking-wider text-indigo-300">Paso 1</div>
+            <h3 class="mt-1 font-bold text-white">Descarga para tu sistema</h3>
+            <p class="mt-2 text-sm text-zinc-400 leading-relaxed">Windows (MSI), macOS (Apple Silicon e Intel) y Linux (AppImage, .deb, .rpm). La página detecta tu sistema operativo.</p>
+          </li>
+          <li class="tv-card rounded-2xl p-5">
+            <div class="text-xs font-bold uppercase tracking-wider text-indigo-300">Paso 2</div>
+            <h3 class="mt-1 font-bold text-white">Elige un modpack</h3>
+            <p class="mt-2 text-sm text-zinc-400 leading-relaxed">Explora el catálogo curado: revisa loader, versión de Minecraft, cantidad de mods y RAM recomendada.</p>
+          </li>
+          <li class="tv-card rounded-2xl p-5">
+            <div class="text-xs font-bold uppercase tracking-wider text-indigo-300">Paso 3</div>
+            <h3 class="mt-1 font-bold text-white">Pulsa Jugar</h3>
+            <p class="mt-2 text-sm text-zinc-400 leading-relaxed">Se crea una instancia aislada con Java y JVM optimizados. Tus mundos y configs no se mezclan entre modpacks.</p>
+          </li>
+        </ol>
+        <p class="mt-6 text-sm text-zinc-400">
+          Guía completa con errores comunes en
+          <a class="text-indigo-300 underline underline-offset-2 hover:text-white" href="/guias/como-instalar-modpacks-minecraft/">cómo instalar modpacks de Minecraft</a>
+          y respuestas rápidas en <a class="text-indigo-300 underline underline-offset-2 hover:text-white" href="/preguntas-frecuentes/">preguntas frecuentes</a>.
+        </p>
+      </div>
+    </section>
+
     <DownloadSection release={release} />
-    <!--script
-      async="async"
-      data-cfasync="false"
-      src="https://pl31260735.profitableratecpmnetwork.com/a40d8c1ec3644f1ce38250c2169d5697/invoke.js"
-    ></script-->
-    <div id="container-a40d8c1ec3644f1ce38250c2169d5697"></div>
+
+    <!-- Texto editorial largo (señal de valor para AdSense) -->
+    <section class="relative px-4">
+      <div class="mx-auto max-w-3xl tv-card rounded-2xl p-6 sm:p-8">
+        <h2 class="text-2xl font-lexend font-bold text-white">Un launcher pensado para jugar, no para configurar</h2>
+        <p class="mt-3 text-sm md:text-base text-zinc-400 leading-relaxed">
+          Instalar mods manualmente implica combinar loader (Forge o Fabric), versión exacta de
+          Minecraft, dependencias, versión de Java y memoria RAM. Un error y el juego no abre o
+          pierdes tus mundos. ModpackStore encapsula todo eso en instancias aisladas: cada modpack
+          vive en su propia carpeta con sus mundos y ajustes.
+        </p>
+        <p class="mt-3 text-sm md:text-base text-zinc-400 leading-relaxed">
+          Además detecta tu hardware para elegir Java, argumentos JVM y RAM, algo clave en PCs
+          modestos. Y si eres creador o administras un servidor, puedes publicar versiones con
+          actualizaciones automáticas para tus jugadores en vez de repartir zips por Discord.
+          Conoce al equipo en <a class="text-indigo-300 underline underline-offset-2 hover:text-white" href="/sobre-nosotros/">sobre nosotros</a>
+          o escríbenos por <a class="text-indigo-300 underline underline-offset-2 hover:text-white" href="/contacto/">contacto</a>.
+        </p>
+      </div>
+    </section>
   </main>
 
   <Footer />

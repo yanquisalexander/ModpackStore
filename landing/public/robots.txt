@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /ads/
+
+Sitemap: https://modpackstore.vercel.app/sitemap.xml

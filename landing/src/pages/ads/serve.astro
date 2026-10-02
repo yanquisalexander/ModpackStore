@@ -1,4 +1,42 @@
 ---
+export const prerender = false;
+
+const SITE_ORIGIN = (() => {
+  try {
+    return new URL(Astro.site?.toString() ?? "https://modpackstore.vercel.app").origin;
+  } catch {
+    return "https://modpackstore.vercel.app";
+  }
+})();
+
+// Orígenes permitidos para embeber / llamar a este proxy interno (la app ModpackStore).
+// Todo lo demás (crawlers, AdSense, tráfico directo) recibe 404.
+const ALLOWED_ORIGINS = new Set<string>([
+  SITE_ORIGIN,
+  "https://modpackstore.com",
+  "https://www.modpackstore.com",
+  "tauri://localhost",
+  "https://tauri.localhost",
+]);
+if (import.meta.env.DEV) {
+  ALLOWED_ORIGINS.add("http://localhost:1420");
+  ALLOWED_ORIGINS.add("http://localhost:1430");
+  ALLOWED_ORIGINS.add("http://localhost:3000");
+  ALLOWED_ORIGINS.add("http://localhost:4321");
+}
+
+// Hosts de ad-networks permitidos como scriptSrc. Nada genérico.
+const ALLOWED_SCRIPT_HOSTS = new Set<string>([
+  "pl31260735.profitableratecpmnetwork.com",
+  "www.profitableratecpmnetwork.com",
+  "profitableratecpmnetwork.com",
+  "serve.exoclick.com",
+  "s.magsrv.com",
+  "cdn.adcash.com",
+  "hilltopads.com",
+  "cdn.apitiny.net",
+]);
+
 function decodeBase64Url(input: string): Uint8Array {
   let base64 = input.replace(/-/g, "+").replace(/_/g, "/");
   const pad = base64.length % 4;
@@ -20,12 +58,12 @@ function decodePayload(raw: string): Record<string, unknown> | null {
   }
 }
 
-function isSafeUrl(url: string): boolean {
+function isAllowedScriptSrc(url: string): boolean {
   try {
-    const parsed = new URL(url);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
+    const parsed = new URL(url, SITE_ORIGIN);
+    if (parsed.protocol !== "https:") return false;
+    return ALLOWED_SCRIPT_HOSTS.has(parsed.hostname);
   } catch {
-    if (url.startsWith("//")) return true;
     return false;
   }
 }
@@ -40,7 +78,31 @@ function isReasonableSize(value: string): boolean {
   return !isNaN(n) && n > 0 && n < 10000;
 }
 
-const payload = Astro.url.searchParams.get("payload");
+// --- Control de acceso: solo la app / mismo sitio ---
+let allowedCaller = false;
+{
+  const referer = Astro.request.headers.get("referer");
+  const origin = Astro.request.headers.get("origin");
+  const candidate = origin ?? referer;
+  if (candidate) {
+    try {
+      const callerOrigin = new URL(candidate, SITE_ORIGIN).origin;
+      allowedCaller = ALLOWED_ORIGINS.has(callerOrigin);
+    } catch {
+      allowedCaller = false;
+    }
+  } else {
+    // Sin Referer/Origin (navegación directa, crawler, AdSensebot) -> bloquear.
+    allowedCaller = import.meta.env.DEV;
+  }
+}
+
+if (!allowedCaller) {
+  Astro.response.status = 404;
+  Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+}
+
+const payload = allowedCaller ? Astro.url.searchParams.get("payload") : null;
 
 let config: Record<string, unknown> | null = null;
 
@@ -50,7 +112,7 @@ if (payload) {
   if (
     parsed &&
     typeof parsed.scriptSrc === "string" &&
-    isSafeUrl(parsed.scriptSrc) &&
+    isAllowedScriptSrc(parsed.scriptSrc) &&
     (parsed.containerId === undefined || (typeof parsed.containerId === "string" && isSafeId(parsed.containerId)))
   ) {
     if (
@@ -63,7 +125,12 @@ if (payload) {
       (parsed.options === undefined || (typeof parsed.options === "object" && parsed.options !== null && !Array.isArray(parsed.options))) &&
       (parsed.scriptAttrs === undefined || (typeof parsed.scriptAttrs === "object" && parsed.scriptAttrs !== null && !Array.isArray(parsed.scriptAttrs)))
     ) {
-      config = parsed;
+      const format = typeof parsed.format === "string" ? parsed.format : "";
+      if (!["", "hilltopads", "exoclick", "adcash"].includes(format)) {
+        config = null;
+      } else {
+        config = parsed;
+      }
     }
   }
 }
@@ -136,6 +203,7 @@ ${S_END}`;
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="robots" content="noindex,nofollow,noarchive" />
     <base target="_blank" />
     <style>
       html, body {

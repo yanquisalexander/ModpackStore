@@ -104,7 +104,7 @@ const publishedDate = new Intl.DateTimeFormat("es-ES", {
           {
             downloads.length > 0 && (
               <a
-                href="#"
+                href={downloads[0].url}
                 id="primary-download-btn"
                 data-url={downloads[0].url}
                 data-key={downloads[0].key}

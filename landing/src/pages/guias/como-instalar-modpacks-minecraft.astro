@@ -1,0 +1,53 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import ContentPage from "../../components/ContentPage.astro";
+import Footer from "../../components/Footer.astro";
+
+const howToJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "HowTo",
+  name: "Cómo instalar modpacks de Minecraft con ModpackStore",
+  description: "Guía paso a paso para instalar modpacks de Minecraft en Windows, macOS y Linux con instancias aisladas y optimización automática.",
+  step: [
+    { "@type": "HowToStep", name: "Descargar el launcher", text: "Descarga ModpackStore Canary para tu sistema desde la sección de descarga." },
+    { "@type": "HowToStep", name: "Iniciar sesión", text: "Inicia sesión con tu cuenta de Microsoft válida de Minecraft." },
+    { "@type": "HowToStep", name: "Elegir modpack", text: "Explora el catálogo y elige un modpack como SaltoCraft según tu versión y RAM." },
+    { "@type": "HowToStep", name: "Jugar", text: "Pulsa Jugar y deja que el launcher descargue mods, loader y Java automáticamente." },
+  ],
+};
+---
+
+<Layout
+  title="Cómo instalar modpacks de Minecraft — Guía ModpackStore"
+  description="Guía paso a paso para instalar modpacks de Minecraft en Windows, macOS y Linux con ModpackStore: instancias aisladas, Java automático y más FPS."
+>
+  <script type="application/ld+json" set:html={JSON.stringify(howToJsonLd)} />
+  <ContentPage title="Cómo instalar modpacks de Minecraft" intro="Instalar mods manualmente (Forge, Fabric, Java, RAM, dependencias) es lo que rompe el 90% de las instalaciones. ModpackStore lo automatiza con instancias aisladas.">
+    <h2>Requisitos</h2>
+    <ul>
+      <li>Cuenta válida de Minecraft (Microsoft).</li>
+      <li>Windows 10/11, macOS o Linux 64-bit.</li>
+      <li>8 GB de RAM recomendados (4 GB mínimo según modpack).</li>
+      <li>Conexión a internet para la primera descarga.</li>
+    </ul>
+    <h2>Paso a paso</h2>
+    <ol>
+      <li><strong>Descarga el launcher</strong> desde <a href="/#download">la sección de descarga</a>. La web detecta tu sistema operativo.</li>
+      <li><strong>Instala y abre</strong> la versión Canary. En Windows es un MSI, en macOS un .dmg, en Linux AppImage/.deb/.rpm.</li>
+      <li><strong>Inicia sesión</strong> con tu cuenta de Microsoft.</li>
+      <li><strong>Explora el catálogo</strong>: revisa loader (Forge/Fabric), versión de Minecraft y cantidad de mods.</li>
+      <li><strong>Pulsa Jugar</strong>: se crea una instancia aislada y se descargan mods, Java y configuración óptima de RAM.</li>
+      <li><strong>Gestiona instancias</strong>: cada modpack tiene su carpeta, mundos y ajustes. Puedes duplicar o borrar sin afectar a los demás.</li>
+    </ol>
+    <h2>Errores comunes</h2>
+    <h3>El juego se cierra por falta de memoria</h3>
+    <p>Sube la RAM asignada desde los ajustes de la instancia o elige un modpack más liviano. Evita asignar más del 60-70% de tu RAM total.</p>
+    <h3>Mezclé archivos de dos modpacks</h3>
+    <p>Con instancias aisladas esto no pasa si instalas desde el launcher en vez de copiar zips a mano. Crea una instancia nueva por modpack.</p>
+    <h3>Mi PC es modesto</h3>
+    <p>Empieza por modpacks livianos, baja los shaders y la distancia de renderizado. La optimización automática ya ajusta Java y JVM por ti.</p>
+    <h2>Siguiente paso</h2>
+    <p>Si administras un servidor o creas contenido, lee <a href="/sobre-nosotros/">sobre nosotros</a> o contáctanos en <a href="/contacto/">contacto</a> para publicar tu modpack.</p>
+  </ContentPage>
+  <Footer />
+</Layout>

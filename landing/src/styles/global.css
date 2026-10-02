@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "@tailwindcss/typography";
 @import "@fontsource-variable/jost";
 @import "@fontsource-variable/lexend";
 @import "@fontsource-variable/albert-sans";

@@ -6,12 +6,21 @@ import { ClientRouter } from "astro:transitions";
 interface Props {
   title: string;
   description?: string;
+  canonical?: string;
+  noindex?: boolean;
+  ogImage?: string;
 }
 
 const {
   title,
   description = "Modpack Store - La mejor forma de gestionar tus modpacks de Minecraft",
+  canonical,
+  noindex = false,
+  ogImage = "/icon.png",
 } = Astro.props;
+
+const site = Astro.site?.toString() ?? "https://modpackstore.vercel.app";
+const canonicalUrl = canonical ?? new URL(Astro.url.pathname, site).toString();
 ---
 
 <!doctype html>
@@ -21,40 +30,39 @@ const {
     <meta name="description" content={description} />
     <meta name="viewport" content="width=device-width" />
     <link rel="icon" type="image/png" href="/icon.png" />
+    <link rel="canonical" href={canonicalUrl} />
+    {noindex && <meta name="robots" content="noindex,nofollow" />}
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://modpackstore.com/" />
+    <meta property="og:url" content={canonicalUrl} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content="/og-image.jpg" />
+    <meta property="og:image" content={new URL(ogImage, site).toString()} />
+    <meta property="og:locale" content="es_ES" />
+    <meta property="og:site_name" content="ModpackStore" />
     <meta name="google-adsense-account" content="ca-pub-7631620665837459" />
     <meta
       name="google-site-verification"
       content="oqyB3KMZv8yNVl3KoSyWqYSMnKcMRc5vKxB-bgY3Phw"
     />
 
-    <meta name="monetag" content="824e3163dcc3c297113937bd3eb38203" />
-    <meta
-      name="ea76ba0ef3fcf4aaadde4339d6355c70122d3512"
-      content="ea76ba0ef3fcf4aaadde4339d6355c70122d3512"
-    />
-
+    <noscript>
+      <style>
+        #hero-badge, #hero-title, #hero-desc, #hero-meta, #hero-cta, #hero-preview,
+        #download-card, .feature-card, #site-header { opacity: 1 !important; transform: none !important; }
+      </style>
+    </noscript>
     <!-- Twitter -->
     <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content="https://modpackstore.com/" />
+    <meta property="twitter:url" content={canonicalUrl} />
     <meta property="twitter:title" content={title} />
     <meta property="twitter:description" content={description} />
-    <meta property="twitter:image" content="/og-image.jpg" />
+    <meta property="twitter:image" content={new URL(ogImage, site).toString()} />
   </head>
   <body class="bg-background text-white min-h-screen flex flex-col">
     <Navbar />
     <slot />
-    <script
-      src="https://cdn.apitiny.net/scripts/v2.0/main.js"
-      data-site-id="6abf345904fdfacf82ff1804"
-      data-test-mode={import.meta.env.DEV ? "true" : "false"}
-      async></script>
   </body>
 </html>
