@@ -23,10 +23,7 @@ import {
     adAnalyticsDailyTable,
 } from "@/db/schema.ts";
 import { eq, sql } from "drizzle-orm";
-import { uploadObject, downloadObject, deleteObject, getS3Client } from "@/lib/r2.ts";
-import { GetObjectCommand } from "@aws-sdk/client-s3";
-import { log } from "@/lib/logger.ts";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { uploadObject, downloadObject, deleteObject } from "@/lib/r2.ts";
 
 // ── Table Registry ─────────────────────────────────
 
@@ -285,24 +282,35 @@ export async function uploadBackupToR2(payload: object, r2Key: string): Promise<
  * Download and parse a backup JSON from R2.
  */
 export async function downloadBackupFromR2(r2Key: string): Promise<any> {
-    const command = new GetObjectCommand({
-        Bucket: Deno.env.get("R2_BUCKET")!,
-        Key: r2Key,
-    });
-    const response = await getS3Client().send(command);
-    const body = await response.Body!.transformToString();
+    const bytes = await downloadObject(r2Key);
+    const body = new TextDecoder().decode(bytes);
     return JSON.parse(body);
 }
 
-/**
- * Get a presigned download URL for a backup.
- */
+async function getBackupS3Client() {
+    const { S3Client } = await import("@aws-sdk/client-s3");
+    const { FetchHttpHandler } = await import("@smithy/fetch-http-handler");
+    const accountId = Deno.env.get("R2_ACCOUNT_ID")!;
+    return new S3Client({
+        region: "auto",
+        endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+        credentials: {
+            accessKeyId: Deno.env.get("R2_ACCESS_KEY_ID")!,
+            secretAccessKey: Deno.env.get("R2_SECRET_ACCESS_KEY")!,
+        },
+        requestHandler: new FetchHttpHandler({}),
+    });
+}
+
 export async function getBackupDownloadUrl(r2Key: string, expiresIn = 3600): Promise<string> {
+    const client = await getBackupS3Client();
+    const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+    const { getSignedUrl } = await import("@aws-sdk/s3-request-presigner");
     const command = new GetObjectCommand({
         Bucket: Deno.env.get("R2_BUCKET")!,
         Key: r2Key,
     });
-    return getSignedUrl(getS3Client(), command, { expiresIn });
+    return getSignedUrl(client, command, { expiresIn });
 }
 
 /**
