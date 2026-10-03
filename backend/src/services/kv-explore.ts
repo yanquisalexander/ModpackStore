@@ -1,88 +1,113 @@
 import { getKv } from "@/db/kv.ts";
 
 const PREFIX = "explore";
+// Deno KV: valor máximo 65536 bytes. Dejamos margen porque el tamaño
+// serializado supera al JSON (overhead de tipos). Si excede, no cacheamos.
+const MAX_VALUE_BYTES = 50_000;
 
-export async function getCachedHomepage(): Promise<any | null> {
-    const kv = await getKv();
-    const res = await kv.get<any>([PREFIX, "homepage"]);
-    return res.value ?? null;
+function estimateSize(value: unknown): number {
+    try {
+        return JSON.stringify(value)?.length ?? MAX_VALUE_BYTES + 1;
+    } catch {
+        return MAX_VALUE_BYTES + 1;
+    }
 }
 
-export async function setCachedHomepage(data: any): Promise<void> {
-    const kv = await getKv();
-    await kv.set([PREFIX, "homepage"], data, { expireIn: 60_000 }); // 60s
+async function safeSet(key: Deno.KvKey, value: unknown, expireIn: number): Promise<void> {
+    try {
+        if (estimateSize(value) > MAX_VALUE_BYTES) return; // demasiado grande: skip silencioso
+        const kv = await getKv();
+        await kv.set(key, value, { expireIn });
+    } catch {
+        // Cache best-effort: nunca debe romper el request.
+    }
 }
 
-export async function getCachedSearch(query: string): Promise<any | null> {
-    const kv = await getKv();
-    const res = await kv.get<any>([PREFIX, "search", query.toLowerCase()]);
-    return res.value ?? null;
+async function safeGet<T>(key: Deno.KvKey): Promise<T | null> {
+    try {
+        const kv = await getKv();
+        const res = await kv.get<T>(key);
+        return res.value ?? null;
+    } catch {
+        return null;
+    }
 }
 
-export async function setCachedSearch(query: string, data: any): Promise<void> {
-    const kv = await getKv();
-    await kv.set([PREFIX, "search", query.toLowerCase()], data, { expireIn: 30_000 }); // 30s
+export function getCachedHomepage(): Promise<any | null> {
+    return safeGet([PREFIX, "homepage"]);
 }
 
-export async function getCachedModpack(modpackId: string): Promise<any | null> {
-    const kv = await getKv();
-    const res = await kv.get<any>([PREFIX, "modpack", modpackId]);
-    return res.value ?? null;
+export function setCachedHomepage(data: any): Promise<void> {
+    return safeSet([PREFIX, "homepage"], data, 60_000); // 60s
 }
 
-export async function setCachedModpack(modpackId: string, data: any): Promise<void> {
-    const kv = await getKv();
-    await kv.set([PREFIX, "modpack", modpackId], data, { expireIn: 300_000 }); // 5min
+export function getCachedSearch(query: string): Promise<any | null> {
+    return safeGet([PREFIX, "search", query.toLowerCase()]);
 }
 
-export async function getCachedVersions(modpackId: string): Promise<any | null> {
-    const kv = await getKv();
-    const res = await kv.get<any>([PREFIX, "versions", modpackId]);
-    return res.value ?? null;
+export function setCachedSearch(query: string, data: any): Promise<void> {
+    return safeSet([PREFIX, "search", query.toLowerCase()], data, 30_000); // 30s
 }
 
-export async function setCachedVersions(modpackId: string, data: any): Promise<void> {
-    const kv = await getKv();
-    await kv.set([PREFIX, "versions", modpackId], data, { expireIn: 300_000 }); // 5min
+export function getCachedModpack(modpackId: string): Promise<any | null> {
+    return safeGet([PREFIX, "modpack", modpackId]);
 }
 
-export async function getCachedVersionFiles(versionId: string, target: string): Promise<any | null> {
-    const kv = await getKv();
-    const res = await kv.get<any>([PREFIX, "files", versionId, target]);
-    return res.value ?? null;
+export function setCachedModpack(modpackId: string, data: any): Promise<void> {
+    return safeSet([PREFIX, "modpack", modpackId], data, 300_000); // 5min
 }
 
-export async function setCachedVersionFiles(versionId: string, target: string, data: any): Promise<void> {
-    const kv = await getKv();
-    await kv.set([PREFIX, "files", versionId, target], data, { expireIn: 300_000 }); // 5min
+export function getCachedVersions(modpackId: string): Promise<any | null> {
+    return safeGet([PREFIX, "versions", modpackId]);
 }
 
-export async function getCachedTos(): Promise<any | null> {
-    const kv = await getKv();
-    const res = await kv.get<any>([PREFIX, "tos"]);
-    return res.value ?? null;
+export function setCachedVersions(modpackId: string, data: any): Promise<void> {
+    return safeSet([PREFIX, "versions", modpackId], data, 300_000); // 5min
 }
 
-export async function setCachedTos(data: any): Promise<void> {
-    const kv = await getKv();
-    await kv.set([PREFIX, "tos"], data, { expireIn: 300_000 }); // 5min
+export function getCachedVersionFiles(versionId: string, target: string): Promise<any | null> {
+    return safeGet([PREFIX, "files", versionId, target]);
+}
+
+export function setCachedVersionFiles(versionId: string, target: string, data: any): Promise<void> {
+    return safeSet([PREFIX, "files", versionId, target], data, 300_000); // 5min
+}
+
+export function getCachedTos(): Promise<any | null> {
+    return safeGet([PREFIX, "tos"]);
+}
+
+export function setCachedTos(data: any): Promise<void> {
+    return safeSet([PREFIX, "tos"], data, 300_000); // 5min
 }
 
 export async function invalidateModpackCache(modpackId: string): Promise<void> {
-    const kv = await getKv();
-    await kv.delete([PREFIX, "modpack", modpackId]);
-    await kv.delete([PREFIX, "versions", modpackId]);
+    try {
+        const kv = await getKv();
+        await kv.delete([PREFIX, "modpack", modpackId]);
+        await kv.delete([PREFIX, "versions", modpackId]);
+    } catch {
+        // best-effort
+    }
 }
 
 export async function invalidateHomepageCache(): Promise<void> {
-    const kv = await getKv();
-    await kv.delete([PREFIX, "homepage"]);
+    try {
+        const kv = await getKv();
+        await kv.delete([PREFIX, "homepage"]);
+    } catch {
+        // best-effort
+    }
 }
 
 export async function invalidateAllExploreCache(): Promise<void> {
-    const kv = await getKv();
-    // Deno KV no soporta list con prefijos por batches, así que borramos uno a uno conocido.
-    // Para una implementación completa se usaría KV atomic operations.
-    await kv.delete([PREFIX, "homepage"]);
-    // Las keys search/modpack/versions/files se borran por TTL.
+    try {
+        const kv = await getKv();
+        // Deno KV no soporta list con prefijos por batches, así que borramos uno a uno conocido.
+        // Para una implementación completa se usaría KV atomic operations.
+        await kv.delete([PREFIX, "homepage"]);
+        // Las keys search/modpack/versions/files se borran por TTL.
+    } catch {
+        // best-effort
+    }
 }

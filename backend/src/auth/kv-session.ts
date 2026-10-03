@@ -32,13 +32,17 @@ export const sessionKV = {
     },
 
     async set(sessionId: string, userId: string, user?: SessionCache["user"]): Promise<void> {
-        const kv = await getKv();
-        const value: SessionCache = { userId, createdAt: new Date().toISOString(), user };
-        await kv.set(
-            [SESSION_PREFIX, sessionId],
-            value,
-            { expireIn: SESSION_TTL_MS },
-        );
+        try {
+            const kv = await getKv();
+            const value: SessionCache = { userId, createdAt: new Date().toISOString(), user };
+            await kv.set(
+                [SESSION_PREFIX, sessionId],
+                value,
+                { expireIn: SESSION_TTL_MS },
+            );
+        } catch {
+            // Cache best-effort: la sesión vive en PG aunque KV falle.
+        }
     },
 
     async delete(sessionId: string): Promise<void> {
