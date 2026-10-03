@@ -10,6 +10,7 @@ import {
     primaryKey,
     numeric,
     uniqueIndex,
+    index,
     serial,
     integer,
     bigint
@@ -215,7 +216,9 @@ export const modpacksTable = pgTable("modpacks", {
     twitchChannels: jsonb('twitch_channels'),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+    idxModpackVisibilityStatus: index("idx_modpacks_visibility_status").on(table.visibility, table.status, table.updatedAt),
+}));
 
 /* Categories */
 
@@ -254,7 +257,9 @@ export const modpackVersionsTable = pgTable("modpack_versions", {
     createdBy: uuid("created_by").notNull().references(() => users.id),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-});
+}, (table) => ({
+    idxVersionModpackStatus: index("idx_versions_modpack_status").on(table.modpackId, table.status),
+}));
 
 export const modpackVersionFilesTable = pgTable("modpack_version_files", {
     fileHash: text("file_hash").notNull().references(() => modpackFilesTable.hash, { onDelete: "cascade" }),
@@ -263,7 +268,8 @@ export const modpackVersionFilesTable = pgTable("modpack_version_files", {
     fileType: text("file_type").notNull(), // e.g., "mods", "resourcepacks", etc
     side: text("side").notNull().default('both'), // "client", "server", or "both"
 }, (table) => ({
-    pk: primaryKey({ columns: [table.fileHash, table.modpackVersionId, table.path] })
+    pk: primaryKey({ columns: [table.fileHash, table.modpackVersionId, table.path] }),
+    idxVersionFilesVersion: index("idx_version_files_version").on(table.modpackVersionId),
 }));
 
 export const modpackVersionProcessingJobsTable = pgTable("modpack_version_processing_jobs", {
@@ -384,7 +390,10 @@ export const gameSessionsTable = pgTable("game_sessions", {
     lastActivity: timestamp("last_activity", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-});
+}, (table) => ({
+    idxGameSessionServer: index("idx_game_sessions_server").on(table.serverId),
+    idxGameSessionExpiry: index("idx_game_sessions_expires").on(table.expiresAt),
+}));
 
 export const gameSessionsRelations = relations(gameSessionsTable, ({ one }) => ({
     user: one(users, {

@@ -12,6 +12,7 @@ import {
 import { eq, and, desc, inArray, ne } from "drizzle-orm";
 import { NotFoundError, ValidationError } from "@/lib/errors/index.ts";
 import { generatePresignedUploadUrl, getTempZipKey } from "@/lib/r2.ts";
+import { invalidateModpackCache, invalidateHomepageCache } from "@/services/kv-explore.ts";
 import { ProcessModpackFilesQueue } from "@/worker/queues.ts";
 
 export async function createVersion(
@@ -113,6 +114,8 @@ export async function publishVersion(versionId: string) {
         .returning();
 
     if (!version) throw new NotFoundError("Version not found", "VERSION_NOT_FOUND");
+    await invalidateModpackCache(version.modpackId);
+    await invalidateHomepageCache();
     return version;
 }
 

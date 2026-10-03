@@ -116,7 +116,7 @@ export const authService = {
             .returning();
 
         // Dual-write: save session to KV for fast reads
-        await sessionKV.set(session.id, user.id);
+        await sessionKV.set(session.id, user.id, { id: user.id, role: user.role, username: user.username, avatarUrl: user.avatarUrl, isPlus: user.isPlus, adFree: user.adFree });
 
         const accessToken = await signToken(
             { sub: user.id, sessionId: session.id },
@@ -151,8 +151,6 @@ export const authService = {
             if (!session || session.userId !== userId) {
                 throw new UnauthorizedError("Invalid session or user", "INVALID_SESSION");
             }
-            // Repopulate KV
-            await sessionKV.set(sessionId, userId);
         }
 
         // Single query: just fetch user (session already validated via KV or PG fallback)
@@ -160,6 +158,8 @@ export const authService = {
         if (!user) {
             throw new UnauthorizedError("Invalid session or user", "INVALID_SESSION");
         }
+        // Repopulate KV with fresh user snapshot (best effort)
+        void sessionKV.set(sessionId, userId, { id: user.id, role: user.role, username: user.username, avatarUrl: user.avatarUrl, isPlus: user.isPlus, adFree: user.adFree }).catch(() => {});
 
         const newAccessToken = await signToken(
             { sub: userId, sessionId },
@@ -179,29 +179,29 @@ export const authService = {
     },
 
     async getAuthenticatedUserProfile(userId: string): Promise<UserPublicProfile> {
-        const [user] = await db.select()
-            .from(users)
-            .where(eq(users.id, userId))
-            .limit(1);
+        const [userResult, banResult, membershipsResult] = await Promise.all([
+            db.select().from(users).where(eq(users.id, userId)).limit(1),
+            db.select().from(bansTable).where(and(eq(bansTable.userId, userId), eq(bansTable.isActive, true))).limit(1),
+            db.select({
+                creatorId: creatorUsersTable.creatorId,
+                role: creatorUsersTable.role,
+                displayName: creatorsTable.displayName,
+                slug: creatorsTable.slug,
+                status: creatorsTable.status,
+            })
+            .from(creatorUsersTable)
+            .innerJoin(creatorsTable, eq(creatorUsersTable.creatorId, creatorsTable.id))
+            .where(eq(creatorUsersTable.userId, userId)),
+        ]);
+
+        const user = userResult[0];
         if (!user) {
             throw new NotFoundError("User not found", "USER_NOT_FOUND");
         }
 
-        const [activeBan] = await db.select()
-            .from(bansTable)
-            .where(and(eq(bansTable.userId, userId), eq(bansTable.isActive, true)))
-            .limit(1);
+        const [activeBan] = banResult;
 
-        const memberships = await db.select({
-            creatorId: creatorUsersTable.creatorId,
-            role: creatorUsersTable.role,
-            displayName: creatorsTable.displayName,
-            slug: creatorsTable.slug,
-            status: creatorsTable.status,
-        })
-            .from(creatorUsersTable)
-            .innerJoin(creatorsTable, eq(creatorUsersTable.creatorId, creatorsTable.id))
-            .where(eq(creatorUsersTable.userId, userId));
+        const memberships = membershipsResult as Array<typeof membershipsResult[0]>;
 
         return {
             id: user.id,

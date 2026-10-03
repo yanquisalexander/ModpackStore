@@ -31,7 +31,7 @@ app.get("/", optionalAuth, async (c) => {
     try {
         const userId = c.get("userId");
         const result = await getExploreHomepage(userId);
-        return c.json({ data: result });
+        return c.json({ data: result }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" });
     } catch (error) {
         log("[EXPLORE] Failed to fetch homepage:", error);
         return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to fetch homepage." }] }, 500);
@@ -49,12 +49,12 @@ app.get("/search", async (c) => {
     try {
         const results = await searchModpacks(query);
         return c.json({
-            data: results.map((m) => ({
+            data: results.map((m: any) => ({
                 id: m.id,
                 type: "modpack",
                 attributes: m,
             })),
-        });
+        }, 200, { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" });
     } catch (error) {
         log("[EXPLORE] Error searching modpacks:", error);
         return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Search failed." }] }, 500);
@@ -73,7 +73,7 @@ app.get("/modpacks/:modpackId", optionalAuth, async (c) => {
             return c.json({ errors: [{ status: "404", title: "Not Found", detail: "Modpack not found." }] }, 404);
         }
 
-        return c.json({ data: modpack }, 200);
+        return c.json({ data: modpack }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" });
     } catch (error) {
         log("[EXPLORE] Error in getModpack:", error);
         return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to fetch modpack." }] }, 500);
@@ -93,7 +93,7 @@ app.get("/modpacks/:modpackId/prelaunch-appearance", async (c) => {
                 id: modpackId,
                 attributes: appearance,
             },
-        }, 200);
+        }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" });
     } catch (error) {
         log("[EXPLORE] Error in getPrelaunchAppearance:", error);
         return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to fetch prelaunch appearance." }] }, 500);
@@ -107,7 +107,7 @@ app.get("/modpacks/:modpackId/versions", async (c) => {
 
     try {
         const versions = await getPublishedVersions(modpackId);
-        return c.json({ data: versions }, 200);
+        return c.json({ data: versions }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" });
     } catch (error) {
         log("[EXPLORE] Error in getModpackVersions:", error);
         return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to fetch versions." }] }, 500);
@@ -142,8 +142,10 @@ app.get("/modpacks/:modpackId/latest", requireAuthOrToken, requireScope("server:
             }
         }
 
-        const latestVersion = await getLatestPublishedVersion(modpackId);
-        const modpack = await getModpackBasicInfo(modpackId);
+        const [latestVersion, modpack] = await Promise.all([
+            getLatestPublishedVersion(modpackId),
+            getModpackBasicInfo(modpackId),
+        ]);
 
         return c.json({
             version: {
@@ -156,7 +158,7 @@ app.get("/modpacks/:modpackId/latest", requireAuthOrToken, requireScope("server:
                 changelog: latestVersion.changelog,
                 modpack: modpack ? { id: modpack.id, name: modpack.name } : null,
             },
-        }, 200);
+        }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" });
     } catch (error) {
         if (error instanceof NotFoundError) {
             return c.json({ errors: [{ status: "404", title: "Not Found", detail: error.message }] }, 404);
@@ -223,7 +225,7 @@ app.get("/modpacks/:modpackId/versions/:versionId", requireAuthOrToken, requireS
             releaseDate: version.releaseDate,
             status: version.status,
             version: version.version,
-            files: files.map((f) => ({
+            files: files.map((f: any) => ({
                 path: f.fileType && f.fileType !== "extras" ? `${f.fileType}/${f.path}` : f.path,
                 fileHash: f.fileHash,
                 fileType: f.fileType,
@@ -287,8 +289,10 @@ app.get("/modpacks/:modpackId/check-update", optionalAuth, async (c) => {
             }
         }
 
-        const latestVersion = await getLatestPublishedVersion(modpackId);
-        const modpack = await getModpackBasicInfo(modpackId);
+        const [latestVersion, modpack] = await Promise.all([
+            getLatestPublishedVersion(modpackId),
+            getModpackBasicInfo(modpackId),
+        ]);
 
         const hasUpdate = latestVersion.version !== currentVersion;
 
@@ -305,7 +309,7 @@ app.get("/modpacks/:modpackId/check-update", optionalAuth, async (c) => {
                 changelog: latestVersion.changelog,
             },
             modpack: modpack ? { id: modpack.id, name: modpack.name } : null,
-        }, 200);
+        }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" });
     } catch (error) {
         if (error instanceof NotFoundError) {
             return c.json({ errors: [{ status: "404", title: "Not Found", detail: error.message }] }, 404);
@@ -328,7 +332,7 @@ app.get("/twitch-channels/search", async (c) => {
 
     try {
         const channels = await searchTwitchChannels(query);
-        return c.json({ channels });
+        return c.json({ channels }, 200, { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" });
     } catch (error) {
         log("[EXPLORE] Error searching Twitch channels:", error);
         return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to search Twitch channels." }] }, 500);

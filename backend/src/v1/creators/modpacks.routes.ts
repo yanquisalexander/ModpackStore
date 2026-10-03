@@ -9,7 +9,6 @@ import { modpacksTable } from "@/db/schema.ts";
 import { eq } from "drizzle-orm";
 import { NotFoundError } from "@/lib/errors/index.ts";
 import { uploadObject, getModpackImageKey, getModpackImageUrl, getModpackImageResizedKey, getModpackImageResizedUrl, generatePresignedUploadUrl } from "@/lib/r2.ts";
-import { resizeImage } from "@/lib/image-resize.ts";
 import {
     createModpack,
     getModpacksByCreator,
@@ -160,6 +159,7 @@ app.patch("/:modpackId", requireAuth, requireCreatorRole(CreatorRole.OWNER, Crea
         data.iconUrl = getModpackImageUrl(modpackId, 'icon');
         
         try {
+            const { resizeImage } = await import("@/lib/image-resize.ts");
             const resized = await resizeImage(bytes, 256);
             await uploadObject(getModpackImageResizedKey(modpackId, 'icon'), resized.bytes, resized.format);
             data.iconUrlResized = getModpackImageResizedUrl(modpackId, 'icon');
@@ -173,6 +173,7 @@ app.patch("/:modpackId", requireAuth, requireCreatorRole(CreatorRole.OWNER, Crea
         data.bannerUrl = getModpackImageUrl(modpackId, 'banner');
         
         try {
+            const { resizeImage } = await import("@/lib/image-resize.ts");
             const resized = await resizeImage(bytes, 800);
             await uploadObject(getModpackImageResizedKey(modpackId, 'banner'), resized.bytes, resized.format);
             data.bannerUrlResized = getModpackImageResizedUrl(modpackId, 'banner');

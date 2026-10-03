@@ -2,8 +2,12 @@ import { db } from "@/db/client.ts";
 import { modpacksTable, modpackCategoriesTable, categoriesTable, ModpackStatus, ModpackVisibility, AcquisitionMethod } from "@/db/schema.ts";
 import { eq, inArray } from "drizzle-orm";
 import { NotFoundError, ValidationError } from "@/lib/errors/index.ts";
-import * as bcrypt from "npm:bcryptjs";
 import { setModpackCategories } from "@/services/category.service.ts";
+
+async function hashPassword(password: string): Promise<string> {
+    const { default: bcrypt } = await import("npm:bcryptjs");
+    return bcrypt.hash(password, 10);
+}
 
 function validateVisibilityConstraints(visibility: string | undefined, acquisitionMethod: string | undefined, password: string | null | undefined) {
     if (visibility === ModpackVisibility.WHITELIST) {
@@ -66,7 +70,7 @@ export async function createModpack(
 
     let hashedPassword: string | null = null;
     if (data.password) {
-        hashedPassword = await bcrypt.hash(data.password, 10);
+        hashedPassword = await hashPassword(data.password);
     }
 
     const [modpack] = await db.insert(modpacksTable)
@@ -200,7 +204,7 @@ export async function updateModpack(
 
     for (const [key, value] of Object.entries(data)) {
         if (key === "password" && value) {
-            updateData[key] = await bcrypt.hash(value as string, 10);
+            updateData[key] = await hashPassword(value as string);
         } else if (key === "twitchCreatorIds" || key === "twitchChannels") {
             updateData[key] = value ? JSON.stringify(value) : null;
         } else if (value !== undefined) {

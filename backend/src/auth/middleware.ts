@@ -71,7 +71,7 @@ async function authenticate(c: Context, failIfMissing: boolean): Promise<void> {
     const sessionCache = await sessionKV.get(jwtPayload.sessionId);
 
     if (sessionCache) {
-        // KV hit: verify userId matches, then just fetch user
+        // KV hit: verify userId matches
         if (sessionCache.userId !== jwtPayload.sub) {
             if (failIfMissing) {
                 throw new UnauthorizedError("Unauthorized", "INVALID_SESSION");
@@ -79,22 +79,29 @@ async function authenticate(c: Context, failIfMissing: boolean): Promise<void> {
             return;
         }
 
-        const [user] = await db.select().from(users).where(eq(users.id, jwtPayload.sub)).limit(1);
+        // Si tenemos snapshot en KV, usarlo directamente (sin SELECT a DB)
+        let user = sessionCache.user;
         if (!user) {
-            if (failIfMissing) {
-                throw new UnauthorizedError("Unauthorized", "INVALID_SESSION");
+            const [u] = await db.select().from(users).where(eq(users.id, jwtPayload.sub)).limit(1);
+            if (!u) {
+                if (failIfMissing) {
+                    throw new UnauthorizedError("Unauthorized", "INVALID_SESSION");
+                }
+                return;
             }
-            return;
+            user = { id: u.id, role: u.role, username: u.username, avatarUrl: u.avatarUrl, isPlus: u.isPlus, adFree: u.adFree };
+            // Repoblar snapshot en KV para próxima request (ignorar errores para no bloquear)
+            void sessionKV.set(jwtPayload.sessionId, jwtPayload.sub, user).catch(() => {});
         }
 
-        c.set("user", user);
+        c.set("user", user as typeof users.$inferSelect);
         c.set("jwtPayload", jwtPayload);
         c.set("userId", user.id);
         c.set("authType", "user");
         return;
     }
 
-    // KV miss: fallback to PostgreSQL + repopulate KV
+    // KV miss: fallback a PostgreSQL + repoblar KV
     const [user] = await db.select().from(users).where(eq(users.id, jwtPayload.sub)).limit(1);
     const [session] = await db.select().from(sessions).where(eq(sessions.id, jwtPayload.sessionId)).limit(1);
 
@@ -105,8 +112,9 @@ async function authenticate(c: Context, failIfMissing: boolean): Promise<void> {
         return;
     }
 
-    // Repopulate KV for next request
-    await sessionKV.set(session.id, user.id);
+    const userSnapshot = { id: user.id, role: user.role, username: user.username, avatarUrl: user.avatarUrl, isPlus: user.isPlus, adFree: user.adFree };
+    // Repoblar KV para próximas requests (async, ignora fallos)
+    void sessionKV.set(session.id, user.id, userSnapshot).catch(() => {});
 
     c.set("user", user);
     c.set("jwtPayload", jwtPayload);

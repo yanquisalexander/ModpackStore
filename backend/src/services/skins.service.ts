@@ -10,13 +10,19 @@ import {
     getUserCapeKey,
     getUserCapeUrl,
 } from "@/lib/r2.ts";
-import {
-    validateAndNormalizeSkin,
-    validateAndNormalizeCape,
-} from "@/lib/skin-validation.ts";
 
 const MAX_SKINS = 12;
 const MAX_CAPES = 4;
+
+async function validateAndNormalizeSkin(bytes: Uint8Array): Promise<{ bytes: Uint8Array; hash: string }> {
+    const { validateAndNormalizeSkin: fn } = await import("@/lib/skin-validation.ts");
+    return fn(bytes);
+}
+
+async function validateAndNormalizeCape(bytes: Uint8Array): Promise<{ bytes: Uint8Array; hash: string }> {
+    const { validateAndNormalizeCape: fn } = await import("@/lib/skin-validation.ts");
+    return fn(bytes);
+}
 
 // ── Upload ──────────────────────────────────────────
 

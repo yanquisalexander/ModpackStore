@@ -11,7 +11,11 @@ import {
 import { eq, and, ne } from "drizzle-orm";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/lib/errors/index.ts";
 import { log } from "@/lib/logger.ts";
-import * as bcrypt from "npm:bcryptjs";
+
+async function comparePassword(password: string, hash: string): Promise<boolean> {
+    const { default: bcrypt } = await import("npm:bcryptjs");
+    return bcrypt.compare(password, hash);
+}
 import { hasAccess as checkWhitelistAccess } from "@/services/whitelist.service.ts";
 
 export async function checkAccess(
@@ -185,7 +189,7 @@ export async function acquirePassword(userId: string, modpackId: string, passwor
         throw new ValidationError("Modpack has no password set", "NO_PASSWORD");
     }
 
-    const valid = await bcrypt.compare(password, modpack.password);
+    const valid = modpack.password ? await comparePassword(password, modpack.password) : false;
     if (!valid) {
         throw new ForbiddenError("Incorrect password", "INVALID_PASSWORD");
     }

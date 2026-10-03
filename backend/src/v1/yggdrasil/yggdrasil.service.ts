@@ -5,6 +5,10 @@ import { APIError } from "@/lib/errors/index.ts";
 import { verify } from "@hono/hono/jwt";
 import { getActiveSkin, getActiveCape } from "@/services/skins.service.ts";
 import { getProfileFromMojang } from "@/v1/mojang/mojang.service.ts";
+import {
+    getCachedSession,
+    setCachedSession,
+} from "@/services/kv-yggdrasil.ts";
 
 const JWT_SECRET = Deno.env.get("JWT_SECRET")!;
 const YGGDRASIL_SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
@@ -65,13 +69,24 @@ export const yggdrasilService = {
     },
 
     async validate(accessToken: string, clientToken?: string) {
+        const cached = await getCachedSession(accessToken);
+        if (cached !== null) return cached;
         const [gs] = await db.select().from(gameSessionsTable).where(eq(gameSessionsTable.accessToken, accessToken)).limit(1);
-        if (!gs) return false;
-        if (clientToken && gs.clientToken !== clientToken) return false;
+        if (!gs) {
+            await setCachedSession(accessToken, false);
+            return false;
+        }
+        if (clientToken && gs.clientToken !== clientToken) {
+            await setCachedSession(accessToken, false);
+            return false;
+        }
         if (isExpired(gs.expiresAt) || isInactive(gs.lastActivity)) {
-            await db.delete(gameSessionsTable).where(eq(gameSessionsTable.id, gs.id)); return false;
+            await db.delete(gameSessionsTable).where(eq(gameSessionsTable.id, gs.id));
+            await setCachedSession(accessToken, false);
+            return false;
         }
         await db.update(gameSessionsTable).set({ lastActivity: new Date() }).where(eq(gameSessionsTable.id, gs.id));
+        await setCachedSession(accessToken, true);
         return true;
     },
 
@@ -118,7 +133,8 @@ export const yggdrasilService = {
             throw new APIError(400, "Invalid selectedProfile.", "IllegalArgumentException");
         }
 
-        await db.update(gameSessionsTable).set({ serverId, ipAddress: ipAddress || null, lastActivity: new Date() }).where(eq(gameSessionsTable.id, gs.id));
+        // Fire-and-forget: update serverId/ip/lastActivity asynchronously
+        void db.update(gameSessionsTable).set({ serverId, ipAddress: ipAddress || null, lastActivity: new Date() }).where(eq(gameSessionsTable.id, gs.id));
     },
 
     async hasJoined(username: string, serverId: string, ip?: string): Promise<YggdrasilProfile | null> {
@@ -140,7 +156,8 @@ export const yggdrasilService = {
 
         const { session: gs, user } = row;
         if (isExpired(gs.expiresAt) || isInactive(gs.lastActivity)) {
-            await db.delete(gameSessionsTable).where(eq(gameSessionsTable.id, gs.id)); return null;
+            await db.delete(gameSessionsTable).where(eq(gameSessionsTable.id, gs.id));
+            return null;
         }
         if (ip && gs.ipAddress && gs.ipAddress !== ip) return null;
 
@@ -152,7 +169,8 @@ export const yggdrasilService = {
             );
         }
 
-        await db.update(gameSessionsTable).set({ serverId: null, lastActivity: new Date() }).where(eq(gameSessionsTable.id, gs.id));
+        // Fire-and-forget: update serverId=null/lastActivity async
+        void db.update(gameSessionsTable).set({ serverId: null, lastActivity: new Date() }).where(eq(gameSessionsTable.id, gs.id));
         return await buildProfile(user, undefined, false, gs.minecraftUuid ?? undefined);
     },
 

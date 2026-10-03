@@ -11,21 +11,7 @@ import {
     UserRole,
 } from "@/db/schema.ts";
 import { eq, and, or, isNull, lte, gte, sql, desc, inArray } from "drizzle-orm";
-
-// In-memory anti-fraud / deduplication cache (30s for impressions, 5s for clicks)
-const impressionCache = new Map<string, number>();
-const clickCache = new Map<string, number>();
-
-// Clean up stale cache keys every 5 minutes
-setInterval(() => {
-    const now = Date.now();
-    for (const [key, timestamp] of impressionCache.entries()) {
-        if (now - timestamp > 60_000) impressionCache.delete(key);
-    }
-    for (const [key, timestamp] of clickCache.entries()) {
-        if (now - timestamp > 30_000) clickCache.delete(key);
-    }
-}, 300_000);
+import { isDuplicate } from "@/services/kv-ads.ts";
 
 export interface AdPayload {
     id: string;
@@ -329,14 +315,10 @@ export const adsService = {
      */
     async trackImpression(campaignId: string, deviceId: string = "anonymous"): Promise<boolean> {
         const cacheKey = `${campaignId}:${deviceId}`;
-        const lastSeen = impressionCache.get(cacheKey);
-        const now = Date.now();
-
-        if (lastSeen && now - lastSeen < 30_000) {
-            // Deduplicated
+        const duplicated = await isDuplicate(cacheKey, 30_000);
+        if (duplicated) {
             return false;
         }
-        impressionCache.set(cacheKey, now);
 
         const today = getTodayString();
 
@@ -364,13 +346,10 @@ export const adsService = {
      */
     async trackClick(campaignId: string, deviceId: string = "anonymous"): Promise<boolean> {
         const cacheKey = `${campaignId}:${deviceId}`;
-        const lastSeen = clickCache.get(cacheKey);
-        const now = Date.now();
-
-        if (lastSeen && now - lastSeen < 5_000) {
+        const duplicated = await isDuplicate(cacheKey, 5_000);
+        if (duplicated) {
             return false;
         }
-        clickCache.set(cacheKey, now);
 
         const today = getTodayString();
 

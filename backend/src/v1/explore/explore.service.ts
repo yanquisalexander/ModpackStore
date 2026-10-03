@@ -15,8 +15,31 @@ import { NotFoundError } from "@/lib/errors/index.ts";
 import { ForbiddenError } from "@/lib/errors/index.ts";
 import { hasAccess as checkWhitelistAccess } from "@/services/whitelist.service.ts";
 import { adsService } from "@/services/ads.service.ts";
+import {
+    getCachedHomepage,
+    setCachedHomepage,
+    getCachedSearch,
+    setCachedSearch,
+    getCachedModpack,
+    setCachedModpack,
+    getCachedVersions,
+    setCachedVersions,
+    getCachedVersionFiles,
+    setCachedVersionFiles,
+} from "@/services/kv-explore.ts";
 
 export async function getModpack(modpackId: string, userId?: string) {
+    const cached = await getCachedModpack(modpackId);
+    if (cached) {
+        // Public modpacks are immutable; cache hit is safe.
+        if (cached.visibility === ModpackVisibility.PUBLIC) return cached;
+        if (cached.visibility === ModpackVisibility.WHITELIST && userId) {
+            const allowed = await checkWhitelistAccess(modpackId, userId);
+            if (allowed) return cached;
+        }
+        return null;
+    }
+
     const [row] = await db.select({
         id: modpacksTable.id,
         name: modpacksTable.name,
@@ -52,10 +75,16 @@ export async function getModpack(modpackId: string, userId?: string) {
         .limit(1);
 
     if (!row) return null;
-    if (row.visibility === ModpackVisibility.PUBLIC) return row;
+    if (row.visibility === ModpackVisibility.PUBLIC) {
+        await setCachedModpack(modpackId, row);
+        return row;
+    }
     if (row.visibility === ModpackVisibility.WHITELIST && userId) {
         const allowed = await checkWhitelistAccess(modpackId, userId);
-        if (allowed) return row;
+        if (allowed) {
+            await setCachedModpack(modpackId, row);
+            return row;
+        }
     }
 
     return null;
@@ -73,6 +102,9 @@ export async function getPrelaunchAppearance(modpackId: string) {
 }
 
 export async function getPublishedVersions(modpackId: string) {
+    const cached = await getCachedVersions(modpackId);
+    if (cached) return cached;
+
     const versions = await db.select({
         id: modpackVersionsTable.id,
         version: modpackVersionsTable.version,
@@ -110,13 +142,15 @@ export async function getPublishedVersions(modpackId: string) {
         else filesByVersion.set(f.versionId, [f]);
     }
 
-    return versions.map(v => ({
+    const result = versions.map(v => ({
         ...v,
         files: (filesByVersion.get(v.id) || []).map(f => ({
             path: f.fileType && f.fileType !== "extras" ? `${f.fileType}/${f.path}` : f.path,
             file: { type: f.fileType },
         })),
     }));
+    void setCachedVersions(modpackId, result);
+    return result;
 }
 
 export async function getVersion(versionId: string, modpackId: string) {
@@ -166,6 +200,9 @@ export async function getLatestPublishedVersion(modpackId: string) {
 }
 
 export async function getVersionFiles(versionId: string, target: "client" | "server" | "both") {
+    const cached = await getCachedVersionFiles(versionId, target);
+    if (cached) return cached;
+
     const conditions: SQL[] = [eq(modpackVersionFilesTable.modpackVersionId, versionId)];
 
     if (target === "client") {
@@ -174,7 +211,7 @@ export async function getVersionFiles(versionId: string, target: "client" | "ser
         conditions.push(sql`${modpackVersionFilesTable.side} != 'client'`);
     }
 
-    return db.select({
+    const rows = await db.select({
         fileHash: modpackVersionFilesTable.fileHash,
         path: modpackVersionFilesTable.path,
         fileType: modpackVersionFilesTable.fileType,
@@ -188,6 +225,8 @@ export async function getVersionFiles(versionId: string, target: "client" | "ser
             eq(modpackFilesTable.hash, modpackVersionFilesTable.fileHash),
         )
         .where(and(...conditions));
+    void setCachedVersionFiles(versionId, target, rows);
+    return rows;
 }
 
 export async function getModpackBasicInfo(modpackId: string) {
@@ -214,6 +253,9 @@ export async function getModpackPassword(modpackId: string) {
 }
 
 export async function getExploreHomepage(userId?: string) {
+    const cached = await getCachedHomepage();
+    if (cached) return cached;
+
     const allCategories = await db.select()
         .from(categoriesTable)
         .where(eq(categoriesTable.isAdminOnly, false))
@@ -227,10 +269,10 @@ export async function getExploreHomepage(userId?: string) {
                 slug: modpacksTable.slug,
                 shortDescription: modpacksTable.shortDescription,
                 description: modpacksTable.description,
-        iconUrl: modpacksTable.iconUrl,
-        iconUrlResized: modpacksTable.iconUrlResized,
-        bannerUrl: modpacksTable.bannerUrl,
-        bannerUrlResized: modpacksTable.bannerUrlResized,
+                iconUrl: modpacksTable.iconUrl,
+                iconUrlResized: modpacksTable.iconUrlResized,
+                bannerUrl: modpacksTable.bannerUrl,
+                bannerUrlResized: modpacksTable.bannerUrlResized,
                 trailerUrl: modpacksTable.trailerUrl,
                 acquisitionMethod: modpacksTable.acquisitionMethod,
                 createdAt: modpacksTable.createdAt,
@@ -307,12 +349,18 @@ export async function getExploreHomepage(userId?: string) {
 
     const featured = await adsService.getFeaturedSlides(userId);
 
-    return { categories, featured };
+    const result = { categories, featured };
+
+    void setCachedHomepage(result);
+    return result;
 }
 
 export async function searchModpacks(query: string) {
+    const cached = await getCachedSearch(query);
+    if (cached) return cached;
+
     const pattern = `%${query}%`;
-    return db.select({
+    const results = await db.select({
         id: modpacksTable.id,
         name: modpacksTable.name,
         slug: modpacksTable.slug,
@@ -346,6 +394,8 @@ export async function searchModpacks(query: string) {
         ))
         .orderBy(modpacksTable.name)
         .limit(20);
+    void setCachedSearch(query, results);
+    return results;
 }
 
 /**
