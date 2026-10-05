@@ -169,6 +169,13 @@
       "when": 1790986018601,
       "tag": "0023_whitelist_yggdrasil",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1791239050294,
+      "tag": "0024_creator-audit-logs",
+      "breakpoints": true
     }
   ]
 }

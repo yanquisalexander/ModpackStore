@@ -7,6 +7,7 @@ import {
     Settings,
     KeyRound,
     Megaphone,
+    ScrollText,
     type LucideIcon,
 } from "lucide-react";
 
@@ -74,6 +75,12 @@ export const getOrgNavItems = (orgId: string): NavItem[] => [
         label: "API Tokens",
         description: "Tokens para servidores y automatización",
         icon: KeyRound,
+    },
+    {
+        path: `/creators/org/${orgId}/audit`,
+        label: "Auditoría",
+        description: "Registro de actividad del equipo",
+        icon: ScrollText,
     },
     {
         path: `/creators/org/${orgId}/settings`,

@@ -4,6 +4,7 @@ import { requireAuth, type AuthVariables } from "@/auth/middleware.ts";
 import { requireCreatorAccess, requireCreatorRole } from "@/middlewares/creator.middleware.ts";
 import { adsService } from "@/services/ads.service.ts";
 import { AdPlacement, AdStatus, AdType, CreatorRole } from "@/db/schema.ts";
+import { auditContextFromRequest, logCreatorEventAsync } from "@/services/creator-audit.service.ts";
 
 const creatorAdsRoutes = new Hono<{ Variables: AuthVariables }>();
 
@@ -80,6 +81,15 @@ creatorAdsRoutes.post(
                 endAt: body.endAt ? new Date(body.endAt) : null,
             });
 
+            logCreatorEventAsync({
+                ...auditContextFromRequest(c, creatorId, {
+                    action: "ad.requested",
+                    entityType: "ad",
+                    entityId: (campaign as { id: string }).id,
+                    details: { title: body.title, placement: body.placement },
+                }),
+                action: "ad.requested",
+            });
             return c.json({
                 data: campaign,
                 message: "Solicitud de campaña enviada con éxito. Será revisada por el equipo de administración.",

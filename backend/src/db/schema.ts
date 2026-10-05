@@ -512,6 +512,74 @@ export const creatorStorageConfigTable = pgTable("creator_storage_config", {
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/* Creator Audit Log (per-creator, OWNER/ADMIN visible, append-only) */
+
+export const CREATOR_AUDIT_ACTIONS = [
+    "creator.updated",
+    "creator.profile.updated",
+    "creator.image.uploaded",
+    "member.added",
+    "member.removed",
+    "member.role.updated",
+    "permission.updated",
+    "modpack.created",
+    "modpack.updated",
+    "modpack.deleted",
+    "version.created",
+    "version.updated",
+    "version.published",
+    "version.archived",
+    "version.file.side.updated",
+    "version.file.deleted",
+    "version.files.reused",
+    "whitelist.added",
+    "whitelist.bulk_added",
+    "whitelist.removed",
+    "whitelist.cleared",
+    "whitelist.settings.updated",
+    "api_token.created",
+    "api_token.revoked",
+    "asset.uploaded",
+    "asset.deleted",
+    "storage.config.updated",
+    "ad.requested",
+    "curseforge.import.started",
+] as const;
+export type CreatorAuditAction = typeof CREATOR_AUDIT_ACTIONS[number];
+
+export const CREATOR_AUDIT_ENTITY_TYPES = [
+    "creator",
+    "member",
+    "permission",
+    "modpack",
+    "version",
+    "file",
+    "whitelist",
+    "api_token",
+    "asset",
+    "storage",
+    "ad",
+] as const;
+export type CreatorAuditEntityType = typeof CREATOR_AUDIT_ENTITY_TYPES[number];
+
+export const creatorAuditLogsTable = pgTable("creator_audit_logs", {
+    id: uuid("id").primaryKey().notNull().defaultRandom(),
+    creatorId: uuid("creator_id").notNull().references(() => creatorsTable.id, { onDelete: "cascade" }),
+    actorUserId: uuid("actor_user_id").references(() => users.id, { onDelete: "set null" }),
+    actorTokenId: uuid("actor_token_id").references(() => creatorApiTokensTable.id, { onDelete: "set null" }),
+    action: text("action").notNull(),
+    entityType: text("entity_type"),
+    entityId: text("entity_id"),
+    details: jsonb("details").$type<Record<string, unknown> | null>(),
+    ipAddress: varchar("ip_address", { length: 45 }),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => ({
+    idxCreatorAuditCreatorCreated: index("idx_creator_audit_creator_created").on(table.creatorId, table.createdAt),
+    idxCreatorAuditAction: index("idx_creator_audit_action").on(table.creatorId, table.action),
+    idxCreatorAuditActor: index("idx_creator_audit_actor").on(table.actorUserId),
+}));
+
 /* 
     Relationships
 */
@@ -604,6 +672,21 @@ export const creatorStorageConfigRelations = relations(creatorStorageConfigTable
     creator: one(creatorsTable, {
         fields: [creatorStorageConfigTable.creatorId],
         references: [creatorsTable.id],
+    }),
+}));
+
+export const creatorAuditLogsRelations = relations(creatorAuditLogsTable, ({ one }) => ({
+    creator: one(creatorsTable, {
+        fields: [creatorAuditLogsTable.creatorId],
+        references: [creatorsTable.id],
+    }),
+    actor: one(users, {
+        fields: [creatorAuditLogsTable.actorUserId],
+        references: [users.id],
+    }),
+    actorToken: one(creatorApiTokensTable, {
+        fields: [creatorAuditLogsTable.actorTokenId],
+        references: [creatorApiTokensTable.id],
     }),
 }));
 

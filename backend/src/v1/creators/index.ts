@@ -19,15 +19,18 @@ import {
 } from "@/services/creator.service.ts";
 import { CreatorRole } from "@/db/schema.ts";
 import { getMemberPermissions, setMemberPermission } from "@/services/permission.service.ts";
+import { auditContextFromRequest, logCreatorEventAsync } from "@/services/creator-audit.service.ts";
 import modpackRoutes from "./modpacks.routes.ts";
 import apiTokenRoutes from "./api-tokens.routes.ts";
 import storageRoutes from "./storage.routes.ts";
 import creatorAdsRoutes from "./ads.routes.ts";
+import auditRoutes from "./audit.routes.ts";
 
 const app = new Hono();
 app.route("/:creatorId/modpacks", modpackRoutes);
 app.route("/:creatorId/api-tokens", apiTokenRoutes);
 app.route("/:creatorId/ads", creatorAdsRoutes);
+app.route("/:creatorId/audit-logs", auditRoutes);
 app.route("/", storageRoutes);
 
 // ── Creator CRUD ──────────────────────────────────
@@ -57,7 +60,17 @@ app.patch(
     requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN),
     async (c: Context<{ Variables: AuthVariables }>) => {
         const body = await c.req.json();
-        const creator = await updateCreator(c.req.param("creatorId")!, body);
+        const creatorId = c.req.param("creatorId")!;
+        const creator = await updateCreator(creatorId, body);
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, creatorId, {
+                action: "creator.updated",
+                entityType: "creator",
+                entityId: creatorId,
+                details: { updated: Object.keys(body ?? {}) },
+            }),
+            action: "creator.updated",
+        });
         return c.json(creator);
     },
 );
@@ -80,7 +93,16 @@ app.put(
     requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN),
     async (c: Context<{ Variables: AuthVariables }>) => {
         const body = await c.req.json();
-        const profile = await updateCreatorProfile(c.req.param("creatorId")!, body);
+        const creatorId = c.req.param("creatorId")!;
+        const profile = await updateCreatorProfile(creatorId, body);
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, creatorId, {
+                action: "creator.profile.updated",
+                entityType: "creator",
+                entityId: creatorId,
+            }),
+            action: "creator.profile.updated",
+        });
         return c.json({ data: profile });
     },
 );
@@ -102,6 +124,15 @@ app.post(
         const creatorId = c.req.param("creatorId")!;
         const url = await uploadCreatorImage(creatorId, type, file);
         await updateCreator(creatorId, type === 'logo' ? { logoUrl: url } : { bannerUrl: url });
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, creatorId, {
+                action: "creator.image.uploaded",
+                entityType: "creator",
+                entityId: creatorId,
+                details: { type },
+            }),
+            action: "creator.image.uploaded",
+        });
         return c.json({ data: { url } });
     },
 );
@@ -131,7 +162,17 @@ app.post(
     requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN),
     async (c: Context<{ Variables: AuthVariables }>) => {
         const { userId, role } = await c.req.json();
-        const membership = await addMember(c.req.param("creatorId")!, userId, role ?? CreatorRole.MEMBER);
+        const creatorId = c.req.param("creatorId")!;
+        const membership = await addMember(creatorId, userId, role ?? CreatorRole.MEMBER);
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, creatorId, {
+                action: "member.added",
+                entityType: "member",
+                entityId: userId,
+                details: { role: role ?? CreatorRole.MEMBER },
+            }),
+            action: "member.added",
+        });
         return c.json(membership, 201);
     },
 );
@@ -142,7 +183,18 @@ app.patch(
     requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN),
     async (c: Context<{ Variables: AuthVariables }>) => {
         const { role } = await c.req.json();
-        const membership = await updateMemberRole(c.req.param("creatorId")!, c.req.param("userId")!, role);
+        const creatorId = c.req.param("creatorId")!;
+        const targetUserId = c.req.param("userId")!;
+        const membership = await updateMemberRole(creatorId, targetUserId, role);
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, creatorId, {
+                action: "member.role.updated",
+                entityType: "member",
+                entityId: targetUserId,
+                details: { role },
+            }),
+            action: "member.role.updated",
+        });
         return c.json(membership);
     },
 );
@@ -152,7 +204,17 @@ app.delete(
     requireAuth,
     requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN),
     async (c: Context<{ Variables: AuthVariables }>) => {
-        await removeMember(c.req.param("creatorId")!, c.req.param("userId")!);
+        const creatorId = c.req.param("creatorId")!;
+        const targetUserId = c.req.param("userId")!;
+        await removeMember(creatorId, targetUserId);
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, creatorId, {
+                action: "member.removed",
+                entityType: "member",
+                entityId: targetUserId,
+            }),
+            action: "member.removed",
+        });
         return c.body(null, 204);
     },
 );
@@ -178,14 +240,26 @@ app.post(
     requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN),
     async (c: Context<{ Variables: AuthVariables }>) => {
         const { userId, permission, enabled, modpackId } = await c.req.json();
+        const creatorId = c.req.param("creatorId")!;
         const result = await setMemberPermission(
-            c.req.param("creatorId")!,
+            creatorId,
             userId,
             permission,
             enabled,
             modpackId,
         );
-        if (result.ok) return c.json({ data: { ok: true } });
+        if (result.ok) {
+            logCreatorEventAsync({
+                ...auditContextFromRequest(c, creatorId, {
+                    action: "permission.updated",
+                    entityType: "permission",
+                    entityId: userId,
+                    details: { permission, enabled: !!enabled, modpackId: modpackId ?? null },
+                }),
+                action: "permission.updated",
+            });
+            return c.json({ data: { ok: true } });
+        }
         return c.json({ errors: [{ status: "400", title: "Bad Request", detail: result.reason }] }, 400);
     },
 );

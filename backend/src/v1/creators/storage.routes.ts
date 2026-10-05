@@ -2,6 +2,7 @@ import { Hono } from "@hono/hono";
 import type { Context } from "@hono/hono";
 import { requireAuth, type AuthVariables } from "@/auth/middleware.ts";
 import { requireCreatorAccess, requireCreatorRole } from "@/middlewares/creator.middleware.ts";
+import { auditContextFromRequest, logCreatorEventAsync } from "@/services/creator-audit.service.ts";
 import { CreatorRole } from "@/db/schema.ts";
 import {
     getStorageConfig,
@@ -34,7 +35,17 @@ app.put(
     requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN),
     async (c: Context<{ Variables: AuthVariables }>) => {
         const { storageLimitBytes } = await c.req.json();
-        const config = await updateStorageConfig(c.req.param("creatorId")!, storageLimitBytes);
+        const creatorId = c.req.param("creatorId")!;
+        const config = await updateStorageConfig(creatorId, storageLimitBytes);
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, creatorId, {
+                action: "storage.config.updated",
+                entityType: "storage",
+                entityId: creatorId,
+                details: { storageLimitBytes },
+            }),
+            action: "storage.config.updated",
+        });
         return c.json({ data: config });
     },
 );
@@ -103,11 +114,21 @@ app.post(
         if (!body.fileName || !body.r2Key || typeof body.sizeBytes !== "number") {
             return c.json({ errors: [{ status: "400", title: "Bad Request", detail: "fileName, r2Key and sizeBytes are required." }] }, 400);
         }
-        const asset = await confirmAssetUpload(c.req.param("creatorId")!, {
+        const creatorId = c.req.param("creatorId")!;
+        const asset = await confirmAssetUpload(creatorId, {
             fileName: body.fileName,
             r2Key: body.r2Key,
             contentType: body.contentType ?? "",
             sizeBytes: body.sizeBytes,
+        });
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, creatorId, {
+                action: "asset.uploaded",
+                entityType: "asset",
+                entityId: (asset as { id: string }).id,
+                details: { fileName: body.fileName, sizeBytes: body.sizeBytes },
+            }),
+            action: "asset.uploaded",
         });
         return c.json({ data: asset }, 201);
     },
@@ -128,7 +149,17 @@ app.post(
             return c.json({ errors: [{ status: "400", title: "Bad Request", detail: "File is required." }] }, 400);
         }
 
-        const asset = await uploadAsset(c.req.param("creatorId")!, file);
+        const creatorId = c.req.param("creatorId")!;
+        const asset = await uploadAsset(creatorId, file);
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, creatorId, {
+                action: "asset.uploaded",
+                entityType: "asset",
+                entityId: (asset as { id: string }).id,
+                details: { fileName: file.name, sizeBytes: file.size },
+            }),
+            action: "asset.uploaded",
+        });
         return c.json({ data: asset }, 201);
     },
 );
@@ -138,7 +169,17 @@ app.delete(
     requireAuth,
     requireCreatorAccess,
     async (c: Context<{ Variables: AuthVariables }>) => {
-        await deleteAsset(c.req.param("creatorId")!, c.req.param("assetId")!);
+        const creatorId = c.req.param("creatorId")!;
+        const assetId = c.req.param("assetId")!;
+        await deleteAsset(creatorId, assetId);
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, creatorId, {
+                action: "asset.deleted",
+                entityType: "asset",
+                entityId: assetId,
+            }),
+            action: "asset.deleted",
+        });
         return c.body(null, 204);
     },
 );

@@ -35,6 +35,7 @@ import {
 import { importCurseforge, validateManifest } from "@/services/curseforge-import.service.ts";
 import type { CurseForgeManifest } from "@/types/curseforge.ts";
 import { ValidationError } from "@/lib/errors/index.ts";
+import { auditContextFromRequest, logCreatorEventAsync } from "@/services/creator-audit.service.ts";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 
@@ -91,6 +92,15 @@ app.post("/", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADM
         categoryIds,
         primaryCategoryId: body.primaryCategoryId as string | undefined,
     });
+    logCreatorEventAsync({
+        ...auditContextFromRequest(c, creatorId, {
+            action: "modpack.created",
+            entityType: "modpack",
+            entityId: (modpack as { id: string }).id,
+            details: { name: (body.name as string) ?? "" },
+        }),
+        action: "modpack.created",
+    });
     return c.json(modpack, 201);
 });
 
@@ -123,6 +133,15 @@ app.post("/import/curseforge", requireAuth, requireCreatorRole(CreatorRole.OWNER
 
     const result = await importCurseforge(creatorId, userId, body.zipR2Key, manifest, { slug });
 
+    logCreatorEventAsync({
+        ...auditContextFromRequest(c, creatorId, {
+            action: "curseforge.import.started",
+            entityType: "modpack",
+            entityId: (result as { modpackId?: string })?.modpackId ?? null,
+            details: { name: manifest?.name, slug: slug ?? null },
+        }),
+        action: "curseforge.import.started",
+    });
     return c.json({
         success: true,
         message: "CurseForge modpack import started",
@@ -184,12 +203,30 @@ app.patch("/:modpackId", requireAuth, requireCreatorRole(CreatorRole.OWNER, Crea
 
     // Pass current modpack to avoid re-querying
     const modpack = await updateModpack(modpackId, data as any, currentModpack);
+    logCreatorEventAsync({
+        ...auditContextFromRequest(c, c.req.param("creatorId")!, {
+            action: "modpack.updated",
+            entityType: "modpack",
+            entityId: modpackId,
+            details: { updated: Object.keys(data) },
+        }),
+        action: "modpack.updated",
+    });
     return c.json(modpack);
 });
 
 app.delete("/:modpackId", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN), requireModpackAccess, async (c) => {
     const modpackId = c.req.param("modpackId")!;
+    const creatorId = c.req.param("creatorId")!;
     const modpack = await deleteModpack(modpackId);
+    logCreatorEventAsync({
+        ...auditContextFromRequest(c, creatorId, {
+            action: "modpack.deleted",
+            entityType: "modpack",
+            entityId: modpackId,
+        }),
+        action: "modpack.deleted",
+    });
     return c.json(modpack);
 });
 
@@ -204,8 +241,18 @@ app.get("/:modpackId/versions", requireAuth, requireCreatorAccess, requireModpac
 app.post("/:modpackId/versions", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN), requireModpackAccess, async (c) => {
     const userId = c.get("userId");
     const modpackId = c.req.param("modpackId")!;
+    const creatorId = c.req.param("creatorId")!;
     const body = await c.req.json();
     const version = await createVersion(modpackId, userId, body);
+    logCreatorEventAsync({
+        ...auditContextFromRequest(c, creatorId, {
+            action: "version.created",
+            entityType: "version",
+            entityId: (version as { id: string }).id,
+            details: { modpackId, version: (body as { version?: string })?.version ?? null },
+        }),
+        action: "version.created",
+    });
     return c.json(version, 201);
 });
 
@@ -217,20 +264,50 @@ app.get("/:modpackId/versions/:versionId", requireAuth, requireCreatorAccess, re
 
 app.patch("/:modpackId/versions/:versionId", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN), requireModpackAccess, async (c) => {
     const versionId = c.req.param("versionId")!;
+    const creatorId = c.req.param("creatorId")!;
     const body = await c.req.json();
     const version = await updateVersion(versionId, body);
+    logCreatorEventAsync({
+        ...auditContextFromRequest(c, creatorId, {
+            action: "version.updated",
+            entityType: "version",
+            entityId: versionId,
+            details: { updated: Object.keys(body ?? {}) },
+        }),
+        action: "version.updated",
+    });
     return c.json(version);
 });
 
 app.patch("/:modpackId/versions/:versionId/publish", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN), requireModpackAccess, async (c) => {
     const versionId = c.req.param("versionId")!;
+    const creatorId = c.req.param("creatorId")!;
     const version = await publishVersion(versionId);
+    logCreatorEventAsync({
+        ...auditContextFromRequest(c, creatorId, {
+            action: "version.published",
+            entityType: "version",
+            entityId: versionId,
+            details: { modpackId: c.req.param("modpackId")! },
+        }),
+        action: "version.published",
+    });
     return c.json(version);
 });
 
 app.patch("/:modpackId/versions/:versionId/archive", requireAuth, requireCreatorRole(CreatorRole.OWNER, CreatorRole.ADMIN), requireModpackAccess, async (c) => {
     const versionId = c.req.param("versionId")!;
+    const creatorId = c.req.param("creatorId")!;
     const version = await archiveVersion(versionId);
+    logCreatorEventAsync({
+        ...auditContextFromRequest(c, creatorId, {
+            action: "version.archived",
+            entityType: "version",
+            entityId: versionId,
+            details: { modpackId: c.req.param("modpackId")! },
+        }),
+        action: "version.archived",
+    });
     return c.json(version);
 });
 
@@ -289,6 +366,15 @@ app.post("/:modpackId/versions/:versionId/reuse-files/:fileType",
         const fileType = c.req.param("fileType")!;
         const { fileRefs } = await c.req.json();
         const count = await reuseFiles(versionId, fileType, fileRefs);
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, c.req.param("creatorId")!, {
+                action: "version.files.reused",
+                entityType: "version",
+                entityId: versionId,
+                details: { fileType, reused: count },
+            }),
+            action: "version.files.reused",
+        });
         return c.json({ reused: count });
     },
 );
@@ -328,6 +414,15 @@ app.patch("/:modpackId/versions/:versionId/files/:fileHash/side",
         const fileHash = c.req.param("fileHash")!;
         const { side } = await c.req.json();
         const result = await updateFileSide(versionId, fileHash, side);
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, c.req.param("creatorId")!, {
+                action: "version.file.side.updated",
+                entityType: "file",
+                entityId: fileHash,
+                details: { versionId, side },
+            }),
+            action: "version.file.side.updated",
+        });
         return c.json(result);
     },
 );
@@ -340,6 +435,15 @@ app.delete("/:modpackId/versions/:versionId/files/:fileHash",
         const versionId = c.req.param("versionId")!;
         const fileHash = c.req.param("fileHash")!;
         await deleteFileFromVersion(versionId, fileHash);
+        logCreatorEventAsync({
+            ...auditContextFromRequest(c, c.req.param("creatorId")!, {
+                action: "version.file.deleted",
+                entityType: "file",
+                entityId: fileHash,
+                details: { versionId },
+            }),
+            action: "version.file.deleted",
+        });
         return c.body(null, 204);
     },
 );
