@@ -47,7 +47,7 @@
   },
   "productName": "Modpack Store",
   "mainBinaryName": "ModpackStore",
-  "version": "1.2.1",
+  "version": "1.2.11",
   "identifier": "dev.alexitoo.modpackstore",
   "plugins": {
     "updater": {
