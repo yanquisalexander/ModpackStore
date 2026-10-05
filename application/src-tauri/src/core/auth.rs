@@ -413,14 +413,16 @@ mod api {
                 .map_err(|e| format!("Error loading auth tokens: {}", e))?
                 .ok_or("No authentication tokens found")?;
 
-            let mut twitch_endpoint = format!("{}/auth/twitch/callback?code={}", *API_ENDPOINT, code);
+            let twitch_endpoint = format!("{}/auth/twitch/link", *API_ENDPOINT);
+            let mut payload = serde_json::json!({ "code": code });
             if let Some(uri) = redirect_uri {
-                twitch_endpoint = format!("{}&redirect_uri={}", twitch_endpoint, urlencoding::encode(uri));
+                payload["redirect_uri"] = serde_json::Value::String(uri.to_string());
             }
 
             let response = self
                 .client
-                .get(&twitch_endpoint)
+                .post(&twitch_endpoint)
+                .json(&payload)
                 .bearer_auth(&tokens.access_token)
                 .send()
                 .await

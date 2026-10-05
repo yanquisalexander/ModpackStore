@@ -4,15 +4,26 @@ import { eq } from "drizzle-orm";
 import { ForbiddenError, NotFoundError } from "@/lib/errors/index.ts";
 import { log } from "@/lib/logger.ts";
 
-const CLIENT_ID = Deno.env.get("TWITCH_CLIENT_ID")!;
-const CLIENT_SECRET = Deno.env.get("TWITCH_CLIENT_SECRET")!;
-const REDIRECT_URI = Deno.env.get("TWITCH_REDIRECT_URI") || "http://localhost:1958/callback";
+const DEFAULT_REDIRECT_URI = "http://localhost:1958/callback";
 const SCOPES = ["user:read:subscriptions"];
+
+function getClientId(): string {
+    return Deno.env.get("TWITCH_CLIENT_ID") ?? "";
+}
+
+function getClientSecret(): string {
+    return Deno.env.get("TWITCH_CLIENT_SECRET") ?? "";
+}
+
+function getRedirectUri(override?: string | null): string {
+    if (override && override.trim().length > 0) return override;
+    return Deno.env.get("TWITCH_REDIRECT_URI") || DEFAULT_REDIRECT_URI;
+}
 
 export function getOAuthUrl(state?: string): string {
     const params = new URLSearchParams({
-        client_id: CLIENT_ID,
-        redirect_uri: REDIRECT_URI,
+        client_id: getClientId(),
+        redirect_uri: getRedirectUri(),
         response_type: "code",
         scope: SCOPES.join(" "),
         force_verify: "true",
@@ -23,16 +34,25 @@ export function getOAuthUrl(state?: string): string {
     return `https://id.twitch.tv/oauth2/authorize?${params.toString()}`;
 }
 
-export async function exchangeCodeForToken(code: string) {
+export async function exchangeCodeForToken(code: string, redirectUri?: string | null) {
+    const clientId = getClientId();
+    const clientSecret = getClientSecret();
+    const redirect_uri = getRedirectUri(redirectUri);
+
+    if (!clientId || !clientSecret) {
+        log("[TWITCH] Missing TWITCH_CLIENT_ID / TWITCH_CLIENT_SECRET env");
+        throw new ForbiddenError("Twitch OAuth not configured", "TWITCH_NOT_CONFIGURED");
+    }
+
     const res = await fetch("https://id.twitch.tv/oauth2/token", {
         method: "POST",
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
-            client_id: CLIENT_ID,
-            client_secret: CLIENT_SECRET,
+            client_id: clientId,
+            client_secret: clientSecret,
             code,
             grant_type: "authorization_code",
-            redirect_uri: REDIRECT_URI,
+            redirect_uri,
         }),
     });
 
@@ -52,7 +72,7 @@ export async function exchangeCodeForToken(code: string) {
     const userRes = await fetch("https://api.twitch.tv/helix/users", {
         headers: {
             Authorization: `Bearer ${data.access_token}`,
-            "Client-Id": CLIENT_ID,
+            "Client-Id": clientId,
         },
     });
 
@@ -84,8 +104,8 @@ export async function exchangeCodeForToken(code: string) {
     };
 }
 
-export async function linkTwitchToUser(userId: string, code: string) {
-    const tokens = await exchangeCodeForToken(code);
+export async function linkTwitchToUser(userId: string, code: string, redirectUri?: string | null) {
+    const tokens = await exchangeCodeForToken(code, redirectUri);
 
     // Check if Twitch ID already linked to another user
     const [existingUser] = await db.select()

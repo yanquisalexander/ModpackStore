@@ -100,7 +100,19 @@ export async function deleteObject(key: string) {
         await client.send(command);
     } catch (err: any) {
         if (err?.name === "InternalError" || err?.message?.includes("stream")) {
-            log(`[R2] deleteObject stream error (non-fatal) for key: ${key}`);
+            // Artefacto conocido del FetchHttpHandler en Deno al leer la
+            // respuesta vacía (204) del DELETE: el borrado suele haberse
+            // aplicado en R2. Se verifica para no tragar un fallo real.
+            let stillExists: boolean | null = null;
+            try {
+                stillExists = await fileExists(key);
+            } catch { /* best effort */ }
+            if (stillExists === false) {
+                log(`[R2] deleteObject applied (stream read artifact) for key: ${key}`);
+                return;
+            }
+            log(`[R2] deleteObject stream error for key: ${key} (stillExists=${stillExists} name=${err?.name} msg=${err?.message})`);
+            if (stillExists === true) throw err; // fallo real: no se borró
             return;
         }
         throw err;

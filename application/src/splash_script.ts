@@ -1,3 +1,8 @@
+// Sistema de auto-update estilo Discord: al abrir la app siempre se comprueba si hay
+// nueva versión (tauri-plugin-updater, `installMode: quiet` en `tauri.conf.json`).
+// Flujo en el splash: `check()` -> `download()` con barra de progreso -> `install()`
+// -> `relaunch()`. Por eso los fixes de cliente (ej. OAuth) llegan solos sin
+// reinstalación manual; el backend debe mantener compat con versiones ya instaladas.
 import { check, type Update } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import { invoke } from '@tauri-apps/api/core';

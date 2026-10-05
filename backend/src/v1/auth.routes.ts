@@ -71,14 +71,16 @@ authRoutes.post(
     requireAuth,
     async (c: Context<{ Variables: AuthVariables }>) => {
         const userId = c.get("userId");
-        const { code } = await c.req.json();
+        const body = await c.req.json().catch(() => ({}));
+        const code = body?.code as string | undefined;
+        const redirectUri = (body?.redirect_uri ?? body?.redirectUri) as string | undefined;
 
         if (!code) {
             return c.json({ errors: [{ status: "400", title: "Bad Request", detail: "Authorization code is required." }] }, 400);
         }
 
         try {
-            await linkTwitchToUser(userId, code);
+            await linkTwitchToUser(userId, code, redirectUri ?? undefined);
             return c.json({ status: "linked" }, 200);
         } catch (error) {
             if (error instanceof ForbiddenError) {
