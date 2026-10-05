@@ -15,6 +15,53 @@ import { and, count, desc, eq, gte, lte, sql } from "drizzle-orm";
 export type { CreatorAuditAction, CreatorAuditEntityType };
 export const CREATOR_AUDIT_ACTION_LIST: readonly string[] = CREATOR_AUDIT_ACTIONS;
 
+/**
+ * Snapshot del nombre visible de un usuario para guardarlo en `details`.
+ * Es una PK lookup barata y nunca lanza: se usa en el path de escritura
+ * (fire-and-forget, fuera de la respuesta) para que la lectura no necesite
+ * ningún JOIN extra.
+ */
+export async function resolveUsernameForAudit(userId: string | null | undefined): Promise<string | null> {
+    if (!userId) return null;
+    try {
+        const [row] = await db.select({ username: users.username })
+            .from(users)
+            .where(eq(users.id, userId))
+            .limit(1);
+        return row?.username ?? null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Wrapper no bloqueante para eventos sobre un usuario (miembro, whitelist...).
+ * Resuelve `targetUsername` y escribe el log íntegramente en background:
+ * cero queries y cero latencia añadida en la respuesta HTTP.
+ */
+export function logCreatorEventForUser(
+    c: Context<{ Variables: AuthVariables }>,
+    creatorId: string,
+    action: CreatorAuditAction,
+    entityType: CreatorAuditEntityType,
+    targetUserId: string,
+    extraDetails?: Record<string, unknown>,
+    knownUsername?: string | null,
+): void {
+    void (async () => {
+        const targetUsername = knownUsername ?? await resolveUsernameForAudit(targetUserId);
+        await logCreatorEvent({
+            ...auditContextFromRequest(c, creatorId, {
+                action,
+                entityType,
+                entityId: targetUserId,
+                details: { ...extraDetails, targetUsername },
+            }),
+            action,
+        });
+    })();
+}
+
 export interface LogCreatorEventInput {
     creatorId: string;
     actorUserId?: string | null;

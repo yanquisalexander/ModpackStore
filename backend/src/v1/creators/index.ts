@@ -19,7 +19,7 @@ import {
 } from "@/services/creator.service.ts";
 import { CreatorRole } from "@/db/schema.ts";
 import { getMemberPermissions, setMemberPermission } from "@/services/permission.service.ts";
-import { auditContextFromRequest, logCreatorEventAsync } from "@/services/creator-audit.service.ts";
+import { auditContextFromRequest, logCreatorEventAsync, logCreatorEventForUser } from "@/services/creator-audit.service.ts";
 import modpackRoutes from "./modpacks.routes.ts";
 import apiTokenRoutes from "./api-tokens.routes.ts";
 import storageRoutes from "./storage.routes.ts";
@@ -164,14 +164,8 @@ app.post(
         const { userId, role } = await c.req.json();
         const creatorId = c.req.param("creatorId")!;
         const membership = await addMember(creatorId, userId, role ?? CreatorRole.MEMBER);
-        logCreatorEventAsync({
-            ...auditContextFromRequest(c, creatorId, {
-                action: "member.added",
-                entityType: "member",
-                entityId: userId,
-                details: { role: role ?? CreatorRole.MEMBER },
-            }),
-            action: "member.added",
+        logCreatorEventForUser(c, creatorId, "member.added", "member", userId, {
+            role: role ?? CreatorRole.MEMBER,
         });
         return c.json(membership, 201);
     },
@@ -186,15 +180,7 @@ app.patch(
         const creatorId = c.req.param("creatorId")!;
         const targetUserId = c.req.param("userId")!;
         const membership = await updateMemberRole(creatorId, targetUserId, role);
-        logCreatorEventAsync({
-            ...auditContextFromRequest(c, creatorId, {
-                action: "member.role.updated",
-                entityType: "member",
-                entityId: targetUserId,
-                details: { role },
-            }),
-            action: "member.role.updated",
-        });
+        logCreatorEventForUser(c, creatorId, "member.role.updated", "member", targetUserId, { role });
         return c.json(membership);
     },
 );
@@ -207,14 +193,7 @@ app.delete(
         const creatorId = c.req.param("creatorId")!;
         const targetUserId = c.req.param("userId")!;
         await removeMember(creatorId, targetUserId);
-        logCreatorEventAsync({
-            ...auditContextFromRequest(c, creatorId, {
-                action: "member.removed",
-                entityType: "member",
-                entityId: targetUserId,
-            }),
-            action: "member.removed",
-        });
+        logCreatorEventForUser(c, creatorId, "member.removed", "member", targetUserId);
         return c.body(null, 204);
     },
 );
@@ -249,14 +228,10 @@ app.post(
             modpackId,
         );
         if (result.ok) {
-            logCreatorEventAsync({
-                ...auditContextFromRequest(c, creatorId, {
-                    action: "permission.updated",
-                    entityType: "permission",
-                    entityId: userId,
-                    details: { permission, enabled: !!enabled, modpackId: modpackId ?? null },
-                }),
-                action: "permission.updated",
+            logCreatorEventForUser(c, creatorId, "permission.updated", "permission", userId, {
+                permission,
+                enabled: !!enabled,
+                modpackId: modpackId ?? null,
             });
             return c.json({ data: { ok: true } });
         }

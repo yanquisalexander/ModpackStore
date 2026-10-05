@@ -16,7 +16,8 @@ import {
     getWhitelistIngameSettings,
     updateWhitelistIngameSettings,
 } from "@/services/whitelist.service.ts";
-import { auditContextFromRequest, logCreatorEventAsync } from "@/services/creator-audit.service.ts";
+import { auditContextFromRequest, logCreatorEvent, resolveUsernameForAudit } from "@/services/creator-audit.service.ts";
+import type { CreatorAuditAction } from "@/services/creator-audit.service.ts";
 
 const app = new Hono<{ Variables: AuthVariables }>();
 
@@ -58,13 +59,43 @@ app.get("/:modpackId/stats", requireAuth, requireModpackAccess, async (c) => {
     return c.json({ data: stats });
 });
 
-// Helper: resolve creatorId for audit scope (whitelist routes are modpack-scoped)
-async function getCreatorIdForModpack(modpackId: string): Promise<string | null> {
-    const [row] = await db.select({ creatorId: modpacksTable.creatorId })
+// Helper: resolve audit scope + display snapshot (whitelist routes are modpack-scoped).
+// Reutiliza una única PK lookup; el nombre es un snapshot para no necesitar JOINs en lectura.
+async function getModpackAuditInfo(modpackId: string): Promise<{ creatorId: string; modpackName: string } | null> {
+    const [row] = await db.select({ creatorId: modpacksTable.creatorId, name: modpacksTable.name })
         .from(modpacksTable)
         .where(eq(modpacksTable.id, modpackId))
         .limit(1);
-    return row?.creatorId ?? null;
+    if (!row) return null;
+    return { creatorId: row.creatorId, modpackName: row.name };
+}
+
+/**
+ * Escritura de auditoría 100% en background: resolución de nombres + INSERT
+ * fuera del path de respuesta. Cero latencia añadida al endpoint.
+ */
+function logWhitelistEvent(c: Context<{ Variables: AuthVariables }>, modpackId: string, action: CreatorAuditAction, entityId: string, extraDetails: Record<string, unknown>, targetUserId?: string | null, knownUsername?: string | null): void {
+    void (async () => {
+        const info = await getModpackAuditInfo(modpackId);
+        if (!info) return;
+        const targetUsername = targetUserId
+            ? (knownUsername ?? await resolveUsernameForAudit(targetUserId))
+            : undefined;
+        await logCreatorEvent({
+            ...auditContextFromRequest(c, info.creatorId, {
+                action,
+                entityType: "whitelist",
+                entityId,
+                details: {
+                    ...extraDetails,
+                    modpackId,
+                    modpackName: info.modpackName,
+                    ...(targetUsername !== undefined ? { targetUsername } : {}),
+                },
+            }),
+            action,
+        });
+    })();
 }
 
 // Add user to whitelist
@@ -74,30 +105,21 @@ app.post("/:modpackId", requireAuth, requireModpackAccess, async (c) => {
     const body = await c.req.json();
 
     let targetUserId = body.userId;
+    let targetUsername: string | null = null;
     if (!targetUserId && body.discordUsername) {
-        const [user] = await db.select({ id: users.id })
+        const [user] = await db.select({ id: users.id, username: users.username })
             .from(users)
             .where(eq(users.username, body.discordUsername))
             .limit(1);
         if (!user) throw new NotFoundError("User not found", "USER_NOT_FOUND");
         targetUserId = user.id;
+        targetUsername = user.username;
     }
 
     if (!targetUserId) throw new ValidationError("userId or discordUsername is required", "MISSING_USER");
 
     const entry = await addToWhitelist(modpackId, targetUserId, currentUserId, body.notes);
-    const creatorId = await getCreatorIdForModpack(modpackId);
-    if (creatorId) {
-        logCreatorEventAsync({
-            ...auditContextFromRequest(c, creatorId, {
-                action: "whitelist.added",
-                entityType: "whitelist",
-                entityId: targetUserId,
-                details: { modpackId },
-            }),
-            action: "whitelist.added",
-        });
-    }
+    logWhitelistEvent(c, modpackId, "whitelist.added", targetUserId, {}, targetUserId, targetUsername);
     return c.json({ data: entry }, 201);
 });
 
@@ -107,18 +129,7 @@ app.post("/:modpackId/bulk", requireAuth, requireModpackAccess, async (c) => {
     const userId = c.get("userId");
     const body = await c.req.json();
     const result = await bulkAddToWhitelist(modpackId, body.userIds, userId, body.notes);
-    const creatorId = await getCreatorIdForModpack(modpackId);
-    if (creatorId) {
-        logCreatorEventAsync({
-            ...auditContextFromRequest(c, creatorId, {
-                action: "whitelist.bulk_added",
-                entityType: "whitelist",
-                entityId: modpackId,
-                details: { modpackId, count: (body.userIds ?? []).length },
-            }),
-            action: "whitelist.bulk_added",
-        });
-    }
+    logWhitelistEvent(c, modpackId, "whitelist.bulk_added", modpackId, { count: (body.userIds ?? []).length });
     return c.json({ data: result });
 });
 
@@ -127,18 +138,7 @@ app.delete("/:modpackId/user/:userId", requireAuth, requireModpackAccess, async 
     const modpackId = c.req.param("modpackId")!;
     const targetUserId = c.req.param("userId")!;
     await removeFromWhitelist(modpackId, targetUserId);
-    const creatorId = await getCreatorIdForModpack(modpackId);
-    if (creatorId) {
-        logCreatorEventAsync({
-            ...auditContextFromRequest(c, creatorId, {
-                action: "whitelist.removed",
-                entityType: "whitelist",
-                entityId: targetUserId,
-                details: { modpackId },
-            }),
-            action: "whitelist.removed",
-        });
-    }
+    logWhitelistEvent(c, modpackId, "whitelist.removed", targetUserId, {}, targetUserId);
     return c.body(null, 204);
 });
 
@@ -146,18 +146,7 @@ app.delete("/:modpackId/user/:userId", requireAuth, requireModpackAccess, async 
 app.delete("/:modpackId/clear", requireAuth, requireModpackAccess, async (c) => {
     const modpackId = c.req.param("modpackId")!;
     const removedCount = await clearWhitelist(modpackId);
-    const creatorId = await getCreatorIdForModpack(modpackId);
-    if (creatorId) {
-        logCreatorEventAsync({
-            ...auditContextFromRequest(c, creatorId, {
-                action: "whitelist.cleared",
-                entityType: "whitelist",
-                entityId: modpackId,
-                details: { modpackId, removedCount },
-            }),
-            action: "whitelist.cleared",
-        });
-    }
+    logWhitelistEvent(c, modpackId, "whitelist.cleared", modpackId, { removedCount });
     return c.json({ data: { removedCount } });
 });
 
@@ -188,18 +177,7 @@ app.put("/:modpackId/ingame-settings", requireAuth, requireModpackAccess, async 
         enforceIngame: body.enforceIngame,
         kickMessage: body.kickMessage,
     });
-    const creatorId = await getCreatorIdForModpack(modpackId);
-    if (creatorId) {
-        logCreatorEventAsync({
-            ...auditContextFromRequest(c, creatorId, {
-                action: "whitelist.settings.updated",
-                entityType: "whitelist",
-                entityId: modpackId,
-                details: { modpackId, enforceIngame: body.enforceIngame ?? null },
-            }),
-            action: "whitelist.settings.updated",
-        });
-    }
+    logWhitelistEvent(c, modpackId, "whitelist.settings.updated", modpackId, { enforceIngame: body.enforceIngame ?? null });
     return c.json({ data: updated });
 });
 
