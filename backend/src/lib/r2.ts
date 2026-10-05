@@ -203,7 +203,12 @@ export async function downloadObjectToFile(key: string, destinationPath: string)
     }
 }
 
-export async function uploadStreamObject(key: string, stream: ReadableStream, contentType?: string, contentLength?: number): Promise<void> {
+// NOTA: no usar Body como ReadableStream con el S3Client en Deno.
+// El signer genera firma con payload chunked (STREAMING-AWS4-...) que R2
+// rechaza con "signature does not match" (ver commits 386a15a / 7615ef6).
+// Por eso uploadFileFromPath bufferiza. Se mantiene por compatibilidad,
+// pero su uso directo contra R2 falla.
+export async function uploadStreamObject(key: string, stream: ReadableStream, contentType?: string, _contentLength?: number): Promise<void> {
     const { bucket } = getEnv();
     const { PutObjectCommand } = await import("@aws-sdk/client-s3");
     const client = await getS3Client();
@@ -212,20 +217,35 @@ export async function uploadStreamObject(key: string, stream: ReadableStream, co
         Key: key,
         Body: stream,
         ContentType: contentType,
-        ...(contentLength !== undefined ? { ContentLength: contentLength } : {}),
     });
     await client.send(command);
 }
 
+// Sube un archivo local a R2. Bufferiza en RAM (firma SigV4 correcta).
+// Solo archivos enormes (>100 MB, rarísimos como entries de mod) van por
+// PUT presignado + fetch, que no firma el payload y admite streaming.
+const HUGE_FILE_BYTES = 100 * 1024 * 1024;
+
 export async function uploadFileFromPath(key: string, filePath: string, contentType?: string): Promise<void> {
     const stat = await Deno.stat(filePath);
-    // Streaming real: el archivo nunca se carga entero en RAM (clave anti-OOM).
-    const file = await Deno.open(filePath, { read: true });
-    try {
-        await uploadStreamObject(key, file.readable, contentType, stat.size);
-    } finally {
-        try { file.close(); } catch { /* el stream ya lo cerr� */ }
+
+    if (stat.size > HUGE_FILE_BYTES) {
+        const uploadUrl = await generatePresignedUploadUrl(key, 3600);
+        const file = await Deno.open(filePath, { read: true });
+        try {
+            const res = await fetch(uploadUrl, { method: "PUT", body: file.readable });
+            if (!res.ok) {
+                throw new Error(`Presigned PUT failed: ${res.status} ${res.statusText}`);
+            }
+            await res.arrayBuffer(); // drenar
+        } finally {
+            try { file.close(); } catch { /* el stream ya lo cerró */ }
+        }
+        return;
     }
+
+    const body = await Deno.readFile(filePath);
+    await uploadObject(key, body, contentType);
 }
 
 export async function batchUploadFromPaths(
