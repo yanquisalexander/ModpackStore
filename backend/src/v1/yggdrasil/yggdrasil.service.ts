@@ -10,7 +10,7 @@ import { getProfileFromMojang } from "@/v1/mojang/mojang.service.ts";
 const JWT_SECRET = Deno.env.get("JWT_SECRET")!;
 const YGGDRASIL_SESSION_DURATION_MS = 24 * 60 * 60 * 1000;
 const INACTIVITY_TIMEOUT_MS = 6 * 60 * 60 * 1000;
-const MIN_LAUNCHER_VERSION = "1.2.0";
+const MIN_LAUNCHER_VERSION = "1.2.11";
 
 export interface YggdrasilProfile {
     id: string; name: string;
@@ -110,7 +110,7 @@ export const yggdrasilService = {
         if (!gs.launcherVersion || !isVersionAtLeast(gs.launcherVersion, MIN_LAUNCHER_VERSION)) {
             throw new APIError(
                 403,
-                "\n\n§c§l⚠ LAUNCHER REQUIRED ⚠§r\n\n§6This server §e§lrequires§r you to use the §e§lModpack Store Launcher§r!\n\n§7Please install or update to the latest version.\n",
+                `\n\n§c§l⚠ LAUNCHER REQUIRED ⚠§r\n\n§6This server §e§lrequires§r you to use the §e§lModpack Store Launcher§r!\n\n§7Please install or update to the latest version.\n\n§c§l⚠ LAUNCHER OBLIGATORIO ⚠§r\n\n§6Este servidor §e§lrequiere§r que utilices el §e§lModpack Store Launcher§r!\n\n§7Por favor, instala o actualiza a la última versión.\n`,
                 "UserBannedException",
             );
         }
