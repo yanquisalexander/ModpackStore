@@ -9,6 +9,8 @@ import {
     getStorageUsage,
     listAssets,
     uploadAsset,
+    requestAssetUploadUrl,
+    confirmAssetUpload,
     deleteAsset,
 } from "@/services/creator-storage.service.ts";
 
@@ -60,6 +62,59 @@ app.get(
         return c.json({ data: assets });
     },
 );
+
+// ── Direct upload: 1) pedir URL presignada (valida tipo + tope + cuota) ──
+
+app.post(
+    "/:creatorId/assets/upload-url",
+    requireAuth,
+    requireCreatorAccess,
+    async (c: Context<{ Variables: AuthVariables }>) => {
+        const body = await c.req.json<{
+            fileName?: string;
+            contentType?: string;
+            sizeBytes?: number;
+        }>();
+        if (!body.fileName || typeof body.sizeBytes !== "number") {
+            return c.json({ errors: [{ status: "400", title: "Bad Request", detail: "fileName and sizeBytes are required." }] }, 400);
+        }
+        const result = await requestAssetUploadUrl(c.req.param("creatorId")!, {
+            fileName: body.fileName,
+            contentType: body.contentType ?? "",
+            sizeBytes: body.sizeBytes,
+        });
+        return c.json({ data: result });
+    },
+);
+
+// ── Direct upload: 2) confirmar tras subir directo a R2 (revalida + registra en DB) ──
+
+app.post(
+    "/:creatorId/assets/confirm",
+    requireAuth,
+    requireCreatorAccess,
+    async (c: Context<{ Variables: AuthVariables }>) => {
+        const body = await c.req.json<{
+            fileName?: string;
+            r2Key?: string;
+            contentType?: string;
+            sizeBytes?: number;
+        }>();
+        if (!body.fileName || !body.r2Key || typeof body.sizeBytes !== "number") {
+            return c.json({ errors: [{ status: "400", title: "Bad Request", detail: "fileName, r2Key and sizeBytes are required." }] }, 400);
+        }
+        const asset = await confirmAssetUpload(c.req.param("creatorId")!, {
+            fileName: body.fileName,
+            r2Key: body.r2Key,
+            contentType: body.contentType ?? "",
+            sizeBytes: body.sizeBytes,
+        });
+        return c.json({ data: asset }, 201);
+    },
+);
+
+// Legacy: subida proxied por la API (se mantiene por compatibilidad).
+// El flujo recomendado es upload-url -> PUT directo a R2 -> confirm.
 
 app.post(
     "/:creatorId/assets",

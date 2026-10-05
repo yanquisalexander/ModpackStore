@@ -95,7 +95,9 @@ export async function getStorageConfig(
 }
 
 /**
- * Upload an asset to creator storage
+ * Upload an asset to creator storage (directo a R2 con presigned URL).
+ * Flujo: upload-url -> PUT directo a R2 -> confirm.
+ * Los límites (tipo, tope 10MB solo no-verificados, cuota) se validan en servidor.
  */
 export async function uploadAsset(
     token: string,
@@ -103,47 +105,65 @@ export async function uploadAsset(
     file: File,
     onProgress?: (progress: number) => void
 ): Promise<CreatorAsset> {
-    const formData = new FormData();
-    formData.append('file', file);
+    const parseError = async (res: Response, fallback: string): Promise<Error> => {
+        try {
+            const body = await res.json();
+            return new Error(body.errors?.[0]?.detail || body.error || fallback);
+        } catch {
+            return new Error(fallback);
+        }
+    };
 
-    return new Promise((resolve, reject) => {
+    // 1) Pedir URL presignada (valida tipo + tope + cuota en servidor)
+    const urlRes = await fetch(`${API_ENDPOINT}/creators/${creatorId}/assets/upload-url`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            fileName: file.name,
+            contentType: file.type,
+            sizeBytes: file.size,
+        }),
+    });
+    if (!urlRes.ok) throw await parseError(urlRes, urlRes.statusText);
+    const { uploadUrl, r2Key } = (await urlRes.json()).data;
+
+    // 2) Subida directa a R2 (no pasa por la API, con progreso)
+    await new Promise<void>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
-
         if (onProgress) {
             xhr.upload.addEventListener('progress', (e) => {
-                if (e.lengthComputable) {
-                    const percentComplete = (e.loaded / e.total) * 100;
-                    onProgress(percentComplete);
-                }
+                if (e.lengthComputable) onProgress((e.loaded / e.total) * 100);
             });
         }
-
         xhr.addEventListener('load', () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                try {
-                    const data = JSON.parse(xhr.responseText);
-                    resolve(data.data);
-                } catch (error) {
-                    reject(new Error('Failed to parse response'));
-                }
-            } else {
-                try {
-                    const error = JSON.parse(xhr.responseText);
-                    reject(new Error(error.errors?.[0]?.detail || error.message || xhr.statusText));
-                } catch {
-                    reject(new Error(xhr.statusText));
-                }
-            }
+            if (xhr.status >= 200 && xhr.status < 300) resolve();
+            else reject(new Error(`Direct upload failed: ${xhr.statusText}`));
         });
-
-        xhr.addEventListener('error', () => {
-            reject(new Error('Network error occurred'));
-        });
-
-        xhr.open('POST', `${API_ENDPOINT}/creators/${creatorId}/assets`);
-        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-        xhr.send(formData);
+        xhr.addEventListener('error', () => reject(new Error('Network error occurred')));
+        xhr.open('PUT', uploadUrl);
+        if (file.type) xhr.setRequestHeader('Content-Type', file.type);
+        xhr.send(file);
     });
+
+    // 3) Confirmar (revalida en servidor y registra en DB)
+    const confirmRes = await fetch(`${API_ENDPOINT}/creators/${creatorId}/assets/confirm`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            fileName: file.name,
+            r2Key,
+            contentType: file.type,
+            sizeBytes: file.size,
+        }),
+    });
+    if (!confirmRes.ok) throw await parseError(confirmRes, confirmRes.statusText);
+    return (await confirmRes.json()).data;
 }
 
 /**

@@ -121,6 +121,22 @@ export async function fileExists(key: string): Promise<boolean> {
     }
 }
 
+export async function getObjectMeta(key: string): Promise<{ size: number; contentType?: string } | null> {
+    const { bucket } = getEnv();
+    const { HeadObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = await getS3Client();
+    const command = new HeadObjectCommand({ Bucket: bucket, Key: key });
+    try {
+        const res = await client.send(command);
+        const size = Number(res.ContentLength ?? 0);
+        if (!Number.isFinite(size)) return null;
+        return { size, contentType: res.ContentType };
+    } catch (err: any) {
+        if (err?.name === "NotFound" || err?.$metadata?.httpStatusCode === 404) return null;
+        throw err;
+    }
+}
+
 export async function cleanupOldTempZips(maxAgeMs: number = 24 * 60 * 60 * 1000): Promise<number> {
     const { bucket } = getEnv();
     const { ListObjectsV2Command, DeleteObjectCommand } = await import("@aws-sdk/client-s3");

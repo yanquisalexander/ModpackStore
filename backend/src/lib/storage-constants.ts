@@ -28,6 +28,8 @@ export const ALLOWED_EXTENSIONS = [
     ".mp4", ".webm", ".ogv", ".mov",
 ];
 
+// Tope por archivo solo para creators NO privilegiados.
+// verified/partner no tienen tope por archivo: solo manda la cuota total.
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 
 export const DEFAULT_STORAGE_LIMIT_BYTES = 31457280; // 30 MB

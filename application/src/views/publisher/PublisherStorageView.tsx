@@ -68,25 +68,19 @@ export const PublisherStorageView: React.FC = () => {
         loadData();
     }, [loadData]);
 
-    // Handle file upload
+    // Handle file upload (directo a R2; los límites los valida el servidor:
+    // tipo permitido, 10 MB por archivo salvo verified/partner, y cuota total)
     const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file || !publisherId || !sessionTokens?.accessToken) return;
 
-        // Check file size (10 MB limit)
-        const maxSize = 10 * 1024 * 1024;
-        if (file.size > maxSize) {
-            toast.error('El archivo excede el tamaño máximo permitido (10 MB)');
-            return;
-        }
-
-        // Check if file type is allowed
+        // Check if file type is allowed (UX rápida; el servidor revalida)
         const allowedTypes = [
             'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
             'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm',
             'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime'
         ];
-        
+
         if (!allowedTypes.includes(file.type)) {
             toast.error('Tipo de archivo no permitido. Solo se permiten imágenes, audio y video.');
             return;
