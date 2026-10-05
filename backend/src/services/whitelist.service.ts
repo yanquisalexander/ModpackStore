@@ -111,12 +111,29 @@ export async function getWhitelistStats(modpackId: string) {
     };
 }
 
+export const MAX_BULK_WHITELIST = 500;
+
+export type BulkWhitelistItemStatus = "added" | "already" | "not_found" | "error";
+
+export interface BulkWhitelistItemResult {
+    userId: string | null;
+    username: string | null;
+    status: BulkWhitelistItemStatus;
+}
+
+export interface BulkWhitelistResult {
+    added: number;
+    failed: number;
+    errors: string[];
+    results: BulkWhitelistItemResult[];
+}
+
 export async function bulkAddToWhitelist(
     modpackId: string,
-    userIds: string[],
+    input: { userIds?: string[]; usernames?: string[] },
     addedByUserId: string,
     notes?: string,
-) {
+): Promise<BulkWhitelistResult> {
     const [modpack] = await db.select({ visibility: modpacksTable.visibility })
         .from(modpacksTable)
         .where(eq(modpacksTable.id, modpackId))
@@ -130,35 +147,70 @@ export async function bulkAddToWhitelist(
         throw new ValidationError("Whitelist can only be managed for whitelist-visibility modpacks", "NOT_WHITELIST_VISIBILITY");
     }
 
+    const userIds = [...new Set(input.userIds ?? [])];
+    const usernames = [...new Set((input.usernames ?? []).map((u) => u.trim()).filter(Boolean))];
+    const total = userIds.length + usernames.length;
+    if (total === 0) {
+        throw new ValidationError("userIds or usernames is required", "MISSING_USERS");
+    }
+    if (total > MAX_BULK_WHITELIST) {
+        throw new ValidationError(`Maximum ${MAX_BULK_WHITELIST} users per request`, "TOO_MANY_USERS");
+    }
+
+    // Resolver usernames en UNA sola query (no N roundtrips).
+    const idByUsername = new Map<string, string>();
+    if (usernames.length > 0) {
+        const rows = await db.select({ id: users.id, username: users.username })
+            .from(users)
+            .where(inArray(users.username, usernames));
+        for (const row of rows) idByUsername.set(row.username, row.id);
+    }
+
+    const targets: Array<{ userId: string | null; username: string | null }> = [
+        ...userIds.map((userId) => ({ userId, username: null as string | null })),
+        ...usernames.map((username) => ({ userId: idByUsername.get(username) ?? null, username })),
+    ];
+
     let added = 0;
     const errors: string[] = [];
+    const results: BulkWhitelistItemResult[] = [];
 
-    for (const userId of userIds) {
+    for (const target of targets) {
+        const label = target.username ?? target.userId ?? "?";
+        if (!target.userId) {
+            errors.push(`User not found: ${label}`);
+            results.push({ userId: null, username: target.username, status: "not_found" });
+            continue;
+        }
+
+        const [existing] = await db.select({ id: modpackWhitelistsTable.id })
+            .from(modpackWhitelistsTable)
+            .where(and(
+                eq(modpackWhitelistsTable.modpackId, modpackId),
+                eq(modpackWhitelistsTable.userId, target.userId),
+            ))
+            .limit(1);
+
+        if (existing) {
+            errors.push(`User ${label} is already whitelisted`);
+            results.push({ userId: target.userId, username: target.username, status: "already" });
+            continue;
+        }
+
         try {
-            const [existing] = await db.select()
-                .from(modpackWhitelistsTable)
-                .where(and(
-                    eq(modpackWhitelistsTable.modpackId, modpackId),
-                    eq(modpackWhitelistsTable.userId, userId),
-                ))
-                .limit(1);
-
-            if (existing) {
-                errors.push(`User ${userId} is already whitelisted`);
-                continue;
-            }
-
             await db.insert(modpackWhitelistsTable)
-                .values({ modpackId, userId, addedByUserId, notes: notes ?? null })
-                .returning();
+                .values({ modpackId, userId: target.userId, addedByUserId, notes: notes ?? null });
 
             added++;
+            results.push({ userId: target.userId, username: target.username, status: "added" });
         } catch (err) {
-            errors.push(err instanceof Error ? err.message : "Unknown error");
+            const message = err instanceof Error ? err.message : "Unknown error";
+            errors.push(message);
+            results.push({ userId: target.userId, username: target.username, status: "error" });
         }
     }
 
-    return { added, failed: userIds.length - added, errors };
+    return { added, failed: targets.length - added, errors, results };
 }
 
 export async function clearWhitelist(modpackId: string) {

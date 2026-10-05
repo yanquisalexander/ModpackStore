@@ -5,6 +5,7 @@ import {
     WhitelistStats,
     AddToWhitelistData,
     BulkAddToWhitelistData,
+    BulkWhitelistResult,
     WhitelistExportData,
     WhitelistAccessCheck,
     UserWhitelistInfo,
@@ -40,6 +41,8 @@ export type WhitelistErrorCode =
     | 'MODPACK_NOT_FOUND'
     | 'NOT_WHITELIST_VISIBILITY'
     | 'MISSING_USER'
+    | 'MISSING_USERS'
+    | 'TOO_MANY_USERS'
     | 'NOT_WHITELISTED';
 
 /** Extrae el `code` tipado de un error del servicio (undefined si no lo tiene). */
@@ -52,6 +55,8 @@ export function getWhitelistErrorCode(error: unknown): WhitelistErrorCode | unde
             case 'MODPACK_NOT_FOUND':
             case 'NOT_WHITELIST_VISIBILITY':
             case 'MISSING_USER':
+            case 'MISSING_USERS':
+            case 'TOO_MANY_USERS':
             case 'NOT_WHITELISTED':
                 return code;
             default:
@@ -141,9 +146,10 @@ class WhitelistService {
     }
 
     /**
-     * Bulk add users to the whitelist
+     * Bulk add users to the whitelist (by userIds and/or usernames).
+     * Nunca falla entero: devuelve resultado por ítem (`added`/`already`/`not_found`/`error`).
      */
-    async bulkAddToWhitelist(modpackId: string, data: BulkAddToWhitelistData, accessToken: string): Promise<{ added: number; failed: number }> {
+    async bulkAddToWhitelist(modpackId: string, data: BulkAddToWhitelistData, accessToken: string): Promise<BulkWhitelistResult> {
         try {
             const response = await fetchWithAuth(`${this.baseUrl}/${modpackId}/bulk`, {
                 method: 'POST',
@@ -160,11 +166,22 @@ class WhitelistService {
             }
 
             const { data: result } = await response.json();
-            return result;
+            return result as BulkWhitelistResult;
         } catch (error) {
             console.error('Error bulk adding users:', error);
             throw error;
         }
+    }
+
+    /**
+     * Bulk import por nombres (lista pegada). Atajo sobre `bulkAddToWhitelist`.
+     */
+    async bulkAddByUsernames(
+        modpackId: string,
+        data: { usernames: string[]; notes?: string },
+        accessToken: string,
+    ): Promise<BulkWhitelistResult> {
+        return this.bulkAddToWhitelist(modpackId, data, accessToken);
     }
 
     /**

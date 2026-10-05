@@ -125,13 +125,20 @@ app.post("/:modpackId", requireAuth, requireModpackAccess, async (c) => {
     return c.json({ data: entry }, 201);
 });
 
-// Bulk add users
+// Bulk add users (by userIds and/or usernames, e.g. pasted Discord list)
 app.post("/:modpackId/bulk", requireAuth, requireModpackAccess, async (c) => {
     const modpackId = c.req.param("modpackId")!;
     const userId = c.get("userId");
     const body = await c.req.json();
-    const result = await bulkAddToWhitelist(modpackId, body.userIds, userId, body.notes);
-    logWhitelistEvent(c, modpackId, "whitelist.bulk_added", modpackId, { count: (body.userIds ?? []).length });
+    const result = await bulkAddToWhitelist(modpackId, {
+        userIds: body.userIds,
+        usernames: body.usernames ?? body.discordUsernames,
+    }, userId, body.notes);
+    logWhitelistEvent(c, modpackId, "whitelist.bulk_added", modpackId, {
+        count: result.added + result.failed,
+        added: result.added,
+        failed: result.failed,
+    });
     return c.json({ data: result });
 });
 

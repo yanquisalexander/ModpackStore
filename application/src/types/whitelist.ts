@@ -5,6 +5,7 @@ export interface WhitelistUser {
     username: string;
     discordId?: string;
     avatarUrl?: string;
+    notes?: string | null;
 }
 
 export interface WhitelistEntry {
@@ -30,24 +31,36 @@ export interface AddToWhitelistData {
 }
 
 export interface BulkAddToWhitelistData {
-    userIds: string[];
+    userIds?: string[];
+    usernames?: string[];
     notes?: string;
 }
 
-export interface WhitelistExportData {
-    modpackId: string;
-    modpackName: string;
-    totalUsers: number;
-    exportedAt: Date;
-    users: Array<{
-        userId: string;
-        username: string;
-        discordId?: string;
-        addedAt: Date;
-        addedBy: string;
-        notes?: string;
-    }>;
+export type BulkWhitelistItemStatus = 'added' | 'already' | 'not_found' | 'error';
+
+export interface BulkWhitelistItemResult {
+    userId: string | null;
+    username: string | null;
+    status: BulkWhitelistItemStatus;
 }
+
+export interface BulkWhitelistResult {
+    added: number;
+    failed: number;
+    errors: string[];
+    results: BulkWhitelistItemResult[];
+}
+
+/** Forma real del backend: array plano de filas (GET /:modpackId/export → `{ data: rows }`). */
+export interface WhitelistExportRow {
+    userId: string;
+    username: string;
+    discordId: string | null;
+    addedAt: string;
+    addedByUsername: string | null;
+}
+
+export type WhitelistExportData = WhitelistExportRow[];
 
 export interface WhitelistAccessCheck {
     hasAccess: boolean;

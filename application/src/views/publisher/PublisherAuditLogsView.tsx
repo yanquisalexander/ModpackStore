@@ -18,8 +18,42 @@ import {
 import { CreatorPermissionsAPI, type CreatorMember } from '@/services/creatorPermissions.service';
 import { listCreatorModpacksForTokens } from '@/services/creatorApiTokens.service';
 
+/** Etiquetas en español para cada acción (la clave cruda nunca se muestra). */
+const ACTION_LABELS_ES: Record<string, string> = {
+    'creator.updated': 'Creador actualizado',
+    'creator.profile.updated': 'Perfil actualizado',
+    'creator.image.uploaded': 'Imagen subida',
+    'member.added': 'Miembro añadido',
+    'member.removed': 'Miembro eliminado',
+    'member.role.updated': 'Rol cambiado',
+    'permission.updated': 'Permiso cambiado',
+    'modpack.created': 'Modpack creado',
+    'modpack.updated': 'Modpack actualizado',
+    'modpack.deleted': 'Modpack eliminado',
+    'version.created': 'Versión creada',
+    'version.updated': 'Versión actualizada',
+    'version.published': 'Versión publicada',
+    'version.archived': 'Versión archivada',
+    'version.file.side.updated': 'Archivo modificado',
+    'version.file.deleted': 'Archivo eliminado',
+    'version.files.reused': 'Archivos reutilizados',
+    'whitelist.added': 'Lista: añadido',
+    'whitelist.bulk_added': 'Lista: importación',
+    'whitelist.removed': 'Lista: eliminado',
+    'whitelist.cleared': 'Lista: vaciada',
+    'whitelist.settings.updated': 'Lista: ajustes',
+    'api_token.created': 'Token creado',
+    'api_token.revoked': 'Token revocado',
+    'asset.uploaded': 'Archivo subido',
+    'asset.deleted': 'Archivo eliminado',
+    'storage.config.updated': 'Almacenamiento actualizado',
+    'ad.requested': 'Promoción solicitada',
+    'curseforge.import.started': 'Importación iniciada',
+};
+
 function formatAction(action: string): string {
-    return action.replace(/\./g, ' ').replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+    return ACTION_LABELS_ES[action]
+        ?? action.replace(/\./g, ' ').replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
 function badgeVariant(action: string): "default" | "destructive" | "secondary" | "outline" {
@@ -286,7 +320,7 @@ export const PublisherAuditLogsView: React.FC = () => {
                             </div>
                             <div>
                                 <CardTitle>Auditoría</CardTitle>
-                                <CardDescription>Quién hizo qué en este creator. Solo visible para owners y admins.</CardDescription>
+                                <CardDescription>Quién hizo qué en este creator. Solo visible para propietarios y administradores.</CardDescription>
                             </div>
                         </div>
                         <Button variant="outline" onClick={resetFilters}>Limpiar filtros</Button>
@@ -408,12 +442,6 @@ export const PublisherAuditLogsView: React.FC = () => {
                                                                         <dt className="font-medium text-muted-foreground">IP</dt>
                                                                         <dd className="font-mono">{log.ipAddress || "No registrada"}</dd>
                                                                     </React.Fragment>
-                                                                    {log.userAgent && (
-                                                                        <React.Fragment>
-                                                                            <dt className="font-medium text-muted-foreground">Agente</dt>
-                                                                            <dd className="break-words text-muted-foreground">{log.userAgent}</dd>
-                                                                        </React.Fragment>
-                                                                    )}
                                                                 </dl>
                                                             )}
                                                         </div>
