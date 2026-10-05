@@ -279,6 +279,78 @@ pub struct CustomBlock {
     pub unknown_fields: HashMap<String, serde_json::Value>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkinRendererPosition {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub left: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub right: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bottom: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transform: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z_index: Option<f64>,
+
+    // Captura campos desconocidos
+    #[serde(flatten)]
+    #[serde(skip_serializing)]
+    pub unknown_fields: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkinRendererRotation {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub x: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub y: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub z: Option<f64>,
+
+    // Captura campos desconocidos
+    #[serde(flatten)]
+    #[serde(skip_serializing)]
+    pub unknown_fields: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SkinRenderer {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<SkinRendererPosition>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fade_in_duration: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub fade_in_delay: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_rotate: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_rotate_speed: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub animation: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rotation: Option<SkinRendererRotation>,
+
+    // Captura campos desconocidos
+    #[serde(flatten)]
+    #[serde(skip_serializing)]
+    pub unknown_fields: HashMap<String, serde_json::Value>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct PreLaunchDefaults {
@@ -317,6 +389,8 @@ pub struct PreLaunchAppearance {
     pub footer_text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub custom_blocks: Option<Vec<CustomBlock>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub skin_renderer: Option<SkinRenderer>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub loading_indicator: Option<LoadingIndicator>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -529,6 +603,16 @@ pub async fn get_prelaunch_appearance(instance_id: String) -> Option<PreLaunchAp
                             }
                         }
                     }
+                }
+            }
+
+            if let Some(skin_renderer) = &data.skin_renderer {
+                log_unknown_fields("skin_renderer", &skin_renderer.unknown_fields);
+                if let Some(position) = &skin_renderer.position {
+                    log_unknown_fields("skin_renderer.position", &position.unknown_fields);
+                }
+                if let Some(rotation) = &skin_renderer.rotation {
+                    log_unknown_fields("skin_renderer.rotation", &rotation.unknown_fields);
                 }
             }
 

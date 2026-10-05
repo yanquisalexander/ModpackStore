@@ -1487,7 +1487,7 @@ const PublisherModpackVersionDetailView: React.FC = () => {
     if (loading) {
         return (
             <div className="min-h-full h-full flex items-center justify-center bg-background">
-                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-muted-foreground"></div>
+                <LucideLoader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
         );
     }

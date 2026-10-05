@@ -2,6 +2,7 @@ import { usePrelaunchInstance } from "@/hooks/usePrelaunchInstance";
 import { LucideGamepad2, LucideLoaderCircle, LucideShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { memo, useMemo } from "react";
+import { SkinPreview3D } from "@/components/SkinPreview3D";
 import { PreLaunchAppearance } from "@/types/PreLaunchAppeareance";
 import { BackgroundVideo } from "@/components/LauncherBackgroundVideo";
 import PreLaunchQuickActions from "@/components/PreLaunchQuickActions";
@@ -73,6 +74,55 @@ const Logo = memo(({ logo, onLoadError }: { logo: PreLaunchAppearance['logo'], o
             }}
             className="absolute z-10 animate-fade-in duration-500 ease-in-out"
         />
+    );
+});
+
+// Memoized Skin Renderer Block Component
+// Bloque presentacional: renderiza en 3D (skinview3d) la URL que se le pase.
+// Desactivado por defecto (`enabled: false`); la appearance lo enciende con
+// `skinRenderer: { enabled: true, url, model?, position?, width?, height? }`.
+const SkinRendererBlock = memo(({ config }: { config: PreLaunchAppearance['skinRenderer'] }) => {
+    if (config?.enabled !== true || !config?.url) return null;
+
+    const hasCustomPosition = config?.position &&
+        Object.values(config.position).some(value => value != null);
+
+    return (
+        <div
+            className="absolute z-10 animate-fade-in duration-500 ease-in-out"
+            style={{
+                width: config?.width ?? "180px",
+                height: config?.height ?? "240px",
+                ...(hasCustomPosition ? {
+                    top: config?.position?.top,
+                    left: config?.position?.left,
+                    right: config?.position?.right,
+                    bottom: config?.position?.bottom,
+                    transform: config?.position?.transform,
+                    zIndex: config?.position?.zIndex,
+                } : {
+                    top: "50%",
+                    right: "3rem",
+                    transform: "translateY(-50%)",
+                }),
+                animationDelay: config?.fadeInDelay,
+                animationDuration: config?.fadeInDuration,
+            }}
+        >
+            <SkinPreview3D
+                url={config.url}
+                model={config.model ?? "classic"}
+                autoRotate={config.autoRotate ?? true}
+                autoRotateSpeed={config.autoRotateSpeed ?? 1.0}
+                animation={config.animation ?? "idle"}
+                rotation={config.rotation && {
+                    x: ((config.rotation.x ?? 0) * Math.PI) / 180,
+                    y: ((config.rotation.y ?? 0) * Math.PI) / 180,
+                    z: ((config.rotation.z ?? 0) * Math.PI) / 180,
+                }}
+                className="h-full w-full"
+            />
+        </div>
     );
 });
 
@@ -284,6 +334,7 @@ export const PreLaunchInstance = () => {
                     logo={appearance?.logo}
                     onLoadError={handleResourceError} // Pasar la función de notificación
                 />
+                <SkinRendererBlock config={appearance?.skinRenderer} />
                 <CustomBlocksRenderer
                     blocks={appearance?.customBlocks}
                     instance={prelaunchState.instance!}

@@ -32,6 +32,21 @@ export const getDefaultAppeareance = ({ title, description, logoUrl }: { title?:
 
         customBlocks: [],
 
+        // Sin `position` a propósito: si el merge la mezclara con la
+        // personalizada, el CSS quedaría sobre-restringido
+        // (top+bottom / left+right a la vez) y el navegador ignoraría valores.
+        // Sin posición custom, el bloque usa derecha-centro por defecto.
+        skinRenderer: {
+            enabled: false,
+            width: "180px",
+            height: "240px",
+            autoRotate: true,
+            autoRotateSpeed: 1.0,
+            animation: "idle",
+            fadeInDuration: "500ms",
+            fadeInDelay: "1000ms",
+        },
+
         news: {
             position: {
                 top: "3rem",

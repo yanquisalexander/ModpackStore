@@ -16,6 +16,7 @@ export interface PreLaunchAppearance {
     footerStyle?: FooterStyle;
     footerText?: string;
     customBlocks?: CustomBlock[];
+    skinRenderer?: SkinRenderer;
     loadingIndicator?: LoadingIndicator;
     disableBuiltInPresence?: boolean;
     experimentalArmoredInstance?: boolean;
@@ -73,6 +74,37 @@ export interface LogoPosition {
     right?: string;
     bottom?: string;
     transform?: string;
+}
+
+export interface SkinRenderer {
+    enabled?: boolean;
+    url?: string;
+    model?: "classic" | "slim";
+    width?: string;
+    height?: string;
+    position?: SkinRendererPosition;
+    fadeInDuration?: string;
+    fadeInDelay?: string;
+    autoRotate?: boolean;
+    autoRotateSpeed?: number;
+    animation?: "idle" | "wave" | "none";
+    /** Rotación estática inicial en grados (ej. `{ y: 45 }` mira un poco a la derecha). */
+    rotation?: SkinRendererRotation;
+}
+
+export interface SkinRendererRotation {
+    x?: number;
+    y?: number;
+    z?: number;
+}
+
+export interface SkinRendererPosition {
+    top?: string;
+    left?: string;
+    right?: string;
+    bottom?: string;
+    transform?: string;
+    zIndex?: number;
 }
 
 export interface News {

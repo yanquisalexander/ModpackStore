@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
 import { LucideExternalLink, LucideUnlink, LucideLoader2, LucideCheck } from 'lucide-react';
@@ -14,6 +17,8 @@ interface TwitchStatus {
   linked: boolean;
   twitchId?: string;
   twitchUsername?: string;
+  twitchDisplayName?: string | null;
+  twitchAvatarUrl?: string | null;
 }
 
 export const TwitchLinkingComponent = () => {
@@ -34,8 +39,15 @@ export const TwitchLinkingComponent = () => {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (response.ok) {
-        const status = await response.json();
-        setTwitchStatus(status);
+        const json = await response.json();
+        const raw = json?.data ?? json;
+        setTwitchStatus({
+          linked: !!raw?.linked,
+          twitchId: raw?.twitchId,
+          twitchUsername: raw?.twitchUsername ?? raw?.twitchDisplayName ?? undefined,
+          twitchDisplayName: raw?.twitchDisplayName ?? raw?.twitchUsername ?? null,
+          twitchAvatarUrl: raw?.twitchAvatarUrl ?? null,
+        });
       } else {
         setTwitchStatus({ linked: false });
       }
@@ -97,52 +109,51 @@ export const TwitchLinkingComponent = () => {
 
   if (!twitchStatus) {
     return (
-      <div className="bg-[#151515] border border-white/5 rounded-xl p-6 h-[200px] flex items-center justify-center animate-pulse">
-        <LucideLoader2 className="w-8 h-8 text-[#9146FF] animate-spin" />
-      </div>
+      <Card>
+        <CardContent className="p-6 h-[190px] flex items-center justify-center">
+          <LucideLoader2 className="w-6 h-6 text-muted-foreground animate-spin" />
+        </CardContent>
+      </Card>
     );
   }
 
-  return (
-    <div className="relative group overflow-hidden bg-[#151515] border border-[#9146FF]/20 rounded-xl p-6 transition-all hover:border-[#9146FF]/40">
-      {/* Background Glow */}
-      <div className="absolute inset-0 bg-[#9146FF]/5 group-hover:bg-[#9146FF]/10 transition-colors pointer-events-none" />
+  const displayName = twitchStatus.twitchUsername ?? twitchStatus.twitchDisplayName;
 
-      <div className="relative flex flex-col h-full justify-between gap-4">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-[#9146FF]/20 rounded-xl text-[#9146FF] ring-1 ring-[#9146FF]/30">
-              <MdiTwitch className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-white">Twitch</h3>
-              <div className="flex items-center gap-2 mt-1">
-                <div className={cn("w-1.5 h-1.5 rounded-full shadow-[0_0_8px]", twitchStatus.linked ? "bg-green-500 shadow-green-500/50" : "bg-neutral-500")} />
-                <span className={cn("text-xs font-medium", twitchStatus.linked ? "text-green-400" : "text-neutral-400")}>
-                  {twitchStatus.linked ? `Conectado` : "No conectado"}
-                </span>
-              </div>
+  return (
+    <Card>
+      <CardContent className="p-5 space-y-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-md bg-[#9146FF]/10 text-[#9146FF] shrink-0">
+            <MdiTwitch className="w-5 h-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-sm font-medium text-foreground">Twitch</h3>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <div className={cn("w-1.5 h-1.5 rounded-full", twitchStatus.linked ? "bg-green-500" : "bg-muted-foreground/40")} />
+              <span className="text-xs text-muted-foreground">
+                {twitchStatus.linked ? "Conectado" : "No conectado"}
+              </span>
             </div>
           </div>
-          {twitchStatus.linked && (
-            <div className="hidden sm:block text-xs font-mono text-[#9146FF] bg-[#9146FF]/10 px-2 py-1 rounded border border-[#9146FF]/20">
-              {twitchStatus.twitchUsername}
-            </div>
+          {twitchStatus.linked && displayName && (
+            <Badge variant="secondary" className="font-mono font-normal shrink-0 max-w-[140px] truncate">
+              {displayName}
+            </Badge>
           )}
         </div>
 
-        {/* Content Area with Animation */}
+        <Separator />
+
         <AnimatePresence mode="wait">
           {twitchStatus.linked ? (
             <motion.div
               key="linked"
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="pt-2"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="space-y-3"
             >
-              <p className="text-neutral-400 text-sm mb-4 leading-relaxed">
+              <p className="text-sm text-muted-foreground leading-relaxed">
                 Tienes acceso a los modpacks exclusivos para suscriptores y contenido anticipado.
               </p>
               <Button
@@ -150,7 +161,7 @@ export const TwitchLinkingComponent = () => {
                 disabled={unlinking}
                 variant="ghost"
                 size="sm"
-                className="text-red-400 hover:text-red-300 hover:bg-red-500/10 px-0 h-auto font-normal"
+                className="px-0 h-auto font-normal text-destructive hover:text-destructive hover:bg-destructive/10"
               >
                 {unlinking ? <LucideLoader2 className="w-3 h-3 animate-spin mr-2" /> : <LucideUnlink className="w-3 h-3 mr-2" />}
                 Desvincular cuenta
@@ -162,21 +173,21 @@ export const TwitchLinkingComponent = () => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="space-y-4"
+              className="space-y-3"
             >
-              <div className="space-y-2 pt-2">
-                <div className="flex items-center gap-2 text-xs text-neutral-300">
-                  <LucideCheck className="w-3 h-3 text-[#9146FF]" /> Acceso a modpacks de suscriptores
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <LucideCheck className="w-3 h-3 text-[#9146FF] shrink-0" /> Acceso a modpacks de suscriptores
                 </div>
-                <div className="flex items-center gap-2 text-xs text-neutral-300">
-                  <LucideCheck className="w-3 h-3 text-[#9146FF]" /> Insignia de Supporter
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <LucideCheck className="w-3 h-3 text-[#9146FF] shrink-0" /> Insignia de Supporter
                 </div>
               </div>
 
               <Button
                 onClick={handleLinkTwitch}
                 disabled={loading}
-                className="w-full bg-[#9146FF] hover:bg-[#772ce8] text-white font-medium transition-all shadow-[0_0_20px_rgba(145,70,255,0.15)] hover:shadow-[0_0_25px_rgba(145,70,255,0.3)]"
+                className="w-full bg-[#9146FF] hover:bg-[#9146FF]/90 text-white"
               >
                 {loading ? <LucideLoader2 className="w-4 h-4 mr-2 animate-spin" /> : <LucideExternalLink className="w-4 h-4 mr-2" />}
                 Conectar Twitch
@@ -184,7 +195,7 @@ export const TwitchLinkingComponent = () => {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 };

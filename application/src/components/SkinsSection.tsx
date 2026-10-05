@@ -21,7 +21,7 @@ import {
     Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import {
-    Upload, Trash2, Check, Shirt, X, User, Layers, Gamepad2
+    Upload, Trash2, Check, Shirt, X, User, Layers, Gamepad2, LucideLoader2
 } from "lucide-react";
 import { SkinPreview3D } from "@/components/SkinPreview3D";
 
@@ -111,7 +111,7 @@ export const SkinsSection = () => {
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-[200px]">
-                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-zinc-500" />
+                <LucideLoader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
         );
     }

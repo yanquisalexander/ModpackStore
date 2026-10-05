@@ -24,7 +24,8 @@ import {
     LucideMonitor,
     LucideServer,
     LucideGlobe,
-    LucideInfo
+    LucideInfo,
+    LucideLoader2
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { API_ENDPOINT } from '@/consts';
@@ -1088,7 +1089,7 @@ const ModpackVersionDetailView: React.FC = () => {
     if (loading) {
         return (
             <div className="min-h-full h-full flex items-center justify-center bg-[#0e0e10]">
-                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-neutral-600"></div>
+                <LucideLoader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
         );
     }
@@ -1236,7 +1237,7 @@ const ModpackVersionDetailView: React.FC = () => {
                         {reuseDialog.loading ? (
                             <div className="flex items-center justify-center py-8">
                                 <div className="text-center">
-                                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                                    <LucideLoader2 className="h-8 w-8 animate-spin text-primary mx-auto" />
                                     <p className="mt-2 text-sm text-gray-600">Cargando archivos anteriores...</p>
                                 </div>
                             </div>
@@ -1335,7 +1336,7 @@ const ModpackVersionDetailView: React.FC = () => {
                             >
                                 {reuseDialog.loading ? (
                                     <>
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                        <LucideLoader2 className="h-4 w-4 animate-spin mr-2" />
                                         Reutilizando...
                                     </>
                                 ) : (

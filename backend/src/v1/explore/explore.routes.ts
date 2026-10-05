@@ -87,13 +87,16 @@ app.get("/modpacks/:modpackId/prelaunch-appearance", async (c) => {
 
     try {
         const appearance = await getPrelaunchAppearance(modpackId);
+        // Sin Cache-Control a propósito: la appearance se edita desde el
+        // Creator Center y el launcher la pisa en local en cada arranque.
+        // Con s-maxage el edge servía valores viejos minutos después de guardar.
         return c.json({
             data: {
                 type: "prelaunch-appearance",
                 id: modpackId,
                 attributes: appearance,
             },
-        }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" });
+        }, 200);
     } catch (error) {
         log("[EXPLORE] Error in getPrelaunchAppearance:", error);
         return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to fetch prelaunch appearance." }] }, 500);

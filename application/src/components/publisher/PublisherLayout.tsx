@@ -16,7 +16,8 @@ import {
     LucideCloud,
     LucideCrown,
     LucideMenu,
-    LucideChevronRight
+    LucideChevronRight,
+    LucideLoader2
 } from 'lucide-react';
 import { useAuthentication } from '@/stores/AuthContext';
 import { useTeams } from '@/hooks/creators/useTeams';
@@ -131,7 +132,7 @@ export const PublisherLayout: React.FC<PublisherLayoutProps> = ({ children }) =>
         }
     }, [publisherName, setTitleBarState]);
 
-    if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>;
+    if (loading) return <div className="min-h-screen flex items-center justify-center"><LucideLoader2 className="h-8 w-8 animate-spin text-primary" /></div>;
 
     if (!publisherMembership) {
         return (
