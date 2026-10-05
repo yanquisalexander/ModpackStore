@@ -11,6 +11,63 @@ import {
     WhitelistedModpack
 } from '@/types/whitelist';
 
+/** Backend shape: `{ errors: [{ status, code, title, detail }] }` (APIError.toPayload). */
+function extractErrorDetail(errorData: any): string | undefined {
+    if (errorData?.errors?.[0]?.detail) return errorData.errors[0].detail;
+    if (errorData?.detail) return errorData.detail;
+    if (typeof errorData?.error === "string") return errorData.error;
+    return undefined;
+}
+
+function extractErrorCode(errorData: any): string | undefined {
+    if (errorData?.errors?.[0]?.code) return errorData.errors[0].code;
+    if (typeof errorData?.code === "string") return errorData.code;
+    return undefined;
+}
+
+export interface WhitelistServiceError extends Error {
+    code?: string;
+}
+
+/**
+ * Códigos `code` conocidos que devuelve el backend (APIError) en whitelist.
+ * El alta (POST /:modpackId) puede devolver: ALREADY_WHITELISTED,
+ * USER_NOT_FOUND, MODPACK_NOT_FOUND, NOT_WHITELIST_VISIBILITY, MISSING_USER.
+ */
+export type WhitelistErrorCode =
+    | 'ALREADY_WHITELISTED'
+    | 'USER_NOT_FOUND'
+    | 'MODPACK_NOT_FOUND'
+    | 'NOT_WHITELIST_VISIBILITY'
+    | 'MISSING_USER'
+    | 'NOT_WHITELISTED';
+
+/** Extrae el `code` tipado de un error del servicio (undefined si no lo tiene). */
+export function getWhitelistErrorCode(error: unknown): WhitelistErrorCode | undefined {
+    if (typeof error === 'object' && error !== null && 'code' in error) {
+        const code = (error as { code: unknown }).code;
+        switch (code) {
+            case 'ALREADY_WHITELISTED':
+            case 'USER_NOT_FOUND':
+            case 'MODPACK_NOT_FOUND':
+            case 'NOT_WHITELIST_VISIBILITY':
+            case 'MISSING_USER':
+            case 'NOT_WHITELISTED':
+                return code;
+            default:
+                return undefined;
+        }
+    }
+    return undefined;
+}
+
+function toServiceError(errorData: any, fallback: string): WhitelistServiceError {
+    const err = new Error(extractErrorDetail(errorData) ?? fallback) as WhitelistServiceError;
+    const code = extractErrorCode(errorData);
+    if (code) err.code = code;
+    return err;
+}
+
 class WhitelistService {
     private get baseUrl() { return `${API_ENDPOINT}/creators/whitelist`; }
     private get accessUrl() { return `${API_ENDPOINT}/whitelist-access`; }
@@ -26,7 +83,7 @@ class WhitelistService {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || `Failed to fetch whitelisted users: ${response.statusText}`);
+                throw toServiceError(errorData, `Failed to fetch whitelisted users: ${response.statusText}`);
             }
 
             const { data } = await response.json();
@@ -48,7 +105,7 @@ class WhitelistService {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || `Failed to fetch whitelist stats: ${response.statusText}`);
+                throw toServiceError(errorData, `Failed to fetch whitelist stats: ${response.statusText}`);
             }
 
             const { data } = await response.json();
@@ -75,7 +132,7 @@ class WhitelistService {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || `Failed to add user to whitelist: ${response.statusText}`);
+                throw toServiceError(errorData, `Failed to add user to whitelist: ${response.statusText}`);
             }
         } catch (error) {
             console.error('Error adding user to whitelist:', error);
@@ -99,7 +156,7 @@ class WhitelistService {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || `Failed to bulk add users: ${response.statusText}`);
+                throw toServiceError(errorData, `Failed to bulk add users: ${response.statusText}`);
             }
 
             const { data: result } = await response.json();
@@ -122,7 +179,7 @@ class WhitelistService {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || `Failed to remove user from whitelist: ${response.statusText}`);
+                throw toServiceError(errorData, `Failed to remove user from whitelist: ${response.statusText}`);
             }
         } catch (error) {
             console.error('Error removing user from whitelist:', error);
@@ -142,7 +199,7 @@ class WhitelistService {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || `Failed to clear whitelist: ${response.statusText}`);
+                throw toServiceError(errorData, `Failed to clear whitelist: ${response.statusText}`);
             }
 
             const { data } = await response.json();
@@ -164,7 +221,7 @@ class WhitelistService {
 
             if (!response.ok) {
                 const errorData = await response.json();
-                throw new Error(errorData.error || `Failed to export whitelist: ${response.statusText}`);
+                throw toServiceError(errorData, `Failed to export whitelist: ${response.statusText}`);
             }
 
             const { data } = await response.json();
@@ -185,7 +242,7 @@ class WhitelistService {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Failed to fetch ingame settings: ${response.statusText}`);
+            throw toServiceError(errorData, `Failed to fetch ingame settings: ${response.statusText}`);
         }
 
         const { data } = await response.json();
@@ -207,7 +264,7 @@ class WhitelistService {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || `Failed to update ingame settings: ${response.statusText}`);
+            throw toServiceError(errorData, `Failed to update ingame settings: ${response.statusText}`);
         }
 
         const { data: result } = await response.json();

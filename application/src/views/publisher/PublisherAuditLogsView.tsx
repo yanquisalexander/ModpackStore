@@ -53,6 +53,8 @@ function shortId(value: unknown): string {
 
 const DETAIL_LABELS: Record<string, string> = {
     name: "Nombre",
+    targetUsername: "Usuario",
+    modpackName: "Modpack",
     role: "Rol",
     permission: "Permiso",
     enabled: "Estado",
@@ -98,36 +100,39 @@ interface NameResolvers {
 function describeLog(log: CreatorAuditLog, resolvers: NameResolvers): string {
     const d = (log.details ?? {}) as Record<string, unknown>;
     const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+    // Snapshots guardados en escritura (sin coste en lectura); fallback a resolvers locales.
+    const targetName = str(d.targetUsername) ?? resolvers.memberName(log.entityId);
+    const modpackName = (id: string | null | undefined) => str(d.modpackName) ? `«${str(d.modpackName)}»` : resolvers.modpackName(id);
     switch (log.action) {
         case "member.added":
-            return `Añadió a ${resolvers.memberName(log.entityId)} como ${formatRole(d.role)}`;
+            return `Añadió a ${targetName} como ${formatRole(d.role)}`;
         case "member.removed":
-            return `Eliminó a ${resolvers.memberName(log.entityId)} del equipo`;
+            return `Eliminó a ${targetName} del equipo`;
         case "member.role.updated":
-            return `Cambió el rol de ${resolvers.memberName(log.entityId)} a ${formatRole(d.role)}`;
+            return `Cambió el rol de ${targetName} a ${formatRole(d.role)}`;
         case "permission.updated": {
             const verb = d.enabled ? "Concedió" : "Revocó";
-            const scope = d.modpackId ? ` en ${resolvers.modpackName(d.modpackId as string)}` : "";
-            return `${verb} el permiso «${str(d.permission) ?? "—"}» a ${resolvers.memberName(log.entityId)}${scope}`;
+            const scope = d.modpackId ? ` en ${modpackName(d.modpackId as string)}` : "";
+            return `${verb} el permiso «${str(d.permission) ?? "—"}» a ${targetName}${scope}`;
         }
         case "modpack.created":
             return `Creó el modpack «${str(d.name) ?? resolvers.modpackName(log.entityId)}»`;
         case "modpack.updated": {
             const fields = Array.isArray(d.updated) ? d.updated.join(", ") : null;
-            return `Actualizó ${resolvers.modpackName(log.entityId)}${fields ? ` (${fields})` : ""}`;
+            return `Actualizó ${modpackName(log.entityId)}${fields ? ` (${fields})` : ""}`;
         }
         case "modpack.deleted":
-            return `Eliminó ${resolvers.modpackName(log.entityId)}`;
+            return `Eliminó ${modpackName(log.entityId)}`;
         case "version.created":
-            return `Creó la versión ${str(d.version) ?? shortId(log.entityId)} en ${resolvers.modpackName(d.modpackId as string)}`;
+            return `Creó la versión ${str(d.version) ?? shortId(log.entityId)} en ${modpackName(d.modpackId as string)}`;
         case "version.updated": {
             const fields = Array.isArray(d.updated) ? d.updated.join(", ") : null;
             return `Actualizó la versión ${shortId(log.entityId)}${fields ? ` (${fields})` : ""}`;
         }
         case "version.published":
-            return `Publicó la versión ${shortId(log.entityId)} de ${resolvers.modpackName(d.modpackId as string)}`;
+            return `Publicó la versión ${shortId(log.entityId)} de ${modpackName(d.modpackId as string)}`;
         case "version.archived":
-            return `Archivó la versión ${shortId(log.entityId)} de ${resolvers.modpackName(d.modpackId as string)}`;
+            return `Archivó la versión ${shortId(log.entityId)} de ${modpackName(d.modpackId as string)}`;
         case "version.files.reused":
             return `Reutilizó ${String(d.reused ?? "—")} archivos (${str(d.fileType) ?? "—"}) en la versión ${shortId(log.entityId)}`;
         case "version.file.side.updated":
@@ -135,15 +140,15 @@ function describeLog(log: CreatorAuditLog, resolvers: NameResolvers): string {
         case "version.file.deleted":
             return `Eliminó un archivo de la versión ${shortId(d.versionId as string)}`;
         case "whitelist.added":
-            return `Añadió a ${resolvers.memberName(log.entityId)} a la whitelist de ${resolvers.modpackName(d.modpackId as string)}`;
+            return `Añadió a ${targetName} a la whitelist de ${modpackName(d.modpackId as string)}`;
         case "whitelist.bulk_added":
-            return `Añadió ${String(d.count ?? "—")} usuarios a la whitelist de ${resolvers.modpackName(d.modpackId as string)}`;
+            return `Añadió ${String(d.count ?? "—")} usuarios a la whitelist de ${modpackName(d.modpackId as string)}`;
         case "whitelist.removed":
-            return `Quitó a ${resolvers.memberName(log.entityId)} de la whitelist de ${resolvers.modpackName(d.modpackId as string)}`;
+            return `Quitó a ${targetName} de la whitelist de ${modpackName(d.modpackId as string)}`;
         case "whitelist.cleared":
-            return `Vació la whitelist de ${resolvers.modpackName(d.modpackId as string)} (${String(d.removedCount ?? "—")} eliminados)`;
+            return `Vació la whitelist de ${modpackName(d.modpackId as string)} (${String(d.removedCount ?? "—")} eliminados)`;
         case "whitelist.settings.updated":
-            return `${d.enforceIngame ? "Activó" : "Desactivó"} la expulsión en juego en ${resolvers.modpackName(d.modpackId as string)}`;
+            return `${d.enforceIngame ? "Activó" : "Desactivó"} la expulsión en juego en ${modpackName(d.modpackId as string)}`;
         case "api_token.created": {
             const scopes = Array.isArray(d.scopes) ? d.scopes.join(", ") : null;
             return `Creó el token «${str(d.name) ?? "—"}» (${str(d.prefix) ?? "—"}…)${scopes ? ` con ${scopes}` : ""}`;

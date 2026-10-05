@@ -171,12 +171,13 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
             await loadWhitelist();
         } catch (error: any) {
             console.error('Error añadiendo usuario:', error);
+            const code = error.code as string | undefined;
             const message = error.message || 'Error desconocido';
 
-            if (message.includes('not found')) {
-                toast.error('Usuario no encontrado', { description: 'No existe ese usuario en Discord.' });
-            } else if (message.includes('already')) {
+            if (code === 'ALREADY_WHITELISTED' || message.includes('already')) {
                 toast.warning('Usuario duplicado', { description: 'Este usuario ya está en la whitelist.' });
+            } else if (code === 'USER_NOT_FOUND' || message.includes('not found')) {
+                toast.error('Usuario no encontrado', { description: 'No existe ese usuario en Discord.' });
             } else if (message.includes('limit')) {
                 toast.error('Límite alcanzado');
             } else {

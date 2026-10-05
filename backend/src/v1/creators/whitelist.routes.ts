@@ -16,7 +16,7 @@ import {
     getWhitelistIngameSettings,
     updateWhitelistIngameSettings,
 } from "@/services/whitelist.service.ts";
-import { auditContextFromRequest, logCreatorEvent, resolveUsernameForAudit } from "@/services/creator-audit.service.ts";
+import { captureAuditRequestContext, logCreatorEvent, resolveUsernameForAudit } from "@/services/creator-audit.service.ts";
 import type { CreatorAuditAction } from "@/services/creator-audit.service.ts";
 
 const app = new Hono<{ Variables: AuthVariables }>();
@@ -71,10 +71,13 @@ async function getModpackAuditInfo(modpackId: string): Promise<{ creatorId: stri
 }
 
 /**
- * Escritura de auditoría 100% en background: resolución de nombres + INSERT
- * fuera del path de respuesta. Cero latencia añadida al endpoint.
+ * Escritura de auditoría en background: el snapshot del request (actor, IP,
+ * UA) se captura AQUÍ, en síncrono con el request abierto — leer headers
+ * después de responder lanza `TypeError: Request closed`. Solo las queries
+ * de BBDD (nombres + INSERT) se difieren. Cero latencia en la respuesta.
  */
 function logWhitelistEvent(c: Context<{ Variables: AuthVariables }>, modpackId: string, action: CreatorAuditAction, entityId: string, extraDetails: Record<string, unknown>, targetUserId?: string | null, knownUsername?: string | null): void {
+    const reqCtx = captureAuditRequestContext(c);
     void (async () => {
         const info = await getModpackAuditInfo(modpackId);
         if (!info) return;
@@ -82,18 +85,17 @@ function logWhitelistEvent(c: Context<{ Variables: AuthVariables }>, modpackId: 
             ? (knownUsername ?? await resolveUsernameForAudit(targetUserId))
             : undefined;
         await logCreatorEvent({
-            ...auditContextFromRequest(c, info.creatorId, {
-                action,
-                entityType: "whitelist",
-                entityId,
-                details: {
-                    ...extraDetails,
-                    modpackId,
-                    modpackName: info.modpackName,
-                    ...(targetUsername !== undefined ? { targetUsername } : {}),
-                },
-            }),
+            creatorId: info.creatorId,
+            ...reqCtx,
             action,
+            entityType: "whitelist",
+            entityId,
+            details: {
+                ...extraDetails,
+                modpackId,
+                modpackName: info.modpackName,
+                ...(targetUsername !== undefined ? { targetUsername } : {}),
+            },
         });
     })();
 }

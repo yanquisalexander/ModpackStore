@@ -48,16 +48,18 @@ export function logCreatorEventForUser(
     extraDetails?: Record<string, unknown>,
     knownUsername?: string | null,
 ): void {
+    // Snapshot síncrono: el request se cierra al responder y en background
+    // leer headers lanzaría `TypeError: Request closed`.
+    const reqCtx = captureAuditRequestContext(c);
     void (async () => {
         const targetUsername = knownUsername ?? await resolveUsernameForAudit(targetUserId);
         await logCreatorEvent({
-            ...auditContextFromRequest(c, creatorId, {
-                action,
-                entityType,
-                entityId: targetUserId,
-                details: { ...extraDetails, targetUsername },
-            }),
+            creatorId,
+            ...reqCtx,
             action,
+            entityType,
+            entityId: targetUserId,
+            details: { ...extraDetails, targetUsername },
         });
     })();
 }
@@ -84,6 +86,20 @@ export interface CreatorAuditQuery {
     endDate?: string;
 }
 
+/**
+ * Lee un header sin lanzar nunca. Importante: Deno cierra el Request al
+ * enviar la respuesta, así que leer headers en background lanza
+ * `TypeError: Request closed`. Todo acceso a `c.req` debe ocurrir en el
+ * handler (síncrono) o pasar por aquí.
+ */
+function readHeaderSafe(c: Context, name: string): string | null {
+    try {
+        return c.req.header(name) ?? null;
+    } catch {
+        return null; // request ya cerrado (uso diferido indebido)
+    }
+}
+
 /** Best-effort IP extraction (proxy-aware, max 45 chars for varchar). */
 function extractIp(c: Context): string | null {
     const headers = [
@@ -92,14 +108,15 @@ function extractIp(c: Context): string | null {
         "x-real-ip",
     ];
     for (const h of headers) {
-        const v = c.req.header(h);
+        const v = readHeaderSafe(c, h);
         if (v) {
             const first = v.split(",")[0].trim();
             if (first) return first.slice(0, 45);
         }
     }
     // Fallback: conexión directa sin proxy (Deno.serve). En modo serverless
-    // no hay conn info y devuelve null.
+    // no hay conn info y devuelve null. Lee `c.env`, no el Request, así que
+    // es seguro incluso después de responder.
     try {
         const addr = getConnInfo(c as never)?.remote?.address;
         if (typeof addr === "string" && addr) return addr.slice(0, 45);
@@ -107,6 +124,39 @@ function extractIp(c: Context): string | null {
         // sin conn info disponible
     }
     return null;
+}
+
+export interface CapturedAuditRequestContext {
+    actorUserId: string | null;
+    actorTokenId: string | null;
+    ipAddress: string | null;
+    userAgent: string | null;
+}
+
+/**
+ * Snapshot síncrono de todo lo que necesitamos del Request (actor, IP, UA).
+ * DEBE llamarse en el handler, con el request abierto. Lo diferido solo
+ * puede hacer I/O de BBDD, nunca tocar `c.req`.
+ */
+export function captureAuditRequestContext(
+    c: Context<{ Variables: AuthVariables }>,
+): CapturedAuditRequestContext {
+    let actorUserId: string | null = null;
+    let actorTokenId: string | null = null;
+    try {
+        actorUserId = (c.get("userId") as string | undefined) ?? null;
+    } catch { /* not set for api_token auth */ }
+    try {
+        const token = c.get("apiToken") as ResolvedApiToken | undefined;
+        if (token?.id) actorTokenId = token.id;
+    } catch { /* no token */ }
+
+    return {
+        actorUserId,
+        actorTokenId,
+        ipAddress: extractIp(c as unknown as Context),
+        userAgent: readHeaderSafe(c as unknown as Context, "user-agent"),
+    };
 }
 
 /**
@@ -137,7 +187,7 @@ export function auditContextFromRequest(
         entityId: overrides.entityId ?? null,
         details: overrides.details ?? null,
         ipAddress: overrides.ipAddress ?? extractIp(c as unknown as Context),
-        userAgent: overrides.userAgent ?? (c.req.header("user-agent") ?? null),
+        userAgent: overrides.userAgent ?? readHeaderSafe(c as unknown as Context, "user-agent"),
     };
 }
 
