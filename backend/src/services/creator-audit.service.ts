@@ -1,4 +1,5 @@
 import type { Context } from "@hono/hono";
+import { getConnInfo } from "@hono/hono/deno";
 import { db } from "@/db/client.ts";
 import {
     creatorAuditLogsTable,
@@ -49,6 +50,14 @@ function extractIp(c: Context): string | null {
             const first = v.split(",")[0].trim();
             if (first) return first.slice(0, 45);
         }
+    }
+    // Fallback: conexión directa sin proxy (Deno.serve). En modo serverless
+    // no hay conn info y devuelve null.
+    try {
+        const addr = getConnInfo(c as never)?.remote?.address;
+        if (typeof addr === "string" && addr) return addr.slice(0, 45);
+    } catch {
+        // sin conn info disponible
     }
     return null;
 }
