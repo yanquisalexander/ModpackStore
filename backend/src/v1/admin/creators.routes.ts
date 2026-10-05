@@ -2,6 +2,11 @@ import { Hono } from "@hono/hono";
 import type { Context } from "@hono/hono";
 import { requireAuth, requireAdmin } from "@/auth/middleware.ts";
 import * as adminService from "@/services/creator-admin.service.ts";
+import {
+    getStorageConfig,
+    updateStorageConfig,
+    getStorageUsage,
+} from "@/services/creator-storage.service.ts";
 import { CreatorRole } from "@/db/schema.ts";
 
 const app = new Hono();
@@ -142,6 +147,39 @@ app.delete("/:creatorId/members/:userId", requireAuth, requireAdmin, async (c: C
 
     await adminService.removeMember(creatorId, targetUserId);
     return c.json({ success: true });
+});
+
+// ── Storage (manual limit management) ───────────
+
+app.get("/:creatorId/storage/config", requireAuth, requireAdmin, async (c: Context) => {
+    const config = await getStorageConfig(c.req.param("creatorId")!);
+    return c.json({ data: config });
+});
+
+app.put("/:creatorId/storage/config", requireAuth, requireAdmin, async (c: Context) => {
+    const { storageLimitBytes } = await c.req.json<{ storageLimitBytes?: unknown }>();
+
+    if (
+        typeof storageLimitBytes !== "number" ||
+        !Number.isFinite(storageLimitBytes) ||
+        storageLimitBytes < 0
+    ) {
+        return c.json(
+            { errors: [{ status: "400", title: "Bad Request", detail: "storageLimitBytes must be a positive number (bytes)." }] },
+            400,
+        );
+    }
+
+    const config = await updateStorageConfig(
+        c.req.param("creatorId")!,
+        Math.floor(storageLimitBytes),
+    );
+    return c.json({ data: config });
+});
+
+app.get("/:creatorId/storage/usage", requireAuth, requireAdmin, async (c: Context) => {
+    const usage = await getStorageUsage(c.req.param("creatorId")!);
+    return c.json({ data: usage });
 });
 
 export default app;

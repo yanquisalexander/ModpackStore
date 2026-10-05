@@ -40,9 +40,14 @@ export async function getStorageConfig(creatorId: string) {
 }
 
 export async function updateStorageConfig(creatorId: string, storageLimitBytes: number) {
-    if (storageLimitBytes < 0) {
+    if (
+        typeof storageLimitBytes !== "number" ||
+        !Number.isFinite(storageLimitBytes) ||
+        storageLimitBytes < 0
+    ) {
         throw new ValidationError("Storage limit must be positive", "INVALID_STORAGE_LIMIT");
     }
+    storageLimitBytes = Math.floor(storageLimitBytes);
 
     const [creator] = await db.select()
         .from(creatorsTable)
