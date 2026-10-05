@@ -115,6 +115,8 @@ export async function getModpacksByCreator(creatorId: string) {
         bannerUrlResized: modpacksTable.bannerUrlResized,
         visibility: modpacksTable.visibility,
         status: modpacksTable.status,
+        whitelistEnforceIngame: modpacksTable.whitelistEnforceIngame,
+        whitelistKickMessage: modpacksTable.whitelistKickMessage,
         creatorId: modpacksTable.creatorId,
         acquisitionMethod: modpacksTable.acquisitionMethod,
         password: modpacksTable.password,
@@ -183,6 +185,8 @@ export async function updateModpack(
         bannerUrl: string;
         bannerUrlResized: string;
         status: ModpackStatus;
+        whitelistEnforceIngame?: boolean;
+        whitelistKickMessage?: string;
         acquisitionMethod: string;
         password: string;
         requiresTwitchSubscription: boolean;
@@ -199,6 +203,19 @@ export async function updateModpack(
     const newAcquisitionMethod = data.acquisitionMethod ?? current.acquisitionMethod;
     const newPassword = data.password !== undefined ? data.password : current.password;
     validateVisibilityConstraints(newVisibility, newAcquisitionMethod, newPassword);
+
+    if (data.whitelistEnforceIngame === true && newVisibility !== ModpackVisibility.WHITELIST) {
+        throw new ValidationError("Whitelist ingame enforcement is only available for whitelist-visibility modpacks", "NOT_WHITELIST_VISIBILITY");
+    }
+    if (data.whitelistKickMessage !== undefined) {
+        const trimmed = data.whitelistKickMessage.trim();
+        if (!trimmed) throw new ValidationError("Kick message cannot be empty", "EMPTY_KICK_MESSAGE");
+        if (trimmed.length > 300) throw new ValidationError("Kick message cannot exceed 300 characters", "KICK_MESSAGE_TOO_LONG");
+        if (newVisibility !== ModpackVisibility.WHITELIST) {
+            throw new ValidationError("Whitelist kick message is only available for whitelist-visibility modpacks", "NOT_WHITELIST_VISIBILITY");
+        }
+        (data as Record<string, unknown>).whitelistKickMessage = trimmed;
+    }
 
     const updateData: Record<string, unknown> = { updatedAt: new Date() };
 

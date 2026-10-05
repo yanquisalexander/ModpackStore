@@ -10,6 +10,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress'; // Si tienes este componente, úsalo. Si no, el div inferior funciona.
 import {
     Table,
@@ -37,8 +39,12 @@ import {
     LucideUsers,
     LucideX,
     LucideSearch,
-    LucideShieldCheck
+    LucideShieldCheck,
+    LucideGamepad2,
+    LucideSave,
+    LucideMessageSquareText
 } from 'lucide-react';
+import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { whitelistService } from '@/services/whitelist.service';
 import { WhitelistUser, WhitelistStats } from '@/types/whitelist';
@@ -66,12 +72,57 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
     const [addingUser, setAddingUser] = useState(false);
     const [removingUserId, setRemovingUserId] = useState<string | null>(null);
     const [showClearDialog, setShowClearDialog] = useState(false);
+    const [enforceIngame, setEnforceIngame] = useState(false);
+    const [kickMessage, setKickMessage] = useState('No estás autorizado a acceder a esta instancia');
+    const [savingIngame, setSavingIngame] = useState(false);
 
     useEffect(() => {
         if (isOpen && modpackId && accessToken) {
             loadWhitelist();
+            loadIngameSettings();
         }
     }, [isOpen, modpackId, accessToken]);
+
+    const loadIngameSettings = async () => {
+        try {
+            const settings = await whitelistService.getIngameSettings(modpackId, accessToken);
+            setEnforceIngame(settings.enforceIngame);
+            setKickMessage(settings.kickMessage);
+        } catch (error) {
+            console.error('Error cargando ajustes de acceso en juego:', error);
+        }
+    };
+
+    const handleSaveIngameSettings = async () => {
+        if (!kickMessage.trim()) {
+            toast.warning('Mensaje vacío', { description: 'El mensaje de expulsión no puede estar vacío.' });
+            return;
+        }
+        if (kickMessage.trim().length > 300) {
+            toast.warning('Mensaje demasiado largo', { description: 'Máximo 300 caracteres.' });
+            return;
+        }
+        setSavingIngame(true);
+        try {
+            const updated = await whitelistService.updateIngameSettings(
+                modpackId,
+                { enforceIngame, kickMessage: kickMessage.trim() },
+                accessToken
+            );
+            setEnforceIngame(updated.enforceIngame);
+            setKickMessage(updated.kickMessage);
+            toast.success('Acceso en juego actualizado', {
+                description: updated.enforceIngame
+                    ? 'La whitelist se aplicará al entrar al servidor.'
+                    : 'La whitelist ya no bloqueará el acceso en juego.'
+            });
+        } catch (error) {
+            console.error('Error guardando ajustes en juego:', error);
+            toast.error('Error al guardar', { description: 'No se pudieron guardar los ajustes de acceso en juego.' });
+        } finally {
+            setSavingIngame(false);
+        }
+    };
 
     const loadWhitelist = async () => {
         setLoading(true);
@@ -267,6 +318,69 @@ export const ManageWhitelistModal: React.FC<ManageWhitelistModalProps> = ({
                                         )}
                                     </div>
                                 )}
+
+                                {/* Acceso en el servidor */}
+                                <div className="bg-muted/30 border rounded-lg p-4 space-y-4">
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-9 w-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                                                <LucideGamepad2 className="h-4 w-4 text-primary" />
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-semibold">Acceso en el servidor</p>
+                                                <p className="text-xs text-muted-foreground">
+                                                    Bloquea la entrada al servidor a quienes no estén en la whitelist.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <Badge variant={enforceIngame ? 'default' : 'secondary'} className="font-normal">
+                                                {enforceIngame ? 'Activo' : 'Inactivo'}
+                                            </Badge>
+                                            <Switch checked={enforceIngame} onCheckedChange={setEnforceIngame} />
+                                        </div>
+                                    </div>
+
+                                    <Separator />
+
+                                    <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                                                <LucideMessageSquareText className="h-3.5 w-3.5" />
+                                                Mensaje de expulsión
+                                            </label>
+                                            <span className="text-[11px] text-muted-foreground tabular-nums">
+                                                {kickMessage.length}/300
+                                            </span>
+                                        </div>
+                                        <Textarea
+                                            value={kickMessage}
+                                            onChange={(e) => setKickMessage(e.target.value)}
+                                            maxLength={300}
+                                            rows={2}
+                                            placeholder="No estás autorizado a acceder a esta instancia"
+                                        />
+                                        {/* Vista previa */}
+                                        <div className="rounded-md bg-black/90 px-4 py-3 text-center">
+                                            <p className="text-sm font-medium text-red-400">
+                                                {kickMessage.trim() || 'No estás autorizado a acceder a esta instancia'}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end">
+                                        <Button onClick={handleSaveIngameSettings} disabled={savingIngame} size="sm">
+                                            {savingIngame ? (
+                                                <LucideLoader2 className="h-4 w-4 animate-spin" />
+                                            ) : (
+                                                <>
+                                                    <LucideSave className="h-4 w-4 mr-2" />
+                                                    Guardar
+                                                </>
+                                            )}
+                                        </Button>
+                                    </div>
+                                </div>
 
                                 {/* Add User Section */}
                                 <div className="grid gap-4 sm:grid-cols-[1fr_1fr_auto] items-end">

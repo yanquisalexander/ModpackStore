@@ -13,6 +13,8 @@ import {
     bulkAddToWhitelist,
     clearWhitelist,
     exportWhitelist,
+    getWhitelistIngameSettings,
+    updateWhitelistIngameSettings,
 } from "@/services/whitelist.service.ts";
 
 const app = new Hono<{ Variables: AuthVariables }>();
@@ -106,6 +108,29 @@ app.get("/:modpackId/export", requireAuth, requireModpackAccess, async (c) => {
     const modpackId = c.req.param("modpackId")!;
     const data = await exportWhitelist(modpackId);
     return c.json({ data });
+});
+
+// Get ingame (Yggdrasil) whitelist enforcement settings
+app.get("/:modpackId/ingame-settings", requireAuth, requireModpackAccess, async (c) => {
+    const modpackId = c.req.param("modpackId")!;
+    const settings = await getWhitelistIngameSettings(modpackId);
+    return c.json({
+        data: {
+            enforceIngame: settings.whitelistEnforceIngame,
+            kickMessage: settings.whitelistKickMessage,
+        },
+    });
+});
+
+// Update ingame (Yggdrasil) whitelist enforcement settings
+app.put("/:modpackId/ingame-settings", requireAuth, requireModpackAccess, async (c) => {
+    const modpackId = c.req.param("modpackId")!;
+    const body = await c.req.json();
+    const updated = await updateWhitelistIngameSettings(modpackId, {
+        enforceIngame: body.enforceIngame,
+        kickMessage: body.kickMessage,
+    });
+    return c.json({ data: updated });
 });
 
 export default app;

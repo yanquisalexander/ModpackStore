@@ -175,6 +175,45 @@ class WhitelistService {
         }
     }
 
+    /**
+     * Get ingame (Yggdrasil) enforcement settings for a modpack
+     */
+    async getIngameSettings(modpackId: string, accessToken: string): Promise<{ enforceIngame: boolean; kickMessage: string }> {
+        const response = await fetchWithAuth(`${this.baseUrl}/${modpackId}/ingame-settings`, {
+            token: accessToken,
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Failed to fetch ingame settings: ${response.statusText}`);
+        }
+
+        const { data } = await response.json();
+        return data;
+    }
+
+    /**
+     * Update ingame (Yggdrasil) enforcement settings for a modpack
+     */
+    async updateIngameSettings(modpackId: string, data: { enforceIngame?: boolean; kickMessage?: string }, accessToken: string): Promise<{ enforceIngame: boolean; kickMessage: string }> {
+        const response = await fetchWithAuth(`${this.baseUrl}/${modpackId}/ingame-settings`, {
+            method: 'PUT',
+            token: accessToken,
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `Failed to update ingame settings: ${response.statusText}`);
+        }
+
+        const { data: result } = await response.json();
+        return result;
+    }
+
     // ===== Whitelist Access Methods (for client/launcher) =====
 
     /**

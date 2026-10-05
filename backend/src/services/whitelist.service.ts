@@ -164,7 +164,7 @@ export async function bulkAddToWhitelist(
 export async function clearWhitelist(modpackId: string) {
     const result = await db.delete(modpackWhitelistsTable)
         .where(eq(modpackWhitelistsTable.modpackId, modpackId))
-        .returning({ id: modpackWhitelistsTable.id });
+        .returning();
 
     return result.length;
 }
@@ -186,6 +186,98 @@ export async function exportWhitelist(modpackId: string) {
         .orderBy(modpackWhitelistsTable.createdAt);
 
     return entries;
+}
+
+export const DEFAULT_WHITELIST_KICK_MESSAGE = "No estás autorizado a acceder a esta instancia";
+export const MAX_WHITELIST_KICK_MESSAGE_LENGTH = 300;
+
+export function formatWhitelistKickMessage(raw?: string | null): string {
+    const message = (raw ?? "").trim() || DEFAULT_WHITELIST_KICK_MESSAGE;
+    return `\n\n§c${message}§r\n`;
+}
+
+export async function getWhitelistIngameSettings(modpackId: string) {
+    const [modpack] = await db.select({
+        visibility: modpacksTable.visibility,
+        whitelistEnforceIngame: modpacksTable.whitelistEnforceIngame,
+        whitelistKickMessage: modpacksTable.whitelistKickMessage,
+    })
+        .from(modpacksTable)
+        .where(eq(modpacksTable.id, modpackId))
+        .limit(1);
+
+    if (!modpack) throw new NotFoundError("Modpack not found", "MODPACK_NOT_FOUND");
+
+    return modpack;
+}
+
+export async function updateWhitelistIngameSettings(
+    modpackId: string,
+    data: { enforceIngame?: boolean; kickMessage?: string },
+) {
+    const [modpack] = await db.select({ visibility: modpacksTable.visibility })
+        .from(modpacksTable)
+        .where(eq(modpacksTable.id, modpackId))
+        .limit(1);
+
+    if (!modpack) throw new NotFoundError("Modpack not found", "MODPACK_NOT_FOUND");
+    if (modpack.visibility !== ModpackVisibility.WHITELIST) {
+        throw new ValidationError("Whitelist ingame enforcement is only available for whitelist-visibility modpacks", "NOT_WHITELIST_VISIBILITY");
+    }
+
+    const updateData: Partial<typeof modpacksTable.$inferInsert> = {};
+    if (data.enforceIngame !== undefined) updateData.whitelistEnforceIngame = data.enforceIngame;
+    if (data.kickMessage !== undefined) {
+        const trimmed = data.kickMessage.trim();
+        if (!trimmed) throw new ValidationError("Kick message cannot be empty", "EMPTY_KICK_MESSAGE");
+        if (trimmed.length > MAX_WHITELIST_KICK_MESSAGE_LENGTH) {
+            throw new ValidationError(`Kick message cannot exceed ${MAX_WHITELIST_KICK_MESSAGE_LENGTH} characters`, "KICK_MESSAGE_TOO_LONG");
+        }
+        updateData.whitelistKickMessage = trimmed;
+    }
+
+    const [updated] = await db.update(modpacksTable)
+        .set(updateData)
+        .where(eq(modpacksTable.id, modpackId))
+        .returning();
+
+    if (!updated) throw new NotFoundError("Modpack not found", "MODPACK_NOT_FOUND");
+
+    return {
+        enforceIngame: updated.whitelistEnforceIngame,
+        kickMessage: updated.whitelistKickMessage,
+    };
+}
+
+/**
+ * Check if a user may join a game server for the given modpack.
+ * Returns { allowed: true } when no ingame enforcement applies
+ * (no modpack context, not a whitelist modpack, or enforcement disabled).
+ */
+export async function checkIngameAccess(
+    modpackId: string | null | undefined,
+    userId: string,
+): Promise<{ allowed: boolean; kickMessage: string | null }> {
+    if (!modpackId) return { allowed: true, kickMessage: null };
+
+    const [modpack] = await db.select({
+        visibility: modpacksTable.visibility,
+        whitelistEnforceIngame: modpacksTable.whitelistEnforceIngame,
+        whitelistKickMessage: modpacksTable.whitelistKickMessage,
+    })
+        .from(modpacksTable)
+        .where(eq(modpacksTable.id, modpackId))
+        .limit(1);
+
+    // Unknown modpack or no enforcement -> do not block (launcher optional)
+    if (!modpack) return { allowed: true, kickMessage: null };
+    if (modpack.visibility !== ModpackVisibility.WHITELIST) return { allowed: true, kickMessage: null };
+    if (!modpack.whitelistEnforceIngame) return { allowed: true, kickMessage: null };
+
+    const allowed = await hasAccess(modpackId, userId);
+    if (allowed) return { allowed: true, kickMessage: null };
+
+    return { allowed: false, kickMessage: formatWhitelistKickMessage(modpack.whitelistKickMessage) };
 }
 
 export async function getUserWhitelistedModpacks(userId: string) {

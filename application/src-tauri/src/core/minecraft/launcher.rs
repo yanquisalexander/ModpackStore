@@ -295,11 +295,12 @@ impl GameLauncher for MinecraftLauncher {
             // would panic with "Cannot start a runtime from within an async context".
             // Use block_in_place when a handle is available, otherwise build a
             // dedicated single-thread runtime as a safe fallback.
+            let modpack_id = self.instance.modpackId.clone();
             let auth_response = match tokio::runtime::Handle::try_current() {
                 Ok(handle) => {
                     tokio::task::block_in_place(|| {
                         handle.block_on(
-                            ms_auth.authenticate(access_token, Some(username), Some(selected_account.uuid().to_string()))
+                            ms_auth.authenticate(access_token, Some(username), Some(selected_account.uuid().to_string()), modpack_id)
                         )
                     })
                 }
@@ -316,7 +317,7 @@ impl GameLauncher for MinecraftLauncher {
                         }
                     };
                     rt.block_on(
-                        ms_auth.authenticate(access_token, Some(username), Some(selected_account.uuid().to_string()))
+                        ms_auth.authenticate(access_token, Some(username), Some(selected_account.uuid().to_string()), self.instance.modpackId.clone())
                     )
                 }
             };

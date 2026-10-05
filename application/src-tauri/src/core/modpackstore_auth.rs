@@ -53,6 +53,8 @@ pub struct YggdrasilAuthRequest {
     pub minecraft_uuid: Option<String>,
     #[serde(rename = "launcherVersion")]
     pub launcher_version: String,
+    #[serde(rename = "modpackId", skip_serializing_if = "Option::is_none")]
+    pub modpack_id: Option<String>,
 }
 
 pub struct ModpackStoreAuth {
@@ -142,6 +144,7 @@ impl ModpackStoreAuth {
         jwt_token: String,
         username: Option<String>,
         minecraft_uuid: Option<String>,
+        modpack_id: Option<String>,
     ) -> Result<YggdrasilAuthResponse, String> {
         let client = &*HTTP_CLIENT;
 
@@ -157,6 +160,7 @@ impl ModpackStoreAuth {
             client_token: None,
             minecraft_uuid,
             launcher_version,
+            modpack_id,
         };
 
         let url = format!("{}/yggdrasil/authenticate", self.api_endpoint);

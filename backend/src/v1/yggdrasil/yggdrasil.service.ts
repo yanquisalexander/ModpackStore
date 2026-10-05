@@ -5,6 +5,7 @@ import { APIError } from "@/lib/errors/index.ts";
 import { verify } from "@hono/hono/jwt";
 import { getActiveSkin, getActiveCape } from "@/services/skins.service.ts";
 import { getProfileFromMojang } from "@/v1/mojang/mojang.service.ts";
+import { checkIngameAccess } from "@/services/whitelist.service.ts";
 
 
 const JWT_SECRET = Deno.env.get("JWT_SECRET")!;
@@ -23,7 +24,7 @@ export interface YggdrasilAuthResponse {
 }
 
 export const yggdrasilService = {
-    async authenticate(jwtToken: string, clientToken?: string, requestedUsername?: string, minecraftUuid?: string, launcherVersion?: string) {
+    async authenticate(jwtToken: string, clientToken?: string, requestedUsername?: string, minecraftUuid?: string, launcherVersion?: string, modpackId?: string) {
         let decoded: any;
         try { decoded = await verify(jwtToken, JWT_SECRET, "HS256"); }
         catch { throw new APIError(403, "Invalid token.", "ForbiddenOperationException"); }
@@ -39,6 +40,7 @@ export const yggdrasilService = {
             requestedUsername: requestedUsername || null,
             minecraftUuid: minecraftUuid || null,
             launcherVersion: launcherVersion || null,
+            modpackId: modpackId || null,
             lastActivity: new Date(),
             expiresAt: new Date(Date.now() + YGGDRASIL_SESSION_DURATION_MS),
         });
@@ -82,7 +84,7 @@ export const yggdrasilService = {
         if (gs && gs.clientToken === clientToken) await db.delete(gameSessionsTable).where(eq(gameSessionsTable.id, gs.id));
     },
 
-    async joinServer(accessToken: string, selectedProfile: string, serverId: string, ipAddress?: string) {
+    async joinServer(accessToken: string, selectedProfile: string, serverId: string, ipAddress?: string, modpackId?: string) {
         if (!accessToken || !selectedProfile || !serverId) throw new APIError(400, "credentials can not be null.", "IllegalArgumentException");
 
         const [gs] = await db.select().from(gameSessionsTable).where(eq(gameSessionsTable.accessToken, accessToken)).limit(1);
@@ -105,6 +107,16 @@ export const yggdrasilService = {
                 "\n\n§c§l⚠ BAN NOTICE ⚠§r\n\n§6Your §e§lModpack Store§r account has been §c§lBANNED§r!\n\n§7Please contact support for more information.\n",
                 "UserBannedException",
             );
+        }
+
+        // Whitelist enforcement per modpack (optional modpack context from launcher)
+        const effectiveModpackId = modpackId ?? gs.modpackId ?? null;
+        if (modpackId) {
+            await db.update(gameSessionsTable).set({ modpackId, lastActivity: new Date() }).where(eq(gameSessionsTable.id, gs.id));
+        }
+        const ingame = await checkIngameAccess(effectiveModpackId, user.id);
+        if (!ingame.allowed) {
+            throw new APIError(403, ingame.kickMessage!, "UserBannedException");
         }
 
         if (!gs.launcherVersion || !isVersionAtLeast(gs.launcherVersion, MIN_LAUNCHER_VERSION)) {
@@ -153,6 +165,11 @@ export const yggdrasilService = {
                 "\n\n§c§l⚠ BAN NOTICE ⚠§r\n\n§6Your §e§lModpack Store§r account has been §c§lBANNED§r from multiplayer!\n\n§7Please contact support for more information.\n",
                 "UserBannedException",
             );
+        }
+
+        const ingame = await checkIngameAccess(gs.modpackId ?? null, user.id);
+        if (!ingame.allowed) {
+            throw new APIError(403, ingame.kickMessage!, "UserBannedException");
         }
 
         await db.update(gameSessionsTable).set({ serverId: null, lastActivity: new Date() }).where(eq(gameSessionsTable.id, gs.id));

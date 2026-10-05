@@ -23,7 +23,7 @@ yggdrasilRoutes.get("/", (c) => {
 yggdrasilRoutes.post("/authenticate", async (c) => {
     try {
         const b = await c.req.json();
-        return c.json(await yggdrasilService.authenticate(b.password, b.clientToken, b.username, b.minecraftUuid, b.launcherVersion));
+        return c.json(await yggdrasilService.authenticate(b.password, b.clientToken, b.username, b.minecraftUuid, b.launcherVersion, b.modpackId));
     } catch (e) {
         if (e instanceof APIError) return c.json(toYggError(e), e.statusCode as any);
         console.error("[Yggdrasil Authenticate Error]", e);
@@ -63,7 +63,7 @@ yggdrasilRoutes.post("/signout", (c) => c.json({ error: "ForbiddenOperationExcep
 async function handleJoin(c: any) {
     try {
         const b = await c.req.json();
-        await yggdrasilService.joinServer(b.accessToken, b.selectedProfile, b.serverId, b.ip);
+        await yggdrasilService.joinServer(b.accessToken, b.selectedProfile, b.serverId, b.ip, b.modpackId);
         return c.body(null, 204);
     } catch (e) {
         if (e instanceof APIError) return c.json(toYggError(e, c.req.path), e.statusCode as any);

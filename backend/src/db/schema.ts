@@ -209,6 +209,8 @@ export const modpacksTable = pgTable("modpacks", {
     creatorId: uuid('creator_id').references(() => creatorsTable.id).notNull(),
     showUserAsPublisher: boolean('show_user_as_publisher').default(false),
     creatorUserId: uuid('creator_user_id').references(() => users.id),
+    whitelistEnforceIngame: boolean('whitelist_enforce_ingame').notNull().default(false),
+    whitelistKickMessage: text('whitelist_kick_message').notNull().default('No estás autorizado a acceder a esta instancia'),
     status: modpackStatusEnum('status').notNull().default(ModpackStatus.DRAFT),
     acquisitionMethod: text('acquisition_method').notNull().default(AcquisitionMethod.FREE),
     requiresTwitchSubscription: boolean('requires_twitch_subscription').default(false),
@@ -387,12 +389,14 @@ export const gameSessionsTable = pgTable("game_sessions", {
     requestedUsername: varchar("requested_username", { length: 64 }),
     minecraftUuid: text("minecraft_uuid"),
     launcherVersion: text("launcher_version"),
+    modpackId: uuid("modpack_id").references(() => modpacksTable.id, { onDelete: "set null" }),
     lastActivity: timestamp("last_activity", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (table) => ({
     idxGameSessionServer: index("idx_game_sessions_server").on(table.serverId),
     idxGameSessionExpiry: index("idx_game_sessions_expires").on(table.expiresAt),
+    idxGameSessionModpack: index("idx_game_sessions_modpack").on(table.modpackId),
 }));
 
 export const gameSessionsRelations = relations(gameSessionsTable, ({ one }) => ({
