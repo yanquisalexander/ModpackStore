@@ -456,6 +456,20 @@ export function blendSearchResults(
 }
 
 /**
+ * Intercala categorías de ambas fuentes (Store abre) para un explorar
+ * único y equitativo. Cada categoría conserva sus modpacks intactos.
+ */
+export function blendCategories(local: any[], remote: any[]): any[] {
+    const out: any[] = [];
+    const max = Math.max(local.length, remote.length);
+    for (let i = 0; i < max; i++) {
+        if (i < local.length) out.push(local[i]);
+        if (i < remote.length) out.push(remote[i]);
+    }
+    return out;
+}
+
+/**
  * Validates that a creator API token may access a modpack (server-sync use case).
  * The token must belong to the creator that owns the modpack, carry the
  * `server:sync` scope, and — when restricted — include the modpack in `modpackIds`.

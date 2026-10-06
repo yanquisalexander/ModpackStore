@@ -18,6 +18,7 @@ import {
     assertTokenModpackAccess,
     searchModpacks,
     blendSearchResults,
+    blendCategories,
 } from "./explore.service.ts";
 import { searchTwitchChannels } from "./twitch.service.ts";
 import {
@@ -41,6 +42,25 @@ app.get("/", optionalAuth, async (c) => {
         if (provider === "modrinth") {
             const result = await getModrinthHomepage();
             return c.json({ data: result }, 200, { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" });
+        }
+        if (provider === "all") {
+            // Explorar fusionado: categorías de ambas fuentes intercaladas.
+            const userId = c.get("userId");
+            const [local, remote] = await Promise.all([
+                getExploreHomepage(userId).catch((e) => {
+                    log("[EXPLORE] Local homepage failed, continuing with Modrinth only:", e);
+                    return { categories: [] as any[], featured: [] as any[] };
+                }),
+                getModrinthHomepage().catch((e) => {
+                    log("[EXPLORE] Modrinth homepage failed, continuing with local only:", e);
+                    return { categories: [] as any[], featured: [] as any[] };
+                }),
+            ]);
+            const result = {
+                categories: blendCategories(local.categories ?? [], remote.categories ?? []),
+                featured: local.featured ?? [],
+            };
+            return c.json({ data: result }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" });
         }
         const userId = c.get("userId");
         const result = await getExploreHomepage(userId);
