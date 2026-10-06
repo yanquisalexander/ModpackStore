@@ -399,6 +399,63 @@ export async function searchModpacks(query: string) {
 }
 
 /**
+ * Mezcla equitativa de resultados locales + Modrinth (round-robin ponderado).
+ *
+ * Pesos configurables: con 1:1 la lista alterna store, modrinth, store…
+ * (la Store abre para dar un leve impulso al contenido propio sin enterrar
+ * a Modrinth). Se deduplica por nombre normalizado quedándose con la
+ * primera aparición (Store gana empates).
+ */
+export const BLEND_WEIGHTS = { store: 1, modrinth: 1 } as const;
+export const BLEND_LIMIT = 30;
+
+function normalizeName(name: unknown): string {
+    return String(name ?? "")
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "");
+}
+
+export function blendSearchResults(
+    local: any[],
+    remote: any[],
+    weights: { store: number; modrinth: number } = BLEND_WEIGHTS,
+    limit: number = BLEND_LIMIT,
+): any[] {
+    const queues: { items: any[]; weight: number; taken: number }[] = [
+        { items: [...local], weight: Math.max(1, weights.store), taken: 0 },
+        { items: [...remote], weight: Math.max(1, weights.modrinth), taken: 0 },
+    ];
+    const seen = new Set<string>();
+    const out: any[] = [];
+
+    const pushUnique = (item: any): boolean => {
+        const key = normalizeName(item?.name ?? item?.slug ?? item?.id);
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        out.push(item);
+        return true;
+    };
+
+    // Round-robin ponderado: en cada ronda se toman hasta `weight` items
+    // de cada fuente (saltando duplicados sin contarlos como consumidos).
+    while (out.length < limit && queues.some((q) => q.items.length > 0)) {
+        let progressed = false;
+        for (const q of queues) {
+            let takes = 0;
+            while (takes < q.weight && q.items.length > 0 && out.length < limit) {
+                const item = q.items.shift()!;
+                q.taken++;
+                takes++;
+                if (pushUnique(item)) progressed = true;
+            }
+        }
+        if (!progressed) break; // solo quedaban duplicados
+    }
+    return out;
+}
+
+/**
  * Validates that a creator API token may access a modpack (server-sync use case).
  * The token must belong to the creator that owns the modpack, carry the
  * `server:sync` scope, and — when restricted — include the modpack in `modpackIds`.

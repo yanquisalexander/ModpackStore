@@ -17,8 +17,16 @@ import {
     getModpackPassword,
     assertTokenModpackAccess,
     searchModpacks,
+    blendSearchResults,
 } from "./explore.service.ts";
 import { searchTwitchChannels } from "./twitch.service.ts";
+import {
+    getModrinthHomepage,
+    searchModrinthModpacks,
+    getModrinthProject,
+    getModrinthVersions,
+    getModrinthVersion,
+} from "@/services/modrinth.service.ts";
 import { NotFoundError, ForbiddenError, APIError } from "@/lib/errors/index.ts";
 import { log } from "@/lib/logger.ts";
 import { checkAccess } from "@/services/acquisition.service.ts";
@@ -29,6 +37,11 @@ const app = new Hono<{ Variables: AuthVariables }>();
 
 app.get("/", optionalAuth, async (c) => {
     try {
+        const provider = c.req.query("provider");
+        if (provider === "modrinth") {
+            const result = await getModrinthHomepage();
+            return c.json({ data: result }, 200, { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" });
+        }
         const userId = c.get("userId");
         const result = await getExploreHomepage(userId);
         return c.json({ data: result }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" });
@@ -42,11 +55,47 @@ app.get("/", optionalAuth, async (c) => {
 
 app.get("/search", async (c) => {
     const query = c.req.query("q");
+    const provider = c.req.query("provider");
     if (!query || query.length < 1) {
         return c.json({ data: [] });
     }
 
     try {
+        if (provider === "modrinth") {
+            const { hits } = await searchModrinthModpacks(query, 20);
+            return c.json({
+                data: hits.map((m: any) => ({
+                    id: m.id,
+                    type: "modpack",
+                    attributes: m,
+                })),
+            }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" });
+        }
+        if (provider === "all") {
+            // Búsqueda fusionada y equitativa: Store + Modrinth en paralelo,
+            // mezcla round-robin 1:1 con deduplicación por nombre.
+            const [localResults, remote] = await Promise.all([
+                searchModpacks(query).catch((e) => {
+                    log("[EXPLORE] Local search failed, continuing with Modrinth only:", e);
+                    return [];
+                }),
+                searchModrinthModpacks(query, 20).catch((e) => {
+                    log("[EXPLORE] Modrinth search failed, continuing with local only:", e);
+                    return { hits: [] as any[] };
+                }),
+            ]);
+            const blended = blendSearchResults(
+                localResults.map((m: any) => ({ provider: "store", ...m })),
+                remote.hits,
+            );
+            return c.json({
+                data: blended.map((m: any) => ({
+                    id: m.id,
+                    type: "modpack",
+                    attributes: m,
+                })),
+            }, 200, { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" });
+        }
         const results = await searchModpacks(query);
         return c.json({
             data: results.map((m: any) => ({
@@ -66,8 +115,13 @@ app.get("/search", async (c) => {
 app.get("/modpacks/:modpackId", optionalAuth, async (c) => {
     const modpackId = c.req.param("modpackId")!;
     const userId = c.get("userId");
+    const provider = c.req.query("provider");
 
     try {
+        if (provider === "modrinth") {
+            const modpack = await getModrinthProject(modpackId);
+            return c.json({ data: modpack }, 200, { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" });
+        }
         const modpack = await getModpack(modpackId, userId);
         if (!modpack) {
             return c.json({ errors: [{ status: "404", title: "Not Found", detail: "Modpack not found." }] }, 404);
@@ -75,6 +129,10 @@ app.get("/modpacks/:modpackId", optionalAuth, async (c) => {
 
         return c.json({ data: modpack }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" });
     } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        if (provider === "modrinth" && msg.includes("404")) {
+            return c.json({ errors: [{ status: "404", title: "Not Found", detail: "Modpack not found on Modrinth." }] }, 404);
+        }
         log("[EXPLORE] Error in getModpack:", error);
         return c.json({ errors: [{ status: "500", title: "Internal Server Error", detail: "Failed to fetch modpack." }] }, 500);
     }
@@ -107,8 +165,13 @@ app.get("/modpacks/:modpackId/prelaunch-appearance", async (c) => {
 
 app.get("/modpacks/:modpackId/versions", async (c) => {
     const modpackId = c.req.param("modpackId")!;
+    const provider = c.req.query("provider");
 
     try {
+        if (provider === "modrinth") {
+            const versions = await getModrinthVersions(modpackId);
+            return c.json({ data: versions }, 200, { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" });
+        }
         const versions = await getPublishedVersions(modpackId);
         return c.json({ data: versions }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" });
     } catch (error) {
