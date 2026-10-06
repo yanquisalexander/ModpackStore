@@ -187,13 +187,16 @@ fn download_missing_assets_with_runtime(
         // Higher concurrency for small asset files
         let download_manager = DownloadManager::with_concurrency(8);
         let instance_clone = instance.clone();
+        let mut emitter = crate::core::bootstrap::tasks::ThrottledEmitter::new(120);
 
         download_manager
             .download_files_parallel_with_progress(
                 missing_assets_info,
                 move |current, total, message| {
-                    let stage = Stage::ValidatingAssets { current, total };
-                    emit_status_with_stage(&instance_clone, "instance-downloading-assets", &stage);
+                    if emitter.should_emit(current == total) {
+                        let stage = Stage::ValidatingAssets { current, total };
+                        emit_status_with_stage(&instance_clone, "instance-downloading-assets", &stage);
+                    }
 
                     if current % 50 == 0 || current == total {
                         log::info!("Descargando assets: {}/{} - {}", current, total, message);

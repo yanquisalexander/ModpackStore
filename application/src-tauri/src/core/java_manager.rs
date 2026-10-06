@@ -146,6 +146,13 @@ impl JavaManager {
 
     /// Descarga e instala la versión de Java especificada
     async fn download_java(&self, version: u8, target_dir: &PathBuf) -> Result<()> {
+        // Serializar descargas concurrentes al mismo directorio (dos bootstraps
+        // a la vez). Si al adquirir el lock ya quedó instalado, no hay nada que hacer.
+        let _lock = self.acquire_download_lock(target_dir).await;
+        if self.is_java_installed(target_dir) {
+            return Ok(());
+        }
+
         // Determinar la URL de descarga según la plataforma y arquitectura
         let download_url = self.get_download_url(version).await?;
 
@@ -166,8 +173,9 @@ impl JavaManager {
             return Err(anyhow!("Formato de archivo no soportado: {}", download_url));
         };
 
-        // Crear el archivo temporal con la extensión adecuada
-        let temp_file = target_dir.join(format!("java_temp_archive.{}", extension));
+        // Nombre único por descarga: con el nombre fijo anterior dos
+        // instalaciones concurrentes escribían/borraban el mismo archivo.
+        let temp_file = target_dir.join(format!("java_temp_archive_{}.{}", uuid::Uuid::new_v4(), extension));
 
         // Crear un cliente con tiempo de espera personalizado
         let client = reqwest::Client::builder()
@@ -213,11 +221,42 @@ impl JavaManager {
 
         println!("Descarga completada. Extrayendo...");
 
+        // Cerrar el handle de escritura explícitamente antes de extraer/borrar.
+        // En Windows un handle abierto bloquea el borrado del archivo.
+        file.flush().context("Error al vaciar el buffer del archivo temporal")?;
+        drop(file);
+        drop(stream);
+
         // Extraer el archivo según su tipo
         self.extract_java_archive(&temp_file, target_dir)?;
 
-        // Eliminar el archivo temporal
-        fs::remove_file(&temp_file).context("No se pudo eliminar el archivo temporal")?;
+        // Eliminar el archivo temporal con reintentos: en Windows el antivirus
+        // suele retener el archivo unos instantes tras escribir ~200MB.
+        // Es best-effort: si no se puede borrar, la instalación sigue siendo
+        // válida y el resto se limpia en heal_java_directory.
+        let mut deleted = false;
+        let mut last_err = String::new();
+        for attempt in 0..5 {
+            match fs::remove_file(&temp_file) {
+                Ok(_) => {
+                    deleted = true;
+                    break;
+                }
+                Err(e) => {
+                    last_err = e.to_string();
+                    if attempt < 4 {
+                        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+                    }
+                }
+            }
+        }
+        if !deleted {
+            log::warn!(
+                "[java_manager] No se pudo eliminar {} tras reintentos ({}). Se limpiará en el próximo arranque.",
+                temp_file.display(),
+                last_err
+            );
+        }
 
         // macOS-specific: Fix permissions after extraction
         #[cfg(target_os = "macos")]
@@ -238,6 +277,51 @@ impl JavaManager {
 
         println!("Java {} instalado correctamente", version);
         Ok(())
+    }
+
+    /// Adquiere un lock exclusivo por directorio de Java para serializar
+    /// descargas concurrentes (del mismo proceso o de otra instancia).
+    /// El lock caduca a los 15 min para no bloquear por un proceso muerto.
+    /// Devuelve un guard que libera el lock al soltarse (o None si no hizo
+    /// falta / no se pudo crear y se continúa en modo best-effort).
+    async fn acquire_download_lock(&self, target_dir: &PathBuf) -> Option<DownloadLock> {
+        if !target_dir.exists() {
+            let _ = create_dir_all(target_dir);
+        }
+        let lock_dir = target_dir.join("java_dl.lock");
+        let start = std::time::Instant::now();
+
+        loop {
+            match fs::create_dir(&lock_dir) {
+                Ok(_) => return Some(DownloadLock { path: Some(lock_dir) }),
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                    let stale = fs::metadata(&lock_dir)
+                        .and_then(|m| m.modified())
+                        .map(|t| t.elapsed().map(|d| d.as_secs() > 900).unwrap_or(true))
+                        .unwrap_or(true);
+                    if stale {
+                        let _ = fs::remove_dir_all(&lock_dir);
+                        continue;
+                    }
+                    // La otra descarga puede haber terminado mientras esperamos
+                    if self.is_java_installed(target_dir) {
+                        return None;
+                    }
+                    if start.elapsed().as_secs() > 600 {
+                        log::warn!(
+                            "[java_manager] Timeout esperando el lock de {}, continuando sin lock",
+                            target_dir.display()
+                        );
+                        return None;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+                }
+                Err(e) => {
+                    log::warn!("[java_manager] No se pudo crear el lock ({}), continuando sin lock", e);
+                    return None;
+                }
+            }
+        }
     }
 
     /// Determina la URL de descarga de OpenJDK según la plataforma, arquitectura y versión
@@ -571,14 +655,19 @@ impl JavaManager {
             return Ok(false);
         }
 
-        // Limpiar archivos o carpetas temporales residuales
-        for temp_name in &["temp_move", "java_temp_archive.zip", "java_temp_archive.tar.gz"] {
-            let temp_path = version_dir.join(temp_name);
-            if temp_path.exists() {
-                if temp_path.is_dir() {
-                    let _ = fs::remove_dir_all(&temp_path);
-                } else {
-                    let _ = fs::remove_file(&temp_path);
+        // Limpiar archivos o carpetas temporales residuales (incluye los
+        // nombres únicos por descarga: java_temp_archive_<uuid>.*) y locks
+        // huérfanos de descargas interrumpidas.
+        if let Ok(entries) = fs::read_dir(version_dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.starts_with("java_temp_archive") || name == "temp_move" || name == "java_dl.lock" {
+                    let p = entry.path();
+                    if p.is_dir() {
+                        let _ = fs::remove_dir_all(&p);
+                    } else {
+                        let _ = fs::remove_file(&p);
+                    }
                 }
             }
         }
@@ -960,6 +1049,19 @@ impl JavaManager {
         self.is_java_installed(version_dir)
             .then_some(true)
             .ok_or_else(|| "Java still not working after permission repair".to_string())
+    }
+}
+
+// Guard RAII: libera el lock de descarga al soltarse.
+struct DownloadLock {
+    path: Option<PathBuf>,
+}
+
+impl Drop for DownloadLock {
+    fn drop(&mut self) {
+        if let Some(p) = self.path.take() {
+            let _ = fs::remove_dir_all(&p);
+        }
     }
 }
 

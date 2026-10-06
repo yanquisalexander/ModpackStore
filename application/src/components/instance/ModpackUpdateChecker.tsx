@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { Progress } from '@/components/ui/progress';
+import { useSmoothProgress } from '@/hooks/useSmoothProgress';
 
 interface ModpackInstance {
     instanceId: string;
@@ -60,6 +61,9 @@ export const ModpackUpdateChecker: React.FC<Props> = ({ instance, onUpdate }) =>
     // OFFLINE MODE: Este componente maneja errores de red de forma tolerante.
     // Si no puede contactar el backend, muestra un aviso no bloqueante y continúa funcionando.
     // El objetivo es que el launcher nunca se bloquee por problemas de conexión.
+
+    // Progreso suavizado con centésimas solo para pintado.
+    const smoothProgress = useSmoothProgress(taskProgress.progress);
 
     // Only show for modpack instances
     if (!instance.modpackId) {
@@ -266,11 +270,11 @@ export const ModpackUpdateChecker: React.FC<Props> = ({ instance, onUpdate }) =>
                             <span className="text-sm font-medium text-blue-900">
                                 Actualizando modpack...
                             </span>
-                            <span className="text-sm text-blue-700">
-                                {Math.round(taskProgress.progress)}%
+                            <span className="text-sm text-blue-700 tabular-nums">
+                                {smoothProgress.toFixed(2)}%
                             </span>
                         </div>
-                        <Progress value={taskProgress.progress} className="w-full" />
+                        <Progress value={smoothProgress} className="w-full" />
                         <p className="text-xs text-blue-700">
                             {taskProgress.message}
                         </p>

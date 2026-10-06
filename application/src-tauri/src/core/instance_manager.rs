@@ -1319,10 +1319,22 @@ fn spawn_mrpack_bootstrap_task(instance: MinecraftInstance, task_id: String) {
             None,
         );
 
-        let bootstrap_result = if instance.forgeVersion.is_some() {
-            bootstrap.bootstrap_forge_instance(&instance, Some(task_id.clone()))
-        } else {
-            bootstrap.bootstrap_vanilla_instance(&instance, Some(task_id.clone()))
+        let bootstrap_result = match instance.loaderType {
+            ModLoaderType::Forge => {
+                bootstrap.bootstrap_forge_instance(&instance, Some(task_id.clone()))
+            }
+            ModLoaderType::Fabric => {
+                bootstrap.bootstrap_fabric_instance(&instance, Some(task_id.clone()))
+            }
+            ModLoaderType::NeoForge => {
+                bootstrap.bootstrap_neoforge_instance(&instance, Some(task_id.clone()))
+            }
+            ModLoaderType::Quilt => {
+                bootstrap.bootstrap_quilt_instance(&instance, Some(task_id.clone()))
+            }
+            ModLoaderType::Vanilla => {
+                bootstrap.bootstrap_vanilla_instance(&instance, Some(task_id.clone()))
+            }
         };
 
         // Handle bootstrap result and update Java path if needed
@@ -2117,11 +2129,17 @@ pub fn get_access_token_sync(app_handle: &tauri::AppHandle) -> Result<Option<Str
     })
 }
 
-/// Create a new instance from a .mrpack file
+/// Create a new instance from a .mrpack file.
+/// `icon_url` / `banner_url` son opcionales: cuando vienen (p. ej. desde
+/// Modrinth) se descargan y guardan en base64 como en las instancias de
+/// modpack normales. Si fallan, se conserva el icono por defecto sin
+/// abortar la instalación.
 #[tauri::command]
 pub async fn create_instance_from_mrpack(
     mrpack_path: String,
     instance_name: String,
+    icon_url: Option<String>,
+    banner_url: Option<String>,
 ) -> Result<String, String> {
     use crate::core::mrpack_handler::{
         download_mrpack_mods, extract_mrpack_overrides, read_mrpack_manifest,
@@ -2130,13 +2148,8 @@ pub async fn create_instance_from_mrpack(
     let path = Path::new(&mrpack_path);
     let manifest = read_mrpack_manifest(path)?;
 
-    // Validate that it's compatible (Forge or Vanilla only)
-    if manifest.dependencies.fabric_loader.is_some()
-        || manifest.dependencies.quilt_loader.is_some()
-        || manifest.dependencies.neoforge.is_some()
-    {
-        return Err("Solo se admite Forge y Vanilla actualmente".to_string());
-    }
+    // Resolver loader desde el manifest (forge > fabric > quilt > neoforge > vanilla).
+    // Todos tienen bootstrap dedicado (ver spawn_mrpack_bootstrap_task).
 
     // Create instance directory
     let instances_dir = get_instances_dir()?;
@@ -2205,20 +2218,59 @@ pub async fn create_instance_from_mrpack(
         None,
     );
 
-    // Determine icon URL based on loader
-    let icon_url = if manifest.dependencies.forge.is_some() {
-        Some(DEFAULT_FORGE_ICON.to_string())
+    // Determinar loader y versión desde el manifest
+    let (loader_type, loader_version, forge_version) = if let Some(v) = manifest.dependencies.forge.clone() {
+        (ModLoaderType::Forge, Some(v.clone()), Some(v))
+    } else if let Some(v) = manifest.dependencies.fabric_loader.clone() {
+        (ModLoaderType::Fabric, Some(v), None)
+    } else if let Some(v) = manifest.dependencies.quilt_loader.clone() {
+        (ModLoaderType::Quilt, Some(v), None)
+    } else if let Some(v) = manifest.dependencies.neoforge.clone() {
+        (ModLoaderType::NeoForge, Some(v), None)
     } else {
-        Some(DEFAULT_VANILLA_ICON.to_string())
+        (ModLoaderType::Vanilla, None, None)
+    };
+
+    // Icono y banner: mismos que la instancia tendría en la tienda.
+    // Best-effort: si el CDN falla, se usa el icono por defecto.
+    let mut uses_default_icon = true;
+    let mut banner_b64: Option<String> = None;
+    if let Some(banner) = banner_url.as_deref().filter(|u| !u.is_empty()) {
+        match download_image_as_base64(banner, None).await {
+            Ok(b64) => banner_b64 = Some(b64),
+            Err(e) => log::warn!("No se pudo descargar el banner del .mrpack ({}): {}", banner, e),
+        }
+    }
+    let icon_b64: Option<String> = match icon_url.as_deref().filter(|u| !u.is_empty()) {
+        Some(icon) => match download_image_as_base64(icon, None).await {
+            Ok(b64) => {
+                uses_default_icon = false;
+                Some(b64)
+            }
+            Err(e) => {
+                log::warn!("No se pudo descargar el icono del .mrpack ({}): {}", icon, e);
+                None
+            }
+        },
+        None => None,
+    };
+    let icon_url_value = if uses_default_icon {
+        if matches!(loader_type, ModLoaderType::Forge) {
+            Some(DEFAULT_FORGE_ICON.to_string())
+        } else {
+            Some(DEFAULT_VANILLA_ICON.to_string())
+        }
+    } else {
+        icon_b64
     };
 
     // Create instance configuration with proper minecraftPath
     let minecraft_path = instance_dir.join("minecraft");
     let instance = MinecraftInstance {
         instanceId: instance_id.clone(),
-        usesDefaultIcon: true,
-        iconUrl: icon_url,
-        bannerUrl: None,
+        usesDefaultIcon: uses_default_icon,
+        iconUrl: icon_url_value,
+        bannerUrl: banner_b64,
         instanceName: instance_name,
         accountUuid: None,
         minecraftPath: normalize_path(&minecraft_path),
@@ -2226,13 +2278,9 @@ pub async fn create_instance_from_mrpack(
         modpackVersionId: None,
         minecraftVersion: manifest.dependencies.minecraft.clone(),
         instanceDirectory: Some(instance_dir.to_string_lossy().to_string()),
-        forgeVersion: manifest.dependencies.forge.clone(),
-        loaderType: if manifest.dependencies.forge.is_some() {
-            ModLoaderType::Forge
-        } else {
-            ModLoaderType::Vanilla
-        },
-        loaderVersion: manifest.dependencies.forge.clone(),
+        forgeVersion: forge_version,
+        loaderType: loader_type,
+        loaderVersion: loader_version,
         javaPath: None,
         bootstrap_complete: Some(false),
         bootstrap_error: None,
@@ -2269,6 +2317,54 @@ pub async fn create_instance_from_mrpack(
     }
 
     Ok(instance_id)
+}
+
+/// Download a .mrpack from an URL (e.g. Modrinth CDN) to a temp file and
+/// create an instance from it. Reuses `create_instance_from_mrpack` so the
+/// bootstrap / mods download flow stays identical.
+#[tauri::command]
+pub async fn create_instance_from_mrpack_url(
+    mrpack_url: String,
+    instance_name: String,
+    icon_url: Option<String>,
+    banner_url: Option<String>,
+) -> Result<String, String> {
+    if !(mrpack_url.starts_with("https://") || mrpack_url.starts_with("http://")) {
+        return Err("Invalid mrpack URL".to_string());
+    }
+
+    let client = &*HTTP_CLIENT;
+    let response = client
+        .get(&mrpack_url)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to download .mrpack: {}", e))?;
+
+    if !response.status().is_success() {
+        return Err(format!("Failed to download .mrpack: HTTP {}", response.status()));
+    }
+
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|e| format!("Failed to read .mrpack body: {}", e))?;
+
+    // Basic sanity: .mrpack is a zip, should be at least a few KB
+    if bytes.len() < 1024 {
+        return Err("Downloaded file is too small to be a valid .mrpack".to_string());
+    }
+
+    let mut tmp_dir = std::env::temp_dir();
+    tmp_dir.push("modpackstore-mrpack");
+    std::fs::create_dir_all(&tmp_dir)
+        .map_err(|e| format!("Failed to create temp dir: {}", e))?;
+
+    let file_name = format!("{}.mrpack", uuid::Uuid::new_v4());
+    let tmp_path = tmp_dir.join(file_name);
+    std::fs::write(&tmp_path, &bytes).map_err(|e| format!("Failed to save .mrpack: {}", e))?;
+
+    let tmp_str = tmp_path.to_string_lossy().to_string();
+    create_instance_from_mrpack(tmp_str, instance_name, icon_url, banner_url).await
 }
 
 /// Función helper para obtener el argumento de authlib-injector de forma síncrona

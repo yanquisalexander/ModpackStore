@@ -41,11 +41,13 @@ export const CategoryHorizontalSection = ({
     title,
     shortDescription,
     modpacks = [],
+    provider = "store",
 }: {
     id: string;
     title: string;
     shortDescription?: string;
     modpacks: any[];
+    provider?: "store" | "modrinth";
 }) => {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [showLeftArrow, setShowLeftArrow] = useState(false);
@@ -97,14 +99,17 @@ export const CategoryHorizontalSection = ({
                     className="flex overflow-x-auto snap-x snap-mandatory scrollbar-hide gap-4 px-4 scroll-p-4"
                 >
                     {modpacks.length > 0 &&
-                        modpacks.map((modpack) => (
+                        modpacks.map((modpack) => {
+                            const isExternal = provider === "modrinth" || modpack.provider === "modrinth";
+                            return (
                             <div
                                 key={modpack.id}
                                 className="snap-start flex-shrink-0 md:w-60 lg:w-72"
                             >
-                                <ModpackCard modpack={modpack} to={`/modpack/${modpack.id}`} />
+                                <ModpackCard modpack={modpack} to={isExternal ? `/modpack/${modpack.id}?provider=modrinth` : `/modpack/${modpack.id}`} />
                             </div>
-                        ))}
+                            );
+                        })}
                 </div>
 
                 <ScrollControl

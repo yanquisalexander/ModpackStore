@@ -64,13 +64,21 @@ export const ModpackCard = ({
         >
             <div className="absolute inset-0 z-0">
                 <img
-                    src={modpack.bannerUrl || "/images/modpack-fallback.webp"}
+                    src={modpack.bannerUrl || modpack.iconUrl || "/images/modpack-fallback.webp"}
                     onError={(e) => { e.currentTarget.src = "/images/modpack-fallback.webp" }}
                     alt={modpack.name}
                     className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/20 to-transparent" />
             </div>
+
+            {(modpack.provider === "modrinth" || modpack.projectId) && (
+                <div className="absolute top-2 left-2 z-20">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#1bd96a]/90 text-black shadow">
+                        Modrinth
+                    </span>
+                </div>
+            )}
 
             <div className="absolute inset-0 z-10 flex flex-col justify-end p-4 opacity-0 translate-y-3 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300">
                 <div className="flex items-center justify-between gap-3">

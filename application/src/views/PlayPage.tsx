@@ -143,7 +143,8 @@ const DiscoverTab = ({ isOffline }: { isOffline: boolean }) => {
 
     useEffect(() => {
         if (isOffline) { setStoreLoading(false); return }
-        getModpacks()
+        setStoreLoading(true)
+        getModpacks("all")
             .then(({ categories, featured }) => {
                 setModpackCategories(categories)
                 setFeaturedSlides(featured)
@@ -155,7 +156,9 @@ const DiscoverTab = ({ isOffline }: { isOffline: boolean }) => {
     useEffect(() => {
         if (debouncedSearch.trim() === "") { setSearchResults([]); return }
         setSearchLoading(true)
-        searchModpacks(debouncedSearch)
+        // Búsqueda fusionada y equitativa (Store + Modrinth); el toggle
+        // solo afecta a la navegación por categorías.
+        searchModpacks(debouncedSearch, "all")
             .then(setSearchResults)
             .catch(console.error)
             .finally(() => setSearchLoading(false))
@@ -209,8 +212,11 @@ const DiscoverTab = ({ isOffline }: { isOffline: boolean }) => {
                                     className="grid grid-cols-3 xl:grid-cols-4 gap-5"
                                 >
                                     {searchResults.map((modpack, i) => (
-                                        <motion.div key={modpack.id} variants={fadeUp} custom={i}>
-                                            <ModpackCard modpack={modpack} to={`/modpack/${modpack.id}`} />
+                                        <motion.div key={`${modpack.provider ?? "store"}-${modpack.id}`} variants={fadeUp} custom={i}>
+                                            <ModpackCard
+                                                modpack={modpack}
+                                                to={modpack.provider === "modrinth" ? `/modpack/${modpack.id}?provider=modrinth` : `/modpack/${modpack.id}`}
+                                            />
                                         </motion.div>
                                     ))}
                                 </motion.div>

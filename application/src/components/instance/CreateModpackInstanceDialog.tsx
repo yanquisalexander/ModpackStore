@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 import { ModpackPasswordDialog } from '@/components/modpack/ModpackPasswordDialog';
+import { useSmoothProgress } from '@/hooks/useSmoothProgress';
 
 interface ModpackVersion {
     id: string;
@@ -59,6 +60,9 @@ export const CreateModpackInstanceDialog: React.FC<Props> = ({ isOpen, onClose, 
         message: '',
         status: 'Pending'
     });
+
+    // Progreso suavizado con centésimas solo para pintado.
+    const smoothProgress = useSmoothProgress(taskProgress.progress);
 
     useEffect(() => {
         if (modpack.name && !instanceName) {
@@ -233,11 +237,11 @@ export const CreateModpackInstanceDialog: React.FC<Props> = ({ isOpen, onClose, 
                                 <span className="text-sm font-medium text-blue-900">
                                     Creando instancia...
                                 </span>
-                                <span className="text-sm text-blue-700">
-                                    {Math.round(taskProgress.progress)}%
+                                <span className="text-sm text-blue-700 tabular-nums">
+                                    {smoothProgress.toFixed(2)}%
                                 </span>
                             </div>
-                            <Progress value={taskProgress.progress} className="w-full" />
+                            <Progress value={smoothProgress} className="w-full" />
                             <p className="text-xs text-blue-700">
                                 {taskProgress.message}
                             </p>

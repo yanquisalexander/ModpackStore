@@ -117,17 +117,10 @@ export const InstancesProvider = ({ children }: { children: React.ReactNode }) =
             });
             unlistenList.push(launchStartUnlisten);
 
-            // Evento para cuando se están descargando assets
-            const downloadingUnlisten = await listen("instance-downloading-assets", (e: any) => {
-                const { id, message } = e.payload;
-                console.log("Downloading assets event:", { id, message });
-
-                updateInstance(id, {
-                    status: "downloading-assets",
-                    message: message || "Descargando archivos necesarios..."
-                });
-            });
-            unlistenList.push(downloadingUnlisten);
+            // NOTA: el progreso de descarga de assets lo maneja el listener
+            // throttled de más abajo ("downloadingAssetsStageUnlisten"). No
+            // agregar otro listener de "instance-downloading-assets" aquí:
+            // duplicarlo congela la UI (un setState sin throttle por archivo).
 
             const finishAssetsDownloadUnlisten = await listen("instance-finish-assets-download", (e: any) => {
                 const { id, message } = e.payload;

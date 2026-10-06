@@ -2,8 +2,16 @@ import { API_ENDPOINT } from "@/consts"
 import { Modpack } from "@/types/modpacks";
 import { fetchWithAuth } from "@/lib/fetchWithAuth";
 
-export const getModpacks = async (): Promise<{ categories: any[], featured: any[] }> => {
-    const response = await fetchWithAuth(`${API_ENDPOINT}/explore`, {
+export type ExploreProvider = "store" | "modrinth" | "all";
+
+const providerParam = (provider?: ExploreProvider) =>
+    provider === "store" ? "" : `?provider=${provider}`;
+
+export const getModpacks = async (
+    provider: ExploreProvider = "store"
+): Promise<{ categories: any[], featured: any[] }> => {
+    const suffix = providerParam(provider);
+    const response = await fetchWithAuth(`${API_ENDPOINT}/explore${suffix}`, {
         method: "GET",
         headers: {
             "Content-Type": "application/json",
@@ -22,9 +30,13 @@ export const getModpacks = async (): Promise<{ categories: any[], featured: any[
     }
 }
 
-export const searchModpacks = async (query: string): Promise<Modpack[]> => {
+export const searchModpacks = async (
+    query: string,
+    provider: ExploreProvider = "store"
+): Promise<Modpack[]> => {
     const url = new URL(`${API_ENDPOINT}/explore/search`)
     url.searchParams.append("q", query)
+    if (provider === "modrinth" || provider === "all") url.searchParams.append("provider", provider)
 
 
     const response = await fetchWithAuth(url.toString(), {
@@ -43,8 +55,12 @@ export const searchModpacks = async (query: string): Promise<Modpack[]> => {
     return json.data.map((item: any) => item.attributes)
 }
 
-export const getModpackById = async (modpackId: string): Promise<Modpack> => {
-    const response = await fetchWithAuth(`${API_ENDPOINT}/explore/modpacks/${modpackId}`, {
+export const getModpackById = async (
+    modpackId: string,
+    provider: ExploreProvider = "store"
+): Promise<Modpack> => {
+    const suffix = providerParam(provider);
+    const response = await fetchWithAuth(`${API_ENDPOINT}/explore/modpacks/${modpackId}${suffix}`, {
         method: "GET",
         headers: {
             "Content-Type": "application/json",

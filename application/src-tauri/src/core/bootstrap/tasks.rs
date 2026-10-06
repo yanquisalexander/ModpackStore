@@ -69,7 +69,8 @@ pub fn emit_status(instance: &MinecraftInstance, event_name: &str, message: &str
 pub fn emit_status_with_stage(instance: &MinecraftInstance, event_name: &str, stage: &Stage) {
     let message = format_stage_message(stage);
 
-    println!(
+    // Solo debug: este emit se llama por archivo y el println! inunda el stdout.
+    log::debug!(
         "[Instance: {}] Emitting Event: {} - Stage: {:?}",
         instance.instanceId, event_name, stage
     );
@@ -181,6 +182,46 @@ pub fn emit_bootstrap_complete(instance: &MinecraftInstance, instance_type: &str
             instance_type, instance.minecraftVersion
         ),
     );
+}
+
+/// Limita la cadencia de emisión de progreso por-archivo (~8-10 eventos/seg)
+/// para no saturar el puente IPC ni la UI.
+///
+/// Garantía de secuencia: el primer valor y el último (completado) siempre se
+/// emiten. Los valores intermedios que se salten los cubre el tween del
+/// frontend, que barre cada centésima de forma monótona.
+pub struct ThrottledEmitter {
+    last_emit: Option<std::time::Instant>,
+    min_interval: std::time::Duration,
+}
+
+impl ThrottledEmitter {
+    pub fn new(min_interval_ms: u64) -> Self {
+        Self {
+            last_emit: None,
+            min_interval: std::time::Duration::from_millis(min_interval_ms),
+        }
+    }
+
+    /// Devuelve true si corresponde emitir ahora: primer valor, cadencia
+    /// cumplida, o `is_final` (el 100 % siempre llega).
+    pub fn should_emit(&mut self, is_final: bool) -> bool {
+        if is_final {
+            self.last_emit = Some(std::time::Instant::now());
+            return true;
+        }
+        match self.last_emit {
+            None => {
+                self.last_emit = Some(std::time::Instant::now());
+                true
+            }
+            Some(t) if t.elapsed() >= self.min_interval => {
+                self.last_emit = Some(std::time::Instant::now());
+                true
+            }
+            _ => false,
+        }
+    }
 }
 
 /// Convenience function to emit download progress events

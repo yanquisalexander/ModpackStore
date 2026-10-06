@@ -96,6 +96,8 @@ export const ImportMrpackDialog = ({ onInstanceCreated, disabled = false, defaul
       await invoke<string>("create_instance_from_mrpack", {
         mrpackPath: mrpackPath,
         instanceName: instanceName,
+        iconUrl: null,
+        bannerUrl: null,
       });
 
       toast.success("Modpack importado exitosamente");

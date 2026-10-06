@@ -57,6 +57,22 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
     const [lastSyncTime, setLastSyncTime] = useState<number>(0);
     const unlistenRef = useRef<UnlistenFn[]>([]);
 
+    // Coalescing de updates por tarea: los eventos "task-updated" pueden
+    // llegar a cientos por segundo (un update_task por archivo). Se aplica
+    // el último valor con un trailing de ~150 ms; los estados terminales
+    // entran directo para no retrasar el 100% / errores.
+    const lastTaskUpdateRef = useRef<Map<string, number>>(new Map());
+    const pendingTaskUpdateRef = useRef<Map<string, { update: TaskInfo; timer: ReturnType<typeof setTimeout> }>>(new Map());
+    const TASK_THROTTLE_MS = 150;
+
+    const cancelPendingTaskUpdate = useCallback((id: string) => {
+        const pending = pendingTaskUpdateRef.current.get(id);
+        if (pending) {
+            clearTimeout(pending.timer);
+            pendingTaskUpdateRef.current.delete(id);
+        }
+    }, []);
+
     const hasRunningTasks = useMemo(
         () => tasks.some((task) => task.status === "Running"),
         [tasks]
@@ -84,13 +100,8 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
         );
     };
 
-    // Safe state update function that validates task data
-    const updateTaskSafely = useCallback((taskUpdate: TaskInfo) => {
-        if (!validateTaskInfo(taskUpdate)) {
-            console.error("Invalid task data received:", taskUpdate);
-            return;
-        }
-
+    // Aplica un update validado al estado (siempre el último valor).
+    const applyTaskUpdate = useCallback((taskUpdate: TaskInfo) => {
         setTasks((prev) => {
             const newTasks = [...prev];
             const idx = newTasks.findIndex((t) => t.id === taskUpdate.id);
@@ -112,6 +123,42 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
             return newTasks;
         });
     }, []);
+
+    // Safe state update function that validates task data
+    const updateTaskSafely = useCallback((taskUpdate: TaskInfo) => {
+        if (!validateTaskInfo(taskUpdate)) {
+            console.error("Invalid task data received:", taskUpdate);
+            return;
+        }
+
+        // Estados terminales: entran directo (cargan pendientes primero para
+        // no dejar un valor intermedio como final).
+        if (taskUpdate.status !== "Running") {
+            cancelPendingTaskUpdate(taskUpdate.id);
+            lastTaskUpdateRef.current.set(taskUpdate.id, Date.now());
+            applyTaskUpdate(taskUpdate);
+            return;
+        }
+
+        const now = Date.now();
+        const last = lastTaskUpdateRef.current.get(taskUpdate.id) ?? 0;
+
+        if (now - last >= TASK_THROTTLE_MS) {
+            lastTaskUpdateRef.current.set(taskUpdate.id, now);
+            applyTaskUpdate(taskUpdate);
+        } else {
+            const existing = pendingTaskUpdateRef.current.get(taskUpdate.id);
+            if (existing) clearTimeout(existing.timer);
+
+            const timer = setTimeout(() => {
+                pendingTaskUpdateRef.current.delete(taskUpdate.id);
+                lastTaskUpdateRef.current.set(taskUpdate.id, Date.now());
+                applyTaskUpdate(taskUpdate);
+            }, TASK_THROTTLE_MS - (now - last));
+
+            pendingTaskUpdateRef.current.set(taskUpdate.id, { update: taskUpdate, timer });
+        }
+    }, [applyTaskUpdate, cancelPendingTaskUpdate]);
 
     // Function to sync tasks from backend
     const syncTasks = useCallback(async (): Promise<void> => {
@@ -209,6 +256,7 @@ export const TasksProvider = ({ children }: { children: React.ReactNode }) => {
 
                 const unlisten3 = await listen<string>("task-removed", (event) => {
                     if (!mounted) return;
+                    cancelPendingTaskUpdate(event.payload);
                     setTasks((prev) => prev.filter((task) => task.id !== event.payload));
                 });
 

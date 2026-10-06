@@ -1,8 +1,56 @@
-import { useTasksContext } from "@/stores/TasksContext";
+import { useTasksContext, type TaskInfo } from "@/stores/TasksContext";
 import { LucideCheck, LucideInfo, LucideRefreshCcw, LucideTrash2, LucideX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@/lib/utils";
+import { useSmoothProgress } from "@/hooks/useSmoothProgress";
+
+const TaskRow = ({
+    task,
+    getStatusIcon,
+    getStatusColor,
+}: {
+    task: TaskInfo;
+    getStatusIcon: (status: string) => React.ReactNode;
+    getStatusColor: (status: string) => string;
+}) => {
+    // Barra y texto con centésimas fluidas (el backend emite grueso).
+    const smooth = useSmoothProgress(task.progress);
+    return (
+        <div className="p-3 rounded-lg hover:bg-white/5 transition-colors group">
+            <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="shrink-0 mt-0.5">
+                        {getStatusIcon(task.status)}
+                    </div>
+                    <div className="min-w-0">
+                        <p className="text-sm font-medium text-neutral-200 truncate pr-2">
+                            {task.label}
+                        </p>
+                        {task.message && (
+                            <p className="text-xs text-neutral-500 truncate mt-0.5">
+                                {task.message}
+                            </p>
+                        )}
+                    </div>
+                </div>
+                <span className="text-xs font-mono text-neutral-500 shrink-0 tabular-nums">
+                    {smooth.toFixed(2)}%
+                </span>
+            </div>
+
+            {/* Barra de Progreso */}
+            <div className="h-1 w-full bg-neutral-800 rounded-full overflow-hidden">
+                <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${Math.max(5, Math.min(100, smooth))}%` }}
+                    transition={{ duration: 0.15, ease: "linear" }}
+                    className={cn("h-full rounded-full", getStatusColor(task.status))}
+                />
+            </div>
+        </div>
+    );
+};
 
 export const RunningTasks = () => {
     const { tasks, hasRunningTasks, taskCount, syncTasks } = useTasksContext();
@@ -113,38 +161,12 @@ export const RunningTasks = () => {
                                 </div>
                             ) : (
                                 tasks.map((task) => (
-                                    <div key={task.id} className="p-3 rounded-lg hover:bg-white/5 transition-colors group">
-                                        <div className="flex items-start justify-between gap-3 mb-2">
-                                            <div className="flex items-center gap-2.5 min-w-0">
-                                                <div className="shrink-0 mt-0.5">
-                                                    {getStatusIcon(task.status)}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-sm font-medium text-neutral-200 truncate pr-2">
-                                                        {task.label}
-                                                    </p>
-                                                    {task.message && (
-                                                        <p className="text-xs text-neutral-500 truncate mt-0.5">
-                                                            {task.message}
-                                                        </p>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <span className="text-xs font-mono text-neutral-500 shrink-0">
-                                                {Math.round(task.progress)}%
-                                            </span>
-                                        </div>
-
-                                        {/* Barra de Progreso */}
-                                        <div className="h-1 w-full bg-neutral-800 rounded-full overflow-hidden">
-                                            <motion.div
-                                                initial={{ width: 0 }}
-                                                animate={{ width: `${Math.max(5, Math.min(100, task.progress))}%` }}
-                                                transition={{ duration: 0.3 }}
-                                                className={cn("h-full rounded-full", getStatusColor(task.status))}
-                                            />
-                                        </div>
-                                    </div>
+                                    <TaskRow
+                                        key={task.id}
+                                        task={task}
+                                        getStatusIcon={getStatusIcon}
+                                        getStatusColor={getStatusColor}
+                                    />
                                 ))
                             )}
                         </div>

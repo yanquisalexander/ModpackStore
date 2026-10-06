@@ -1,3 +1,4 @@
+use crate::core::bootstrap::tasks::ThrottledEmitter;
 use crate::core::modpack_file_manager::DownloadManager;
 use crate::core::tasks_manager::{update_task, TaskStatus};
 use serde::{Deserialize, Serialize};
@@ -128,16 +129,10 @@ pub fn check_mrpack_compatibility(manifest: MrpackManifest) -> Result<MrpackComp
         "vanilla".to_string()
     };
 
-    // Check loader compatibility
-    if loader != "forge" && loader != "vanilla" {
-        errors.push(format!(
-            "Solo se admite Forge actualmente. {}, Quilt y NeoForge no están soportados todavía.",
-            if loader == "fabric" {
-                "Fabric"
-            } else {
-                &loader
-            }
-        ));
+    // Check loader compatibility — todos los loaders soportados por el
+    // bootstrap (forge, fabric, quilt, neoforge, vanilla) son importables.
+    if !["forge", "fabric", "quilt", "neoforge", "vanilla"].contains(&loader.as_str()) {
+        errors.push(format!("Loader no soportado: {}.", loader));
     }
 
     // Add warning for optional mods
@@ -360,19 +355,25 @@ pub async fn download_mrpack_mods(
     // Use DownloadManager
     let download_manager = DownloadManager::with_concurrency(4);
     let task_id_clone = task_id.clone();
+    let mut emitter = ThrottledEmitter::new(120);
 
     download_manager
         .download_files_parallel_with_progress(files_to_download, move |current, total, message| {
             if let Some(ref tid) = task_id_clone {
-                // Map progress to 20-30% range (approximate)
-                let progress = 20.0 + ((current as f32 / total as f32) * 10.0);
-                update_task(
-                    tid,
-                    TaskStatus::Running,
-                    progress,
-                    &format!("Descargando mods: {} ({}/{})", message, current, total),
-                    None,
-                );
+                if emitter.should_emit(current == total) {
+                    // Map progress to 20-30% range (approximate)
+                    let progress = 20.0 + ((current as f32 / total as f32) * 10.0);
+                    update_task(
+                        tid,
+                        TaskStatus::Running,
+                        progress,
+                        &format!("Descargando mods: {} ({}/{})", message, current, total),
+                        None,
+                    );
+                }
+                if current % 50 == 0 || current == total {
+                    log::info!("Descargando mods del .mrpack: {}/{} - {}", current, total, message);
+                }
             }
         })
         .await

@@ -22,6 +22,14 @@ export interface Modpack {
   twitchCreatorIds?: string[];
   allowServerDownload?: boolean;
   trailerUrl?: string;
+  // External provider (Modrinth) — solo presente cuando provider === "modrinth"
+  provider?: 'store' | 'modrinth';
+  projectId?: string;
+  downloads?: number;
+  follows?: number;
+  author?: string;
+  externalUrl?: string;
+  creator?: any;
 }
 
 export interface ModpackCategory {

@@ -6,7 +6,7 @@ import {
     LucideChevronDown, LucideChevronRight, LucideFolder, LucideFile, LucideClock,
     AlertTriangle, LucideHome, LucideArrowLeft
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useEffect, useState, useRef, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion, useScroll, useTransform, AnimatePresence } from "motion/react";
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 
 // Componentes y Servicios
 import { InstallButton } from "../components/install-modpacks/ModpackInstallButton";
+import { ModrinthInstallButton } from "@/components/modpack/ModrinthInstallButton";
 import { TwitchRequirements } from "@/components/TwitchRequirements";
 import { VoteButtons } from "@/components/modpack/VoteButtons";
 import { RelatedModpacks } from "@/components/modpack/RelatedModpacks";
@@ -22,7 +23,7 @@ import { ExternalLinkHandler } from '@/components/ExternalLinkHandler';
 import { AdSlot } from "@/components/ads/AdSlot";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuthentication } from "@/stores/AuthContext";
-import { getModpackById } from "@/services/getModpacks";
+import { getModpackById, type ExploreProvider } from "@/services/getModpacks";
 import { getModpackVersions, getLatestVersion, getNonArchivedVersions, ModpackVersionPublic } from "@/services/getModpackVersions";
 import { getVoteCounts, getUserVotes, VoteCounts } from "@/services/votes";
 
@@ -83,6 +84,9 @@ const FileTreeItem = ({ name, node, depth = 0 }: { name: string, node: TreeNode,
 export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
     const { session } = useAuthentication();
     const { setTitleBarState } = useGlobalContext();
+    const [searchParams] = useSearchParams();
+    const provider: ExploreProvider = searchParams.get("provider") === "modrinth" ? "modrinth" : "store";
+    const isModrinth = provider === "modrinth";
     const videoRef = useRef<HTMLVideoElement>(null);
     const { scrollY } = useScroll();
     const bannerY = useTransform(scrollY, [0, 500], [0, 100]);
@@ -127,10 +131,13 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
             try {
                 setLoading(true);
                 setError(null);
+                setSelectedVersionId("latest");
                 const [mp, vers, inst] = await Promise.all([
-                    getModpackById(modpackId),
-                    getModpackVersions(modpackId),
-                    invoke<any>("get_instances_by_modpack_id", { modpackId }),
+                    getModpackById(modpackId, provider),
+                    getModpackVersions(modpackId, provider),
+                    isModrinth
+                        ? Promise.resolve([])
+                        : invoke<any>("get_instances_by_modpack_id", { modpackId }),
                 ]);
 
                 if (!mp) {
@@ -142,20 +149,24 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                 setVersions(getNonArchivedVersions(vers));
                 setLocalInstances(inst);
 
-                try {
-                    const votes = await getVoteCounts(modpackId);
-                    setVoteCounts(votes);
-                } catch (e) {
-                    console.warn("Error loading vote counts:", e);
+                if (!isModrinth) {
+                    try {
+                        const votes = await getVoteCounts(modpackId);
+                        setVoteCounts(votes);
+                    } catch (e) {
+                        console.warn("Error loading vote counts:", e);
+                    }
+                } else {
+                    setVoteCounts(null);
                 }
-                if (mp.trailerUrl) setTimeout(() => setShowVideo(true), 2000);
+                if ((mp as any).trailerUrl) setTimeout(() => setShowVideo(true), 2000);
             } catch (e) {
                 console.error(e);
                 setError("Error al cargar el modpack");
             } finally { setLoading(false); }
         };
         load();
-    }, [modpackId]);
+    }, [modpackId, provider]);
 
     useEffect(() => {
         setTitleBarState((prev: any) => ({ ...prev, opaque: false, title: modpack?.name || "", icon: modpack?.iconUrl || "/images/modpack-fallback.webp", canGoBack: true }));
@@ -303,7 +314,9 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                     />
                     <div className="flex-1 pb-2">
                         <div className="flex items-center gap-2 mb-2 text-neutral-400 font-medium text-sm">
-                            {modpack.creator?.slug ? (
+                            {isModrinth ? (
+                                <span>{modpack.author || modpack.creator?.name || "Modrinth"}</span>
+                            ) : modpack.creator?.slug ? (
                                 <Link to={`/c/${modpack.creator.slug}`} className="hover:text-white transition-colors">
                                     {modpack.creator.name}
                                 </Link>
@@ -311,19 +324,44 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                                 <span>{modpack.creator?.name || "Community"}</span>
                             )}
                             {modpack.creator?.verified && <LucideVerified className="size-4 text-blue-400" />}
+                            {isModrinth && (
+                                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#1bd96a]/15 text-[#1bd96a] border border-[#1bd96a]/20">
+                                    Modrinth
+                                </span>
+                            )}
+                            {isModrinth && typeof modpack.downloads === "number" && (
+                                <span className="text-xs text-neutral-500 flex items-center gap-1">
+                                    <LucideDownload size={12} />
+                                    {modpack.downloads.toLocaleString()} descargas
+                                </span>
+                            )}
                         </div>
                         <h1 className="text-4xl sm:text-5xl font-black mb-6 tracking-tight">{modpack.name}</h1>
                         <div className="flex flex-wrap items-center gap-3">
-                            <InstallButton
-                                modpackId={modpackId}
-                                modpackName={modpack.name}
-                                localInstances={localInstances}
-                                acquisitionMethod={modpack.acquisitionMethod || 'free'}
-                                visibility={modpack.visibility || 'public'}
-                                selectedVersionId={selectedVersionId}
-                                className="h-12 px-8"
-                            />
-                            <VoteButtons modpackId={modpackId} showCounts initialCounts={voteCounts || undefined} initialVote={userVote} />
+                            {isModrinth ? (
+                                <ModrinthInstallButton
+                                    modpackName={modpack.name}
+                                    externalUrl={modpack.externalUrl}
+                                    iconUrl={modpack.iconUrl}
+                                    bannerUrl={modpack.bannerUrl}
+                                    versions={versions}
+                                    selectedVersionId={selectedVersionId}
+                                    className="w-full"
+                                />
+                            ) : (
+                                <>
+                                    <InstallButton
+                                        modpackId={modpackId}
+                                        modpackName={modpack.name}
+                                        localInstances={localInstances}
+                                        acquisitionMethod={modpack.acquisitionMethod || 'free'}
+                                        visibility={modpack.visibility || 'public'}
+                                        selectedVersionId={selectedVersionId}
+                                        className="h-12 px-8"
+                                    />
+                                    <VoteButtons modpackId={modpackId} showCounts initialCounts={voteCounts || undefined} initialVote={userVote} />
+                                </>
+                            )}
                         </div>
                     </div>
                 </motion.div>
@@ -476,11 +514,13 @@ export const ModpackOverview = ({ modpackId }: { modpackId: string }) => {
                     </TabsContent>
                 </Tabs>
 
-                {/* Footer Related */}
+                {/* Footer Related — solo Store interna */}
+                {!isModrinth && (
                 <motion.div variants={itemVariants} className="mt-20 pt-10 border-t border-white/[0.06]">
                     <h3 className="text-xl font-bold mb-8">Modpacks recomendados</h3>
                     <RelatedModpacks modpackId={modpackId} limit={4} className="px-0" />
                 </motion.div>
+                )}
 
             </motion.div>
         </div>

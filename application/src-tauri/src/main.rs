@@ -632,6 +632,7 @@ pub fn main() {
             core::mrpack_handler::check_mrpack_compatibility,
             core::mrpack_handler::export_instance_to_mrpack,
             core::instance_manager::create_instance_from_mrpack,
+            core::instance_manager::create_instance_from_mrpack_url,
             core::minecraft::async_launcher::launch_minecraft_async,
             core::theme_manager::get_external_themes,
             core::theme_manager::get_themes_directory_path,

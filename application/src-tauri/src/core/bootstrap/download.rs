@@ -1,7 +1,7 @@
 // src/core/bootstrap/download.rs
 // Download-related functionality extracted from instance_bootstrap.rs
 
-use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage};
+use crate::core::bootstrap::tasks::{emit_status, emit_status_with_stage, Stage, ThrottledEmitter};
 use crate::core::minecraft_instance::MinecraftInstance;
 use crate::core::modpack_file_manager::DownloadManager;
 use itertools::Itertools;
@@ -335,17 +335,22 @@ pub async fn download_libraries_enhanced(
 
     let download_manager = DownloadManager::with_concurrency(4);
     let instance_clone = instance.clone();
+    let mut emitter = ThrottledEmitter::new(120);
 
     download_manager
         .download_files_parallel_with_progress(
             downloads_to_process,
             move |current, total, message| {
-                emit_status_with_stage(
-                    &instance_clone,
-                    "instance-downloading-libraries",
-                    &Stage::DownloadingFiles { current, total },
-                );
-                log::info!("Descargando librerías: {}/{} - {}", current, total, message);
+                if emitter.should_emit(current == total) {
+                    emit_status_with_stage(
+                        &instance_clone,
+                        "instance-downloading-libraries",
+                        &Stage::DownloadingFiles { current, total },
+                    );
+                }
+                if current % 50 == 0 || current == total {
+                    log::info!("Descargando librerías: {}/{} - {}", current, total, message);
+                }
             },
         )
         .await
@@ -387,22 +392,27 @@ pub async fn download_forge_libraries_enhanced(
 
     let download_manager = DownloadManager::with_concurrency(4);
     let instance_clone = instance.clone();
+    let mut emitter = ThrottledEmitter::new(120);
 
     download_manager
         .download_files_parallel_with_progress(
             downloads_to_process,
             move |current, total, message| {
-                emit_status_with_stage(
-                    &instance_clone,
-                    "instance-downloading-forge",
-                    &Stage::DownloadingForgeLibraries { current, total },
-                );
-                log::info!(
-                    "Descargando librerías de Forge: {}/{} - {}",
-                    current,
-                    total,
-                    message
-                );
+                if emitter.should_emit(current == total) {
+                    emit_status_with_stage(
+                        &instance_clone,
+                        "instance-downloading-forge",
+                        &Stage::DownloadingForgeLibraries { current, total },
+                    );
+                }
+                if current % 50 == 0 || current == total {
+                    log::info!(
+                        "Descargando librerías de Forge: {}/{} - {}",
+                        current,
+                        total,
+                        message
+                    );
+                }
             },
         )
         .await

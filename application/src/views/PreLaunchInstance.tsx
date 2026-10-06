@@ -12,6 +12,7 @@ import { AccountSelectionDialog } from "@/components/AccountSelectionDialog";
 import { useParams } from "react-router-dom";
 import { MinecraftPlayButton } from "@/components/MinecraftPlayButton";
 import CustomBlocksRenderer from "@/components/CustomBlocksRenderer";
+import { useSmoothProgress } from "@/hooks/useSmoothProgress";
 
 
 // Memoized Background Component
@@ -140,10 +141,12 @@ const LoadingIndicator = memo(({ isLoading, message, stage, loadingIndicator }: 
 
     const hasCustomPosition = loadingIndicator?.position && Object.values(loadingIndicator.position).some(value => value != null);
 
-    // Calculate progress if stage has current/total
+    // Calculate progress if stage has current/total (crudo para lógica,
+    // suavizado con centésimas solo para pintado).
     const progress = stage && 'current' in stage && 'total' in stage && stage.total > 0
-        ? Math.min(100, Math.round((stage.current / stage.total) * 100))
+        ? Math.min(100, (stage.current / stage.total) * 100)
         : null;
+    const smooth = useSmoothProgress(progress ?? 0);
 
     const showBar = loadingIndicator?.showProgressBar && progress !== null;
     const showPct = loadingIndicator?.showPercentage && progress !== null;
@@ -173,7 +176,7 @@ const LoadingIndicator = memo(({ isLoading, message, stage, loadingIndicator }: 
                         />
                     )}
                     <span>{message}</span>
-                    {showPct && <span className="ml-auto opacity-70">{progress}%</span>}
+                    {showPct && <span className="ml-auto opacity-70 tabular-nums">{smooth.toFixed(2)}%</span>}
                 </div>
                 {showBar && (
                     <div
@@ -187,10 +190,10 @@ const LoadingIndicator = memo(({ isLoading, message, stage, loadingIndicator }: 
                         <div
                             style={{
                                 height: '100%',
-                                width: `${progress}%`,
+                                width: `${smooth}%`,
                                 background: loadingIndicator?.progressColor || '#22c55e',
                                 borderRadius: loadingIndicator?.barBorderRadius || '2px',
-                                transition: 'width 0.3s ease',
+                                transition: 'width 0.15s linear',
                             }}
                         />
                     </div>

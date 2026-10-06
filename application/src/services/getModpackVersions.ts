@@ -1,5 +1,6 @@
 import { API_ENDPOINT } from "@/consts"
 import { fetchWithAuth } from "@/lib/fetchWithAuth"
+import type { ExploreProvider } from "./getModpacks"
 
 export interface ModpackVersionPublic {
     id: string
@@ -11,21 +12,34 @@ export interface ModpackVersionPublic {
     changelog: string
     status: 'draft' | 'published' | 'archived'
     releaseDate?: string | null
-    createdAt: string
-    updatedAt: string
+    createdAt?: string
+    updatedAt?: string
     files: {
         path: string
+        downloadUrl?: string
+        size?: number
         file: {
             type: string
         }
     }[]
+    // Modrinth extras (solo cuando provider === "modrinth")
+    provider?: string
+    mrpackUrl?: string | null
+    mrpackFilename?: string | null
+    gameVersions?: string[]
+    loaders?: string[]
+    downloads?: number
 }
 
-export const getModpackVersions = async (modpackId: string): Promise<ModpackVersionPublic[]> => {
+export const getModpackVersions = async (
+    modpackId: string,
+    provider: ExploreProvider = "store"
+): Promise<ModpackVersionPublic[]> => {
     try {
         // For now, let's try to use the explore endpoint to get version information
         // If this doesn't work, we might need to create a new endpoint
-        const response = await fetchWithAuth(`${API_ENDPOINT}/explore/modpacks/${modpackId}/versions`, {
+        const suffix = provider === "modrinth" ? "?provider=modrinth" : "";
+        const response = await fetchWithAuth(`${API_ENDPOINT}/explore/modpacks/${modpackId}/versions${suffix}`, {
             method: "GET",
             headers: {
                 "Content-Type": "application/json",
@@ -58,8 +72,8 @@ export const getLatestVersion = (versions: ModpackVersionPublic[]): ModpackVersi
 
     // Sort by release date (most recent first)
     const sorted = publishedVersions.sort((a, b) => {
-        const dateA = new Date(a.releaseDate || a.createdAt)
-        const dateB = new Date(b.releaseDate || b.createdAt)
+        const dateA = new Date(a.releaseDate ?? a.createdAt ?? 0)
+        const dateB = new Date(b.releaseDate ?? b.createdAt ?? 0)
         return dateB.getTime() - dateA.getTime()
     })
 
