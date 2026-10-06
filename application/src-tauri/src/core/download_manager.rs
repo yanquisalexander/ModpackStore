@@ -604,10 +604,18 @@ impl DownloadManager {
                     ));
                 }
 
-                // Increment completed count and report progress
+                // Increment completed count and report progress.
+                // try_lock: si otra tarea está emitiendo (IPC bloqueante),
+                // se salta este intermedio en vez de serializar todas las
+                // descargas detrás del mutex. El siguiente progreso lo cubre;
+                // el 100% nunca se salta (va por camino garantizado abajo).
                 let completed = completed_count.fetch_add(1, Ordering::Relaxed) + 1;
-                {
+                let is_final = completed >= total_files;
+                if is_final {
                     let mut callback = progress_callback.lock().await;
+                    let msg = format!("Descargando {}", file_names[index]);
+                    (&mut *callback)(completed, total_files, &msg);
+                } else if let Ok(mut callback) = progress_callback.try_lock() {
                     let msg = format!("Descargando {}", file_names[index]);
                     (&mut *callback)(completed, total_files, &msg);
                 }

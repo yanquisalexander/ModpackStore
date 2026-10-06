@@ -147,12 +147,17 @@ fn download_missing_assets_with_runtime(
 
     log::info!("Validando {} assets...", total_assets);
 
-    // First pass: identify missing assets and collect download information
+    // First pass: identify missing assets and collect download information.
+    // Emite progreso también aquí (antes era una fase muda de segundos que
+    // dejaba la UI clavada en "Validando assets" sin %).
+    let mut phase1_emitter = crate::core::bootstrap::tasks::ThrottledEmitter::with_min_delta(200, 0.5);
+    let mut checked: usize = 0;
     for (asset_name, asset_info) in objects {
         let hash = match asset_info.get("hash").and_then(|v| v.as_str()) {
             Some(h) => h,
             None => {
                 log::warn!("Hash inválido para asset {}, saltando...", asset_name);
+                checked += 1;
                 continue;
             }
         };
@@ -168,12 +173,28 @@ fn download_missing_assets_with_runtime(
 
             missing_assets_info.push((asset_url, asset_file, hash.to_string()));
         }
+        checked += 1;
+        // Progreso de validación local: current = ficheros chequeados.
+        // El frontend lo pinta igual que la descarga (misma barra/etapa).
+        if phase1_emitter.should_emit_progress(checked, total_assets) {
+            let stage = Stage::ValidatingAssets {
+                current: checked,
+                total: total_assets,
+            };
+            emit_status_with_stage(instance, "instance-downloading-assets", &stage);
+        }
     }
 
     let missing_count = missing_assets_info.len();
 
     if missing_count == 0 {
         log::info!("Todos los assets están validados.");
+        // Cierra la barra al 100% para que el tween no se quede a medias.
+        let stage = Stage::ValidatingAssets {
+            current: total_assets,
+            total: total_assets,
+        };
+        emit_status_with_stage(instance, "instance-downloading-assets", &stage);
         return Ok(());
     }
 
@@ -184,22 +205,26 @@ fn download_missing_assets_with_runtime(
 
     // Use the provided runtime — never create a nested runtime here.
     let download_result = rt.block_on(async {
-        // Higher concurrency for small asset files
-        let download_manager = DownloadManager::with_concurrency(8);
+        // Misma concurrencia que modpack files (4): con ficheros diminutos,
+        // más concurrencia solo genera ráfagas que saturan el callback/IPC.
+        let download_manager = DownloadManager::with_concurrency(4);
         let instance_clone = instance.clone();
-        let mut emitter = crate::core::bootstrap::tasks::ThrottledEmitter::new(120);
+        let mut emitter =
+            crate::core::bootstrap::tasks::ThrottledEmitter::with_min_delta(200, 0.5);
 
         download_manager
             .download_files_parallel_with_progress(
                 missing_assets_info,
                 move |current, total, message| {
-                    if emitter.should_emit(current == total) {
+                    if emitter.should_emit_progress(current, total) {
                         let stage = Stage::ValidatingAssets { current, total };
                         emit_status_with_stage(&instance_clone, "instance-downloading-assets", &stage);
                     }
 
-                    if current % 50 == 0 || current == total {
+                    if current == total {
                         log::info!("Descargando assets: {}/{} - {}", current, total, message);
+                    } else {
+                        log::debug!("Descargando assets: {}/{} - {}", current, total, message);
                     }
                 },
             )

@@ -96,6 +96,7 @@ export const usePrelaunchInstance = (instanceId: string) => {
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const messageIntervalRef = useRef<number | null>(null);
+    const latestStageRef = useRef<InstallationStage | undefined>(undefined);
     const [isLaunching, setIsLaunching] = useState(false);
 
     const setTitleBarStateRef = useRef(setTitleBarState);
@@ -277,11 +278,16 @@ export const usePrelaunchInstance = (instanceId: string) => {
                 ? formatStageMessage(currentInstanceRunning.stage, currentInstanceRunning.message || "Procesando...")
                 : currentInstanceRunning?.message || getRandomMessage();
 
+            latestStageRef.current = currentInstanceRunning?.stage;
             dispatch({ type: 'SET_LOADING_STATUS', payload: { message, stage: currentInstanceRunning?.stage } });
 
             if (!messageIntervalRef.current) {
                 messageIntervalRef.current = window.setInterval(() => {
-                    dispatch({ type: 'SET_LOADING_STATUS', payload: { message: getRandomMessage() } });
+                    // Solo rotar el mensaje si NO hay etapa con progreso:
+                    // antes borraba el `stage` y la barra caía a 0 para
+                    // volver a saltar a N% (tropezón visible cada 5s).
+                    if (latestStageRef.current) return;
+                    dispatch({ type: 'SET_LOADING_STATUS', payload: { message: getRandomMessage(), stage: latestStageRef.current } });
                 }, 5000);
             }
         } else {

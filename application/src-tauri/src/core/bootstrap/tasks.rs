@@ -184,15 +184,19 @@ pub fn emit_bootstrap_complete(instance: &MinecraftInstance, instance_type: &str
     );
 }
 
-/// Limita la cadencia de emisión de progreso por-archivo (~8-10 eventos/seg)
+/// Limita la cadencia de emisión de progreso por-archivo (~5 eventos/seg)
 /// para no saturar el puente IPC ni la UI.
 ///
 /// Garantía de secuencia: el primer valor y el último (completado) siempre se
-/// emiten. Los valores intermedios que se salten los cubre el tween del
-/// frontend, que barre cada centésima de forma monótona.
+/// emiten. Los valores intermedios solo se emiten si la cadencia se cumplió
+/// Y el porcentaje avanzó lo suficiente: así el frontend recibe pasos
+/// regulares y pequeños (como DownloadingModpackFiles) en vez de ráfagas
+/// con saltos grandes que el tween no alcanza a interpolar.
 pub struct ThrottledEmitter {
     last_emit: Option<std::time::Instant>,
     min_interval: std::time::Duration,
+    last_pct: Option<f64>,
+    min_pct_delta: f64,
 }
 
 impl ThrottledEmitter {
@@ -200,6 +204,21 @@ impl ThrottledEmitter {
         Self {
             last_emit: None,
             min_interval: std::time::Duration::from_millis(min_interval_ms),
+            last_pct: None,
+            min_pct_delta: 0.0,
+        }
+    }
+
+    /// Como `new`, pero exige además un avance mínimo de porcentaje
+    /// entre emisiones (p. ej. 0.5). Recomendado para stages con miles
+    /// de ficheros diminutos (assets) donde cada completion individual
+    /// no aporta información visual.
+    pub fn with_min_delta(min_interval_ms: u64, min_pct_delta: f64) -> Self {
+        Self {
+            last_emit: None,
+            min_interval: std::time::Duration::from_millis(min_interval_ms),
+            last_pct: None,
+            min_pct_delta,
         }
     }
 
@@ -218,6 +237,42 @@ impl ThrottledEmitter {
             Some(t) if t.elapsed() >= self.min_interval => {
                 self.last_emit = Some(std::time::Instant::now());
                 true
+            }
+            _ => false,
+        }
+    }
+
+    /// Variante para progreso (current/total): además de la cadencia,
+    /// exige un avance mínimo de porcentaje salvo primer y último valor.
+    pub fn should_emit_progress(&mut self, current: usize, total: usize) -> bool {
+        if total == 0 {
+            return false;
+        }
+        let is_final = current >= total;
+        if is_final {
+            self.last_emit = Some(std::time::Instant::now());
+            self.last_pct = Some(100.0);
+            return true;
+        }
+        let pct = (current as f64 * 100.0) / total as f64;
+        match self.last_emit {
+            None => {
+                self.last_emit = Some(std::time::Instant::now());
+                self.last_pct = Some(pct);
+                true
+            }
+            Some(t) if t.elapsed() >= self.min_interval => {
+                let delta_ok = match self.last_pct {
+                    None => true,
+                    Some(last) => (pct - last) >= self.min_pct_delta,
+                };
+                if delta_ok {
+                    self.last_emit = Some(std::time::Instant::now());
+                    self.last_pct = Some(pct);
+                    true
+                } else {
+                    false
+                }
             }
             _ => false,
         }

@@ -128,25 +128,32 @@ const SkinRendererBlock = memo(({ config }: { config: PreLaunchAppearance['skinR
 });
 
 // Memoized Loading Indicator Component
+// Sin tropezones: hooks siempre en el mismo orden (sin early-return antes
+// de los hooks), progreso memoizado a 1 decimal y comparador custom que
+// ignora la identidad del objeto `stage` (nuevo en cada evento IPC).
 const LoadingIndicator = memo(({ isLoading, message, stage, loadingIndicator }: { isLoading: boolean, message: string, stage?: any, loadingIndicator?: PreLaunchAppearance['loadingIndicator'] }) => {
-    if (!isLoading) return null;
+    // Progreso crudo 0-100 redondeado a 1 decimal (estable entre renders).
+    const progress = useMemo(() => {
+        if (stage && 'current' in stage && 'total' in stage && stage.total > 0) {
+            return Math.min(100, Math.round((stage.current / stage.total) * 1000) / 10);
+        }
+        return null;
+    }, [stage?.type, stage?.current, stage?.total]);
 
-    const positionStyle: React.CSSProperties = loadingIndicator?.position ? {
+    // El hook debe correr siempre (mismo orden); con 0 cuando no hay etapa.
+    const smooth = useSmoothProgress(progress ?? 0);
+
+    const positionStyle: React.CSSProperties = useMemo(() => loadingIndicator?.position ? {
         top: loadingIndicator.position.top,
         left: loadingIndicator.position.left,
         right: loadingIndicator.position.right,
         bottom: loadingIndicator.position.bottom,
         transform: loadingIndicator.position.transform?.replace('!important', '').trim(),
-    } : {};
+    } : {}, [loadingIndicator?.position?.top, loadingIndicator?.position?.left, loadingIndicator?.position?.right, loadingIndicator?.position?.bottom, loadingIndicator?.position?.transform]);
 
     const hasCustomPosition = loadingIndicator?.position && Object.values(loadingIndicator.position).some(value => value != null);
 
-    // Calculate progress if stage has current/total (crudo para lógica,
-    // suavizado con centésimas solo para pintado).
-    const progress = stage && 'current' in stage && 'total' in stage && stage.total > 0
-        ? Math.min(100, (stage.current / stage.total) * 100)
-        : null;
-    const smooth = useSmoothProgress(progress ?? 0);
+    if (!isLoading) return null;
 
     const showBar = loadingIndicator?.showProgressBar && progress !== null;
     const showPct = loadingIndicator?.showPercentage && progress !== null;
@@ -176,7 +183,7 @@ const LoadingIndicator = memo(({ isLoading, message, stage, loadingIndicator }: 
                         />
                     )}
                     <span>{message}</span>
-                    {showPct && <span className="ml-auto opacity-70 tabular-nums">{smooth.toFixed(2)}%</span>}
+                    {showPct && <span className="ml-auto opacity-70 tabular-nums">{smooth.toFixed(1)}%</span>}
                 </div>
                 {showBar && (
                     <div
@@ -190,10 +197,12 @@ const LoadingIndicator = memo(({ isLoading, message, stage, loadingIndicator }: 
                         <div
                             style={{
                                 height: '100%',
+                                // Sin transition CSS: el rAF de useSmoothProgress ya
+                                // interpola a velocidad constante; la transition
+                                // peleaba contra él y producía tropezones.
                                 width: `${smooth}%`,
                                 background: loadingIndicator?.progressColor || '#22c55e',
                                 borderRadius: loadingIndicator?.barBorderRadius || '2px',
-                                transition: 'width 0.15s linear',
                             }}
                         />
                     </div>
@@ -201,6 +210,18 @@ const LoadingIndicator = memo(({ isLoading, message, stage, loadingIndicator }: 
             </div>
         </div>
     );
+}, (prev, next) => {
+    // Comparador por valor: el objeto `stage` es nuevo en cada evento IPC,
+    // así que comparar por identidad re-renderizaría siempre. Solo importa
+    // si cambió lo visible (tipo, current/total redondeado, mensaje).
+    const ps = prev.stage as any;
+    const ns = next.stage as any;
+    return prev.isLoading === next.isLoading
+        && prev.message === next.message
+        && prev.loadingIndicator === next.loadingIndicator
+        && (ps?.type ?? null) === (ns?.type ?? null)
+        && (ps?.current ?? null) === (ns?.current ?? null)
+        && (ps?.total ?? null) === (ns?.total ?? null);
 });
 
 // Memoized Footer Component with Play Button
