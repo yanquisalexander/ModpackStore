@@ -41,22 +41,42 @@ const canonicalUrl = canonical ?? new URL(Astro.url.pathname, site).toString();
     <meta property="og:locale" content="es_ES" />
     <meta property="og:site_name" content="ModpackStore" />
     <meta name="google-adsense-account" content="ca-pub-7631620665837459" />
-    <meta name="google-site-verification" content="oqyB3KMZv8yNVl3KoSyWqYSMnKcMRc5vKxB-bgY3Phw" />
+    <meta
+      name="google-site-verification"
+      content="oqyB3KMZv8yNVl3KoSyWqYSMnKcMRc5vKxB-bgY3Phw"
+    />
     <meta property="twitter:card" content="summary_large_image" />
     <meta property="twitter:url" content={canonicalUrl} />
     <meta property="twitter:title" content={title} />
     <meta property="twitter:description" content={description} />
-    <meta property="twitter:image" content={new URL(ogImage, site).toString()} />
+    <meta
+      property="twitter:image"
+      content={new URL(ogImage, site).toString()}
+    />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;800&family=Silkscreen&display=swap"
       rel="stylesheet"
     />
+    <!-- TinyADZ -->
+    <script
+      is:inline
+      src="https://cdn.apitiny.net/scripts/v2.0/main.js"
+      data-site-id="6abf345904fdfacf82ff1804"
+      data-test-mode={import.meta.env.DEV ? "true" : "false"}
+      async></script>
     <noscript>
       <style>
-        #hero-badge, #hero-title, #hero-desc, #hero-cta, #hero-meta,
-        #hero-preview, #download-card, .reveal, #site-header {
+        #hero-badge,
+        #hero-title,
+        #hero-desc,
+        #hero-cta,
+        #hero-meta,
+        #hero-preview,
+        #download-card,
+        .reveal,
+        #site-header {
           opacity: 1 !important;
           transform: none !important;
         }
