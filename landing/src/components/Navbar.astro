@@ -1,138 +1,63 @@
 ---
-import {
-  Menu,
-  X,
-  Download,
-  Home,
-  Sparkles,
-  Users,
-} from "lucide-preact";
+import { Menu, X, Download } from "lucide-preact";
 
 const links = [
-  { label: "Inicio", url: "/#", icon: Home },
-  { label: "Características", url: "/#features", icon: Sparkles },
-  { label: "Guía", url: "/guias/como-instalar-modpacks-minecraft/", icon: Sparkles },
-  { label: "FAQ", url: "/preguntas-frecuentes/", icon: Users },
-  { label: "Descargas", url: "/#download", icon: Download },
+  { label: "Jugadores", url: "/#jugadores" },
+  { label: "Creadores", url: "/#creadores" },
+  { label: "Guía", url: "/guias/como-instalar-modpacks-minecraft/" },
+  { label: "FAQ", url: "/preguntas-frecuentes/" },
+  { label: "Descargar", url: "/#descargar" },
 ];
 ---
 
-<header
-  id="site-header"
-  class="fixed top-0 left-0 right-0 z-50 w-full py-4 transition-all duration-500 opacity-0 -translate-y-10"
->
-  <div
-    id="nav-island"
-    class="relative mx-auto flex items-center justify-between px-3 py-2 md:px-4 md:py-2 transition-all duration-300 ease-out w-[95%] max-w-5xl rounded-full border border-white/10 bg-[#121216]/85 backdrop-blur-xl shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
-  >
-    <!-- Brand -->
-    <div class="relative z-10 flex items-center gap-3 pl-1">
-      <a
-        href="#"
-        class="flex items-center gap-2.5 group transition-transform hover:scale-[1.02]"
-      >
-        <div class="size-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center p-1 overflow-hidden">
-          <img
-            src="/icon.png"
-            class="size-6 object-contain"
-            alt="ModpackStore Logo"
-          />
-        </div>
-        <span class="font-lexend font-bold text-base tracking-tight text-white flex items-center gap-1.5">
-          Modpack<span class="text-primary">Store</span>
-          <span class="hidden lg:inline-flex items-center text-[10px] uppercase font-semibold px-1.5 py-0.5 rounded-md bg-white/5 border border-white/10 text-zinc-400">Canary</span>
-        </span>
-      </a>
+<header id="site-header" class="sticky top-0 z-30 bg-bg/90 backdrop-blur border-b border-s3">
+  <nav class="max-w-6xl mx-auto flex items-center justify-between px-5 h-16">
+    <a href="/#" class="flex items-center gap-2 font-extrabold text-lg text-text">
+      <span class="grid place-items-center w-[30px] h-[30px] rounded-[9px] bg-primary overflow-hidden shrink-0">
+        <img src="/icon.png" alt="ModpackStore logo" width="30" height="30" class="w-[26px] h-[26px] object-contain" />
+      </span>
+      Modpack Store
+    </a>
+    <div class="hidden md:flex gap-7 text-muted font-medium">
+      {links.slice(0, 4).map((l) => (
+        <a href={l.url} class="hover:text-text transition-colors">{l.label}</a>
+      ))}
     </div>
-
-    <!-- Center Navigation Tabs (Google TV Pills pintados con active) -->
-    <nav
-      id="main-nav-tabs"
-      class="hidden md:flex items-center gap-1 bg-white/[0.04] p-1 rounded-full border border-white/5"
-    >
-      {
-        links.map((link, index) => (
-          <a
-            href={link.url}
-            data-nav-hash={link.url}
-            class={`nav-tab-pill flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${index === 0 ? "is-active" : ""}`}
-          >
-            <link.icon size={14} class="nav-tab-icon transition-colors" />
-            <span>{link.label}</span>
-          </a>
-        ))
-      }
-    </nav>
-
-    <!-- Actions -->
-    <div class="relative z-10 flex items-center gap-2">
-      <a
-        href="#download"
-        class="hidden md:flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-primary text-white font-semibold text-xs transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 shadow-md shadow-primary/20"
-      >
-        <Download size={14} />
-        <span>Descargar</span>
+    <div class="flex items-center gap-2">
+      <a href="/#descargar" class="btn-pixel hidden sm:inline-flex bg-primary text-on-primary font-bold rounded-full px-5 py-2 hover:brightness-110 transition items-center gap-1.5">
+        <Download size={15} />
+        Descargar
       </a>
-
-      <button
-        id="mobile-menu-btn"
-        class="md:hidden p-2 text-zinc-300 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded-full transition-all"
-        aria-label="Menu"
-      >
+      <button id="mobile-menu-btn" class="md:hidden p-2 text-muted hover:text-text bg-s3 hover:bg-s4 rounded-full transition-all" aria-label="Menú">
         <Menu size={18} />
       </button>
     </div>
-  </div>
+  </nav>
 </header>
 
 <div id="mobile-drawer" class="fixed inset-0 z-[60] hidden pointer-events-none">
-  <div
-    id="drawer-bg"
-    class="absolute inset-0 bg-black/70 backdrop-blur-sm opacity-0 transition-opacity duration-300 pointer-events-auto"
-  >
-  </div>
-
-  <nav
-    id="drawer-panel"
-    class="absolute top-0 right-0 h-full w-[85%] max-w-sm bg-[#111116] border-l border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.7)] transform translate-x-full transition-transform duration-300 ease-out pointer-events-auto flex flex-col p-6"
-  >
-    <div class="flex justify-between items-center mb-6 pb-4 border-b border-white/10">
-      <div class="flex items-center gap-2.5">
-        <div class="size-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center p-1">
-          <img src="/icon.png" class="size-6 object-contain" alt="Logo" />
-        </div>
-        <span class="font-lexend font-bold text-base text-white">ModpackStore</span>
+  <div id="drawer-bg" class="absolute inset-0 bg-black/70 backdrop-blur-sm opacity-0 transition-opacity duration-300 pointer-events-auto"></div>
+  <nav id="drawer-panel" class="absolute top-0 right-0 h-full w-[85%] max-w-sm bg-s1 border-l border-s3 shadow-2xl transform translate-x-full transition-transform duration-300 ease-out pointer-events-auto flex flex-col p-6">
+    <div class="flex justify-between items-center mb-6 pb-4 border-b border-s3">
+      <div class="flex items-center gap-2 font-extrabold text-text">
+        <span class="grid place-items-center w-[26px] h-[26px] rounded-[8px] bg-primary overflow-hidden shrink-0">
+          <img src="/icon.png" alt="ModpackStore logo" width="26" height="26" class="w-[22px] h-[22px] object-contain" />
+        </span>
+        Modpack Store
       </div>
-      <button
-        id="close-drawer"
-        class="text-zinc-400 hover:text-white p-1.5 hover:bg-white/10 rounded-full transition-colors"
-      >
+      <button id="close-drawer" class="text-muted hover:text-text p-1.5 hover:bg-s3 rounded-full transition-colors" aria-label="Cerrar">
         <X size={20} />
       </button>
     </div>
-
-    <div id="drawer-links" class="flex-1 overflow-y-auto space-y-1.5">
-      {
-        links.map((link, index) => (
-          <a
-            href={link.url}
-            data-drawer-hash={link.url}
-            class={`drawer-tab-pill flex items-center gap-3 px-3.5 py-3 rounded-xl text-sm transition-all border ${index === 0 ? "is-active" : ""}`}
-          >
-            <div class="drawer-icon-box p-2 rounded-lg transition-colors">
-              <link.icon size={18} />
-            </div>
-            <span>{link.label}</span>
-          </a>
-        ))
-      }
+    <div class="flex-1 overflow-y-auto space-y-1.5">
+      {links.map((l) => (
+        <a href={l.url} class="flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-medium text-text bg-s2 hover:bg-s3 border border-transparent hover:border-s4 transition-all">
+          {l.label}
+        </a>
+      ))}
     </div>
-
-    <div class="pt-6 border-t border-white/10">
-      <a
-        href="#download"
-        class="flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary text-white font-semibold text-sm rounded-xl transition-all shadow-md hover:bg-primary/90"
-      >
+    <div class="pt-6 border-t border-s3">
+      <a href="/#descargar" class="btn-pixel flex items-center justify-center gap-2 w-full px-4 py-3 bg-primary text-on-primary font-bold text-sm rounded-2xl hover:brightness-110 transition-all">
         <Download size={16} />
         Descargar Launcher
       </a>
@@ -140,117 +65,14 @@ const links = [
   </nav>
 </div>
 
-<style>
-  /* Selected Nav Pill (Estilo Admin/Creators con bg-primary pintado y glow) */
-  .nav-tab-pill.is-active {
-    background-color: var(--color-primary, #6366f1) !important;
-    color: #ffffff !important;
-    font-weight: 600 !important;
-    box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.35) !important;
-  }
-  .nav-tab-pill.is-active .nav-tab-icon {
-    color: #ffffff !important;
-  }
-
-  /* Unselected Nav Pill */
-  .nav-tab-pill:not(.is-active) {
-    color: #a1a1aa !important;
-  }
-  .nav-tab-pill:not(.is-active) .nav-tab-icon {
-    color: #a1a1aa !important;
-  }
-  .nav-tab-pill:not(.is-active):hover {
-    color: #ffffff !important;
-    background-color: rgba(255, 255, 255, 0.08) !important;
-  }
-  .nav-tab-pill:not(.is-active):hover .nav-tab-icon {
-    color: #ffffff !important;
-  }
-
-  /* Mobile Drawer Active Link */
-  .drawer-tab-pill.is-active {
-    background-color: rgba(99, 102, 241, 0.15) !important;
-    color: #818cf8 !important;
-    border-color: rgba(99, 102, 241, 0.3) !important;
-    font-weight: 600 !important;
-  }
-  .drawer-tab-pill.is-active .drawer-icon-box {
-    background-color: rgba(99, 102, 241, 0.25) !important;
-    color: #818cf8 !important;
-  }
-  .drawer-tab-pill:not(.is-active) {
-    color: #d4d4d8 !important;
-    border-color: transparent !important;
-  }
-  .drawer-tab-pill:not(.is-active) .drawer-icon-box {
-    background-color: rgba(255, 255, 255, 0.05) !important;
-    color: #a1a1aa !important;
-  }
-  .drawer-tab-pill:not(.is-active):hover {
-    background-color: rgba(255, 255, 255, 0.05) !important;
-    color: #ffffff !important;
-  }
-</style>
-
 <script>
-  import { gsap } from "gsap";
-
-  document.addEventListener("astro:page-load", initHeader);
-
-  if (
-    document.readyState === "complete" ||
-    document.readyState === "interactive"
-  ) {
-    initHeader();
-  } else {
-    document.addEventListener("DOMContentLoaded", initHeader);
-  }
-
-  function initHeader() {
-    const header = document.getElementById("site-header");
-    const navIsland = document.getElementById("nav-island");
+  function initNav() {
     const mobileBtn = document.getElementById("mobile-menu-btn");
     const closeBtn = document.getElementById("close-drawer");
     const drawer = document.getElementById("mobile-drawer");
     const drawerBg = document.getElementById("drawer-bg");
     const drawerPanel = document.getElementById("drawer-panel");
 
-    if (!header) return;
-
-    // 1. Animación de Entrada (GSAP)
-    gsap.to(header, {
-      opacity: 1,
-      y: 0,
-      duration: 1.2,
-      delay: 0.2,
-      ease: "power4.out",
-    });
-
-    // 2. Lógica de Scroll Navbar (Compacto / Expandido)
-    const handleScroll = () => {
-      const isScrolled = window.scrollY > 20;
-
-      if (isScrolled) {
-        navIsland?.classList.remove("w-[95%]", "bg-[#121216]/85");
-        navIsland?.classList.add(
-          "w-[90%]",
-          "bg-[#121216]/95",
-          "shadow-[0_16px_40px_rgba(0,0,0,0.6)]",
-        );
-      } else {
-        navIsland?.classList.add("w-[95%]", "bg-[#121216]/85");
-        navIsland?.classList.remove(
-          "w-[90%]",
-          "bg-[#121216]/95",
-          "shadow-[0_16px_40px_rgba(0,0,0,0.6)]",
-        );
-      }
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    handleScroll();
-
-    // 3. Menú Móvil
     const openMenu = () => {
       drawer?.classList.remove("hidden");
       setTimeout(() => {
@@ -259,162 +81,37 @@ const links = [
       }, 10);
       document.body.style.overflow = "hidden";
     };
-
     const closeMenu = () => {
       drawerBg?.classList.add("opacity-0");
       drawerPanel?.classList.add("translate-x-full");
       setTimeout(() => {
         drawer?.classList.add("hidden");
         document.body.style.overflow = "";
-      }, 500);
+      }, 300);
     };
-
     mobileBtn?.addEventListener("click", openMenu);
     closeBtn?.addEventListener("click", closeMenu);
     drawerBg?.addEventListener("click", closeMenu);
+    drawerPanel?.querySelectorAll("a").forEach((a) => a.addEventListener("click", closeMenu));
 
-    drawerPanel?.querySelectorAll("a").forEach((link) => {
-      link.addEventListener("click", closeMenu);
-    });
-
-    // 4. Lógica de Nav Tracker que se mueve con el Hash Path y el Scroll
-    initNavTracker();
-  }
-
-  function initNavTracker() {
-    const navTabs = document.querySelectorAll<HTMLAnchorElement>(".nav-tab-pill");
-    const drawerTabs = document.querySelectorAll<HTMLAnchorElement>(".drawer-tab-pill");
-
-    const sections = [
-      { id: "hero-section", hash: "#" },
-      { id: "creators", hash: "#creators" },
-      { id: "features", hash: "#features" },
-      { id: "download", hash: "#download" },
-    ];
-
-    let currentActive = "";
-    let isManualNavigating = false;
-    let manualNavTimer: any = null;
-
-    function applyActive(targetHash: string) {
-      const normalized =
-        !targetHash || targetHash === "#" || targetHash === "/" || targetHash === "#hero-section"
-          ? "#"
-          : targetHash;
-
-      if (currentActive === normalized) return;
-      currentActive = normalized;
-
-      // Actualizar pestañas de escritorio
-      navTabs.forEach((tab) => {
-        const href = tab.getAttribute("data-nav-hash") || tab.getAttribute("href");
-        const isMatch =
-          (normalized === "#" && (href === "#" || href === "/" || href === "#hero-section")) ||
-          href === normalized;
-
-        tab.classList.toggle("is-active", isMatch);
-      });
-
-      // Actualizar pestañas del drawer móvil
-      drawerTabs.forEach((tab) => {
-        const href = tab.getAttribute("data-drawer-hash") || tab.getAttribute("href");
-        const isMatch =
-          (normalized === "#" && (href === "#" || href === "/" || href === "#hero-section")) ||
-          href === normalized;
-
-        tab.classList.toggle("is-active", isMatch);
-      });
-    }
-
-    // Determina qué sección está actualmente en pantalla mediante offset
-    function calculateActiveFromScroll(): string {
-      // Si está cerca del fondo, activar descargas
-      if (
-        window.innerHeight + window.scrollY >=
-        document.documentElement.scrollHeight - 150
-      ) {
-        return "#download";
-      }
-
-      // Si está arriba de todo, activar inicio
-      if (window.scrollY < 180) {
-        return "#";
-      }
-
-      // Offset para la barra fija
-      const scrollPosition = window.scrollY + 250;
-
-      for (let i = sections.length - 1; i >= 0; i--) {
-        const item = sections[i];
-        const el = document.getElementById(item.id);
-        if (el) {
-          const top = el.offsetTop;
-          if (scrollPosition >= top) {
-            return item.hash;
-          }
-        }
-      }
-
-      return "#";
-    }
-
-    // Scroll listener continuo (cuando no hay navegación manual activa)
-    window.addEventListener(
-      "scroll",
-      () => {
-        if (isManualNavigating) return;
-        const activeHash = calculateActiveFromScroll();
-        applyActive(activeHash);
-      },
-      { passive: true }
-    );
-
-    // Hash change event (botones atrás/adelante del navegador o cambios manuales de URL)
-    window.addEventListener("hashchange", () => {
-      const hash = window.location.hash || "#";
-      applyActive(hash);
-    });
-
-    window.addEventListener("popstate", () => {
-      const hash = window.location.hash || "#";
-      applyActive(hash);
-    });
-
-    // Clicks en los enlaces del navbar y anchors con hash
-    document.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach((anchor) => {
+    // Smooth anchor con scroll-padding ya en CSS; cierre limpio
+    document.querySelectorAll<HTMLAnchorElement>('a[href^="/#"]').forEach((anchor) => {
       anchor.addEventListener("click", (e) => {
         const href = anchor.getAttribute("href");
         if (!href) return;
-
-        // Bloquear temporalmente el scroll listener para que la transición sea limpia
-        isManualNavigating = true;
-        clearTimeout(manualNavTimer);
-        manualNavTimer = setTimeout(() => {
-          isManualNavigating = false;
-        }, 800);
-
-        if (href === "#" || href === "#hero-section") {
-          e.preventDefault();
-          window.scrollTo({ top: 0, behavior: "smooth" });
-          history.pushState(null, "", window.location.pathname);
-          applyActive("#");
-        } else {
-          const targetEl = document.querySelector(href);
-          if (targetEl) {
+        const hash = href.slice(1); // "#jugadores"
+        if (hash.startsWith("#")) {
+          const target = document.querySelector(hash);
+          if (target) {
             e.preventDefault();
-            targetEl.scrollIntoView({ behavior: "smooth" });
-            history.pushState(null, "", href);
-            applyActive(href);
+            target.scrollIntoView({ behavior: "smooth" });
+            history.pushState(null, "", hash);
           }
         }
       });
     });
-
-    // Aplicar estado inicial
-    if (window.location.hash && window.location.hash !== "#") {
-      applyActive(window.location.hash);
-    } else {
-      applyActive(calculateActiveFromScroll());
-    }
   }
+  document.addEventListener("astro:page-load", initNav);
+  if (document.readyState === "complete" || document.readyState === "interactive") initNav();
+  else document.addEventListener("DOMContentLoaded", initNav);
 </script>

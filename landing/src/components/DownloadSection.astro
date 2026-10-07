@@ -1,217 +1,103 @@
 ---
-import {
-  Download,
-  Monitor,
-  Tag,
-  Info,
-  CheckCircle2,
-} from "lucide-preact";
+import { Download, Monitor } from "lucide-preact";
 
-interface ResolvedAsset {
-  browser_download_url: string;
-}
-
+interface ResolvedAsset { browser_download_url: string; }
 interface ResolvedRelease {
   version: string;
   notes: string;
   pub_date: string;
   platforms: Record<string, ResolvedAsset>;
 }
-
-interface Props {
-  release: ResolvedRelease;
-}
-
+interface Props { release: ResolvedRelease; }
 const { release } = Astro.props;
 
 const downloadDefinitions = [
-  { key: "windows-x86_64-msi", label: "Windows", icon: "windows" },
-  { key: "linux-x86_64-appimage", label: "Linux (AppImage)", icon: "linux" },
-  { key: "linux-x86_64-deb", label: "Ubuntu / Debian", icon: "linux" },
-  { key: "linux-x86_64-rpm", label: "Fedora", icon: "linux" },
-  { key: "darwin-aarch64", label: "macOS (Apple Silicon)", icon: "macos" },
-  { key: "darwin-x86_64", label: "macOS (Intel)", icon: "macos" },
+  { key: "windows-x86_64-msi", label: "Windows", short: "Win", icon: "windows" },
+  { key: "linux-x86_64-appimage", label: "Linux (AppImage)", short: "Linux", icon: "linux" },
+  { key: "linux-x86_64-deb", label: "Ubuntu / Debian", short: ".deb", icon: "linux" },
+  { key: "linux-x86_64-rpm", label: "Fedora", short: ".rpm", icon: "linux" },
+  { key: "darwin-aarch64", label: "macOS (Apple Silicon)", short: "Silicon", icon: "macos" },
+  { key: "darwin-x86_64", label: "macOS (Intel)", short: "Intel", icon: "macos" },
 ];
 
 const downloads = downloadDefinitions
   .map((entry) => {
     const asset = release.platforms?.[entry.key];
     if (!asset?.browser_download_url) return null;
-
-    return {
-      key: entry.key,
-      label: entry.label,
-      icon: entry.icon,
-      url: asset.browser_download_url,
-    };
+    return { ...entry, url: asset.browser_download_url };
   })
-  .filter(
-    (item): item is { key: string; label: string; icon: string; url: string } =>
-      Boolean(item),
-  );
+  .filter((x): x is NonNullable<typeof x> => Boolean(x));
 
-const publishedDate = new Intl.DateTimeFormat("es-ES", {
-  dateStyle: "medium",
-  timeStyle: "short",
-}).format(new Date(release.pub_date));
+const publishedDate = new Intl.DateTimeFormat("es-ES", { dateStyle: "medium", timeStyle: "short" }).format(new Date(release.pub_date));
 ---
 
-<section id="download" class="relative px-4 py-16 scroll-mt-24">
-  <div class="mx-auto max-w-4xl" id="download-container">
-    <div
-      id="download-card"
-      class="tv-card relative overflow-hidden rounded-2xl p-6 sm:p-8 opacity-0 translate-y-16 shadow-2xl shadow-black/70"
-    >
-      <!-- Top Edge Light -->
-      <div
-        class="absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent via-white/25 to-transparent"
+<section id="descargar" class="bg-bg px-5 pb-24 scroll-mt-20">
+  <div id="download-card" class="cta-pixel relative overflow-hidden max-w-5xl mx-auto bg-pc rounded-[40px] px-6 py-14 sm:px-12 text-center">
+    <div class="absolute -left-16 -top-16 w-56 h-56 bg-primary/20 animate-blob" aria-hidden="true"></div>
+    <div class="absolute -right-12 -bottom-16 w-64 h-64 bg-green/20 animate-blob" aria-hidden="true"></div>
+
+    <p class="px relative inline-block bg-black/25 text-primary text-xs rounded-none px-4 py-1.5 mb-5 border-b-4 border-black/30">
+      CANARY <span data-live-version>{release.version}</span> · <span data-live-date>{publishedDate}</span>
+    </p>
+    <h2 class="relative text-3xl sm:text-4xl font-extrabold text-white">Empieza hoy, gratis</h2>
+    <p class="relative text-primary/90 mt-3 max-w-xl mx-auto">App de escritorio para PC. Pruébalo como jugador o como creador. <span class="block mt-1 text-sm opacity-80" data-live-notes>{release.notes}</span></p>
+
+    {downloads.length > 0 && (
+      <a
+        href={downloads[0].url}
+        id="primary-download-btn"
+        data-url={downloads[0].url}
+        data-key={downloads[0].key}
+        class="btn-pixel relative inline-flex items-center gap-2 mt-8 bg-primary text-on-primary font-bold rounded-full px-9 py-3.5 text-lg hover:brightness-110 transition"
       >
-      </div>
+        <Download size={19} />
+        <span id="primary-download-label">Descargar para {downloads[0].label}</span>
+      </a>
+    )}
 
-      <div class="relative z-10">
-        <!-- Top Header & Primary Action -->
-        <div
-          class="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between"
+    <div class="relative mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 text-left">
+      {downloads.map((d) => (
+        <a
+          href={d.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-platform={d.key}
+          class="download-card group bg-black/25 hover:bg-black/35 border border-white/10 hover:border-white/25 rounded-[20px] p-4 flex items-center gap-3 transition-all"
         >
-          <div class="max-w-xl">
-            <div
-              class="inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400"
-            >
-              <span class="relative flex h-2 w-2">
-                <span
-                  class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"
-                ></span>
-                <span
-                  class="relative inline-flex h-2 w-2 rounded-full bg-emerald-500"
-                ></span>
-              </span>
-              <span>Canary Oficial · Publicado {publishedDate}</span>
-            </div>
-
-            <h2
-              class="mt-4 text-3xl font-lexend font-bold tracking-tight text-white md:text-4xl"
-            >
-              Descarga <span class="text-gradient-ms">Modpack Store</span>
-            </h2>
-
-            <p
-              class="mt-2 text-sm md:text-base leading-relaxed text-zinc-400"
-            >
-              Disponible de forma nativa para Windows, macOS y Linux. Elige tu sistema operativo y empieza a jugar sin complicaciones.
-            </p>
+          <div class="size-10 rounded-xl bg-white/10 border border-white/10 grid place-items-center text-white shrink-0">
+            {d.icon === "windows" ? (
+              <svg class="size-5" viewBox="0 0 24 24" fill="currentColor"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" /></svg>
+            ) : d.icon === "macos" ? (
+              <svg class="size-5" viewBox="0 0 24 24" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" /></svg>
+            ) : (
+              <Monitor size={18} />
+            )}
           </div>
-
-          {
-            downloads.length > 0 && (
-              <a
-                href={downloads[0].url}
-                id="primary-download-btn"
-                data-url={downloads[0].url}
-                data-key={downloads[0].key}
-                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3.5 font-semibold text-white text-sm transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 shadow-lg shadow-primary/25 whitespace-nowrap self-start lg:self-center"
-              >
-                <Download size={17} />
-                <span id="primary-download-label">
-                  Descargar para {downloads[0].label}
-                </span>
-              </a>
-            )
-          }
+          <div class="min-w-0 flex-1">
+            <div class="text-sm font-bold text-white truncate">{d.label}</div>
+            <div class="text-[11px] text-white/60">64-bit · {d.short}</div>
+          </div>
+          <Download size={15} class="text-white/60 group-hover:text-white group-hover:translate-y-0.5 transition-all shrink-0" />
+        </a>
+      ))}
+      {downloads.length === 0 && (
+        <div class="rounded-2xl border border-dashed border-white/20 p-4 text-sm text-white/70 sm:col-span-2 lg:col-span-3 text-center">
+          No hay descargas disponibles en este momento.
         </div>
-
-        <!-- Platform Cards Grid (Google TV App Cards) -->
-        <div class="mt-8 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {
-            downloads.map((download) => (
-              <a
-                href={download.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                data-platform={download.key}
-                class="download-card tv-card group rounded-xl p-4 flex flex-col justify-between hover:scale-[1.02] hover:border-white/25 transition-all"
-              >
-                <div class="flex items-center gap-3">
-                  <div class="size-10 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center text-zinc-300 group-hover:text-primary-light group-hover:border-primary/30 transition-colors">
-                    {download.icon === "windows" ? (
-                      <svg
-                        class="size-5"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.9-1.801" />
-                      </svg>
-                    ) : download.icon === "macos" ? (
-                      <svg
-                        class="size-5"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-                      </svg>
-                    ) : (
-                      <Monitor size={18} />
-                    )}
-                  </div>
-                  <div>
-                    <div class="text-sm font-semibold text-white group-hover:text-primary-light transition-colors">
-                      {download.label}
-                    </div>
-                    <div class="text-[11px] text-zinc-500">64-bit</div>
-                  </div>
-                </div>
-
-                <div class="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-zinc-400 group-hover:text-white transition-colors">
-                  <span>Descargar</span>
-                  <Download size={13} class="group-hover:translate-y-0.5 transition-transform" />
-                </div>
-              </a>
-            ))
-          }
-
-          {
-            downloads.length === 0 && (
-              <div class="rounded-xl border border-dashed border-white/10 bg-white/5 p-4 text-sm text-zinc-400 sm:col-span-2 xl:col-span-4">
-                No hay descargas disponibles en este momento.
-              </div>
-            )
-          }
-        </div>
-
-        <!-- Release Metadata Chips -->
-        <div class="mt-6 grid gap-2.5 sm:grid-cols-3">
-          <div class="tv-card rounded-xl px-4 py-3 flex items-center gap-2.5 text-xs text-zinc-400">
-            <Monitor size={15} class="text-primary-light shrink-0" />
-            <span>Windows 10/11, macOS, Ubuntu, Fedora y Debian</span>
-          </div>
-          <div class="tv-card rounded-xl px-4 py-3 flex items-center gap-2.5 text-xs text-zinc-400">
-            <Tag size={15} class="text-primary-light shrink-0" />
-            <span>Canary Release v{release.version}</span>
-          </div>
-          <div class="tv-card rounded-xl px-4 py-3 flex items-center gap-2.5 text-xs text-zinc-400 truncate">
-            <Info size={15} class="text-primary-light shrink-0" />
-            <span class="truncate">{release.notes}</span>
-          </div>
-        </div>
-      </div>
+      )}
     </div>
+
+    <p class="relative mt-6 text-[11px] text-white/50">Windows 10/11 · macOS · Ubuntu · Debian · Fedora — Detección automática de tu sistema</p>
   </div>
 </section>
 
 <script>
   import { gsap } from "gsap";
   import { ScrollTrigger } from "gsap/ScrollTrigger";
-
   gsap.registerPlugin(ScrollTrigger);
-
-  gsap.to("#download-card", {
-    scrollTrigger: {
-      trigger: "#download-container",
-      start: "top 85%",
-    },
-    opacity: 1,
-    y: 0,
-    duration: 1,
-    ease: "power3.out",
+  gsap.from("#download-card", {
+    scrollTrigger: { trigger: "#download-card", start: "top 85%" },
+    opacity: 0, y: 50, duration: 1, ease: "power3.out",
   });
 
   function detectPlatform(): string | null {
@@ -224,7 +110,6 @@ const publishedDate = new Intl.DateTimeFormat("es-ES", {
     if (ua.includes("linux")) return "linux-x86_64-appimage";
     return null;
   }
-
   function getPlatformLabel(key: string): string {
     const labels: Record<string, string> = {
       "windows-x86_64-msi": "Windows",
@@ -236,49 +121,21 @@ const publishedDate = new Intl.DateTimeFormat("es-ES", {
     };
     return labels[key] ?? key;
   }
-
   function initPlatformDetection() {
     const platform = detectPlatform();
     if (!platform) return;
-
-    const primaryBtn = document.getElementById("primary-download-btn");
+    const primaryBtn = document.getElementById("primary-download-btn") as HTMLAnchorElement | null;
     const primaryLabel = document.getElementById("primary-download-label");
     if (!primaryBtn || !primaryLabel) return;
-
-    const matchingCard = document.querySelector(
-      `[data-platform="${platform}"]`,
-    ) as HTMLAnchorElement | null;
+    const matchingCard = document.querySelector(`[data-platform="${platform}"]`) as HTMLAnchorElement | null;
     if (!matchingCard) return;
-
     primaryBtn.setAttribute("href", matchingCard.href);
     primaryLabel.textContent = `Descargar para ${getPlatformLabel(platform)}`;
-
-    matchingCard.classList.add(
-      "ring-2",
-      "ring-ms-primary/40",
-      "bg-ms-primary/10",
-    );
-
-    const cards = document.querySelectorAll(".download-card");
-    const sorted = Array.from(cards).sort((a, b) => {
-      if (a === matchingCard) return -1;
-      if (b === matchingCard) return 1;
-      return 0;
-    });
-
+    matchingCard.classList.add("ring-2", "ring-white/40");
     const grid = matchingCard.parentElement;
-    if (grid) {
-      sorted.forEach((card) => grid.appendChild(card));
-    }
+    if (grid) grid.prepend(matchingCard);
   }
-
   document.addEventListener("astro:page-load", initPlatformDetection);
-  if (
-    document.readyState === "complete" ||
-    document.readyState === "interactive"
-  ) {
-    initPlatformDetection();
-  } else {
-    document.addEventListener("DOMContentLoaded", initPlatformDetection);
-  }
+  if (document.readyState === "complete" || document.readyState === "interactive") initPlatformDetection();
+  else document.addEventListener("DOMContentLoaded", initPlatformDetection);
 </script>

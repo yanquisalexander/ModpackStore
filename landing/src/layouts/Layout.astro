@@ -12,7 +12,7 @@ interface Props {
 
 const {
   title,
-  description = "Modpack Store - La mejor forma de gestionar tus modpacks de Minecraft",
+  description = "ModpackStore es un launcher de Minecraft para crear y gestionar instancias de modpacks. Ideal para eventos, servidores y comunidades.",
   canonical,
   noindex = false,
   ogImage = "/icon.png",
@@ -27,13 +27,12 @@ const canonicalUrl = canonical ?? new URL(Astro.url.pathname, site).toString();
   <head>
     <meta charset="UTF-8" />
     <meta name="description" content={description} />
-    <meta name="viewport" content="width=device-width" />
+    <meta name="viewport" content="width=device-width, viewport-fit=cover" />
     <link rel="icon" type="image/png" href="/icon.png" />
     <link rel="canonical" href={canonicalUrl} />
     {noindex && <meta name="robots" content="noindex,nofollow" />}
     <meta name="generator" content={Astro.generator} />
     <title>{title}</title>
-    <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:title" content={title} />
@@ -42,40 +41,30 @@ const canonicalUrl = canonical ?? new URL(Astro.url.pathname, site).toString();
     <meta property="og:locale" content="es_ES" />
     <meta property="og:site_name" content="ModpackStore" />
     <meta name="google-adsense-account" content="ca-pub-7631620665837459" />
-    <meta
-      name="google-site-verification"
-      content="oqyB3KMZv8yNVl3KoSyWqYSMnKcMRc5vKxB-bgY3Phw"
+    <meta name="google-site-verification" content="oqyB3KMZv8yNVl3KoSyWqYSMnKcMRc5vKxB-bgY3Phw" />
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content={canonicalUrl} />
+    <meta property="twitter:title" content={title} />
+    <meta property="twitter:description" content={description} />
+    <meta property="twitter:image" content={new URL(ogImage, site).toString()} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;800&family=Silkscreen&display=swap"
+      rel="stylesheet"
     />
-
     <noscript>
       <style>
-        #hero-badge,
-        #hero-title,
-        #hero-desc,
-        #hero-meta,
-        #hero-cta,
-        #hero-preview,
-        #download-card,
-        .feature-card,
-        #site-header {
+        #hero-badge, #hero-title, #hero-desc, #hero-cta, #hero-meta,
+        #hero-preview, #download-card, .reveal, #site-header {
           opacity: 1 !important;
           transform: none !important;
         }
       </style>
     </noscript>
-    <!-- Twitter -->
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:url" content={canonicalUrl} />
-    <meta property="twitter:title" content={title} />
-    <meta property="twitter:description" content={description} />
-    <meta
-      property="twitter:image"
-      content={new URL(ogImage, site).toString()}
-    />
-
-    <body class="bg-background text-white min-h-screen flex flex-col">
-      <Navbar />
-      <slot />
-    </body>
   </head>
+  <body class="bg-bg text-text min-h-screen flex flex-col">
+    <Navbar />
+    <slot />
+  </body>
 </html>

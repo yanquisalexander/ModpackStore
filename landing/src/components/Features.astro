@@ -1,119 +1,49 @@
 ---
-import {
-  Zap,
-  Layers,
-  Cpu,
-  ShieldCheck,
-  Sparkles,
-  Users,
-} from "lucide-preact";
-
-const features = [
-  {
-    title: "Instalación en un Click",
-    category: "RÁPIDO & SIMPLE",
-    description:
-      "Olvídate de configuraciones complejas. Instala cualquier modpack con un solo click y empieza a jugar al instante.",
-    icon: Zap,
-    color: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  },
-  {
-    title: "Gestión de Instancias",
-    category: "MULTIVERSIONES",
-    description:
-      "Mantén tus mundos organizados. Crea múltiples instancias aisladas para diferentes modpacks sin mezclar archivos ni configuraciones.",
-    icon: Layers,
-    color: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  },
-  {
-    title: "Optimización Automática",
-    category: "RENDIMIENTO",
-    description:
-      "El lanzador detecta tu hardware y ajusta automáticamente la versión de Java, argumentos JVM y asignación de memoria RAM.",
-    icon: Cpu,
-    color: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  },
-  {
-    title: "Seguridad y Verificación",
-    category: "PROTECCIÓN",
-    description:
-      "Todos los modpacks y dependencias son auditados. Juega con total tranquilidad sabiendo que tu equipo está protegido.",
-    icon: ShieldCheck,
-    color: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
-  },
-  {
-    title: "Herramientas de Creador",
-    category: "PUBLISHER & TEAMS",
-    description:
-      "Panel dedicado para desarrolladores y creadores de modpacks. Publica versiones, gestiona tu equipo y monetiza con Patreon.",
-    icon: Sparkles,
-    color: "bg-purple-500/10 text-purple-400 border-purple-500/20",
-  },
-  {
-    title: "Comunidades y Servidores",
-    category: "ECOSISTEMA",
-    description:
-      "Únete a miles de jugadores activos. Descubre servidores asociados, sincroniza modpacks de comunidades y juega con amigos.",
-    icon: Users,
-    color: "bg-rose-500/10 text-rose-400 border-rose-500/20",
-  },
-];
+// Sección Jugadores — estilo HTML original
 ---
 
-<section id="features" class="py-20 relative overflow-hidden scroll-mt-24">
-  <div class="max-w-6xl mx-auto px-4 relative z-10">
-    <!-- Section Header (Estilo Google TV / Admin Dashboard) -->
-    <div class="text-center max-w-2xl mx-auto mb-14" id="features-header">
-      <div
-        class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3 opacity-0 translate-y-6"
-      >
-        <span>Características Clave</span>
+<section id="jugadores" class="bg-s1 px-5 pb-24 pt-10 scroll-mt-20">
+  <div class="max-w-6xl mx-auto">
+    <h2 class="reveal text-3xl sm:text-4xl font-extrabold text-center text-text">Jugar nunca fue tan simple</h2>
+    <p class="reveal text-muted text-center mt-3">Gratuito para jugadores. Sin instaladores manuales ni tutoriales eternos.</p>
+    <div class="grid md:grid-cols-3 gap-5 mt-12">
+      <div class="reveal bg-s2 rounded-[28px] p-7 hover:bg-s3 transition-colors">
+        <div class="w-12 h-12 rounded-2xl bg-pc mb-5 grid place-items-center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#b9c3ff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12m0 0l-5-5m5 5l5-5M5 20h14"/></svg></div>
+        <h3 class="text-xl font-bold text-text">Instala en un clic</h3>
+        <p class="text-muted mt-2">Instala y actualiza modpacks automáticamente con el actualizador integrado. Java, RAM y loader se configuran solos.</p>
       </div>
-      <h2
-        class="text-3xl md:text-5xl font-lexend font-bold text-white mb-4 opacity-0 translate-y-8"
-      >
-        Todo lo que necesitas, <br />
-        <span class="text-gradient-ms">sin complicaciones.</span>
-      </h2>
-      <p
-        class="text-zinc-400 text-base md:text-lg leading-relaxed opacity-0 translate-y-8"
-      >
-        Modpack Store está diseñado para eliminar las barreras técnicas y
-        permitirte disfrutar de lo que realmente importa: jugar a Minecraft.
-      </p>
+      <div class="reveal bg-s2 rounded-[28px] p-7 hover:bg-s3 transition-colors">
+        <div class="w-12 h-12 rounded-2xl bg-[#1f4a31] mb-5 grid place-items-center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7bdc9a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg></div>
+        <h3 class="text-xl font-bold text-text">Tu biblioteca</h3>
+        <p class="text-muted mt-2">Biblioteca personal con instancias aisladas, gestión de servidores y soporte multi-cuenta. Tus mundos nunca se mezclan.</p>
+      </div>
+      <div class="reveal bg-s2 rounded-[28px] p-7 hover:bg-s3 transition-colors">
+        <div class="w-12 h-12 rounded-2xl bg-[#5a2a41] mb-5 grid place-items-center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ffb0d0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0118 0M7 12a5 5 0 0110 0M12 12v.01M5 20h14"/></svg></div>
+        <h3 class="text-xl font-bold text-text">Modo offline</h3>
+        <p class="text-muted mt-2">Juega sin conexión cuando quieras. Compatible con Vanilla, Forge, Fabric, NeoForge y Quilt.</p>
+      </div>
     </div>
 
-    <!-- Features Bento Grid -->
-    <div
-      class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-      id="features-grid"
-    >
-      {
-        features.map((feature) => (
-          <div class="feature-card tv-card rounded-2xl p-6 relative overflow-hidden group hover:scale-[1.01] hover:border-white/20 transition-all duration-300 opacity-0 translate-y-10">
-            <!-- Glow effect on hover -->
-            <div class="absolute -right-10 -top-10 size-28 rounded-full bg-primary/10 blur-2xl group-hover:bg-primary/20 transition-all duration-500 pointer-events-none" />
-
-            <div class="flex items-center justify-between mb-5">
-              <div
-                class={`size-11 rounded-xl flex items-center justify-center border ${feature.color} transition-transform group-hover:scale-105 duration-200`}
-              >
-                <feature.icon size={20} />
-              </div>
-              <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-white/5 text-zinc-400 border border-white/10">
-                {feature.category}
-              </span>
-            </div>
-
-            <h3 class="text-lg font-bold text-white mb-2 group-hover:text-primary-light transition-colors">
-              {feature.title}
-            </h3>
-            <p class="text-sm text-zinc-400 leading-relaxed">
-              {feature.description}
-            </p>
-          </div>
-        ))
-      }
+    <!-- Cómo funciona: 3 pasos (contenido indexable, preservado del diseño anterior) -->
+    <div id="como-funciona" class="mt-14 scroll-mt-24">
+      <h3 class="reveal text-2xl font-extrabold text-center text-text">De la descarga al juego en 3 pasos</h3>
+      <ol class="mt-8 grid gap-5 text-left sm:grid-cols-3">
+        <li class="reveal bg-s2 rounded-[28px] p-6">
+          <div class="px text-xs text-primary">PASO 01</div>
+          <h4 class="mt-2 font-bold text-text">Descarga para tu sistema</h4>
+          <p class="mt-2 text-sm text-muted leading-relaxed">Windows (MSI), macOS (Apple Silicon e Intel) y Linux (AppImage, .deb, .rpm). La página detecta tu sistema operativo.</p>
+        </li>
+        <li class="reveal bg-s2 rounded-[28px] p-6">
+          <div class="px text-xs text-green">PASO 02</div>
+          <h4 class="mt-2 font-bold text-text">Elige un modpack</h4>
+          <p class="mt-2 text-sm text-muted leading-relaxed">Explora el catálogo: revisa loader, versión de Minecraft, cantidad de mods y RAM recomendada. Ideal para SaltoCraft y tu server.</p>
+        </li>
+        <li class="reveal bg-s2 rounded-[28px] p-6">
+          <div class="px text-xs text-pink">PASO 03</div>
+          <h4 class="mt-2 font-bold text-text">Pulsa Jugar</h4>
+          <p class="mt-2 text-sm text-muted leading-relaxed">Se crea una instancia aislada con Java y JVM optimizados. Detalles en la <a class="text-primary underline underline-offset-2 hover:brightness-110" href="/guias/como-instalar-modpacks-minecraft/">guía de instalación</a> o <a class="text-primary underline underline-offset-2 hover:brightness-110" href="/preguntas-frecuentes/">FAQ</a>.</p>
+        </li>
+      </ol>
     </div>
   </div>
 </section>
@@ -121,32 +51,11 @@ const features = [
 <script>
   import { gsap } from "gsap";
   import { ScrollTrigger } from "gsap/ScrollTrigger";
-
   gsap.registerPlugin(ScrollTrigger);
-
-  // Header animation
-  gsap.to("#features-header > *", {
-    scrollTrigger: {
-      trigger: "#features-header",
-      start: "top 85%",
-    },
-    opacity: 1,
-    y: 0,
-    duration: 0.8,
-    stagger: 0.15,
-    ease: "power3.out",
-  });
-
-  // Cards stagger animation
-  gsap.to(".feature-card", {
-    scrollTrigger: {
-      trigger: "#features-grid",
-      start: "top 80%",
-    },
-    opacity: 1,
-    y: 0,
-    duration: 0.7,
-    stagger: 0.1,
-    ease: "power3.out",
+  gsap.utils.toArray<HTMLElement>("#jugadores .reveal").forEach((el, i) => {
+    gsap.from(el, {
+      scrollTrigger: { trigger: el, start: "top 88%" },
+      opacity: 0, y: 28, duration: 0.7, delay: (i % 3) * 0.08, ease: "power3.out",
+    });
   });
 </script>

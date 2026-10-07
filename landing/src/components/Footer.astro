@@ -1,76 +1,32 @@
 ---
-// src/components/Footer.astro
 const year = new Date().getFullYear();
 ---
 
-<footer
-  class="relative z-10 w-full border-t border-border bg-[#0d0e12] pt-14 pb-8"
->
-  <div class="max-w-6xl mx-auto px-4 flex flex-col items-center text-center">
-    <div class="mb-5 flex flex-col items-center gap-2">
-      <div class="size-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center p-1.5 mb-1 shadow-sm">
-        <img src="/icon.png" class="size-7 object-contain" alt="ModpackStore Logo" />
+<footer class="bg-s1 px-5 py-10 text-sm text-muted">
+  <div class="max-w-6xl mx-auto">
+    <div class="flex flex-wrap gap-4 justify-between items-center">
+      <a href="/#" class="flex items-center gap-2 font-extrabold text-text">
+        <span class="grid place-items-center w-[24px] h-[24px] rounded-[7px] bg-primary overflow-hidden shrink-0">
+          <img src="/icon.png" alt="ModpackStore logo" width="24" height="24" class="w-[20px] h-[20px] object-contain" />
+        </span>
+        Modpack Store
+      </a>
+      <nav class="flex flex-wrap gap-x-5 gap-y-2 text-xs">
+        <a href="/guias/como-instalar-modpacks-minecraft/" class="hover:text-text transition-colors">Guía de instalación</a>
+        <a href="/preguntas-frecuentes/" class="hover:text-text transition-colors">FAQ</a>
+        <a href="/sobre-nosotros/" class="hover:text-text transition-colors">Nosotros</a>
+        <a href="/contacto/" class="hover:text-text transition-colors">Contacto</a>
+        <a href="https://discord.gg/9upQuDS4YQ" target="_blank" rel="noopener noreferrer" class="hover:text-text transition-colors">Discord</a>
+      </nav>
+    </div>
+    <div class="mt-6 pt-6 border-t border-s3 flex flex-wrap gap-4 justify-between items-center text-xs text-muted/80">
+      <p>© {year} Modpack Store. No afiliado a Mojang ni Microsoft. Desarrollado por <a href="https://alexitoo.dev" target="_blank" rel="noopener noreferrer" class="hover:text-text underline underline-offset-2">alexitoo.dev</a></p>
+      <div class="flex gap-5">
+        <a href="/privacidad/" class="hover:text-text transition-colors">Privacidad</a>
+        <a href="/terminos/" class="hover:text-text transition-colors">Términos</a>
+        <a href="/cookies/" class="hover:text-text transition-colors">Cookies</a>
+        <a href="/aviso-legal-minecraft/" class="hover:text-text transition-colors">Aviso legal</a>
       </div>
-      <span class="text-xl font-lexend font-bold text-white tracking-tight">
-        Modpack<span class="text-primary">Store</span>
-      </span>
-      <span class="text-xs text-zinc-500">Launcher & Ecosistema de Minecraft</span>
-    </div>
-
-    <nav
-      class="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-8 text-xs font-medium text-zinc-400"
-    >
-      <a href="/#download" class="hover:text-white transition-colors">Descargar</a>
-      <a href="/#features" class="hover:text-white transition-colors">Características</a>
-      <a href="/guias/como-instalar-modpacks-minecraft/" class="hover:text-white transition-colors">Guía de instalación</a>
-      <a href="/preguntas-frecuentes/" class="hover:text-white transition-colors">Preguntas frecuentes</a>
-      <a href="/sobre-nosotros/" class="hover:text-white transition-colors">Nosotros</a>
-      <a href="/contacto/" class="hover:text-white transition-colors">Contacto</a>
-      <a href="https://discord.gg/9upQuDS4YQ" target="_blank" class="hover:text-white transition-colors">Discord Oficial</a>
-    </nav>
-
-    <nav
-      class="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-8 text-[11px] text-zinc-500"
-    >
-      <a href="/terminos/" class="hover:text-white transition-colors">Términos y Condiciones</a>
-      <a href="/privacidad/" class="hover:text-white transition-colors">Privacidad</a>
-      <a href="/cookies/" class="hover:text-white transition-colors">Cookies</a>
-      <a href="/aviso-legal-minecraft/" class="hover:text-white transition-colors">Aviso legal Minecraft</a>
-    </nav>
-
-    <div class="flex gap-4 mb-8">
-      <a
-        href="https://discord.gg/9upQuDS4YQ"
-        target="_blank"
-        class="p-2.5 text-zinc-400 hover:text-white hover:bg-white/5 border border-white/5 hover:border-white/10 rounded-xl transition-all"
-        aria-label="Discord"
-      >
-        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-          <path
-            d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028 14.09 14.09 0 001.226-1.994.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"
-          ></path>
-        </svg>
-      </a>
-    </div>
-
-    <div class="flex flex-col items-center gap-2 mb-8">
-      <span
-        class="text-[10px] uppercase tracking-[0.2em] text-zinc-500 font-bold"
-      >
-        Desarrollado por
-      </span>
-      <a
-        href="https://alexitoo.dev"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="text-xs text-zinc-400 hover:text-white transition-colors font-medium flex items-center gap-1.5"
-      >
-        <span>alexitoo.dev</span>
-      </a>
-    </div>
-
-    <div class="text-[11px] text-zinc-500">
-      <p>&copy; {year} Modpack Store. No afiliado con Mojang Studios ni Microsoft.</p>
     </div>
   </div>
 </footer>

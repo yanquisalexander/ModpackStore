@@ -1,162 +1,68 @@
 ---
-import {
-  Building2,
-  ArrowRight,
-  ShieldCheck,
-  Users,
-  Sparkles,
-  CheckCircle2,
-} from "lucide-preact";
-
+// Sección Creadores — 01..05 del HTML + prueba social preservada
 const communities = [
   {
-    name: "SaltoUruguayServer",
-    tagline: "Comunidad Oficial & Servidor de Aventura",
-    description:
-      "Distribuye y actualiza SaltoCraft directamente a cientos de jugadores sin descargas manuales de zips.",
-    players: "+100 Jugadores Activos",
-    modpack: "SaltoCraft",
-    version: "Forge",
+    name: "SaltoCraft Extremo IV",
+    tagline: "Evento oficial · +100 jugadores",
     status: "Partner",
-    logo: "https://saltouruguayserver.com/favicon.svg",
-    badgeColor: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  },
-  {
-    name: "¿Quizá tu comunidad?",
-    tagline: "Creador de Modpacks y Servidor",
-    description:
-      "Si eres creador de modpacks o administras un servidor, puedes unirte a nuestro ecosistema y distribuir tu contenido sin dolores de cabeza.",
-    players: "¡Únete!",
-    modpack: "Creador de Contenido",
-    version: "Cualquier Plataforma",
-    status: "Creador",
-    logo: null,
-    badgeColor: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   },
 ];
 ---
 
-<section id="creators" class="relative px-4 py-16 overflow-hidden scroll-mt-24">
-  <div class="max-w-5xl mx-auto relative z-10">
-    <!-- Header -->
-    <div class="text-center max-w-2xl mx-auto mb-12">
-      <div
-        class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3"
-      >
-        <Users size={13} class="text-primary-light" />
-        <span>Ecosistema de Comunidades</span>
-      </div>
-      <h3
-        class="text-3xl md:text-4xl font-lexend font-bold text-white tracking-tight"
-      >
-        Comunidades que confían en <span class="text-gradient-ms">ModpackStore</span>
-      </h3>
-      <p class="mt-3 text-zinc-400 text-sm md:text-base leading-relaxed">
-        Servidores y creadores que usan nuestro ecosistema para distribuir y
-        actualizar sus proyectos sin dolores de cabeza.
-      </p>
+<section id="creadores" class="relative bg-bg px-5 pt-8 pb-24 scroll-mt-16">
+  <svg class="absolute -top-px left-0 w-full block" viewBox="0 0 1440 80" preserveAspectRatio="none" height="60" aria-hidden="true"><path d="M0 0H1440V30C1200 80 960 0 720 40S240 80 0 30Z" fill="#232428"/></svg>
+  <div class="max-w-6xl mx-auto relative pt-16">
+    <h2 class="reveal text-3xl sm:text-4xl font-extrabold text-center text-text">Hecho para <span class="inline-block text-primary">creadores<span class="wave-u"></span></span></h2>
+    <p class="reveal text-muted text-center mt-4 max-w-2xl mx-auto">Más de 6 años de diseño para servidores y comunidades. Si publicas modpacks, esto te va a gustar.</p>
+
+    <div class="reveal mt-6 flex flex-wrap justify-center gap-2">
+      {communities.map((c) => (
+        <span class="px inline-flex items-center gap-2 bg-s2 border border-s3 rounded-full px-4 py-1.5 text-xs text-muted">
+          <span class="size-2 rounded-full bg-green inline-block"></span>
+          {c.name} · {c.tagline} · <span class="text-green">{c.status}</span>
+        </span>
+      ))}
     </div>
 
-    <!-- Organizations Card Container (Alineado con CreatorDashboard.tsx) -->
-    <div class="tv-card rounded-2xl overflow-hidden shadow-2xl shadow-black/60">
-      <!-- Container Header -->
-      <div
-        class="p-5 sm:p-6 border-b border-border/70 flex flex-wrap items-center justify-between gap-3 bg-white/[0.01]"
-      >
-        <div class="flex items-center gap-3">
-          <div class="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20">
-            <Building2 size={18} />
-          </div>
-          <div>
-            <h4 class="font-semibold text-base text-white">Organizaciones y Servidores Asociados</h4>
-            <p class="text-xs text-zinc-400">Equipos que distribuyen lanzamientos oficiales</p>
-          </div>
-        </div>
-
-        <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border border-white/10 bg-white/5 text-zinc-300">
-          <CheckCircle2 size={13} class="text-emerald-400" />
-          <span>{communities.length} Organizaciones Oficiales</span>
-        </div>
-      </div>
-
-      <!-- Communities List Items -->
-      <div class="divide-y divide-border/60">
-        {
-          communities.map((c) => (
-            <div class="group flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 hover:bg-white/[0.02] transition-colors">
-              <div class="flex items-start sm:items-center gap-4 min-w-0">
-                <!-- Community Avatar / Fallback -->
-                <div class="size-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden p-1.5">
-                  {c.logo ? (
-                    <img
-                      src={c.logo}
-                      alt={c.name}
-                      class="size-full object-contain"
-                      loading="lazy"
-                    />
-                  ) : (
-                    <Building2 size={22} class="text-zinc-400 group-hover:text-primary-light transition-colors" />
-                  )}
-                </div>
-
-                <!-- Info -->
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2">
-                    <span class="font-semibold text-base text-white group-hover:text-primary-light transition-colors">
-                      {c.name}
-                    </span>
-                    <span
-                      class={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border ${c.badgeColor}`}
-                    >
-                      {c.status}
-                    </span>
-                  </div>
-                  <p class="text-xs text-zinc-400 mt-0.5 line-clamp-1">
-                    {c.tagline} · <span class="text-zinc-500">{c.description}</span>
-                  </p>
-                </div>
-              </div>
-
-              <!-- Metadata & Action -->
-              <div class="flex items-center gap-3 sm:gap-4 shrink-0 pl-16 sm:pl-0">
-                <div class="text-right hidden md:block">
-                  <div class="text-xs font-medium text-zinc-300">{c.players}</div>
-                  <div class="text-[11px] text-zinc-500">{c.version}</div>
-                </div>
-
-                <a
-                  href="#download"
-                  class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-white/10 bg-white/5 text-xs font-medium text-zinc-300 group-hover:text-white group-hover:border-primary/40 group-hover:bg-primary/10 transition-all"
-                >
-                  <span>Descargar</span>
-                  <ArrowRight size={13} class="text-zinc-400 group-hover:translate-x-0.5 transition-transform" />
-                </a>
-              </div>
-            </div>
-          ))
-        }
-      </div>
-
-      <!-- Container Footer (Invitation to Creators) -->
-      <div
-        class="p-4 sm:px-6 bg-white/[0.015] border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-400"
-      >
-        <div class="flex items-center gap-2 text-center sm:text-left">
-          <Sparkles size={14} class="text-primary-light shrink-0" />
-          <span>
-            ¿Eres creador o administras una comunidad? Publica tu modpack con panel de métricas y actualizaciones automáticas.
-          </span>
-        </div>
-        <a
-          href="https://discord.gg/9upQuDS4YQ"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="shrink-0 text-xs font-semibold text-primary-light hover:text-white transition-colors flex items-center gap-1"
-        >
-          <span>Unirse como Creador</span>
-          <ArrowRight size={12} />
-        </a>
-      </div>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-5 mt-12">
+      <article class="reveal bg-s2 rounded-[28px] p-7 hover:bg-s3 transition-colors">
+        <span class="inline-block bg-pc text-primary font-bold rounded-md px-3 py-1 text-sm">01</span>
+        <h3 class="text-xl font-bold mt-4 text-text">Publicar es simple</h3>
+        <p class="text-muted mt-2">Configura todo en TOML, legible y difícil de romper. Versiones en borrador, publicado o archivado, y archivos separados por cliente/servidor.</p>
+      </article>
+      <article class="reveal bg-s2 rounded-[28px] p-7 hover:bg-s3 transition-colors">
+        <span class="inline-block bg-[#1f4a31] text-green font-bold rounded-md px-3 py-1 text-sm">02</span>
+        <h3 class="text-xl font-bold mt-4 text-text">Tu marca en la pantalla de carga</h3>
+        <p class="text-muted mt-2">Logo, fondo con imagen o video, música, noticias en HTML/Markdown, visor 3D de skin y jugadores online de tu servidor.</p>
+      </article>
+      <article class="reveal bg-s2 rounded-[28px] p-7 hover:bg-s3 transition-colors">
+        <span class="inline-block bg-[#5a2a41] text-pink font-bold rounded-md px-3 py-1 text-sm">03</span>
+        <h3 class="text-xl font-bold mt-4 text-text">Control de quién juega</h3>
+        <p class="text-muted mt-2">Modpacks públicos, privados o con whitelist. Acceso por contraseña o suscripción de Twitch. Verificación en el juego con AuthLib Injector.</p>
+      </article>
+      <article class="reveal bg-s2 rounded-[28px] p-7 hover:bg-s3 transition-colors">
+        <span class="inline-block bg-[#59461a] text-sand font-bold rounded-md px-3 py-1 text-sm">04</span>
+        <h3 class="text-xl font-bold mt-4 text-text">Instancia Blindada</h3>
+        <p class="text-muted mt-2">Vigila la integridad de la instalación, bloquea resourcepacks y mods no autorizados y avisa a tu Discord por webhook. Ideal para torneos y series.</p>
+      </article>
+      <article class="reveal bg-s2 rounded-[28px] p-7 md:col-span-2 lg:col-span-2 relative overflow-hidden hover:bg-s3 transition-colors">
+        <span class="inline-block bg-s4 text-text font-bold rounded-md px-3 py-1 text-sm">05</span>
+        <h3 class="text-xl font-bold mt-4 text-text">Herramientas de equipo profesional</h3>
+        <p class="text-muted mt-2 max-w-lg">Organizaciones con roles, registro de auditoría, analíticas, gestión de almacenamiento y API Tokens. La solicitud para ser creador se hace desde la misma app. <a href="https://discord.gg/9upQuDS4YQ" target="_blank" rel="noopener noreferrer" class="text-primary underline underline-offset-2 hover:brightness-110">Unirse como creador →</a></p>
+        <svg class="absolute -right-6 -bottom-6 animate-spin-slow" width="140" height="140" viewBox="0 0 140 140" aria-hidden="true"><path d="M70 5l16 32 35-7-14 33 28 22-34 10 3 36-34-16-34 16 3-36-34-10 28-22-14-33 35 7z" fill="#3a3c42"/></svg>
+      </article>
     </div>
   </div>
 </section>
+
+<script>
+  import { gsap } from "gsap";
+  import { ScrollTrigger } from "gsap/ScrollTrigger";
+  gsap.registerPlugin(ScrollTrigger);
+  gsap.utils.toArray<HTMLElement>("#creadores .reveal").forEach((el, i) => {
+    gsap.from(el, {
+      scrollTrigger: { trigger: el, start: "top 88%" },
+      opacity: 0, y: 28, duration: 0.7, delay: (i % 3) * 0.08, ease: "power3.out",
+    });
+  });
+</script>

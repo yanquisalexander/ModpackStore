@@ -1,407 +1,169 @@
 ---
-import {
-  Download,
-  Sparkles,
-  Package,
-  Layers,
-  Zap,
-  ArrowRight,
-  Play,
-  LayoutGrid,
-  Library,
-  Server,
-  Star,
-  CheckCircle2,
-} from "lucide-preact";
+import { Download } from "lucide-preact";
 
 interface ReleasePlatform {
   browser_download_url?: string;
   url?: string;
 }
-
 interface ReleaseData {
   version: string;
   notes: string;
   pub_date: string;
   platforms: Record<string, ReleasePlatform>;
 }
-
 const release = Astro.props.release as ReleaseData | undefined;
 const releaseVersion = release?.version ?? "canary";
-const releaseNotes = release?.notes ?? "Última versión publicada";
 ---
 
-<section
-  id="hero-section"
-  class="relative overflow-hidden pb-16 pt-24 lg:pb-24 lg:pt-32 scroll-mt-24"
->
-  <div class="relative z-10 mx-auto max-w-6xl px-4">
-    <!-- Version Pill Badge -->
-    <div
-      id="hero-badge"
-      class="mb-6 inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3.5 py-1 text-xs font-medium text-primary-light opacity-0 backdrop-blur-md"
+<section class="relative overflow-hidden">
+  <!-- Pixel-art flotante de fondo -->
+  <svg
+    class="absolute inset-0 w-full h-full pointer-events-none"
+    aria-hidden="true"
+    preserveAspectRatio="xMidYMid slice"
+    viewBox="0 0 1200 700"
+  >
+    <g class="animate-floaty" style="transform-origin:150px 140px"
+      ><rect
+        x="90"
+        y="90"
+        width="110"
+        height="110"
+        rx="30"
+        fill="#2f3a96"
+        opacity=".7"></rect></g
     >
-      <span class="relative flex h-2 w-2">
-        <span
-          class="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75"
-        ></span>
-        <span class="relative inline-flex h-2 w-2 rounded-full bg-emerald-400"
-        ></span>
-      </span>
-      <span>Versión {releaseVersion} Canary · Modpack Store Desktop</span>
+    <g
+      class="animate-float-slow"
+      style="transform-origin:1050px 150px"
+      shape-rendering="crispEdges"
+      ><rect x="1010" y="110" width="80" height="80" fill="#7a5638"></rect><rect
+        x="1010"
+        y="110"
+        width="80"
+        height="24"
+        fill="#5fbf63"></rect><rect
+        x="1010"
+        y="134"
+        width="16"
+        height="10"
+        fill="#5fbf63"></rect><rect
+        x="1050"
+        y="134"
+        width="24"
+        height="10"
+        fill="#5fbf63"></rect><rect
+        x="1030"
+        y="160"
+        width="10"
+        height="10"
+        fill="#5e422a"></rect><rect
+        x="1066"
+        y="170"
+        width="10"
+        height="10"
+        fill="#5e422a"></rect></g
+    >
+    <g
+      class="animate-floaty"
+      style="transform-origin:1000px 510px"
+      shape-rendering="crispEdges"
+      fill="#ffb0d0"
+      ><rect x="976" y="480" width="24" height="12"></rect><rect
+        x="1012"
+        y="480"
+        width="24"
+        height="12"></rect><rect x="964" y="492" width="84" height="24"
+      ></rect><rect x="976" y="516" width="60" height="12"></rect><rect
+        x="988"
+        y="528"
+        width="36"
+        height="12"></rect><rect x="1000" y="540" width="12" height="12"
+      ></rect></g
+    >
+    <g class="animate-floaty" style="transform-origin:200px 560px"
+      ><path d="M200 510l50 85h-100z" fill="#f2c97d" opacity=".85"></path></g
+    >
+    <g class="animate-spin-slow" style="transform-origin:600px 90px"
+      ><rect x="570" y="60" width="60" height="60" rx="14" fill="#3a3c42"
+      ></rect></g
+    >
+  </svg>
+
+  <div class="relative max-w-4xl mx-auto text-center px-5 pt-24 pb-36">
+    <span
+      id="hero-badge"
+      class="px inline-block bg-s3 text-primary text-sm px-4 py-1.5 mb-6 border-b-4 border-s4"
+    >
+      Launcher oficial de SaltoCraft Extremo IV
+    </span>
+    <h1
+      id="hero-title"
+      class="text-4xl sm:text-6xl font-extrabold leading-tight tracking-tight text-text"
+    >
+      Ideal para tu <span class="inline-block text-primary"
+        >evento<span class="wave-u"></span></span
+      > o <span class="inline-block text-green"
+        >server<span class="wave-u wave-g"></span></span
+      >
+    </h1>
+    <p
+      id="hero-desc"
+      class="text-muted text-lg sm:text-xl mt-7 max-w-2xl mx-auto"
+    >
+      Crea y gestiona instancias de modpacks en un clic. También funciona como
+      launcher de Minecraft normal.
+      <span class="block mt-2 text-sm text-muted/80" data-live-notes
+        >{release?.notes ?? ""}</span
+      >
+    </p>
+    <div id="hero-cta" class="flex flex-wrap gap-3 justify-center mt-10">
+      <a
+        href="#descargar"
+        class="btn-pixel inline-flex items-center gap-2 bg-primary text-on-primary font-bold rounded-full px-8 py-3.5 text-lg hover:brightness-110 transition"
+      >
+        <Download size={19} />
+        Descargar gratis
+      </a>
+      <a
+        href="#creadores"
+        class="btn-pixel inline-flex items-center bg-s3 text-text font-bold rounded-full px-8 py-3.5 text-lg hover:bg-s4 transition"
+      >
+        Soy creador
+      </a>
     </div>
-
-    <!-- Main Hero Content -->
-    <div class="grid items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
-      <div>
-        <h1
-          id="hero-title"
-          class="max-w-2xl text-4xl font-lexend font-bold leading-[1.08] tracking-tight text-white opacity-0 md:text-6xl"
-        >
-          Tus modpacks, listos para
-          <span class="block text-gradient-ms">
-            jugar en un click.
-          </span>
-        </h1>
-
-        <p
-          id="hero-desc"
-          class="mt-6 max-w-xl text-base leading-relaxed text-zinc-400 opacity-0 md:text-lg"
-        >
-          El launcher definitivo para Minecraft con interfaz optimizada para
-          jugadores y creadores. Rendimiento nativo, gestión inteligente de
-          instancias y catálogo curado.
-        </p>
-
-        <!-- CTA Buttons -->
-        <div
-          id="hero-cta"
-          class="mt-8 flex flex-wrap items-center gap-3.5 opacity-0"
-        >
-          <a
-            href="#download"
-            class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-primary/90 hover:scale-[1.02] active:scale-95 shadow-lg shadow-primary/25"
-          >
-            <Download size={16} />
-            <span>Descargar Ahora</span>
-          </a>
-          <a
-            href="#features"
-            class="inline-flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-white/10 hover:border-white/20"
-          >
-            <span>Ver Características</span>
-            <ArrowRight size={14} />
-          </a>
-        </div>
-
-        <!-- Metrics Grid (StatCards estilo CreatorDashboard) -->
-        <div
-          id="hero-meta"
-          class="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-3 opacity-0"
-        >
-          <div class="tv-card rounded-xl p-3.5 flex items-center gap-3">
-            <div
-              class="size-10 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center shrink-0"
-            >
-              <Package size={18} />
-            </div>
-            <div class="min-w-0">
-              <div class="text-base font-bold text-white tracking-tight">
-                +500
-              </div>
-              <div
-                class="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider truncate"
-              >
-                Modpacks
-              </div>
-            </div>
-          </div>
-
-          <div class="tv-card rounded-xl p-3.5 flex items-center gap-3">
-            <div
-              class="size-10 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center shrink-0"
-            >
-              <Layers size={18} />
-            </div>
-            <div class="min-w-0">
-              <div class="text-base font-bold text-white tracking-tight">
-                Aisladas
-              </div>
-              <div
-                class="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider truncate"
-              >
-                Instancias
-              </div>
-            </div>
-          </div>
-
-          <div class="tv-card rounded-xl p-3.5 flex items-center gap-3">
-            <div
-              class="size-10 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center shrink-0"
-            >
-              <Zap size={18} />
-            </div>
-            <div class="min-w-0">
-              <div class="text-base font-bold text-white tracking-tight">
-                Nativo
-              </div>
-              <div
-                class="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider truncate"
-              >
-                Rendimiento
-              </div>
-            </div>
-          </div>
-
-          <div class="tv-card rounded-xl p-3.5 flex items-center gap-3">
-            <div
-              class="size-10 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center shrink-0"
-            >
-              <Sparkles size={18} />
-            </div>
-            <div class="min-w-0">
-              <div class="text-base font-bold text-white tracking-tight">
-                Abierto
-              </div>
-              <div
-                class="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider truncate"
-              >
-                Creadores
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- TV-Style App Preview Mockup -->
-      <div id="hero-preview" class="relative opacity-0">
-        <div
-          class="absolute -inset-4 rounded-3xl bg-primary/15 blur-3xl pointer-events-none"
-        >
-        </div>
-
-        <div
-          class="relative overflow-hidden rounded-2xl border border-white/10 bg-[#0d0e12] shadow-2xl shadow-black/80"
-        >
-          <!-- Window Title Bar -->
-          <div
-            class="flex items-center justify-between border-b border-white/10 bg-[#14151b] px-4 py-2.5"
-          >
-            <div class="flex items-center gap-2">
-              <span class="size-3 rounded-full bg-red-500/80"></span>
-              <span class="size-3 rounded-full bg-yellow-500/80"></span>
-              <span class="size-3 rounded-full bg-emerald-500/80"></span>
-            </div>
-
-            <!-- Google TV Top Navigation Tabs -->
-            <div
-              class="hidden sm:flex items-center gap-1 bg-white/[0.04] p-0.5 rounded-full border border-white/5 text-[11px]"
-            >
-              <span
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white text-zinc-950 font-semibold shadow-xs"
-              >
-                <LayoutGrid size={11} />
-                Explorar
-              </span>
-              <span
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-zinc-400"
-              >
-                <Library size={11} />
-                Biblioteca
-              </span>
-              <span
-                class="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-zinc-400"
-              >
-                <Server size={11} />
-                Instancias
-              </span>
-            </div>
-
-            <!-- Status Indicator -->
-            <div
-              class="flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-400"
-            >
-              <span class="size-1.5 rounded-full bg-emerald-400"></span>
-              Online
-            </div>
-          </div>
-
-          <!-- App Body: Spotlight & TV Cards -->
-          <div class="p-4 sm:p-5 space-y-4">
-            <!-- Featured Spotlight Banner -->
-            <div
-              class="relative overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-indigo-950/60 via-[#13141c] to-[#0d0e12] p-5 sm:p-6"
-            >
-              <div
-                class="absolute right-0 top-0 bottom-0 w-1/2 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-primary/20 via-transparent to-transparent pointer-events-none"
-              >
-              </div>
-
-              <div class="relative z-10 max-w-md">
-                <div class="flex items-center gap-2 mb-2">
-                  <span
-                    class="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-md bg-primary/20 text-primary-light border border-primary/30"
-                  >
-                    Destacado Oficial
-                  </span>
-                  <span class="text-[11px] text-zinc-400">140 Mods</span>
-                </div>
-
-                <h3
-                  class="text-xl sm:text-2xl font-lexend font-bold text-white tracking-tight"
-                >
-                  SaltoCraft Season 3
-                </h3>
-
-                <p class="mt-1 text-xs text-zinc-400 line-clamp-2 leading-relaxed">
-                  Experiencia completa de aventura, magia y tecnología con shaders
-                  integrados y optimización extrema para cualquier PC.
-                </p>
-
-                <div class="mt-4 flex items-center gap-2.5">
-                  <button
-                    class="px-4 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-white font-semibold text-xs flex items-center gap-1.5 shadow-md shadow-emerald-500/20 transition-all cursor-default"
-                  >
-                    <Play size={13} fill="currentColor" />
-                    Jugar
-                  </button>
-                  <span
-                    class="px-3 py-1.5 rounded-lg border border-white/10 bg-white/5 text-zinc-300 text-xs font-medium"
-                  >
-                    Fabric 1.20.1
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <!-- TV Modpack Shelf (Rows of Cards) -->
-            <div>
-              <div class="flex items-center justify-between mb-2.5 px-1">
-                <span
-                  class="text-xs font-semibold text-zinc-300 uppercase tracking-wider flex items-center gap-1.5"
-                >
-                  <Sparkles size={13} class="text-primary-light" />
-                  Tendencias en Comunidad
-                </span>
-                <span class="text-[11px] text-zinc-500">Ver todo</span>
-              </div>
-
-              <div class="grid grid-cols-3 gap-2.5">
-                <!-- Card 1 -->
-                <div
-                  class="group rounded-xl border border-white/10 bg-[#12131a] p-3 hover:border-white/20 transition-all"
-                >
-                  <div
-                    class="aspect-video w-full rounded-lg bg-gradient-to-tr from-blue-900/40 to-slate-800 flex items-center justify-center text-blue-300 font-bold text-xs mb-2 border border-white/5"
-                  >
-                    PixelSurvival
-                  </div>
-                  <div
-                    class="text-xs font-semibold text-white truncate group-hover:text-primary-light transition-colors"
-                  >
-                    Pixel Survival
-                  </div>
-                  <div
-                    class="flex items-center justify-between text-[10px] text-zinc-400 mt-1"
-                  >
-                    <span>Forge 1.20</span>
-                    <span class="flex items-center gap-0.5 text-amber-400">
-                      <Star size={9} fill="currentColor" /> 4.9
-                    </span>
-                  </div>
-                </div>
-
-                <!-- Card 2 -->
-                <div
-                  class="group rounded-xl border border-white/10 bg-[#12131a] p-3 hover:border-white/20 transition-all"
-                >
-                  <div
-                    class="aspect-video w-full rounded-lg bg-gradient-to-tr from-emerald-900/40 to-slate-800 flex items-center justify-center text-emerald-300 font-bold text-xs mb-2 border border-white/5"
-                  >
-                    CreateTech
-                  </div>
-                  <div
-                    class="text-xs font-semibold text-white truncate group-hover:text-primary-light transition-colors"
-                  >
-                    Create Astral
-                  </div>
-                  <div
-                    class="flex items-center justify-between text-[10px] text-zinc-400 mt-1"
-                  >
-                    <span>Fabric 1.18</span>
-                    <span class="flex items-center gap-0.5 text-amber-400">
-                      <Star size={9} fill="currentColor" /> 5.0
-                    </span>
-                  </div>
-                </div>
-
-                <!-- Card 3 -->
-                <div
-                  class="group rounded-xl border border-white/10 bg-[#12131a] p-3 hover:border-white/20 transition-all"
-                >
-                  <div
-                    class="aspect-video w-full rounded-lg bg-gradient-to-tr from-purple-900/40 to-slate-800 flex items-center justify-center text-purple-300 font-bold text-xs mb-2 border border-white/5"
-                  >
-                    RedStoneUY
-                  </div>
-                  <div
-                    class="text-xs font-semibold text-white truncate group-hover:text-primary-light transition-colors"
-                  >
-                    RedStone UY
-                  </div>
-                  <div
-                    class="flex items-center justify-between text-[10px] text-zinc-400 mt-1"
-                  >
-                    <span>Fabric 1.20</span>
-                    <span class="flex items-center gap-0.5 text-amber-400">
-                      <Star size={9} fill="currentColor" /> 4.8
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div
+      id="hero-meta"
+      class="mt-8 flex flex-wrap justify-center gap-2 text-xs text-muted"
+    >
+      <span class="bg-s2 border border-s3 rounded-full px-3 py-1"
+        >Windows · macOS · Linux</span
+      >
+      <span class="bg-s2 border border-s3 rounded-full px-3 py-1"
+        >Forge · Fabric · NeoForge · Quilt</span
+      >
+      <span class="bg-s2 border border-s3 rounded-full px-3 py-1"
+        >Instancias aisladas</span
+      >
     </div>
   </div>
+  <svg
+    class="absolute bottom-0 w-full block"
+    viewBox="0 0 1440 90"
+    preserveAspectRatio="none"
+    height="70"
+    aria-hidden="true"
+    ><path d="M0 40C240 100 480 0 720 40S1200 90 1440 30V90H0Z" fill="#232428"
+    ></path></svg
+  >
 </section>
 
 <script>
   import { gsap } from "gsap";
-  import { ScrollTrigger } from "gsap/ScrollTrigger";
-
-  gsap.registerPlugin(ScrollTrigger);
-
   const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
-
-  tl.to("#hero-badge", { opacity: 1, y: 0, duration: 0.6 })
-    .to("#hero-title", { opacity: 1, y: 0, duration: 0.8 }, "-=0.3")
-    .to("#hero-desc", { opacity: 1, y: 0, duration: 0.7 }, "-=0.5")
-    .to("#hero-cta", { opacity: 1, y: 0, duration: 0.6 }, "-=0.4")
-    .to("#hero-meta", { opacity: 1, y: 0, duration: 0.6 }, "-=0.4")
-    .to("#hero-preview", { opacity: 1, y: 0, duration: 0.9 }, "-=0.5");
-
-  gsap.to("#hero-preview", {
-    scrollTrigger: {
-      trigger: "#hero-section",
-      start: "top top",
-      end: "bottom top",
-      scrub: true,
-    },
-    y: 35,
-    scale: 0.98,
-    opacity: 0.9,
-  });
+  tl.from("#hero-badge", { opacity: 0, y: 16, duration: 0.6 })
+    .from("#hero-title", { opacity: 0, y: 24, duration: 0.8 }, "-=0.3")
+    .from("#hero-desc", { opacity: 0, y: 20, duration: 0.7 }, "-=0.5")
+    .from("#hero-cta", { opacity: 0, y: 16, duration: 0.6 }, "-=0.4")
+    .from("#hero-meta", { opacity: 0, y: 12, duration: 0.5 }, "-=0.4");
 </script>
-
-<style>
-  #hero-badge,
-  #hero-title,
-  #hero-desc,
-  #hero-meta,
-  #hero-cta,
-  #hero-preview {
-    transform: translateY(20px);
-  }
-</style>
