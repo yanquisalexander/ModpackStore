@@ -74,7 +74,58 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
     const [isSimulated, setIsSimulated] = useState(false);
     const { notifyCustom } = useNotifications();
 
+    // Una vez detectada/descargada una actualización ya no debe seguir
+    // chequeando cada 5 min ni volver a notificar/sonar. Estos refs
+    // sobreviven a re-renders y evitan el bug del sonido repetido.
+    const updateFoundRef = useRef(false);
+    const notifiedVersionRef = useRef<string | null>(null);
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+    const isCheckingUpdateRef = useRef(false);
+
+    const stopUpdatePolling = useCallback(() => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+    }, []);
+
+    const checkForUpdates = useCallback(async () => {
+        // Ya hay un update detectado/descargado: no seguir chequeando.
+        if (isCheckingUpdateRef.current || updateFoundRef.current) return;
+        isCheckingUpdateRef.current = true;
+        try {
+            const hasUpdate = await check();
+            if (hasUpdate) {
+                updateFoundRef.current = true;
+                // Detiene los checks cada 5 min: ya no hace falta seguir buscando.
+                stopUpdatePolling();
+                setUpdate(hasUpdate);
+                setIsUpdating(true);
+                setUpdateVersion(hasUpdate.version);
+                setUpdateState("downloading");
+                await hasUpdate.download((event) => {
+                    switch (event.event) {
+                        case 'Finished':
+                            setUpdateState("ready-to-install");
+                            break;
+                    }
+                });
+            }
+        } catch (err) {
+            // Silencioso
+        } finally {
+            isCheckingUpdateRef.current = false;
+        }
+    }, [stopUpdatePolling]);
+
+    const checkForUpdatesRef = useRef(checkForUpdates);
+    checkForUpdatesRef.current = checkForUpdates;
+
     const simulateUpdate = useCallback((state: UpdateState) => {
+        // La simulación cuenta como update detectado: frena el polling real.
+        updateFoundRef.current = true;
+        stopUpdatePolling();
         setIsSimulated(true);
         setIsUpdating(true);
         setUpdateState(state);
@@ -95,7 +146,7 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
                 }
             }, 300);
         }
-    }, []);
+    }, [stopUpdatePolling]);
 
     const resetUpdate = useCallback(() => {
         setIsSimulated(false);
@@ -104,6 +155,14 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
         setUpdateVersion(null);
         setUpdateState("idle");
         setUpdate(null);
+        // Permite que el polling retome los checks tras descartar el aviso.
+        updateFoundRef.current = false;
+        notifiedVersionRef.current = null;
+        if (!intervalRef.current) {
+            intervalRef.current = setInterval(() => {
+                void checkForUpdatesRef.current();
+            }, 5 * 60 * 1000);
+        }
     }, []);
 
     const applyUpdate = useCallback(async () => {
@@ -126,42 +185,24 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [update, updateState]);
 
 
-    const isCheckingUpdateRef = useRef(false);
-
-    const checkForUpdates = useCallback(async () => {
-        if (isCheckingUpdateRef.current) return;
-        isCheckingUpdateRef.current = true;
-        try {
-            const hasUpdate = await check();
-            if (hasUpdate) {
-                setUpdate(hasUpdate);
-                setIsUpdating(true);
-                setUpdateVersion(hasUpdate.version);
-                setUpdateState("downloading");
-                await hasUpdate.download((event) => {
-                    switch (event.event) {
-                        case 'Finished':
-                            setUpdateState("ready-to-install");
-                            break;
-                    }
-                });
+    useEffect(() => {
+        intervalRef.current = setInterval(() => {
+            void checkForUpdatesRef.current();
+        }, 5 * 60 * 1000);
+        return () => {
+            if (intervalRef.current) {
+                clearInterval(intervalRef.current);
+                intervalRef.current = null;
             }
-        } catch (err) {
-            // Silencioso
-        } finally {
-            isCheckingUpdateRef.current = false;
-        }
+        };
     }, []);
 
     useEffect(() => {
-        const interval = setInterval(() => {
-            checkForUpdates();
-        }, 5 * 60 * 1000);
-        return () => clearInterval(interval);
-    }, [checkForUpdates]);
-
-    useEffect(() => {
-        if (updateState === "ready-to-install") {
+        // Suena una sola vez por versión: aunque el estado se re-setee a
+        // "ready-to-install", no vuelve a notificar para la misma versión.
+        if (updateState === "ready-to-install" && updateVersion) {
+            if (notifiedVersionRef.current === updateVersion) return;
+            notifiedVersionRef.current = updateVersion;
             notifyCustom({
                 title: "Actualización lista",
                 body: `La versión ${updateVersion} está lista para instalar. Reinicia la aplicación para aplicar la actualización.`,
@@ -172,7 +213,7 @@ export const GlobalContextProvider: React.FC<{ children: React.ReactNode }> = ({
                 customSound: '/sounds/instance-created.mp3',
             });
         }
-    }, [updateState]);
+    }, [updateState, updateVersion, notifyCustom]);
 
     const value = useMemo(() => ({
         titleBarState,
